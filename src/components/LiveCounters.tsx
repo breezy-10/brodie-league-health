@@ -6,14 +6,18 @@ export function LiveCountersStrip({ counters }: { counters: Counters }) {
   return (
     <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <CounterCard
-        label="Registered teams"
-        sublabel={counters.season_label ? `Current season · ${counters.season_label}` : "Current season"}
-        value={counters.registered_teams_current_season}
+        label="Registered athletes"
+        sublabel="From Player One via CRM sync · your locations"
+        value={counters.registered_athletes}
         accent
       />
-      {/* Slots reserved for upcoming live counters (e.g. paid invoices this month,
-          shifts filled this week, etc.). Keeping the grid balanced for now. */}
-      <CounterCard label="Coming soon" sublabel="More live counters as we add them" value={null} />
+      <CounterCard
+        label="Registered teams"
+        sublabel="Distinct teams with at least one registered player"
+        value={counters.registered_teams}
+      />
+      {/* Slot reserved for an upcoming counter (e.g. captain conversions
+          this week). Keeps the grid balanced and signals more is coming. */}
       <CounterCard label="Coming soon" sublabel="More live counters as we add them" value={null} />
     </section>
   );
@@ -45,7 +49,7 @@ function CounterCard({
         {label}
       </p>
       <p className="text-4xl font-semibold tracking-tight">
-        {value == null ? <span style={{ color: "var(--glass-text-tertiary)" }}>—</span> : value}
+        {value == null ? <span style={{ color: "var(--glass-text-tertiary)" }}>—</span> : value.toLocaleString()}
       </p>
       <p className="text-xs mt-1" style={{ color: "var(--glass-text-tertiary)" }}>{sublabel}</p>
     </div>
