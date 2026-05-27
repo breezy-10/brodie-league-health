@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { scoreColor, scoreBg, severityDot } from "@/lib/colors";
+import { scoreColor, severityDot } from "@/lib/colors";
 import { APP_DEEP_LINKS } from "@/lib/app-urls";
 
 export type ActionItem = {
@@ -41,11 +41,10 @@ export function AppCard({
 
   return (
     <section
-      className={`rounded-2xl border p-5 space-y-4 ${scoreBg(pct)}`}
+      className="rounded-2xl border p-5 space-y-4 brodie-card"
       style={{
-        background: "rgba(28, 28, 30, 0.55)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
+        background: "var(--bg-raised)",
+        borderColor: "var(--border)",
       }}
     >
       {/* Header: app name + score + pct */}
@@ -71,10 +70,11 @@ export function AppCard({
             href={deepLink.url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-glass-border hover:border-glass-gold transition"
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition"
             style={{
-              background: "rgba(28, 28, 30, 0.6)",
-              color: "var(--glass-gold)",
+              background: "var(--accent-soft)",
+              color: "var(--accent)",
+              border: "1px solid rgba(242, 169, 0, 0.5)",
               fontWeight: 700,
               letterSpacing: "0.04em",
               textTransform: "uppercase",
@@ -125,8 +125,8 @@ function ActionItemInline({ item, readOnly }: { item: ActionItem; readOnly: bool
     <li
       className={`flex items-start gap-3 rounded-xl p-3 ${done ? "opacity-50" : ""}`}
       style={{
-        background: "rgba(0,0,0,0.25)",
-        border: "1px solid var(--glass-border-light)",
+        background: "var(--bg-sunken)",
+        border: "1px solid var(--border)",
       }}
     >
       <span className={`mt-1.5 inline-block w-2 h-2 rounded-full ${severityDot(item.severity)}`} />
@@ -143,9 +143,9 @@ function ActionItemInline({ item, readOnly }: { item: ActionItem; readOnly: bool
         <span
           className="self-center text-[11px] font-semibold px-2 py-1 rounded-md"
           style={{
-            background: "rgba(255, 184, 0, 0.12)",
-            color: "var(--glass-gold)",
-            border: "1px solid rgba(255, 184, 0, 0.4)",
+            background: "var(--accent-soft)",
+            color: "var(--accent)",
+            border: "1px solid rgba(242, 169, 0, 0.45)",
           }}
         >
           +{item.xpReward} XP

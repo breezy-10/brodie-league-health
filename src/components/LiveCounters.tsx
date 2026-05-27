@@ -36,22 +36,22 @@ function CounterCard({
 }) {
   return (
     <div
-      className="rounded-2xl border p-5"
+      className="rounded-2xl border p-5 brodie-card"
       style={{
-        background: "var(--glass-surface)",
-        borderColor: accent ? "var(--glass-gold)" : "var(--glass-border)",
+        background: "var(--bg-raised)",
+        borderColor: accent ? "rgba(242, 169, 0, 0.5)" : "var(--border)",
       }}
     >
       <p
         className="uppercase text-[10px] tracking-[0.08em] font-semibold mb-1"
-        style={{ color: accent ? "var(--glass-gold)" : "var(--glass-text-tertiary)" }}
+        style={{ color: accent ? "var(--accent)" : "var(--text-mute)" }}
       >
         {label}
       </p>
-      <p className="text-4xl font-semibold tracking-tight">
-        {value == null ? <span style={{ color: "var(--glass-text-tertiary)" }}>—</span> : value.toLocaleString()}
+      <p className="text-4xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>
+        {value == null ? <span style={{ color: "var(--text-mute)" }}>—</span> : value.toLocaleString()}
       </p>
-      <p className="text-xs mt-1" style={{ color: "var(--glass-text-tertiary)" }}>{sublabel}</p>
+      <p className="text-xs mt-1" style={{ color: "var(--text-mute)" }}>{sublabel}</p>
     </div>
   );
 }

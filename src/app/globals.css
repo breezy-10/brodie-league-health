@@ -2,78 +2,182 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Brodie League Health — mirrors brodie-facilities glass tokens. */
+/* Brodie League Health — design tokens, mirrored from the CRM (post-2026-05-07
+ * solid-surface refactor). The CRM ditched translucent --glass-* surfaces
+ * because they killed hierarchy; we follow the same playbook here.
+ *
+ * Old --glass-* names are kept as aliases so existing components keep working
+ * without a sweep. New code should use the new names.
+ */
 
-:root, [data-theme="dark"] {
-  --glass-gold: #FFB800;
-  --glass-gold-dark: #CC9300;
-  --glass-gold-light: #FFD666;
+:root, [data-theme="light"] {
+  /* Brand */
+  --accent: #F2A900;            /* Pantone 130C — Summer (CRM seasonal default) */
+  --accent-strong: #C68C00;
+  --accent-soft: rgba(242, 169, 0, 0.14);
+  --accent-text-on: #1a1a1a;
 
-  --glass-red: #CE152D;
-  --glass-red-dark: #9E0F22;
-  --glass-red-light: #F06B7A;
+  /* Semantic */
+  --error: #C8102E;
+  --error-soft: rgba(200, 16, 46, 0.12);
+  --warn: #DC9A1A;
+  --warn-soft: rgba(220, 154, 26, 0.14);
+  --ok: #2D8B4E;
+  --ok-soft: rgba(45, 139, 78, 0.14);
 
-  --glass-green: #15803d;
-  --glass-green-dark: #0F6530;
-  --glass-green-light: #4ADE80;
+  /* Surfaces (light) — solid, no translucency */
+  --bg: #FFFFFF;
+  --bg-raised: #F7F7F8;
+  --bg-sunken: #EFEFF1;
+  --bg-hover: #F0F0F2;
 
-  --glass-blue: #007aff;
-  --glass-blue-dark: #0055CC;
-  --glass-blue-light: #66B2FF;
+  /* Borders (light) */
+  --border: #E1E1E5;
+  --border-strong: #C8C8CD;
 
-  --glass-yellow: #D4960D;
-  --glass-yellow-dark: #A67508;
-  --glass-yellow-light: #F5C842;
+  /* Text (light) — all clear WCAG AA against bg / bg-raised / bg-sunken */
+  --text: #1A1A1A;
+  --text-soft: #585860;
+  --text-mute: #6A6A71;
 
-  --glass-purple: #af52de;
-  --glass-purple-dark: #8B3DB2;
-  --glass-purple-light: #D499EE;
+  /* Inputs */
+  --input-bg: #FFFFFF;
 
-  --glass-background: #000000;
-  --glass-surface: #1c1c1e;
-  --glass-surface-hover: #2c2c2e;
-  --glass-surface-active: #3a3a3c;
-  --glass-border: #38383a;
-  --glass-border-light: #2c2c2e;
-  --glass-text: #f5f5f7;
-  --glass-text-secondary: #a1a1a6;
-  --glass-text-tertiary: #636366;
+  /* On-text variants of semantic colors */
+  --error-on: var(--error);
+  --ok-on: var(--ok);
 
-  --input-bg: #000000;
+  /* Spacing rhythm (4) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
 
-  color-scheme: dark;
-}
+  /* Radius rhythm */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 
-[data-theme="light"] {
-  --glass-background: #ffffff;
-  --glass-surface: #f5f5f7;
-  --glass-surface-hover: #ebebed;
-  --glass-surface-active: #e0e0e2;
-  --glass-border: #d2d2d7;
-  --glass-border-light: #e5e5ea;
-  --glass-text: #1d1d1f;
-  --glass-text-secondary: #6e6e73;
-  --glass-text-tertiary: #aeaeb2;
-
-  --input-bg: #ffffff;
+  /* ------------------------------------------------------------------
+   * Back-compat aliases. Tailwind config + a lot of existing JSX still
+   * use --glass-* tokens. These remap onto the new system so we don't
+   * have to sweep every file at once.
+   * ----------------------------------------------------------------- */
+  --glass-background: var(--bg);
+  --glass-surface: var(--bg-raised);
+  --glass-surface-hover: var(--bg-hover);
+  --glass-surface-active: var(--bg-sunken);
+  --glass-border: var(--border-strong);
+  --glass-border-light: var(--border);
+  --glass-text: var(--text);
+  --glass-text-secondary: var(--text-soft);
+  --glass-text-tertiary: var(--text-mute);
+  --glass-gold: var(--accent);
+  --glass-gold-dark: var(--accent-strong);
+  --glass-gold-light: var(--accent-soft);
+  --glass-red: var(--error);
+  --glass-red-dark: var(--error);
+  --glass-red-light: var(--error-soft);
+  --glass-green: var(--ok);
+  --glass-green-dark: var(--ok);
+  --glass-green-light: var(--ok-soft);
+  --glass-blue: var(--accent);
+  --glass-blue-dark: var(--accent-strong);
+  --glass-blue-light: var(--accent-soft);
+  --glass-yellow: var(--warn);
+  --glass-yellow-dark: var(--warn);
+  --glass-yellow-light: var(--warn-soft);
+  --glass-purple: var(--accent);
+  --glass-purple-dark: var(--accent-strong);
+  --glass-purple-light: var(--accent-soft);
 
   color-scheme: light;
 }
 
+/* ------------------------------------------------------------------------
+ * Dark mode. Surfaces invert, accent stays the same hex (already reads on dark).
+ * Text contrast tuned to clear WCAG AA on every surface (text-mute bumped
+ * from #6E6E73 to #8A8A92 in CRM, we follow).
+ * ---------------------------------------------------------------------- */
+[data-theme="dark"] {
+  --bg: #0E0E10;
+  --bg-raised: #18181B;
+  --bg-sunken: #08080A;
+  --bg-hover: #1F1F23;
+
+  --border: #28282D;
+  --border-strong: #3A3A3F;
+
+  --text: #F2F2F4;
+  --text-soft: #A1A1A6;
+  --text-mute: #8A8A92;
+
+  --input-bg: #0E0E10;
+
+  /* On-text variants get tuned for dark so semantic colors read AA */
+  --error-on: #EB596D;
+  --ok-on: #3DA365;
+
+  /* Alias mappings to the new dark values */
+  --glass-background: var(--bg);
+  --glass-surface: var(--bg-raised);
+  --glass-surface-hover: var(--bg-hover);
+  --glass-surface-active: var(--bg-sunken);
+  --glass-border: var(--border-strong);
+  --glass-border-light: var(--border);
+  --glass-text: var(--text);
+  --glass-text-secondary: var(--text-soft);
+  --glass-text-tertiary: var(--text-mute);
+
+  color-scheme: dark;
+}
+
 html, body {
-  background: var(--glass-background);
-  color: var(--glass-text);
+  background: var(--bg);
+  color: var(--text);
+  font-feature-settings: "cv11", "ss01", "ss03", "calt", "kern";
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   transition: background-color 160ms ease, color 160ms ease;
 }
 
-/* In light mode, the sticky nav uses a translucent white surface */
-[data-theme="light"] nav.app-nav {
-  background: rgba(255, 255, 255, 0.7) !important;
+/* Sticky nav surface uses solid bg-raised in both themes */
+nav.app-nav {
+  background: var(--bg) !important;
 }
 
-/* Brodie B logo is white SVG — invert in light mode so it's visible */
+/* Brodie B mark logo — invert in light mode (white SVG) */
 [data-theme="light"] nav.app-nav img[alt="Brodie"] {
   filter: invert(1);
+}
+
+/* Tabular numerals for cells that show a number / id / timestamp */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Focus ring — Vercel-style 2px accent + soft outer glow */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  box-shadow: 0 0 0 6px var(--accent-soft);
+  transition: outline-offset 150ms ease, box-shadow 150ms ease;
+  border-radius: var(--radius-sm);
+}
+
+/* Card hover — quiet bg tint, no transform */
+.brodie-row,
+.brodie-card {
+  transition: background 120ms ease;
+}
+.brodie-row:hover,
+.brodie-card:hover {
+  background: var(--bg-hover);
 }
 
 .brodie-fade-in {
@@ -83,3 +187,13 @@ html, body {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* Scrollbars — quiet */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-mute); }
