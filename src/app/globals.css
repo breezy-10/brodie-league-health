@@ -197,3 +197,8 @@ nav.app-nav {
   border: 2px solid var(--bg);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-mute); }
+
+/* Used on the top nav so it can horizontally scroll on phones without
+   showing a scrollbar (otherwise the bar sits inside the 56px header). */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

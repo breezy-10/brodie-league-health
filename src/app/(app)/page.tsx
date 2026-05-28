@@ -10,6 +10,7 @@ import { ViewAsBanner, ViewAsSwitcher } from "@/components/ViewAs";
 import { LiveCountersStrip } from "@/components/LiveCounters";
 import { MyDayRefresh } from "@/components/MyDayRefresh";
 import { WelcomeTour } from "@/components/WelcomeTour";
+import { ScoreHistoryChart } from "@/components/ScoreHistoryChart";
 import { iconForSlug } from "@/lib/badge-icons";
 import { loadBonusProjection } from "@/lib/compensation";
 import { BonusProjectionCard } from "@/components/BonusProjection";
@@ -126,11 +127,14 @@ export default async function MyDay({
     .eq("snapshot_date", ymd(daysAgo(new Date(), 1)))
     .maybeSingle();
 
+  // 30-day window for the score history chart. Existing weekly champ logic
+  // still uses sevenAgo separately so this doesn't change ranking math.
+  const thirtyAgo = ymd(daysAgo(new Date(), 30));
   const { data: trend } = await dataClient
     .from("lm_xp_totals")
     .select("snapshot_date, pct")
     .eq("lm_id", lmId)
-    .gte("snapshot_date", sevenAgo)
+    .gte("snapshot_date", thirtyAgo)
     .order("snapshot_date", { ascending: true });
 
   const { data: actions } = await dataClient
@@ -194,7 +198,7 @@ export default async function MyDay({
   const firstName = (lm.full_name ?? ctx.user.email ?? "").split(" ")[0];
 
   return (
-    <main className="space-y-8">
+    <main className="space-y-5 sm:space-y-8">
       {!viewingAs && ctx.profile?.id && (
         <WelcomeTour
           profileId={ctx.profile.id}
@@ -208,7 +212,7 @@ export default async function MyDay({
           <p className="text-glass-text-tertiary text-xs uppercase tracking-wider">
             {lm.location_name ?? "—"} {lm.district ? `· ${lm.district}` : ""}
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
             {viewingAs ? `${lm.full_name}'s day` : `Good day, ${firstName}.`}
           </h1>
           <div className="flex flex-wrap gap-2 pt-1">
@@ -235,12 +239,12 @@ export default async function MyDay({
         <BonusProjectionCard projection={bonusProjection} />
       )}
 
-      <section className={`rounded-2xl border p-6 ${scoreBg(pct)}`}>
-        <div className="flex items-end gap-6 flex-wrap">
+      <section className={`rounded-2xl border p-4 sm:p-6 ${scoreBg(pct)}`}>
+        <div className="flex items-end gap-4 sm:gap-6 flex-wrap">
           <div>
             <p className="uppercase text-[11px] text-glass-text-tertiary tracking-[0.08em] font-semibold">Today&apos;s XP</p>
-            <p className={`text-6xl font-semibold tracking-tight ${scoreColor(pct)}`}>
-              {xp}<span className="text-glass-text-tertiary text-2xl"> / {maxXp}</span>
+            <p className={`text-5xl sm:text-6xl font-semibold tracking-tight ${scoreColor(pct)}`}>
+              {xp}<span className="text-glass-text-tertiary text-xl sm:text-2xl"> / {maxXp}</span>
             </p>
             <p className="text-glass-text-secondary text-sm mt-1 flex items-center gap-2">
               <span>{pct}% of max</span>
@@ -252,9 +256,14 @@ export default async function MyDay({
               )}
             </p>
           </div>
-          <div className="flex-1 min-w-[240px]">
-            <p className="uppercase text-[11px] text-glass-text-tertiary tracking-[0.08em] font-semibold mb-2">Last 7 days</p>
-            <Sparkline points={((trend ?? []) as Array<{ snapshot_date: string; pct: number }>).map((t) => ({ d: t.snapshot_date, p: Math.round(t.pct) }))} />
+          <div className="flex-1 w-full sm:min-w-[260px]">
+            <p className="uppercase text-[11px] text-glass-text-tertiary tracking-[0.08em] font-semibold mb-2">Last 30 days</p>
+            <ScoreHistoryChart
+              points={((trend ?? []) as Array<{ snapshot_date: string; pct: number }>).map((t) => ({
+                d: t.snapshot_date,
+                p: Math.round(t.pct),
+              }))}
+            />
           </div>
         </div>
       </section>
@@ -343,26 +352,4 @@ export default async function MyDay({
   );
 }
 
-function Sparkline({ points }: { points: Array<{ d: string; p: number }> }) {
-  if (!points.length) return <p className="text-glass-text-tertiary text-sm">No history yet.</p>;
-  const w = 260, h = 60, pad = 4;
-  const max = 100, min = 0;
-  const step = points.length > 1 ? (w - pad * 2) / (points.length - 1) : 0;
-  const path = points
-    .map((p, i) => {
-      const x = pad + i * step;
-      const y = h - pad - ((p.p - min) / (max - min)) * (h - pad * 2);
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return (
-    <svg width={w} height={h} style={{ color: "var(--glass-gold)" }}>
-      <path d={path} fill="none" stroke="currentColor" strokeWidth={2} />
-      {points.map((p, i) => {
-        const x = pad + i * step;
-        const y = h - pad - ((p.p - min) / (max - min)) * (h - pad * 2);
-        return <circle key={i} cx={x} cy={y} r={2.5} fill="currentColor" />;
-      })}
-    </svg>
-  );
-}
+// (old inline Sparkline removed — replaced by <ScoreHistoryChart />)

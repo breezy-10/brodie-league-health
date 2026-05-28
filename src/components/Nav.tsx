@@ -34,7 +34,7 @@ export async function Nav() {
 
   return (
     <header
-      className="app-nav flex items-stretch px-6"
+      className="app-nav flex items-stretch px-3 sm:px-6"
       style={{
         height: 56,
         flexShrink: 0,
@@ -61,7 +61,10 @@ export async function Nav() {
         </span>
       </div>
 
-      <nav className="flex items-stretch gap-1 h-full ml-6">
+      <nav
+        className="flex items-stretch gap-1 h-full ml-3 sm:ml-6 overflow-x-auto no-scrollbar"
+        style={{ scrollbarWidth: "none" }}
+      >
         {items.map((item) => (
           <NavLink key={item.href} href={item.href} label={item.label} exact={item.exact} />
         ))}

@@ -7,7 +7,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       style={{ background: "var(--glass-background)" }}
     >
       <Nav />
-      <main className="flex-1 overflow-auto px-6 sm:px-10 py-8">
+      <main className="flex-1 overflow-auto px-4 sm:px-10 py-5 sm:py-8">
         <div className="max-w-6xl mx-auto">{children}</div>
       </main>
     </div>
