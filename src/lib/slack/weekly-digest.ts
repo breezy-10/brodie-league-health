@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ymd, daysAgo } from "@/lib/source-apps/util";
+import { resolveLmSlackId, newWorkspaceCache } from "@/lib/slack/resolve";
 
 /**
  * Sunday-night weekly recap, DMed to each LM via Slack.
@@ -26,19 +27,12 @@ export async function sendWeeklySlackDigest(date?: Date) {
     current_streak: number | null; avg_30d: number | null;
   }>;
 
-  // Auto-resolve missing slack ids by email
+  // Auto-resolve missing slack ids — email lookup + name fallback
+  const cache = newWorkspaceCache();
   for (const lm of lmList) {
     if (lm.slack_user_id) continue;
-    try {
-      const r = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(lm.email)}`, {
-        headers: { authorization: `Bearer ${token}` },
-      });
-      const j = (await r.json()) as { ok: boolean; user?: { id: string } };
-      if (j.ok && j.user?.id) {
-        await sb.from("league_managers").update({ slack_user_id: j.user.id }).eq("id", lm.id);
-        lm.slack_user_id = j.user.id;
-      }
-    } catch {}
+    const id = await resolveLmSlackId(token, lm, cache);
+    if (id) lm.slack_user_id = id;
   }
 
   // Pull 14d of totals + breakdowns once

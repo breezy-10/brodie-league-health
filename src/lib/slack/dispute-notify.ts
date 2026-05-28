@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { newWorkspaceCache } from "@/lib/slack/resolve";
 
 /**
  * DM the LM's manager when a new dispute is filed. No-op if SLACK_BOT_TOKEN
@@ -31,39 +32,64 @@ export async function notifyDmOfDispute(disputeId: string) {
   };
 
   // Resolve the DM's Slack ID. reports_to is the DM's email in CRM.
+  const cache = newWorkspaceCache();
   let dmSlackId: string | null = null;
+  let dmProfileId: string | null = null;
   if (row.league_managers.reports_to) {
     const { data: dmProfile } = await admin
       .from("profiles")
-      .select("slack_user_id, email")
+      .select("id, slack_user_id, email, full_name")
       .ilike("email", row.league_managers.reports_to)
       .maybeSingle();
-    dmSlackId = (dmProfile as { slack_user_id: string | null } | null)?.slack_user_id ?? null;
-    if (!dmSlackId && (dmProfile as { email?: string } | null)?.email) {
-      dmSlackId = await lookupSlackByEmail(token, (dmProfile as { email: string }).email);
+    const dp = dmProfile as
+      | { id: string; slack_user_id: string | null; email: string; full_name: string | null }
+      | null;
+    if (dp) {
+      dmProfileId = dp.id;
+      dmSlackId = dp.slack_user_id;
+      if (!dmSlackId) {
+        dmSlackId = await lookupSlackByEmail(token, dp.email);
+        if (!dmSlackId && dp.full_name) {
+          dmSlackId = await matchSlackByName(token, dp.full_name, cache);
+        }
+      }
     }
   }
 
-  // Fallback: any super_admin profile with a Slack ID.
+  // Fallback: any super_admin profile.
   if (!dmSlackId) {
     const { data: admins } = await admin
       .from("profiles")
-      .select("slack_user_id, email")
+      .select("id, slack_user_id, email, full_name")
       .eq("role", "super_admin")
       .limit(5);
-    for (const a of (admins ?? []) as Array<{ slack_user_id: string | null; email: string }>) {
+    for (const a of (admins ?? []) as Array<{
+      id: string;
+      slack_user_id: string | null;
+      email: string;
+      full_name: string | null;
+    }>) {
       if (a.slack_user_id) {
         dmSlackId = a.slack_user_id;
+        dmProfileId = a.id;
         break;
       }
-      const id = await lookupSlackByEmail(token, a.email);
+      const id =
+        (await lookupSlackByEmail(token, a.email)) ??
+        (a.full_name ? await matchSlackByName(token, a.full_name, cache) : null);
       if (id) {
         dmSlackId = id;
+        dmProfileId = a.id;
         break;
       }
     }
   }
   if (!dmSlackId) return;
+
+  // Cache the resolution so we don't repeat the lookup.
+  if (dmProfileId) {
+    admin.from("profiles").update({ slack_user_id: dmSlackId }).eq("id", dmProfileId).then(() => {}, () => {});
+  }
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://brodie-league-health.vercel.app";
   const link = `${base}/district/disputes`;
@@ -114,5 +140,59 @@ async function lookupSlackByEmail(token: string, email: string): Promise<string 
     const j = (await r.json()) as { ok: boolean; user?: { id: string } };
     if (j.ok && j.user?.id) return j.user.id;
   } catch {}
+  return null;
+}
+
+/** Name-fallback for DMs whose Slack profile uses a personal email. */
+async function matchSlackByName(
+  token: string,
+  fullName: string,
+  cache: import("@/lib/slack/resolve").WorkspaceUsers
+): Promise<string | null> {
+  if (!cache.fetched) {
+    const all: Array<{
+      id: string;
+      deleted?: boolean;
+      is_bot?: boolean;
+      real_name?: string;
+      profile?: { display_name?: string };
+    }> = [];
+    let cursor: string | undefined;
+    for (let p = 0; p < 10; p++) {
+      const url = new URL("https://slack.com/api/users.list");
+      url.searchParams.set("limit", "500");
+      if (cursor) url.searchParams.set("cursor", cursor);
+      try {
+        const r = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+        const j = (await r.json()) as {
+          ok: boolean;
+          members?: typeof all;
+          response_metadata?: { next_cursor?: string };
+        };
+        if (!j.ok || !j.members) break;
+        all.push(...j.members);
+        cursor = j.response_metadata?.next_cursor;
+        if (!cursor) break;
+      } catch {
+        break;
+      }
+    }
+    cache.users = all;
+    cache.fetched = true;
+  }
+  const want = fullName.toLowerCase().trim();
+  const first = want.split(/\s+/)[0];
+  const last = want.split(/\s+/).slice(-1)[0];
+  for (const u of cache.users) {
+    if (u.deleted || u.is_bot) continue;
+    const real = (u.real_name ?? "").toLowerCase();
+    const display = (u.profile?.display_name ?? "").toLowerCase();
+    if (
+      (real.includes(first) || display.includes(first)) &&
+      (real.includes(last) || display.includes(last))
+    ) {
+      return u.id;
+    }
+  }
   return null;
 }

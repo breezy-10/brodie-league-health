@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit, AUDIT_ACTIONS } from "@/lib/audit";
+import { resolveLmSlackId, newWorkspaceCache } from "@/lib/slack/resolve";
 
 /**
  * Find LMs who haven't been welcomed yet and Slack each one a friendly
@@ -17,7 +18,7 @@ export async function welcomeNewLMs(): Promise<{ sent: number; skipped: number; 
   const sb = createAdminClient();
   const { data: pending } = await sb
     .from("league_managers")
-    .select("id, email, full_name, location_name")
+    .select("id, email, full_name, location_name, slack_user_id")
     .eq("active", true)
     .is("welcome_sent_at", null)
     .limit(50);
@@ -27,6 +28,7 @@ export async function welcomeNewLMs(): Promise<{ sent: number; skipped: number; 
     email: string;
     full_name: string;
     location_name: string | null;
+    slack_user_id: string | null;
   }>;
   if (rows.length === 0) return { sent: 0, skipped: 0 };
 
@@ -34,9 +36,10 @@ export async function welcomeNewLMs(): Promise<{ sent: number; skipped: number; 
     process.env.NEXT_PUBLIC_APP_URL ?? "https://brodie-league-health.vercel.app";
   let sent = 0;
   let skipped = 0;
+  const cache = newWorkspaceCache();
 
   for (const lm of rows) {
-    const slackId = await lookupSlackByEmail(token, lm.email);
+    const slackId = await resolveLmSlackId(token, lm, cache);
     if (!slackId) {
       // Don't mark welcome_sent_at — they'll get picked up next run when
       // (a) they've been invited to Slack or (b) we can look them up.
@@ -128,14 +131,4 @@ export async function welcomeNewLMs(): Promise<{ sent: number; skipped: number; 
   return { sent, skipped };
 }
 
-async function lookupSlackByEmail(token: string, email: string): Promise<string | null> {
-  try {
-    const r = await fetch(
-      `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
-      { headers: { authorization: `Bearer ${token}` } }
-    );
-    const j = (await r.json()) as { ok: boolean; user?: { id: string } };
-    if (j.ok && j.user?.id) return j.user.id;
-  } catch {}
-  return null;
-}
+// (lookupSlackByEmail removed — resolveLmSlackId handles lookup + name fallback)

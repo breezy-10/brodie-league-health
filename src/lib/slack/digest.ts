@@ -1,16 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ymd } from "@/lib/source-apps/util";
-
-async function lookupSlackByEmail(token: string, email: string): Promise<string | null> {
-  try {
-    const r = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const j = (await r.json()) as { ok: boolean; user?: { id: string }; error?: string };
-    if (j.ok && j.user?.id) return j.user.id;
-  } catch {}
-  return null;
-}
+import { resolveLmSlackId, newWorkspaceCache } from "@/lib/slack/resolve";
 
 export async function sendDailyDigest(date?: Date) {
   const token = process.env.SLACK_BOT_TOKEN;
@@ -23,14 +13,18 @@ export async function sendDailyDigest(date?: Date) {
     .select("id, email, full_name, location_name, slack_user_id")
     .eq("active", true);
 
-  // Auto-resolve missing slack_user_ids via Slack's users.lookupByEmail.
-  for (const lm of ((lms ?? []) as Array<{ id: string; email: string; slack_user_id: string | null }>)) {
+  // Auto-resolve missing slack_user_ids — tries email lookup then falls back
+  // to name match (many LMs use personal emails on their Slack profile).
+  const cache = newWorkspaceCache();
+  for (const lm of ((lms ?? []) as Array<{
+    id: string;
+    email: string;
+    full_name: string;
+    slack_user_id: string | null;
+  }>)) {
     if (lm.slack_user_id) continue;
-    const id = await lookupSlackByEmail(token, lm.email);
-    if (id) {
-      await sb.from("league_managers").update({ slack_user_id: id }).eq("id", lm.id);
-      lm.slack_user_id = id;
-    }
+    const id = await resolveLmSlackId(token, lm, cache);
+    if (id) lm.slack_user_id = id;
   }
 
   const lmIds = (lms ?? []).map((l: { id: string }) => l.id);
