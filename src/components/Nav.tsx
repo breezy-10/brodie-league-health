@@ -17,6 +17,7 @@ const NAV_ADMIN: NavItem[] = [
   { href: "/district/disputes",  label: "Disputes" },
   { href: "/admin",              label: "Admin"  },
   { href: "/admin/roster",       label: "Roster" },
+  { href: "/admin/audit-log",    label: "Audit" },
 ];
 
 const ROLE_LABELS: Record<string, string> = {

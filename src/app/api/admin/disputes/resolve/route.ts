@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rerollLM } from "@/lib/scoring/reroll";
+import { logAudit, AUDIT_ACTIONS } from "@/lib/audit";
 
 /**
  * DM (or super_admin) resolves a dispute.
@@ -18,7 +19,7 @@ import { rerollLM } from "@/lib/scoring/reroll";
  * audit trail is clear, then re-roll the LM's daily total.
  */
 export async function POST(req: Request) {
-  await requireRole(["dm", "super_admin"]);
+  const ctx = await requireRole(["dm", "super_admin"]);
   const body = (await req.json()) as {
     id: string;
     decision: "approved" | "rejected";
@@ -108,6 +109,22 @@ export async function POST(req: Request) {
       await rerollLM(d.lm_id, d.snapshot_date);
     }
   }
+
+  await logAudit({
+    actorId: ctx.user.id,
+    actorEmail: ctx.user.email ?? null,
+    action: AUDIT_ACTIONS.DISPUTE_RESOLVED,
+    targetType: "metric_dispute",
+    targetId: d.id,
+    payload: {
+      decision: body.decision,
+      score_adjustment: adjustment,
+      lm_id: d.lm_id,
+      metric_id: d.metric_id,
+      snapshot_date: d.snapshot_date,
+      dm_note_present: !!(body.dmNote ?? "").trim(),
+    },
+  });
 
   return NextResponse.json({ ok: true });
 }

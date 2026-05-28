@@ -11,6 +11,8 @@ import { LiveCountersStrip } from "@/components/LiveCounters";
 import { MyDayRefresh } from "@/components/MyDayRefresh";
 import { WelcomeTour } from "@/components/WelcomeTour";
 import { ScoreHistoryChart } from "@/components/ScoreHistoryChart";
+import { PersonalGoalEditor } from "@/components/PersonalGoalEditor";
+import { logAudit, AUDIT_ACTIONS } from "@/lib/audit";
 import { iconForSlug } from "@/lib/badge-icons";
 import { loadBonusProjection } from "@/lib/compensation";
 import { BonusProjectionCard } from "@/components/BonusProjection";
@@ -43,6 +45,18 @@ export default async function MyDay({
   const { lm: viewAsId } = await searchParams;
   const isAdmin = ctx.profile?.role === "dm" || ctx.profile?.role === "super_admin";
   const viewingAs = isAdmin && !!viewAsId;
+
+  // Audit: an admin pulled up another LM's page. Async, fire-and-forget.
+  if (viewingAs) {
+    logAudit({
+      actorId: ctx.user.id,
+      actorEmail: ctx.user.email ?? null,
+      action: AUDIT_ACTIONS.VIEW_AS_OPENED,
+      targetType: "lm",
+      targetId: viewAsId,
+      payload: { date: today },
+    });
+  }
 
   // Pick the LM row. If admin is viewing-as, use admin client to bypass RLS
   // (their own RLS would normally let them see other LMs anyway, but this is
@@ -155,6 +169,50 @@ export default async function MyDay({
   const metricIdBySlug = Object.fromEntries(
     ((allMetrics ?? []) as Array<{ id: string; slug: string }>).map((m) => [m.slug, m.id])
   );
+  const metricSlugById = Object.fromEntries(
+    ((allMetrics ?? []) as Array<{ id: string; slug: string }>).map((m) => [m.id, m.slug])
+  );
+
+  // Recent disputes this LM has filed (any status, last 14 days). We pass
+  // resolved ones down to AppCard so the LM sees the DM's decision inline
+  // when they next expand "Why?" — closes the trust loop.
+  const fourteenAgo = ymd(daysAgo(new Date(), 14));
+  const { data: recentDisputes } = await dataClient
+    .from("metric_disputes")
+    .select("id, metric_id, status, dm_note, score_adjustment, resolved_at, snapshot_date")
+    .eq("lm_id", lmId)
+    .gte("snapshot_date", fourteenAgo)
+    .order("resolved_at", { ascending: false });
+
+  // Build map: metricSlug → most-recent dispute for that metric in the window.
+  type DisputeInfo = {
+    status: string;
+    dm_note: string | null;
+    score_adjustment: number | null;
+    resolved_at: string | null;
+    snapshot_date: string;
+  };
+  const disputeBySlug: Record<string, DisputeInfo> = {};
+  for (const d of (recentDisputes ?? []) as Array<{
+    metric_id: string;
+    status: string;
+    dm_note: string | null;
+    score_adjustment: number | null;
+    resolved_at: string | null;
+    snapshot_date: string;
+  }>) {
+    const slug = metricSlugById[d.metric_id];
+    if (!slug) continue;
+    if (!disputeBySlug[slug]) {
+      disputeBySlug[slug] = {
+        status: d.status,
+        dm_note: d.dm_note,
+        score_adjustment: d.score_adjustment,
+        resolved_at: d.resolved_at,
+        snapshot_date: d.snapshot_date,
+      };
+    }
+  }
 
   const { data: recentUnlocks } = await dataClient
     .from("lm_achievements")
@@ -257,12 +315,18 @@ export default async function MyDay({
             </p>
           </div>
           <div className="flex-1 w-full sm:min-w-[260px]">
-            <p className="uppercase text-[11px] text-glass-text-tertiary tracking-[0.08em] font-semibold mb-2">Last 30 days</p>
+            <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+              <p className="uppercase text-[11px] text-glass-text-tertiary tracking-[0.08em] font-semibold">Last 30 days</p>
+              {!viewingAs && (
+                <PersonalGoalEditor initial={ctx.profile?.personal_goal_pct ?? null} />
+              )}
+            </div>
             <ScoreHistoryChart
               points={((trend ?? []) as Array<{ snapshot_date: string; pct: number }>).map((t) => ({
                 d: t.snapshot_date,
                 p: Math.round(t.pct),
               }))}
+              goal={viewingAs ? null : ctx.profile?.personal_goal_pct ?? null}
             />
           </div>
         </div>
@@ -342,6 +406,7 @@ export default async function MyDay({
                 snapshotDate={today}
                 lmId={viewingAs ? lmId : undefined}
                 disputable={!viewingAs}
+                disputesByMetricSlug={disputeBySlug}
                 readOnly={viewingAs}
               />
             );

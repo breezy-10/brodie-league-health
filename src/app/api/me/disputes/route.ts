@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyDmOfDispute } from "@/lib/slack/dispute-notify";
+import { logAudit, AUDIT_ACTIONS } from "@/lib/audit";
 
 /**
  * LM files a dispute on one of their own metrics. (Admins can file on
@@ -78,8 +79,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Fire-and-forget Slack ping. Never block the LM on it.
-  notifyDmOfDispute((data as { id: string }).id).catch(() => {});
+  const disputeId = (data as { id: string }).id;
 
-  return NextResponse.json({ ok: true, id: (data as { id: string }).id });
+  // Fire-and-forget Slack ping. Never block the LM on it.
+  notifyDmOfDispute(disputeId).catch(() => {});
+
+  await logAudit({
+    actorId: ctx.user.id,
+    actorEmail: ctx.user.email ?? null,
+    action: AUDIT_ACTIONS.DISPUTE_FILED,
+    targetType: "metric_dispute",
+    targetId: disputeId,
+    payload: {
+      lm_id: targetLmId,
+      metric_id: body.metricId,
+      snapshot_date: body.snapshotDate,
+    },
+  });
+
+  return NextResponse.json({ ok: true, id: disputeId });
 }

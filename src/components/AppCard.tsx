@@ -17,6 +17,14 @@ export type ActionItem = {
 
 export type MetricBreakdown = Record<string, { score: number; max: number }>;
 
+export type DisputeInfo = {
+  status: string;
+  dm_note: string | null;
+  score_adjustment: number | null;
+  resolved_at: string | null;
+  snapshot_date: string;
+};
+
 /**
  * Dense per-app tile. Each action row has its own "Lock in →" pill that
  * deep-links to the source app — clicking Done in league-health was a lie
@@ -34,6 +42,7 @@ export function AppCard({
   snapshotDate,
   lmId,
   disputable = true,
+  disputesByMetricSlug,
 }: {
   appSlug: string;
   appName: string;
@@ -50,6 +59,10 @@ export function AppCard({
   /** Hide dispute UI in view-as mode so admins don't accidentally file on
    *  someone else's behalf without thinking about it. */
   disputable?: boolean;
+  /** Map of metric slug → most recent dispute filed by this LM (any status,
+   *  in the last 14 days). Renders a status pill inline. Closes the trust
+   *  loop — the LM sees the DM's decision next time they look. */
+  disputesByMetricSlug?: Record<string, DisputeInfo>;
   readOnly?: boolean; // accepted for API compat; ignored
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -127,7 +140,7 @@ export function AppCard({
                   {help.how}
                 </p>
                 {canDispute && (
-                  <div className="mt-1">
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
                     <DisputeButton
                       metricId={metricId!}
                       snapshotDate={snapshotDate!}
@@ -135,6 +148,9 @@ export function AppCard({
                       appName={appName}
                       lmId={lmId}
                     />
+                    {disputesByMetricSlug?.[slug] && (
+                      <DisputeStatusChip info={disputesByMetricSlug[slug]} />
+                    )}
                   </div>
                 )}
               </li>
@@ -233,5 +249,71 @@ function LockInPill({ href, compact = false }: { href: string; compact?: boolean
       <span>Lock in</span>
       <span aria-hidden>→</span>
     </a>
+  );
+}
+
+/**
+ * Inline pill that surfaces the DM's decision on the most recent dispute
+ * the LM filed against this metric. Click to expand the DM's note.
+ * Hidden if there's no dispute in the last 14 days.
+ */
+function DisputeStatusChip({ info }: { info: DisputeInfo }) {
+  const [open, setOpen] = useState(false);
+  const label =
+    info.status === "approved"
+      ? "Dispute approved"
+      : info.status === "rejected"
+      ? "Dispute rejected"
+      : info.status === "withdrawn"
+      ? "Withdrawn"
+      : "Dispute pending";
+  const color =
+    info.status === "approved"
+      ? "var(--ok, #22b24c)"
+      : info.status === "rejected"
+      ? "var(--error)"
+      : "var(--text-mute)";
+  const adj = info.score_adjustment;
+  const hasDetail = !!info.dm_note || (adj !== null && adj !== 0);
+
+  return (
+    <span className="inline-flex flex-col">
+      <button
+        onClick={() => hasDetail && setOpen((v) => !v)}
+        disabled={!hasDetail}
+        className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+        style={{
+          background: "var(--bg-sunken)",
+          color,
+          border: `1px solid ${color}`,
+          cursor: hasDetail ? "pointer" : "default",
+        }}
+      >
+        {label}
+        {adj !== null && adj !== 0 && (
+          <span className="ml-1 font-mono">
+            {adj > 0 ? "+" : ""}{adj} XP
+          </span>
+        )}
+        {hasDetail && (
+          <span className="ml-1" aria-hidden>
+            {open ? "▴" : "▾"}
+          </span>
+        )}
+      </button>
+      {open && info.dm_note && (
+        <p
+          className="mt-1 text-[11px] leading-relaxed rounded p-2"
+          style={{
+            background: "var(--bg-sunken)",
+            border: "1px solid var(--border)",
+            color: "var(--text-secondary)",
+            maxWidth: 260,
+          }}
+        >
+          {info.dm_note}
+        </p>
+      )}
+    </span>
   );
 }

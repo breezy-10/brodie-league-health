@@ -43,4 +43,5 @@ export type Profile = {
   slack_user_id: string | null;
   opt_in_leaderboard: boolean;
   tour_completed_at: string | null;
+  personal_goal_pct: number | null;
 };

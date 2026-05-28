@@ -14,7 +14,7 @@ type Point = { d: string; p: number };
  * Empty days (no snapshot) are dropped — we don't fake zeros, because
  * "missing data" is not the same as "got a zero".
  */
-export function ScoreHistoryChart({ points }: { points: Point[] }) {
+export function ScoreHistoryChart({ points, goal }: { points: Point[]; goal?: number | null }) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   if (!points.length) {
@@ -61,6 +61,12 @@ export function ScoreHistoryChart({ points }: { points: Point[] }) {
 
   const avgY = PAD_T + (1 - (avg - yMin) / (yMax - yMin)) * innerH;
   const todayIdx = points.length - 1;
+
+  const hasGoal = typeof goal === "number" && goal >= 0 && goal <= 100;
+  const goalY = hasGoal
+    ? PAD_T + (1 - ((goal as number) - yMin) / (yMax - yMin)) * innerH
+    : null;
+  const goalDelta = hasGoal ? Math.round(lastPct - (goal as number)) : null;
 
   return (
     <div className="w-full">
@@ -109,6 +115,32 @@ export function ScoreHistoryChart({ points }: { points: Point[] }) {
           strokeDasharray="3 3"
           opacity={0.5}
         />
+
+        {/* personal goal reference */}
+        {hasGoal && goalY != null && (
+          <g>
+            <line
+              x1={PAD_L}
+              x2={W - PAD_R}
+              y1={goalY}
+              y2={goalY}
+              stroke="var(--accent)"
+              strokeWidth={1.5}
+              strokeDasharray="5 3"
+              opacity={0.7}
+            />
+            <text
+              x={W - PAD_R - 2}
+              y={goalY - 3}
+              fontSize="9"
+              fill="var(--accent)"
+              textAnchor="end"
+              fontWeight={700}
+            >
+              GOAL {goal}%
+            </text>
+          </g>
+        )}
 
         {/* filled area under line */}
         <path d={areaPath} fill="var(--accent)" opacity={0.08} />
@@ -203,15 +235,24 @@ export function ScoreHistoryChart({ points }: { points: Point[] }) {
         <p style={{ color: "var(--text-mute)" }}>
           {points.length}-day average: <span style={{ color: "var(--text)" }}>{Math.round(avg)}%</span>
         </p>
-        {deltaVsAvg !== 0 && (
+        {hasGoal && goalDelta !== null ? (
           <p
             className="font-semibold"
-            style={{
-              color: deltaVsAvg > 0 ? "var(--ok, #22b24c)" : "var(--error)",
-            }}
+            style={{ color: goalDelta >= 0 ? "var(--ok, #22b24c)" : "var(--error)" }}
           >
-            {deltaVsAvg > 0 ? "▲" : "▼"} {Math.abs(deltaVsAvg)} pts vs your average
+            {goalDelta >= 0 ? "▲" : "▼"} {Math.abs(goalDelta)} pts vs your {goal}% goal
           </p>
+        ) : (
+          deltaVsAvg !== 0 && (
+            <p
+              className="font-semibold"
+              style={{
+                color: deltaVsAvg > 0 ? "var(--ok, #22b24c)" : "var(--error)",
+              }}
+            >
+              {deltaVsAvg > 0 ? "▲" : "▼"} {Math.abs(deltaVsAvg)} pts vs your average
+            </p>
+          )
         )}
       </div>
     </div>

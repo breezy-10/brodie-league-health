@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ADAPTERS } from "@/lib/source-apps";
 import { ymd } from "@/lib/source-apps/util";
 import { syncRoster } from "@/lib/roster";
+import { welcomeNewLMs } from "@/lib/slack/welcome-new-lms";
 import { clearLocationCache } from "@/lib/source-apps/cross-app-locations";
 
 type AppRow = { id: string; slug: string; weight: number; enabled: boolean; xp_floor: number };
@@ -26,6 +27,10 @@ export async function runDailySync(opts?: { triggeredBy?: "cron" | "manual"; dat
 
   await syncRoster();
   clearLocationCache();
+
+  // Welcome any newly-rostered LMs we haven't messaged yet. Fire-and-forget
+  // so a Slack hiccup never blocks the sync.
+  welcomeNewLMs().catch(() => {});
 
   // Skip disabled apps (e.g. ops_schedule until that app is built out).
   const { data: apps } = await sb.from("apps").select("id, slug, weight, enabled, xp_floor").eq("enabled", true);
