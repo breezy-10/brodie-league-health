@@ -13,6 +13,7 @@ const NAV_BASE: NavItem[] = [
   { href: "/achievements", label: "Trophies"    },
 ];
 const NAV_ADMIN: NavItem[] = [
+  { href: "/district",     label: "District" },
   { href: "/admin",        label: "Admin"  },
   { href: "/admin/roster", label: "Roster" },
 ];

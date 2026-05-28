@@ -60,19 +60,43 @@ export const crmAdapter: Adapter = {
         action_items: [],
       };
 
-      // 1. crm_touch — count today's LM-initiated touches.
-      // Must be: outbound direction (not inbound replies or system events),
-      // AND not a system/CIO/broadcast source.
+      // 1. crm_touch — count today's LM-initiated touches with anti-gaming
+      // guards. Must be:
+      //   - direction=outbound (not inbound replies or system events)
+      //   - source not in (cio, cio_webhook, broadcast_webhook)
+      //   - For channels that should have content (ig, text, email),
+      //     body must be non-empty (no blank-row spam)
+      //   - Per (lead_id, channel) per day: capped at 3 — working a lead
+      //     deeply still counts, but spamming 50 IG DMs at one lead
+      //     doesn't inflate the score
       const { data: actsToday } = await sb
         .from("activities")
-        .select("id, source, channel, direction")
+        .select("id, lead_id, source, channel, direction, body")
         .eq("manager_id", m.id)
         .eq("direction", "outbound")
         .gte("created_at", dayStart)
         .lte("created_at", dayEnd);
-      const activityTouches = ((actsToday ?? []) as Array<{ source: string | null }>).filter(
-        (a) => !NON_LM_SOURCES.includes(a.source ?? "")
-      ).length;
+
+      const REQUIRES_BODY = new Set(["ig", "text", "email"]);
+      const PER_LEAD_DAILY_CAP = 3;
+
+      type Act = { id: string; lead_id: string | null; source: string | null; channel: string | null; body: string | null };
+      const validActs = ((actsToday ?? []) as Act[]).filter((a) => {
+        if (NON_LM_SOURCES.includes(a.source ?? "")) return false;
+        if (REQUIRES_BODY.has(a.channel ?? "") && !(a.body ?? "").trim()) return false;
+        return true;
+      });
+      // Apply per-(lead, channel) daily cap
+      const perLeadChannelCount = new Map<string, number>();
+      let activityTouches = 0;
+      for (const a of validActs) {
+        const key = `${a.lead_id ?? "none"}:${a.channel ?? "none"}`;
+        const seen = perLeadChannelCount.get(key) ?? 0;
+        if (seen < PER_LEAD_DAILY_CAP) {
+          activityTouches++;
+          perLeadChannelCount.set(key, seen + 1);
+        }
+      }
 
       const { data: cadenceToday } = await sb
         .from("cadence_events")

@@ -10,6 +10,8 @@ import { ViewAsBanner, ViewAsSwitcher } from "@/components/ViewAs";
 import { LiveCountersStrip } from "@/components/LiveCounters";
 import { MyDayRefresh } from "@/components/MyDayRefresh";
 import { iconForSlug } from "@/lib/badge-icons";
+import { loadBonusProjection } from "@/lib/compensation";
+import { BonusProjectionCard } from "@/components/BonusProjection";
 import { loadLiveCounters } from "@/lib/live-counters";
 import type { Tier } from "@/lib/scoring/gamification";
 import Link from "next/link";
@@ -146,6 +148,13 @@ export default async function MyDay({
   // Live counters (current-season registrations, etc.) — fresh per page load.
   const liveCounters = await loadLiveCounters(lm.email);
 
+  // Bonus projection card uses 30-day rolling avg pct from the LM's cached
+  // gamification stats; falls back to today's pct if avg_30d is null.
+  const bonusProjection = await loadBonusProjection(
+    lm.id,
+    Number(lmTyped.avg_30d ?? (xpRow as { pct?: number } | null)?.pct ?? 0)
+  );
+
   const todayRank = (xpRow as { rank_overall?: number } | null)?.rank_overall;
   const isDailyChamp = todayRank === 1;
 
@@ -197,6 +206,8 @@ export default async function MyDay({
       </header>
 
       <LiveCountersStrip counters={liveCounters} />
+
+      <BonusProjectionCard projection={bonusProjection} />
 
       <section className={`rounded-2xl border p-6 ${scoreBg(pct)}`}>
         <div className="flex items-end gap-6 flex-wrap">
