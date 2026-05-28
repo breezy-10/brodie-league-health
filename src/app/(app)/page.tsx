@@ -207,7 +207,12 @@ export default async function MyDay({
 
       <LiveCountersStrip counters={liveCounters} />
 
-      <BonusProjectionCard projection={bonusProjection} />
+      {/* Bonus projection card — hidden until commission unlock logic is
+          finalized. Flip NEXT_PUBLIC_SHOW_BONUS_PROJECTION=1 in Vercel env
+          to surface it. Code + DB table stay in place. */}
+      {process.env.NEXT_PUBLIC_SHOW_BONUS_PROJECTION === "1" && (
+        <BonusProjectionCard projection={bonusProjection} />
+      )}
 
       <section className={`rounded-2xl border p-6 ${scoreBg(pct)}`}>
         <div className="flex items-end gap-6 flex-wrap">
