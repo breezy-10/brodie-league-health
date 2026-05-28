@@ -54,9 +54,8 @@ export default async function OneOnOnePrep({ params }: { params: Promise<{ id: s
     }
   }
   const appAggArr = [...appAgg.entries()]
-    .map(([slug, v]) => ({ slug, pct: v.max > 0 ? (v.score / v.max) * 100 : 0, score: v.score }))
+    .map(([slug, v]) => ({ slug, pct: v.max > 0 ? (v.score / v.max) * 100 : 0, score: v.score, max: v.max }))
     .filter((a) => a.max !== 0 || a.score !== 0);
-  const bestApp = [...appAggArr].sort((a, b) => b.pct - a.pct)[0];
   const worstApp = [...appAggArr].sort((a, b) => a.pct - b.pct)[0];
 
   // Top 5 open action items

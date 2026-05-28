@@ -152,7 +152,7 @@ export default async function MyDay({
   // gamification stats; falls back to today's pct if avg_30d is null.
   const bonusProjection = await loadBonusProjection(
     lm.id,
-    Number(lmTyped.avg_30d ?? (xpRow as { pct?: number } | null)?.pct ?? 0)
+    Number(lm.avg_30d ?? (xpRow as { pct?: number } | null)?.pct ?? 0)
   );
 
   const todayRank = (xpRow as { rank_overall?: number } | null)?.rank_overall;
