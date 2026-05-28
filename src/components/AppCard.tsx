@@ -14,9 +14,10 @@ export type ActionItem = {
 };
 
 /**
- * Dense per-app tile. Built for scannable "what's my number / what's
- * blocking me / where do I go" reads. Top 2 action items visible inline,
- * the rest tucked behind a "+N more" expander.
+ * Dense per-app tile. Each action row has its own "Lock in →" pill that
+ * deep-links to the source app — clicking Done in league-health was a lie
+ * (the source app is the source of truth). Once the LM resolves the thing
+ * in the source app, the next sync detects it and the row goes away.
  */
 export function AppCard({
   appSlug,
@@ -30,7 +31,7 @@ export function AppCard({
   score: number;
   max: number;
   actions: ActionItem[];
-  readOnly?: boolean; // accepted for API compat; ignored now (no read-only badge)
+  readOnly?: boolean; // accepted for API compat; ignored
 }) {
   const [expanded, setExpanded] = useState(false);
   const pct = max > 0 ? Math.round((score / max) * 100) : 0;
@@ -47,35 +48,15 @@ export function AppCard({
         borderColor: "var(--border)",
       }}
     >
-      {/* Top row: app name + Lock in */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <p
-          className="uppercase text-[10px] tracking-[0.08em] font-semibold leading-tight"
-          style={{ color: "var(--text-mute)" }}
-        >
-          {appName}
-        </p>
-        {deepLink && (
-          <a
-            href={deepLink.url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full transition"
-            style={{
-              background: "var(--accent-soft)",
-              color: "var(--accent)",
-              border: "1px solid rgba(242, 169, 0, 0.5)",
-              fontWeight: 700,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-            }}
-          >
-            Lock in →
-          </a>
-        )}
-      </div>
+      {/* Top row: app name only — Lock-in moves to each action row */}
+      <p
+        className="uppercase text-[10px] tracking-[0.08em] font-semibold leading-tight mb-2"
+        style={{ color: "var(--text-mute)" }}
+      >
+        {appName}
+      </p>
 
-      {/* Score block: big number, small max */}
+      {/* Score block */}
       <div className="flex items-baseline gap-2">
         <span className={`text-2xl font-semibold tracking-tight ${scoreColor(pct)}`}>
           {Math.round(score)}
@@ -85,11 +66,11 @@ export function AppCard({
         </span>
       </div>
 
-      {/* Action items — tight, max 2 visible, expander for the rest */}
+      {/* Action items — each has its own Lock-in */}
       {openActions.length > 0 && (
         <ul className="mt-3 space-y-1.5">
           {visibleActions.map((a) => (
-            <ActionItemInline key={a.id} item={a} />
+            <ActionItemInline key={a.id} item={a} appLink={deepLink?.url ?? null} />
           ))}
           {!expanded && hiddenCount > 0 && (
             <li>
@@ -104,36 +85,24 @@ export function AppCard({
           )}
         </ul>
       )}
-      {openActions.length === 0 && actions.length > 0 && (
-        <p className="text-[11px] mt-2 italic" style={{ color: "var(--text-mute)" }}>
-          All actions resolved today.
-        </p>
+
+      {/* Empty state — no actions today */}
+      {openActions.length === 0 && (
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <p className="text-[11px] italic" style={{ color: "var(--text-mute)" }}>
+            {actions.length > 0 ? "All actions cleared today." : "Nothing on your plate here."}
+          </p>
+          {deepLink && <LockInPill href={deepLink.url} />}
+        </div>
       )}
     </section>
   );
 }
 
-function ActionItemInline({ item }: { item: ActionItem }) {
-  const [done, setDone] = useState(!!item.resolved_at);
-  const [busy, setBusy] = useState(false);
-
-  async function markDone() {
-    setBusy(true);
-    const res = await fetch("/api/me/action-resolve", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: item.id }),
-    });
-    if (res.ok) {
-      setDone(true);
-      if (item.xpReward > 0) setTimeout(() => window.location.reload(), 300);
-    }
-    setBusy(false);
-  }
-
+function ActionItemInline({ item, appLink }: { item: ActionItem; appLink: string | null }) {
   return (
     <li
-      className={`flex items-center gap-2 rounded-lg p-2 ${done ? "opacity-50" : ""}`}
+      className="flex items-center gap-2 rounded-lg p-2"
       style={{
         background: "var(--bg-sunken)",
         border: "1px solid var(--border)",
@@ -141,14 +110,14 @@ function ActionItemInline({ item }: { item: ActionItem }) {
     >
       <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${severityDot(item.severity)}`} />
       <p
-        className={`flex-1 text-[12px] leading-tight truncate ${done ? "line-through" : ""}`}
-        style={{ color: done ? "var(--text-mute)" : "var(--text)" }}
-        title={item.title}
+        className="flex-1 text-[12px] leading-tight truncate"
+        style={{ color: "var(--text)" }}
+        title={item.detail ?? item.title}
       >
         {item.title}
       </p>
 
-      {item.xpReward !== 0 && !done && (
+      {item.xpReward !== 0 && (
         <span
           className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap"
           style={{
@@ -161,20 +130,31 @@ function ActionItemInline({ item }: { item: ActionItem }) {
         </span>
       )}
 
-      {!done && item.xpReward > 0 && (
-        <button
-          onClick={markDone}
-          disabled={busy}
-          className="text-[10px] px-2 py-0.5 rounded-md border disabled:opacity-50 transition whitespace-nowrap"
-          style={{
-            background: "var(--input-bg)",
-            color: "var(--text)",
-            borderColor: "var(--border)",
-          }}
-        >
-          {busy ? "..." : "Done"}
-        </button>
-      )}
+      {appLink && <LockInPill href={appLink} compact />}
     </li>
+  );
+}
+
+function LockInPill({ href, compact = false }: { href: string; compact?: boolean }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 rounded-full transition whitespace-nowrap"
+      style={{
+        background: "var(--accent-soft)",
+        color: "var(--accent)",
+        border: "1px solid rgba(242, 169, 0, 0.5)",
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        padding: compact ? "2px 8px" : "4px 10px",
+        fontSize: compact ? 9 : 10,
+      }}
+    >
+      <span>Lock in</span>
+      <span aria-hidden>→</span>
+    </a>
   );
 }
