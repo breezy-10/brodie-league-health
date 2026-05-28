@@ -8,6 +8,8 @@ import { LeaderboardOptInToggle } from "@/components/LeaderboardOptInToggle";
 import { TierBadge, StreakBadge, ChampionRibbon } from "@/components/GamificationBadges";
 import { ViewAsBanner, ViewAsSwitcher } from "@/components/ViewAs";
 import { LiveCountersStrip } from "@/components/LiveCounters";
+import { MyDayRefresh } from "@/components/MyDayRefresh";
+import { iconForSlug } from "@/lib/badge-icons";
 import { loadLiveCounters } from "@/lib/live-counters";
 import type { Tier } from "@/lib/scoring/gamification";
 import Link from "next/link";
@@ -186,9 +188,12 @@ export default async function MyDay({
             {isWeeklyChamp && !isDailyChamp && <ChampionRibbon kind="weekly" />}
           </div>
         </div>
-        {!viewingAs && (
-          <LeaderboardOptInToggle initial={ctx.profile?.opt_in_leaderboard ?? true} />
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {!viewingAs && (
+            <LeaderboardOptInToggle initial={ctx.profile?.opt_in_leaderboard ?? true} />
+          )}
+          <MyDayRefresh />
+        </div>
       </header>
 
       <LiveCountersStrip counters={liveCounters} />
@@ -224,12 +229,16 @@ export default async function MyDay({
             <Link href={viewingAs ? `/achievements?lm=${lm.id}` : "/achievements"} className="text-xs text-glass-text-tertiary hover:text-glass-text">Full cabinet →</Link>
           </div>
           <div className="flex flex-wrap gap-2">
-            {((recentUnlocks ?? []) as unknown as Array<{ unlocked_at: string; achievements: { slug: string; name: string; icon: string } }>).map((u, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-glass-surface-hover border border-glass-gold/30 text-sm">
-                <span>{u.achievements.icon}</span>
-                <span className="font-semibold">{u.achievements.name}</span>
-              </span>
-            ))}
+            {((recentUnlocks ?? []) as unknown as Array<{ unlocked_at: string; achievements: { slug: string; name: string; icon: string } }>).map((u, i) => {
+              const src = iconForSlug(u.achievements.slug);
+              return (
+                <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-glass-surface-hover border border-glass-gold/30 text-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="" width={20} height={20} style={{ width: 20, height: 20, objectFit: "contain" }} />
+                  <span className="font-semibold">{u.achievements.name}</span>
+                </span>
+              );
+            })}
           </div>
         </section>
       )}

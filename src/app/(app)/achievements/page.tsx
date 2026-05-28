@@ -52,6 +52,9 @@ export default async function AchievementsPage({
   const achievements = ((all ?? []) as Array<{ id: string; slug: string; name: string; description: string; icon: string }>);
   const unlockedCount = achievements.filter((a) => unlockedIds.has(a.id)).length;
 
+  // We use the training-app PNG badges. Pull mapping per slug.
+  const { iconForSlug } = await import("@/lib/badge-icons");
+
   return (
     <main className="space-y-6">
       {viewingAs && lm && (
@@ -75,21 +78,38 @@ export default async function AchievementsPage({
         {achievements.map((a) => {
           const unlocked = unlockedIds.has(a.id);
           const when = unlockedDates.get(a.id);
+          const iconSrc = iconForSlug(a.slug);
           return (
             <div
               key={a.id}
-              className={`rounded-2xl border p-4 flex gap-3 transition ${
-                unlocked
-                  ? "border-glass-gold/40 bg-glass-gold/10"
-                  : "border-glass-border bg-glass-surface opacity-50"
-              }`}
+              className={`rounded-2xl border p-4 flex gap-3 transition`}
+              style={{
+                borderColor: unlocked ? "rgba(242, 169, 0, 0.5)" : "var(--border)",
+                background: unlocked ? "var(--accent-soft)" : "var(--bg-raised)",
+              }}
             >
-              <div className="text-3xl leading-none mt-0.5">{unlocked ? a.icon : <span className="grayscale opacity-60">{a.icon}</span>}</div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={iconSrc}
+                alt={a.name}
+                width={56}
+                height={56}
+                style={{
+                  width: 56,
+                  height: 56,
+                  objectFit: "contain",
+                  filter: unlocked ? "none" : "grayscale(1)",
+                  opacity: unlocked ? 1 : 0.4,
+                  flexShrink: 0,
+                }}
+              />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">{a.name}</p>
-                <p className="text-xs text-glass-text-secondary mt-0.5">{a.description}</p>
+                <p className="text-sm font-semibold" style={{ color: unlocked ? "var(--text)" : "var(--text-mute)" }}>
+                  {a.name}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-mute)" }}>{a.description}</p>
                 {unlocked && when && (
-                  <p className="text-[10px] uppercase tracking-wider text-glass-gold font-semibold mt-2">
+                  <p className="text-[10px] uppercase tracking-wider font-semibold mt-2" style={{ color: "var(--accent)" }}>
                     Unlocked {new Date(when).toLocaleDateString()}
                   </p>
                 )}
