@@ -102,18 +102,17 @@ export const statsHealthAdapter: Adapter = {
             const bdLate = businessDaysBetween(deadline, snapshotDate);
             rollup.action_items.push({
               metric_slug: "stats_dispute_overdue",
-              title: `Open dispute at ${d.location_name}: ${d.team_name ?? ""} #${d.jersey_number ?? ""} — ${bdLate} business day${bdLate === 1 ? "" : "s"} late`,
-              detail: `${d.dispute_type} from ${d.game_date ?? "n/a"}. Costing 2 XP/day until triaged.`,
+              title: `LATE: triage ${d.team_name ?? "dispute"} #${d.jersey_number ?? ""}`,
+              detail: `${d.dispute_type} at ${d.location_name}, ${bdLate} business day${bdLate === 1 ? "" : "s"} late. -2 XP/day.`,
               severity: bdLate >= 3 ? "critical" : "high",
               source_ref: `stats_health://disputes/${d.id}`,
             });
           } else {
             // Open but still inside the 48 BH window — action item but no penalty yet.
-            const bdSince = businessDaysBetween(received, snapshotDate);
             rollup.action_items.push({
               metric_slug: "stats_dispute_on_time",
-              title: `Triage dispute at ${d.location_name}: ${d.team_name ?? ""} #${d.jersey_number ?? ""}`,
-              detail: `${d.dispute_type}. Within 48BH window → +10 XP when you triage. ${bdSince} business day${bdSince === 1 ? "" : "s"} elapsed.`,
+              title: `Triage ${d.team_name ?? "dispute"} #${d.jersey_number ?? ""}`,
+              detail: `${d.dispute_type} at ${d.location_name}. Triage within 48BH → +10 XP.`,
               severity: "medium",
               source_ref: `stats_health://disputes/${d.id}`,
             });
@@ -124,8 +123,8 @@ export const statsHealthAdapter: Adapter = {
       if (onTimeCount > 0) {
         rollup.action_items.push({
           metric_slug: "stats_dispute_on_time",
-          title: `Triaged ${onTimeCount} dispute${onTimeCount === 1 ? "" : "s"} today (+${onTimeXp} XP)`,
-          detail: triaged_today_titles.slice(0, 3).join(", ") + (triaged_today_titles.length > 3 ? `, +${triaged_today_titles.length - 3} more` : ""),
+          title: `Triaged ${onTimeCount} dispute${onTimeCount === 1 ? "" : "s"} today`,
+          detail: triaged_today_titles.slice(0, 3).join(", ") + (triaged_today_titles.length > 3 ? `, +${triaged_today_titles.length - 3} more` : "") + ` (+${onTimeXp} XP)`,
           severity: "low",
         });
       }

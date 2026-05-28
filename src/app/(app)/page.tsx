@@ -263,10 +263,16 @@ export default async function MyDay({
                   severity: string;
                   app_id: string;
                   resolved_at: string | null;
-                  metrics: { slug: string; scoring_rule: { type?: string; xp_per_unit?: number } } | null;
+                  metrics: { slug: string; scoring_rule: { type?: string; xp_per_unit?: number; xp?: number } } | null;
                 };
                 const rule = it.metrics?.scoring_rule ?? {};
-                const xpReward = rule.type === "reward_on_resolve" ? Number(rule.xp_per_unit ?? 0) : 0;
+                // Resolvable reward (LM clicks Done to claim) → positive XP
+                // Otherwise, surface the per-unit XP value (positive or negative)
+                // so penalties show as "−3" etc.
+                const xpReward =
+                  rule.type === "reward_on_resolve"
+                    ? Number(rule.xp_per_unit ?? 0)
+                    : Number(rule.xp_per_unit ?? rule.xp ?? 0);
                 return {
                   id: it.id,
                   title: it.title,

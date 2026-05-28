@@ -114,8 +114,8 @@ export const trainingAdapter: Adapter = {
       if (completionsCount > 0) {
         rollup.action_items.push({
           metric_slug: "training_staff_completion",
-          title: `${completionsCount} staff training completion${completionsCount === 1 ? "" : "s"} today (+${completionXp} XP)`,
-          detail: completedNames.slice(0, 5).join(", ") + (completedNames.length > 5 ? `, +${completedNames.length - 5} more` : ""),
+          title: `${completionsCount} staff completed training`,
+          detail: completedNames.slice(0, 5).join(", ") + (completedNames.length > 5 ? `, +${completedNames.length - 5} more` : "") + ` (+${completionXp} XP)`,
           severity: "low",
         });
       }
@@ -123,8 +123,8 @@ export const trainingAdapter: Adapter = {
         const sample = ghosts.slice(0, 3).map((g) => g.full_name ?? "(unknown)").join(", ");
         rollup.action_items.push({
           metric_slug: "training_ghost_staff",
-          title: `${ghosts.length} ghost staff: no training completions in 30+ days (costing ${Math.abs(ghostXp)} XP/day)`,
-          detail: `${sample}${ghosts.length > 3 ? `, +${ghosts.length - 3} more` : ""}. Nudge them.`,
+          title: `Nudge ${ghosts.length} ghost staff`,
+          detail: `No completions in 30+ days: ${sample}${ghosts.length > 3 ? `, +${ghosts.length - 3} more` : ""}. -${Math.abs(ghostXp)} XP/day.`,
           severity: ghosts.length > 5 ? "high" : "medium",
         });
       }

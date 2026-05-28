@@ -130,7 +130,7 @@ export const crmAdapter: Adapter = {
       if (remaining > 0) {
         rollup.action_items.push({
           metric_slug: "crm_touch",
-          title: `${remaining} more touch${remaining === 1 ? "" : "es"} to hit your 50/day` ,
+          title: `Make ${remaining} more touch${remaining === 1 ? "" : "es"}`,
           detail: `${totalTouches}/50 done so far. Each touch = +1 XP, plus +10 bonus at 50.`,
           severity: remaining > 30 ? "high" : remaining > 10 ? "medium" : "low",
         });
@@ -138,7 +138,7 @@ export const crmAdapter: Adapter = {
       if (ghostCount > 0) {
         rollup.action_items.push({
           metric_slug: "crm_ig_no_outcome",
-          title: `${ghostCount} outbound IG DM${ghostCount === 1 ? "" : "s"} waiting for an outcome`,
+          title: `Log ${ghostCount} IG DM outcome${ghostCount === 1 ? "" : "s"}`,
           detail: `Each one is costing you 0.5 XP/day. Log the outcome to stop the bleed.`,
           severity: ghostCount >= 10 ? "high" : "medium",
         });

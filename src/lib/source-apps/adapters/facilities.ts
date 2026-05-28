@@ -84,8 +84,8 @@ export const facilitiesAdapter: Adapter = {
         const facName = facNameById.get(inv.facility_id) ?? "facility";
         rollup.action_items.push({
           metric_slug: "invoice_followup",
-          title: `Invoice ${inv.invoice_number ? `#${inv.invoice_number}` : ""} at ${facName} — ${amt} due ${inv.scheduled_pay_date}`,
-          detail: "Follow up with your DM to confirm payment is queued. Mark done when handled → +5 XP.",
+          title: `Follow up: invoice ${inv.invoice_number ? `#${inv.invoice_number}` : ""} ${facName}`,
+          detail: `${amt} due ${inv.scheduled_pay_date}. Follow up with DM, mark done = +5 XP.`,
           severity: "high",
           source_ref: `facilities://invoices/${inv.id}`,
         });
@@ -117,8 +117,8 @@ export const facilitiesAdapter: Adapter = {
         const daysLate = businessDaysBetween(new Date(inv.scheduled_pay_date!), snapshotDate);
         rollup.action_items.push({
           metric_slug: "invoice_overdue",
-          title: `OVERDUE: ${inv.invoice_number ? `#${inv.invoice_number}` : "invoice"} at ${facName} — ${amt}, ${daysLate} business day${daysLate === 1 ? "" : "s"} late`,
-          detail: "Costing you 3 XP/day until paid. Escalate to your DM.",
+          title: `Pay overdue invoice ${facName}`,
+          detail: `${amt}, ${daysLate} business day${daysLate === 1 ? "" : "s"} late. -3 XP/day until paid.`,
           severity: "critical",
           source_ref: `facilities://invoices/${inv.id}`,
         });
@@ -162,8 +162,8 @@ export const facilitiesAdapter: Adapter = {
         const facName = facNameById.get(g.fid) ?? "a facility";
         rollup.action_items.push({
           metric_slug: "contract_gap",
-          title: `${facName}: contract expires ${g.expires} with no renewal signed`,
-          detail: "Costing 3 XP/day. Sign or extend the contract to stop the drag.",
+          title: `Renew contract: ${facName}`,
+          detail: `Expires ${g.expires} with no renewal. -3 XP/day until signed.`,
           severity: "high",
           source_ref: `facilities://contracts?facility=${g.fid}`,
         });

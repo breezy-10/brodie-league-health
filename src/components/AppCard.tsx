@@ -133,38 +133,39 @@ function ActionItemInline({ item }: { item: ActionItem }) {
 
   return (
     <li
-      className={`flex items-start gap-2 rounded-lg p-2 ${done ? "opacity-50" : ""}`}
+      className={`flex items-center gap-2 rounded-lg p-2 ${done ? "opacity-50" : ""}`}
       style={{
         background: "var(--bg-sunken)",
         border: "1px solid var(--border)",
       }}
     >
-      <span className={`mt-1 inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${severityDot(item.severity)}`} />
+      <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${severityDot(item.severity)}`} />
       <p
-        className={`flex-1 text-[12px] leading-tight ${done ? "line-through" : ""}`}
+        className={`flex-1 text-[12px] leading-tight truncate ${done ? "line-through" : ""}`}
         style={{ color: done ? "var(--text-mute)" : "var(--text)" }}
+        title={item.title}
       >
         {item.title}
       </p>
 
-      {item.xpReward > 0 && !done && (
+      {item.xpReward !== 0 && !done && (
         <span
-          className="self-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap"
+          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap"
           style={{
-            background: "var(--accent-soft)",
-            color: "var(--accent)",
-            border: "1px solid rgba(242, 169, 0, 0.45)",
+            background: item.xpReward > 0 ? "var(--accent-soft)" : "rgba(200, 16, 46, 0.12)",
+            color: item.xpReward > 0 ? "var(--accent)" : "var(--error)",
+            border: `1px solid ${item.xpReward > 0 ? "rgba(242, 169, 0, 0.45)" : "rgba(200, 16, 46, 0.4)"}`,
           }}
         >
-          +{item.xpReward}
+          {item.xpReward > 0 ? "+" : ""}{item.xpReward}
         </span>
       )}
 
-      {!done && (
+      {!done && item.xpReward > 0 && (
         <button
           onClick={markDone}
           disabled={busy}
-          className="text-[10px] px-2 py-0.5 rounded-md border hover:bg-glass-surface-hover disabled:opacity-50 transition whitespace-nowrap"
+          className="text-[10px] px-2 py-0.5 rounded-md border disabled:opacity-50 transition whitespace-nowrap"
           style={{
             background: "var(--input-bg)",
             color: "var(--text)",

@@ -73,7 +73,8 @@ export const contentHealthAdapter: Adapter = {
             ratioHitCount++;
             rollup.action_items.push({
               metric_slug: "content_ratio_hit",
-              title: `Hit clip target on ${n.date} (${n.iphone_clips_count}/${target.toFixed(0)} clips, +10 XP)`,
+              title: `Hit clip target ${n.date}`,
+              detail: `${n.iphone_clips_count}/${target.toFixed(0)} clips (+10 XP)`,
               severity: "low",
             });
           } else {
@@ -81,8 +82,8 @@ export const contentHealthAdapter: Adapter = {
             ratioMissCount++;
             rollup.action_items.push({
               metric_slug: "content_ratio_miss",
-              title: `Missed clip target on ${n.date} (${n.iphone_clips_count}/${target.toFixed(0)} clips, −3 XP)`,
-              detail: `${(20 - n.iphone_clips_count / Number(n.ahs_hours)).toFixed(1)} clips/hour short of target.`,
+              title: `Missed clips ${n.date}`,
+              detail: `${n.iphone_clips_count}/${target.toFixed(0)} clips, ${(20 - n.iphone_clips_count / Number(n.ahs_hours)).toFixed(1)}/hr short. -3 XP.`,
               severity: "medium",
             });
           }
@@ -105,8 +106,8 @@ export const contentHealthAdapter: Adapter = {
       for (const g of ghosted.slice(0, 5)) {
         rollup.action_items.push({
           metric_slug: "content_never_posted",
-          title: `Night ${g.date} still has no iPhone clips posted (-2 XP/day)`,
-          detail: "Post the clips to IG stories to stop the bleed.",
+          title: `Post clips: ${g.date}`,
+          detail: "No iPhone clips posted yet. -2 XP/day until posted.",
           severity: "high",
           source_ref: `content_health://nights/${g.id}`,
         });
@@ -114,7 +115,7 @@ export const contentHealthAdapter: Adapter = {
       if (ghosted.length > 5) {
         rollup.action_items.push({
           metric_slug: "content_never_posted",
-          title: `+${ghosted.length - 5} more never-posted content nights at your locations`,
+          title: `+${ghosted.length - 5} more nights to post`,
           severity: "high",
         });
       }

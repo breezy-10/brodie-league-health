@@ -99,18 +99,17 @@ export const checklistAdapter: Adapter = {
         const titles = flippedToday.slice(0, 5).map((t) => `${t.title}${t.status === "done" ? " ✓" : " (in progress)"}`);
         rollup.action_items.push({
           metric_slug: "checklist_progress",
-          title: `${flippedToday.length} checklist task${flippedToday.length === 1 ? "" : "s"} moved today (+${progressXp} XP)`,
-          detail: titles.join(", ") + (flippedToday.length > 5 ? `, +${flippedToday.length - 5} more` : ""),
+          title: `Moved ${flippedToday.length} checklist task${flippedToday.length === 1 ? "" : "s"}`,
+          detail: titles.join(", ") + (flippedToday.length > 5 ? `, +${flippedToday.length - 5} more` : "") + ` (+${progressXp} XP)`,
           severity: "low",
         });
       }
-      // Top 5 oldest overdue items as actionable cards (priority by due_date asc)
       const sortedOverdue = [...overdueTasks].sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
       for (const t of sortedOverdue.slice(0, 5)) {
         rollup.action_items.push({
           metric_slug: "checklist_overdue",
-          title: `Overdue: ${t.title}`,
-          detail: `Due ${t.due_date}${t.phase ? ` (${t.phase})` : ""}. Costing 1 XP/day until you start or finish it.`,
+          title: t.title,
+          detail: `Due ${t.due_date}${t.phase ? ` (${t.phase})` : ""}. -1 XP/day until done.`,
           severity: "medium",
           source_ref: `checklist://tasks/${t.id}`,
         });
@@ -118,7 +117,7 @@ export const checklistAdapter: Adapter = {
       if (overdueTasks.length > 5) {
         rollup.action_items.push({
           metric_slug: "checklist_overdue",
-          title: `+${overdueTasks.length - 5} more overdue checklist tasks at your locations`,
+          title: `+${overdueTasks.length - 5} more overdue`,
           severity: "medium",
         });
       }

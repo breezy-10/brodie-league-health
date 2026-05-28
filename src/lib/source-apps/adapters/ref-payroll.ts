@@ -183,8 +183,8 @@ export const refPayrollAdapter: Adapter = {
           if (todayET === deadlineDateET && todayHourET < 12 && eitherStillNull) {
             rollup.action_items.push({
               metric_slug: "ref_payroll_on_time",
-              title: `Submit + approve last week's ref payroll (period ending ${periodEnd}) by 12pm ET`,
-              detail: "Both submit AND DM-approve before noon → +15 XP. Miss it and you'll lose 15 XP, plus 3/day until it's done.",
+              title: `Submit + approve payroll`,
+              detail: `Period ending ${periodEnd}. Both done by 12pm ET → +15 XP.`,
               severity: "high",
               source_ref: `ref_payroll://submissions?location=${locId}&period=${periodEnd}`,
             });
@@ -195,8 +195,8 @@ export const refPayrollAdapter: Adapter = {
             const cost = 15 + days * 3;
             rollup.action_items.push({
               metric_slug: "ref_payroll_drag",
-              title: `LATE: ref payroll for period ending ${periodEnd} — already cost you ${cost} XP`,
-              detail: `${days} weekday${days === 1 ? "" : "s"} past deadline. Each additional weekday costs another 3 XP until both submit + approve are done.`,
+              title: `LATE: payroll ${periodEnd}`,
+              detail: `${days} weekday${days === 1 ? "" : "s"} past deadline. Already cost ${cost} XP. -3/day until done.`,
               severity: "critical",
               source_ref: `ref_payroll://submissions?location=${locId}&period=${periodEnd}`,
             });
