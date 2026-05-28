@@ -11,7 +11,7 @@ export type AppDeepLink = {
 
 export const APP_DEEP_LINKS: Record<string, AppDeepLink> = {
   crm: {
-    url: "https://brodie-crm-brodie-league.vercel.app",
+    url: "https://brodie-crm-pro.vercel.app",
     label: "Open CRM →",
   },
   facilities: {
