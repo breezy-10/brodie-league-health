@@ -71,7 +71,23 @@ export async function Nav() {
         ))}
       </nav>
 
-      <div className="ml-auto flex items-center gap-4 h-full">
+      <div className="ml-auto flex items-center gap-3 sm:gap-4 h-full">
+        {/* Feedback link — opens brodie-feedback in a new tab so LMs don't
+            lose their place. Visible to every role. */}
+        <a
+          href="https://brodie-feedback.vercel.app/feedback"
+          target="_blank"
+          rel="noreferrer"
+          className="hidden sm:inline-flex items-center gap-1 text-[11px] uppercase tracking-wider font-semibold px-3 py-1.5 rounded-full transition"
+          style={{
+            background: "var(--bg-raised)",
+            color: "var(--text)",
+            border: "1px solid var(--border)",
+          }}
+          aria-label="Send feedback about League Health"
+        >
+          Feedback
+        </a>
         <div className="hidden sm:flex flex-col items-end leading-tight">
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--glass-text)" }}>
             {fullName}
