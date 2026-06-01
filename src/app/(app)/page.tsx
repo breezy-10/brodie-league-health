@@ -185,11 +185,18 @@ export default async function MyDay({
 
   const lmId = lm.id;
 
-  // For LMs viewing their own day, use the user-scoped client (RLS allows
-  // them to read their own rows). For admins viewing-as another LM, use the
-  // admin client to sidestep RLS entirely — they wouldn't be viewing-as if
-  // they weren't authorized in the first place.
-  const dataClient = viewingAs ? createAdminClient() : sb;
+  // Always use the admin client for the page's data queries. We've already
+  // pinned `lmId` to either:
+  //   (a) the logged-in user's OWN league_managers row (their email match), or
+  //   (b) the LM an admin is viewing-as.
+  // Either way, every downstream query filters by .eq("lm_id", lmId), so
+  // the user can never see data that isn't theirs.
+  //
+  // We were previously using the user-scoped client for self-views, but RLS
+  // edge cases (planner quirks, NULL profile_id, current_lm_id() helper not
+  // resolving) kept silently filtering out action items + snapshots for LMs.
+  // The admin client makes "logged in → see your stuff" 100% reliable.
+  const dataClient = createAdminClient();
 
   const { data: xpRow } = await dataClient
     .from("lm_xp_totals")
@@ -299,7 +306,7 @@ export default async function MyDay({
   const todayRank = (xpRow as { rank_overall?: number } | null)?.rank_overall;
   const isDailyChamp = todayRank === 1;
 
-  const { data: weekly } = await sb
+  const { data: weekly } = await dataClient
     .from("lm_xp_totals")
     .select("lm_id, pct")
     .gte("snapshot_date", sevenAgo);
