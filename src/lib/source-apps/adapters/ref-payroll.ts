@@ -44,12 +44,18 @@ function dateInTZ(d: Date, tz: string): string {
 
 /** Build a UTC Date for HH:00 ET on a given ET calendar date. */
 function hourETOnDate(etDateStr: string, hourET: number): Date {
-  // ET is UTC-4 (DST) or UTC-5. Try both, return whichever renders as the right ET hour on the right date.
+  // ET is UTC-4 (DST) or UTC-5. Start from midnight UTC on the ET date,
+  // then add (hourET + offset) hours. JS Date handles the day rollover when
+  // hourET+offset >= 24 (which crashed the old string-concat version with
+  // "Invalid time value" for hourET=23).
   for (const offset of [4, 5]) {
-    const d = new Date(`${etDateStr}T${String(hourET + offset).padStart(2, "0")}:00:00Z`);
+    const base = new Date(`${etDateStr}T00:00:00Z`).getTime();
+    const d = new Date(base + (hourET + offset) * 60 * 60 * 1000);
     if (hourInTZ(d, ET_TZ) === hourET && dateInTZ(d, ET_TZ) === etDateStr) return d;
   }
-  return new Date(`${etDateStr}T${String(hourET + 4).padStart(2, "0")}:00:00Z`);
+  // Fallback if neither offset matches (shouldn't happen for real ET dates).
+  const base = new Date(`${etDateStr}T00:00:00Z`).getTime();
+  return new Date(base + (hourET + 4) * 60 * 60 * 1000);
 }
 
 /** Friday of the pay period for which deadline is the given Monday. */
