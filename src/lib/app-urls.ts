@@ -42,4 +42,8 @@ export const APP_DEEP_LINKS: Record<string, AppDeepLink> = {
     url: "https://brodie-ops-schedule.vercel.app",
     label: "Open Schedule →",
   },
+  feedback: {
+    url: "https://brodie-feedback.vercel.app",
+    label: "Open Feedback →",
+  },
 };

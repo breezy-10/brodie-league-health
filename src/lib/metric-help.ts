@@ -99,6 +99,16 @@ export const METRIC_HELP: Record<string, { label: string; how: string }> = {
     label: "Overdue checklist tasks",
     how: "-1 XP/day per assigned task past due_date with status='not_started'.",
   },
+
+  // Player feedback (NPS via brodie-feedback)
+  feedback_promoter: {
+    label: "Promoters (NPS 9-10)",
+    how: "+5 XP per response in the last 14 days where the player rated you 9 or 10. Run more memorable games, fix small annoyances early.",
+  },
+  feedback_detractor: {
+    label: "Detractors (NPS < 7)",
+    how: "-10 XP per response in the last 14 days rated below 7. Each one creates a follow-up to-do — reach out to the player, address the issue, and the next sync drops it off the window after 14 days.",
+  },
 };
 
 export function helpForMetric(slug: string): { label: string; how: string } {
