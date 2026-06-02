@@ -21,7 +21,7 @@ on conflict (slug) do update set
 
 -- Detractor: -10 per response with NPS < 7 in the last 14 days
 insert into metrics (app_id, slug, name, weight_within_app, direction, scoring_rule)
-select id, 'feedback_detractor', 'NPS detractor', 1.0, 'down',
+select id, 'feedback_detractor', 'NPS detractor', 1.0, 'lower_better',
   '{"type":"per_unit_penalty","xp_per_unit":-10,"window_days":14}'::jsonb
 from apps where slug = 'feedback'
 on conflict (slug) do update set
@@ -30,7 +30,7 @@ on conflict (slug) do update set
 
 -- Promoter: +5 per response with NPS 9-10 in the last 14 days
 insert into metrics (app_id, slug, name, weight_within_app, direction, scoring_rule)
-select id, 'feedback_promoter', 'NPS promoter', 1.0, 'up',
+select id, 'feedback_promoter', 'NPS promoter', 1.0, 'higher_better',
   '{"type":"per_unit","xp_per_unit":5,"window_days":14}'::jsonb
 from apps where slug = 'feedback'
 on conflict (slug) do update set
