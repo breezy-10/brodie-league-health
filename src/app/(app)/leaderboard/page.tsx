@@ -47,12 +47,15 @@ export default async function Leaderboard({
 
   if (scope === "today" || scope === "yesterday") {
     const date = scope === "today" ? today : yesterday;
+    // active=true on the joined league_managers row excludes inactive LMs
+    // (Jamie, etc) from the daily ranking even if they have a snapshot.
     const { data } = await sb
       .from("lm_xp_totals")
       .select(
-        "lm_id, total_xp, max_xp, pct, league_managers!inner(full_name, location_name, district, current_streak, tier, avg_30d)"
+        "lm_id, total_xp, max_xp, pct, league_managers!inner(full_name, location_name, district, current_streak, tier, avg_30d, active)"
       )
       .eq("snapshot_date", date)
+      .eq("league_managers.active", true)
       .order("pct", { ascending: false })
       .limit(100);
     rows = ((data ?? []) as unknown as Array<{
@@ -107,9 +110,12 @@ export default async function Leaderboard({
     if (lmIds.length) {
       // Pull roster + opt-in via admin client too (so all-time view stays
       // consistent regardless of who's looking).
+      // active=true filter so inactive LMs (Jamie etc) don't show up just
+      // because they have old historical snapshots in lm_xp_totals.
       const { data: lmInfo } = await admin
         .from("league_managers")
         .select("id, full_name, location_name, district, current_streak, tier, avg_30d, email")
+        .eq("active", true)
         .in("id", lmIds);
       type LMInfo = {
         id: string;

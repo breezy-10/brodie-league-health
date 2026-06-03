@@ -2,6 +2,7 @@ import type { Adapter, AdapterResult, LMRollup } from "../types";
 import { sourceClient, sourceConfigured } from "../clients";
 import { ymd, daysAgo } from "../util";
 import { listLMsFromCRM, resolveLocationsForLM } from "../cross-app-locations";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * brodie-feedback — NPS survey responses (v1, 2026-06-02).
@@ -32,7 +33,27 @@ export const feedbackAdapter: Adapter = {
       return { slug: "feedback", rollups: [], unconfigured: true };
     const sb = sourceClient("feedback")!;
 
-    const windowStart = ymd(daysAgo(snapshotDate, WINDOW_DAYS));
+    const defaultWindowStart = ymd(daysAgo(snapshotDate, WINDOW_DAYS));
+
+    // Pull each LM's hire date / first-active date from league-health. We
+    // clamp the feedback window so a brand-new LM doesn't inherit NPS
+    // responses from before they were even on the roster (Tai-Shawn case
+    // where a new hire got +105 XP from old promoters at their location).
+    const admin = createAdminClient();
+    const { data: lmRows } = await admin
+      .from("league_managers")
+      .select("email, hired_at, created_at");
+    const startByEmail = new Map<string, string>();
+    for (const r of (lmRows ?? []) as Array<{ email: string; hired_at: string | null; created_at: string }>) {
+      const onboard = r.hired_at ?? r.created_at;
+      const onboardYmd = ymd(new Date(onboard));
+      // Use the LATER of (14d ago, onboard date) — so a 2-day-old LM only
+      // gets credit for the last 2 days of feedback, not 14.
+      startByEmail.set(
+        r.email.toLowerCase(),
+        onboardYmd > defaultWindowStart ? onboardYmd : defaultWindowStart
+      );
+    }
 
     const lms = await listLMsFromCRM();
     const rollups: LMRollup[] = [];
@@ -40,6 +61,7 @@ export const feedbackAdapter: Adapter = {
     for (const lm of lms) {
       const rollup: LMRollup = { lm_email: lm.email, metrics: [], action_items: [] };
       const locationIds = await resolveLocationsForLM("feedback", lm.email);
+      const windowStart = startByEmail.get(lm.email.toLowerCase()) ?? defaultWindowStart;
 
       if (!locationIds.length) {
         // No mapped locations → emit zeros so the engine still records the
