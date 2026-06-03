@@ -29,15 +29,12 @@ function resolveSourceRef(sourceRef: string | null | undefined, fallback: string
   const [, app, rest] = m;
   switch (app) {
     case "feedback": {
-      // brodie-feedback doesn't expose a per-response route yet (`/responses/<id>`
-      // 404s). Land on the main /feedback dashboard with the response id as a
-      // query param so the LM at least starts in the right app, and if/when
-      // brodie-feedback adds `?response=<id>` handling, this URL auto-resolves
-      // straight to the right submission.
+      // Deep-link to the per-response page so the LM lands on the specific
+      // player they need to follow up with (name, contact, full submission).
       const idMatch = rest.match(/responses\/(.+)$/);
       const id = idMatch ? idMatch[1] : "";
       return id
-        ? `https://brodie-feedback.vercel.app/feedback?response=${encodeURIComponent(id)}`
+        ? `https://brodie-feedback.vercel.app/responses/${encodeURIComponent(id)}`
         : "https://brodie-feedback.vercel.app/feedback";
     }
     // Other adapters use source_ref formats like `ref_payroll://submissions?...`
