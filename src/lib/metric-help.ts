@@ -73,15 +73,15 @@ export const METRIC_HELP: Record<string, { label: string; how: string }> = {
   },
   content_ratio_miss: {
     label: "Missed clip target",
-    how: "-3 XP per content night that fell short of 20 clips per AHS hour.",
+    how: "-3 XP per night where the DM logged a clip count below 20/AHS hour. If the DM hasn't counted yet, no penalty hits you.",
   },
   content_post_12h_bonus: {
     label: "12h post bonus",
     how: "+3 XP per night where iphone_clips_posted_at was within 12h of the night.",
   },
   content_never_posted: {
-    label: "Never-posted nights",
-    how: "-2 XP/day per content night 7+ days old with no iphone_clips_posted_at. Post the clips to IG stories to stop the drag.",
+    label: "(retired)",
+    how: "Clip counting moved to DMs in June 2026. This metric no longer affects your score.",
   },
 
   // Ramp credit (virtual metric — only for LMs in first 30 days)

@@ -4,18 +4,26 @@ import { ymd, daysAgo } from "../util";
 import { listLMsFromCRM, resolveLocationsForLM } from "../cross-app-locations";
 
 /**
- * brodie-content-health — clips-per-hour scoring (v2, locked 2026-05-27).
+ * brodie-content-health — clips-per-hour scoring (v3, locked 2026-06-03).
+ *
+ * The "count clips per night" job moved from LMs to DMs in June 2026, so
+ * LMs no longer take a penalty for un-counted nights or never-posted clips
+ * — those are DM responsibilities. LMs only see scoring when the DM HAS
+ * done the count and the number is below threshold.
  *
  * Each content_night gets scored once, on the day AFTER it occurs:
  *
  *   content_ratio_hit       +10  if iphone_clips_count >= 20 * ahs_hours
- *   content_ratio_miss      -3   if clips_count < 20 * ahs_hours (and both not null)
+ *   content_ratio_miss      -3   if clips_count < 20 * ahs_hours (only when
+ *                                  the DM has logged a count — null count means
+ *                                  no penalty to the LM)
  *   content_post_12h_bonus  +3   if iphone_clips_posted_at within 12h of
  *                                  night's end (night.date + 24h)
  *
- * Plus the continuous penalty:
- *   content_never_posted    -2 each day per night >7 days old where
- *                                iphone_clips_posted_at is null.
+ * Removed in v3:
+ *   content_never_posted — was -2/day per night >7d old with no posted_at.
+ *   This punished LMs every day for things outside their control once the
+ *   count became a DM responsibility. Now always 0.
  */
 const TARGET_RATIO = 20;
 const BONUS_WINDOW_HOURS = 12;
@@ -98,27 +106,8 @@ export const contentHealthAdapter: Adapter = {
         }
       }
 
-      // ----- Continuous penalty: nights >7d old with no posted_at -----
-      const sevenAgo = ymd(daysAgo(snapshotDate, 7));
-      const ghosted = allNights.filter((n) => n.date < sevenAgo && !n.iphone_clips_posted_at);
-      const ghostedXp = ghosted.length * -2;
-
-      for (const g of ghosted.slice(0, 5)) {
-        rollup.action_items.push({
-          metric_slug: "content_never_posted",
-          title: `Post clips: ${g.date}`,
-          detail: "No iPhone clips posted yet. -2 XP/day until posted.",
-          severity: "high",
-          source_ref: `content_health://nights/${g.id}`,
-        });
-      }
-      if (ghosted.length > 5) {
-        rollup.action_items.push({
-          metric_slug: "content_never_posted",
-          title: `+${ghosted.length - 5} more nights to post`,
-          severity: "high",
-        });
-      }
+      // (v3) content_never_posted retired — clip counting moved to DM.
+      // No more "Post clips: DATE" action items for the LM.
 
       // ----- Emit metric snapshots -----
       rollup.metrics.push({
@@ -142,12 +131,14 @@ export const contentHealthAdapter: Adapter = {
         score: bonusXp,
         payload: { bonus_count: bonusCount },
       });
+      // Retired metric retained at 0 so historical snapshots can still
+      // attribute (avoids breaking the breakdown JSON shape).
       rollup.metrics.push({
         metric_slug: "content_never_posted",
-        raw_value: ghosted.length,
+        raw_value: 0,
         max_score: 0,
-        score: ghostedXp,
-        payload: { ghosted_count: ghosted.length },
+        score: 0,
+        payload: { retired: "post-clip counting moved to DM 2026-06-03" },
       });
 
       rollups.push(rollup);
