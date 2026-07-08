@@ -40,10 +40,24 @@ export async function syncRoster(): Promise<{ synced: number; error?: string }> 
   const all = (managers ?? []) as CrmManager[];
   const byId = new Map(all.map((m) => [m.id, m]));
 
+  // Pull any league-health profiles that have been promoted to super_admin.
+  // We NEVER re-activate their league_managers row via sync — even if they
+  // still show as league_manager in CRM (which we won't overwrite from
+  // this app), they shouldn't reappear on the leaderboard/roster after
+  // promotion.
+  const { data: superAdmins } = await sb
+    .from("profiles")
+    .select("email")
+    .eq("role", "super_admin");
+  const superAdminEmails = new Set(
+    ((superAdmins ?? []) as Array<{ email: string }>).map((p) => p.email.toLowerCase())
+  );
+
   // DMs are admins, not LMs. They sign in to league-health, view their
   // LMs via /admin, but don't appear on the leaderboard themselves.
   const rows = all
     .filter((m) => m.role === "league_manager")
+    .filter((m) => !superAdminEmails.has(m.email.toLowerCase()))
     .map((m) => {
       const firstLoc = (m.assigned_locations ?? [])[0];
       const dm = m.reports_to ? byId.get(m.reports_to) : undefined;
@@ -61,6 +75,17 @@ export async function syncRoster(): Promise<{ synced: number; error?: string }> 
 
   const { error: upErr } = await sb.from("league_managers").upsert(rows, { onConflict: "email" });
   if (upErr) return { synced: 0, error: upErr.message };
+
+  // Force-deactivate any super_admin LMs still marked active from a previous
+  // sync (belt and suspenders — the filter above stops NEW writes, this
+  // catches existing rows).
+  if (superAdminEmails.size > 0) {
+    await sb
+      .from("league_managers")
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .in("email", Array.from(superAdminEmails))
+      .eq("active", true);
+  }
 
   // Auto-link profile_id for any LM whose email matches a logged-in profile.
   // This keeps "you logged in → you see your page" robust without anyone

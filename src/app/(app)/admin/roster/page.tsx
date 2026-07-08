@@ -1,9 +1,16 @@
 import { requireRole } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+// Force dynamic so the roster reflects live DB state, not a stale render.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function RosterPage() {
   await requireRole(["dm", "super_admin"]);
-  const sb = await createClient();
+  // Admin client bypasses RLS quirks — the requireRole gate above already
+  // ensures only DMs/super_admins reach this page. Every LM should always
+  // be visible here regardless of active status.
+  const sb = createAdminClient();
   const { data: rows } = await sb
     .from("league_managers")
     .select("email, full_name, location_name, district, slack_user_id, active")
