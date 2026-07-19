@@ -30,16 +30,16 @@ export default async function AdminHome() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <AdminCard
-          href="/settings/lms"
-          title="League managers"
-          count={lmActive ?? 0}
-          sub="Everyone's score today, ranked, with day-over-day deltas and per-LM metrics."
-        />
-        <AdminCard
           href="/settings/users"
           title="Users"
           count={userCount ?? 0}
           sub="Invite staff and manage roles & access. No CRM entry required."
+        />
+        <AdminCard
+          href="/settings/lms"
+          title="League managers"
+          count={lmActive ?? 0}
+          sub="Everyone's score today, ranked, with day-over-day deltas and per-LM metrics."
         />
         <AdminCard
           href="/settings/weights"

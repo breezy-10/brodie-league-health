@@ -16,8 +16,9 @@ const NAV_ADMIN: NavItem[] = [
   { href: "/district",           label: "District" },
   { href: "/district/disputes",  label: "Disputes" },
 ];
-// Settings sits at the far right (appended after the admin items below).
-// Roster/Users + Audit live as cards inside Settings (/settings), not top-level tabs.
+// Dashboard sits at the far LEFT of the admin bar; Settings at the far right.
+// Both are admin-only. Roster/Users + Audit live as cards inside Settings.
+const NAV_DASHBOARD: NavItem = { href: "/dashboard", label: "Dashboard" };
 const NAV_SETTINGS: NavItem = { href: "/settings", label: "Settings" };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -30,8 +31,10 @@ export async function Nav() {
   const ctx = await getCurrentUser();
   const role = ctx?.profile?.role ?? "lm";
   const isAdmin = role === "dm" || role === "super_admin";
-  // Settings pinned to the far right of the admin bar.
-  const items = isAdmin ? [...NAV_BASE, ...NAV_ADMIN, NAV_SETTINGS] : NAV_BASE;
+  // Dashboard pinned far left, Settings far right — admin bar only.
+  const items = isAdmin
+    ? [NAV_DASHBOARD, ...NAV_BASE, ...NAV_ADMIN, NAV_SETTINGS]
+    : NAV_BASE;
   const fullName = ctx?.profile?.full_name ?? ctx?.user?.email ?? "—";
 
   return (
