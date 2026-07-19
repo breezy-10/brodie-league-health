@@ -279,7 +279,11 @@ async function loadStatsTiles(season: string, scope: Scope): Promise<Tile[] | nu
     };
     const n = (x: number) => x.toLocaleString();
     const completionLines: { text: string; strong?: boolean }[] = [];
-    if (k.games_played != null) completionLines.push({ text: `${n(k.games_played)} — games played`, strong: true });
+    // Only show "games played" (external schedule count) when it's sane — it must
+    // be >= tracked, since every tracked game was played.
+    if (k.games_played != null && k.games_played >= k.games_tracked) {
+      completionLines.push({ text: `${n(k.games_played)} — games played`, strong: true });
+    }
     completionLines.push({ text: `${n(k.games_tracked)} — games tracked`, strong: true });
     completionLines.push({ text: `${n(k.by_source.ballertv)} — BallerTV` });
     completionLines.push({ text: `${n(k.by_source.livebarn)} — LiveBarn` });
