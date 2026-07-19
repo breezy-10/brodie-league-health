@@ -16,9 +16,8 @@ const NAV_ADMIN: NavItem[] = [
   { href: "/admin",              label: "Settings" },
   { href: "/district",           label: "District" },
   { href: "/district/disputes",  label: "Disputes" },
-  { href: "/admin/roster",       label: "Roster" },
-  { href: "/admin/audit-log",    label: "Audit" },
 ];
+// Roster + Audit now live as cards inside Settings (/admin), not top-level tabs.
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",

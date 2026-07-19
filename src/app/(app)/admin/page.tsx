@@ -1,146 +1,86 @@
 import { requireRole } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { ymd, daysAgo } from "@/lib/source-apps/util";
-import { scoreColor } from "@/lib/colors";
-import { RefreshButton } from "@/components/RefreshButton";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+// Card-grid settings hub (mirrors the Stats Health / Ops Schedule admin layout):
+// each admin surface is a card with an optional headline count and a one-line
+// description. Roster + Audit live here as cards rather than top-level nav tabs.
 export default async function AdminHome() {
   await requireRole(["dm", "super_admin"]);
-  const sb = await createClient();
-  const today = ymd(new Date());
-  const yesterday = ymd(daysAgo(new Date(), 1));
+  const sb = createAdminClient();
 
-  const { data: rows } = await sb
-    .from("lm_xp_totals")
-    .select("lm_id, total_xp, max_xp, pct, rank_overall, league_managers!inner(id, full_name, email, location_name, district, active)")
-    .eq("snapshot_date", today)
-    .order("total_xp", { ascending: false });
-
-  const { data: prev } = await sb
-    .from("lm_xp_totals")
-    .select("lm_id, pct")
-    .eq("snapshot_date", yesterday);
-  const prevByLm = new Map((prev ?? []).map((p: { lm_id: string; pct: number }) => [p.lm_id, p.pct]));
-
-  const { data: syncs } = await sb
-    .from("sync_runs")
-    .select("id, app_id, started_at, finished_at, status, rows_synced, error, apps!inner(slug, name)")
-    .order("started_at", { ascending: false })
-    .limit(14);
+  const [{ count: lmActive }, { count: lmTotal }, { count: appCount }, { count: auditCount }] =
+    await Promise.all([
+      sb.from("league_managers").select("id", { count: "exact", head: true }).eq("active", true),
+      sb.from("league_managers").select("id", { count: "exact", head: true }),
+      sb.from("apps").select("id", { count: "exact", head: true }),
+      sb.from("audit_log").select("id", { count: "exact", head: true }),
+    ]);
 
   return (
-    <main className="space-y-8">
-      <header className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-glass-text-secondary text-sm mt-1">All LMs, all scores, all knobs.</p>
-        </div>
-        <div className="flex gap-2 items-center flex-wrap">
-          <RefreshButton />
-          <Link href="/admin/weights" className="text-sm px-3.5 py-2 rounded-lg border border-glass-border bg-glass-surface hover:bg-glass-surface-hover transition">Edit weights</Link>
-          <Link href="/admin/setup"   className="text-sm px-3.5 py-2 rounded-lg border border-glass-border bg-glass-surface hover:bg-glass-surface-hover transition">Setup</Link>
-        </div>
+    <main className="brodie-fade-in">
+      <header className="mb-6">
+        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>Admin</p>
+        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>Settings</h1>
+        <p className="text-glass-text-secondary text-sm mt-1">Scores, roster, weights, syncs, and the audit trail.</p>
       </header>
 
-      <section>
-        <h2 className="text-base font-semibold mb-3">All league managers — today</h2>
-        <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="text-left p-3 font-semibold">#</th>
-                <th className="text-left p-3 font-semibold">LM</th>
-                <th className="text-left p-3 font-semibold">Location</th>
-                <th className="text-right p-3 font-semibold">XP</th>
-                <th className="text-right p-3 font-semibold">%</th>
-                <th className="text-right p-3 font-semibold">Δ vs yest.</th>
-                <th className="p-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(rows ?? []).map((r) => {
-                const row = r as unknown as {
-                  lm_id: string;
-                  total_xp: number;
-                  max_xp: number;
-                  pct: number;
-                  rank_overall: number;
-                  league_managers: { id: string; full_name: string; email: string; location_name: string | null; district: string | null; active: boolean };
-                };
-                const pct = Math.round(row.pct);
-                const prevPct = prevByLm.get(row.lm_id);
-                const delta = prevPct != null ? Math.round(pct - prevPct) : null;
-                return (
-                  <tr key={row.lm_id} className="border-t border-glass-border-light hover:bg-glass-surface-hover">
-                    <td className="p-3 font-mono text-glass-text-secondary">{row.rank_overall ?? ""}</td>
-                    <td className="p-3">
-                      <Link href={`/?lm=${row.league_managers.id}`} className="hover:text-glass-gold">
-                        {row.league_managers.full_name}
-                      </Link>
-                      <p className="text-xs text-glass-text-tertiary mt-0.5">{row.league_managers.email}</p>
-                    </td>
-                    <td className="p-3 text-glass-text-secondary">
-                      {row.league_managers.location_name}
-                      {row.league_managers.district ? ` · ${row.league_managers.district}` : ""}
-                    </td>
-                    <td className="p-3 text-right">{Math.round(row.total_xp)} / {Math.round(row.max_xp)}</td>
-                    <td className={`p-3 text-right font-semibold ${scoreColor(pct)}`}>{pct}%</td>
-                    <td className="p-3 text-right text-xs">
-                      {delta == null ? "—" : delta > 0 ? <span className="text-green-400">+{delta}</span> : delta < 0 ? <span className="text-red-400">{delta}</span> : "0"}
-                    </td>
-                    <td className="p-3 text-right space-x-3">
-                      <Link href={`/?lm=${row.league_managers.id}`} className="text-glass-gold text-xs">View day →</Link>
-                      <Link href={`/admin/lm/${row.league_managers.id}`} className="text-xs text-glass-text-tertiary hover:text-glass-text">Metrics</Link>
-                    </td>
-                  </tr>
-                );
-              })}
-              {(!rows || rows.length === 0) && (
-                <tr><td colSpan={7} className="p-6 text-center text-glass-text-tertiary">No data yet today. Hit Refresh.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section>
-        <h2 className="text-base font-semibold mb-3">Sync health</h2>
-        <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="text-left p-3 font-semibold">App</th>
-                <th className="text-left p-3 font-semibold">Started</th>
-                <th className="text-left p-3 font-semibold">Status</th>
-                <th className="text-right p-3 font-semibold">Rows</th>
-                <th className="text-left p-3 font-semibold">Error</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(syncs ?? []).map((s) => {
-                const row = s as unknown as { id: string; started_at: string; status: string; rows_synced: number | null; error: string | null; apps: { name: string } };
-                const color =
-                  row.status === "success" ? "text-green-400" :
-                  row.status === "error"   ? "text-red-400"   :
-                  row.status === "partial" ? "text-yellow-400" : "text-glass-text-tertiary";
-                return (
-                  <tr key={row.id} className="border-t border-glass-border-light">
-                    <td className="p-3">{row.apps?.name}</td>
-                    <td className="p-3 text-glass-text-tertiary font-mono text-xs">{row.started_at.replace("T", " ").slice(0, 16)}</td>
-                    <td className={`p-3 ${color}`}>{row.status}</td>
-                    <td className="p-3 text-right">{row.rows_synced ?? "—"}</td>
-                    <td className="p-3 text-red-400 text-xs truncate max-w-xs">{row.error}</td>
-                  </tr>
-                );
-              })}
-              {(!syncs || syncs.length === 0) && (
-                <tr><td colSpan={5} className="p-6 text-center text-glass-text-tertiary">No sync runs yet.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <AdminCard
+          href="/admin/lms"
+          title="League managers"
+          count={lmActive ?? 0}
+          sub="Everyone's score today, ranked, with day-over-day deltas and per-LM metrics."
+        />
+        <AdminCard
+          href="/admin/roster"
+          title="Roster"
+          count={lmTotal ?? 0}
+          sub="Every LM, active or not. Pulled from the CRM on each sync."
+        />
+        <AdminCard
+          href="/admin/weights"
+          title="Weights"
+          count={appCount ?? 0}
+          sub="Tune how much each app and metric counts toward the score."
+        />
+        <AdminCard
+          href="/admin/sync"
+          title="Sync & refresh"
+          sub="Re-run every adapter and re-score all LMs. Review the last sync runs."
+        />
+        <AdminCard
+          href="/admin/setup"
+          title="Setup"
+          sub="Seed apps and metrics, and check the environment is wired up."
+        />
+        <AdminCard
+          href="/admin/audit-log"
+          title="Audit log"
+          count={auditCount ?? 0}
+          sub="Disputes, weight changes, welcome DMs — the compliance trail."
+        />
+      </div>
     </main>
+  );
+}
+
+function AdminCard({ href, title, count, sub }: { href: string; title: string; count?: number; sub: string }) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-2xl border border-glass-border bg-glass-surface p-5 transition hover:border-glass-gold hover:bg-glass-surface-hover"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-xl font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h2>
+        {count != null && (
+          <span className="text-2xl font-bold tabular" style={{ color: "var(--glass-gold)" }}>{count.toLocaleString()}</span>
+        )}
+      </div>
+      <p className="text-sm mt-2 text-glass-text-secondary">{sub}</p>
+    </Link>
   );
 }
