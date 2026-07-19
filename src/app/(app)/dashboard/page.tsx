@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
+import { ymd } from "@/lib/source-apps/util";
 import Filters, { type FilterOptions } from "./Filters";
 
 // Fallbacks copied from the Registration Promo Tracker, used until the live
@@ -114,6 +115,43 @@ const SAMPLE: Record<string, Tile[]> = {
   ],
 };
 
+// Normalize a season label to term+2-digit-year: "Fall '26" / "Fall 2026" -> "fall26".
+function seasonKey(name: string): string {
+  const term = name.toLowerCase().match(/fall|summer|winter|spring/)?.[0] ?? "";
+  const yr = (name.match(/\d{2,4}/)?.[0] ?? "").slice(-2);
+  return `${term}${yr}`;
+}
+
+// Live Season Success Checklist tiles for the selected season, read straight
+// from the checklist app. Returns null when the source isn't wired, so the
+// caller can fall back to the sample cards.
+async function loadChecklistTiles(season: string): Promise<Tile[] | null> {
+  if (!sourceConfigured("checklist")) return null;
+  const sb = sourceClient("checklist")!;
+  const { data: seasons } = await sb.from("seasons").select("id, name, archived").eq("archived", false);
+  const want = seasonKey(season);
+  const ids = ((seasons ?? []) as { id: string; name: string }[])
+    .filter((s) => seasonKey(s.name) === want)
+    .map((s) => s.id);
+  if (!ids.length) {
+    return [
+      { label: "Tasks complete", value: "—", sub: "no checklist for this season", tone: "default" },
+      { label: "Overdue tasks", value: "—" },
+    ];
+  }
+  const { data: tasks } = await sb.from("season_tasks").select("status, due_date").in("season_id", ids);
+  const list = (tasks ?? []) as { status: string; due_date: string | null }[];
+  const total = list.length;
+  const done = list.filter((t) => t.status === "done").length;
+  const today = ymd(new Date());
+  const overdue = list.filter((t) => t.due_date && t.due_date < today && t.status === "not_started").length;
+  const pct = total ? Math.round((100 * done) / total) : 0;
+  return [
+    { label: "Tasks complete", value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pct >= 70 ? "ok" : pct >= 40 ? "warn" : "bad" },
+    { label: "Overdue tasks", value: overdue.toLocaleString(), sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok" },
+  ];
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -157,6 +195,9 @@ export default async function DashboardPage({
     currentSeason = seaRows.find((s) => s.is_current)?.name ?? undefined;
   }
   const selectedSeason = seasonParam || currentSeason || promoSeasons[0] || "current";
+
+  // Live, season-scoped Season Success Checklist card (falls back to sample).
+  const checklistTiles = await loadChecklistTiles(selectedSeason);
 
   const snaps: SnapRow[] = snapDate
     ? (((await admin
@@ -223,7 +264,7 @@ export default async function DashboardPage({
       <Filters options={options} current={{ season: selectedSeason, location, lm }} />
 
       <div className="space-y-8">
-        <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={SAMPLE.checklist} sample />
+        <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} />
         <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} />
         <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={SAMPLE.promo} sample />
         <Section title="Feedback" href={APP_URL.feedback} tiles={SAMPLE.feedback} sample />
@@ -233,10 +274,9 @@ export default async function DashboardPage({
       </div>
 
       <p className="text-xs text-glass-text-tertiary">
-        Live sections (Registrations, Content Health) respond to the Location and League-manager filters.
-        Sections marked <span className="uppercase tracking-wider font-bold">sample</span> show the target layout and
-        link out to the live app — their numbers get wired to source data next. Season filtering is scaffolded pending
-        per-season source ingestion.
+        Season Success Checklist is live and scoped to the selected Season; Registrations and Content Health respond to
+        the Location and League-manager filters. Sections still marked <span className="uppercase tracking-wider font-bold">sample</span> link
+        out to the live app — they get wired to source data next, section by section.
       </p>
     </main>
   );
