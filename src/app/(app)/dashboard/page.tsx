@@ -82,8 +82,8 @@ const SAMPLE: Record<string, Tile[]> = {
   ],
   overdue: [
     { label: "Total overdue players", value: "144", sub: "across 19 locations", tone: "bad" },
-    { label: "Overdue balance (CAD)", value: "$20,799.32 CAD", sub: "80 players" },
-    { label: "Overdue balance (USD)", value: "$13,184.17 USD", sub: "64 players" },
+    { label: "Overdue Balance - Canadian Locations", value: "$20,799.32 CAD", sub: "80 players" },
+    { label: "Overdue Balance - US Locations", value: "$13,184.17 USD", sub: "64 players" },
   ],
   content: [
     { label: "iPhone Clips · 12h", value: "22.0", unit: "/hr", sub: "target 20/hr", tone: "ok", lines: [{ text: "24,632 clips delivered · 1,118.5h worked", strong: true }, { text: "110% of expected · SLA hit 36%" }] },
@@ -154,7 +154,8 @@ function nextSeasonLabel(season: string): string {
   return `${nextTerm[0].toUpperCase()}${nextTerm.slice(1)} '${String(nextYy).padStart(2, "0")}`;
 }
 
-const pctTone = (p: number): Tone => (p >= 70 ? "ok" : p >= 40 ? "warn" : "bad");
+// Green >= 90%, yellow 70-89%, red < 70%.
+const pctTone = (p: number): Tone => (p >= 90 ? "ok" : p >= 70 ? "warn" : "bad");
 
 type Scope = { lm: string; location: string; lmEmail?: string };
 
@@ -215,7 +216,7 @@ async function loadFeedbackTiles(season: string, scope: Scope): Promise<Tile[] |
       { label: "Responses", value: k.responses.toLocaleString() },
       { label: "CSAT", value: k.csat_pct == null ? "—" : `${k.csat_pct}%`, sub: k.csat_pct == null ? "no CSAT question" : `${k.csat_satisfied} of ${k.csat_total} rated 8 or higher`, tone: k.csat_pct == null ? "default" : pctTone(k.csat_pct) },
       { label: "NPS", value: k.nps == null ? "—" : `${k.nps}`, sub: k.nps == null ? "no NPS scored" : `${k.promoter_pct}% promoters (${k.promoters}) · ${k.detractor_pct}% detractors (${k.detractors}) of ${k.nps_total} scored`, tone: k.nps == null ? "default" : k.nps >= 30 ? "ok" : k.nps >= 0 ? "warn" : "bad" },
-      { label: "Returning intent", value: k.retention_pct == null ? "—" : `${k.retention_pct}%`, sub: k.retention_pct == null ? "no retention question" : `${k.retention_yes} yes · ${k.retention_thinking} thinking · ${k.retention_no} no` },
+      { label: "Returning intent", value: k.retention_pct == null ? "—" : `${k.retention_pct}%`, sub: k.retention_pct == null ? "no retention question" : `${k.retention_yes} yes · ${k.retention_thinking} thinking · ${k.retention_no} no`, tone: k.retention_pct == null ? "default" : pctTone(k.retention_pct) },
     ];
   } catch {
     return null;
@@ -358,17 +359,17 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
         ],
       },
     ];
-    const card = (c: CurTotals, cur: string): Tile | null =>
+    const card = (c: CurTotals, cur: string, label: string): Tile | null =>
       c.total_players === 0 ? null : {
-        label: `Overdue balance (${cur})`, value: money(c.total_balance, cur),
+        label, value: money(c.total_balance, cur),
         lines: [
           { text: `${c.total_players} player${c.total_players === 1 ? "" : "s"}`, strong: true },
           { text: `${money(c.active_balance, cur)} from active players` },
           { text: `${c.active_players} of ${c.total_players} players active` },
         ],
       };
-    const cad = card(k.currency_totals.cad, "CAD");
-    const usd = card(k.currency_totals.usd, "USD");
+    const cad = card(k.currency_totals.cad, "CAD", "Overdue Balance - Canadian Locations");
+    const usd = card(k.currency_totals.usd, "USD", "Overdue Balance - US Locations");
     if (cad) tiles.push(cad);
     if (usd) tiles.push(usd);
     return tiles;
@@ -628,9 +629,9 @@ export default async function DashboardPage({
           <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} seasonTag={regSeason} />
         )}
         <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
-        <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
         <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
         <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
+        <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
         <Section title="Overdue Payments" href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
       </div>
 
