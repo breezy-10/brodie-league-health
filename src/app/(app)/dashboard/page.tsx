@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 import Filters, { type FilterOptions } from "./Filters";
 
 export const dynamic = "force-dynamic";
@@ -159,9 +160,20 @@ export default async function DashboardPage({
     }));
   };
 
+  // Canonical location list from the CRM `locations` table — the Metabase-fed
+  // master (39 active markets), same naming as league_managers.location_name so
+  // the filter still matches. Union with the roster locations as a safety net,
+  // and fall back to roster-only if the CRM isn't reachable.
+  let crmLocations: string[] = [];
+  if (sourceConfigured("crm")) {
+    const crm = sourceClient("crm")!;
+    const { data: locs } = await crm.from("locations").select("name").eq("active", true);
+    crmLocations = ((locs ?? []) as { name: string | null }[]).map((l) => l.name).filter((n): n is string => !!n);
+  }
+  const rosterLocations = activeLMs.map((l) => l.location_name).filter((l): l is string => !!l);
   const options: FilterOptions = {
     seasons: [{ value: "current", label: "Current season" }],
-    locations: Array.from(new Set(activeLMs.map((l) => l.location_name).filter((l): l is string => !!l))).sort((a, b) => a.localeCompare(b)),
+    locations: Array.from(new Set([...crmLocations, ...rosterLocations])).sort((a, b) => a.localeCompare(b)),
     lms: activeLMs.map((l) => ({ id: l.id, name: l.full_name || "—" })),
   };
 
