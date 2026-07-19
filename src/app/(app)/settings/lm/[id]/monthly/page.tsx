@@ -105,7 +105,7 @@ export default async function MonthlyPack({
   return (
     <main className="space-y-6 max-w-4xl print:max-w-none print:p-0">
       <div className="print:hidden">
-        <Link href={`/admin/lm/${id}`} className="text-xs" style={{ color: "var(--text-mute)" }}>
+        <Link href={`/settings/lm/${id}`} className="text-xs" style={{ color: "var(--text-mute)" }}>
           &larr; Back to {lmRow.full_name}
         </Link>
       </div>

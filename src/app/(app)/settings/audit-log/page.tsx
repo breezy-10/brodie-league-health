@@ -66,7 +66,7 @@ export default async function AuditLog({
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
         <Link
-          href="/admin/audit-log"
+          href="/settings/audit-log"
           className="text-xs px-3 py-1.5 rounded-full font-semibold"
           style={{
             background: !action ? "var(--accent)" : "var(--bg-raised)",
@@ -79,7 +79,7 @@ export default async function AuditLog({
         {allActions.map((a) => (
           <Link
             key={a}
-            href={`/admin/audit-log?action=${a}`}
+            href={`/settings/audit-log?action=${a}`}
             className="text-xs px-3 py-1.5 rounded-full font-semibold"
             style={{
               background: action === a ? "var(--accent)" : "var(--bg-raised)",

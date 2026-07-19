@@ -106,7 +106,7 @@ export default async function DisputesQueue() {
                     </p>
                   </div>
                   <Link
-                    href={`/admin/lm/${d.league_managers.id}`}
+                    href={`/settings/lm/${d.league_managers.id}`}
                     className="text-[11px] uppercase tracking-wider hover:underline"
                     style={{ color: "var(--accent)" }}
                   >

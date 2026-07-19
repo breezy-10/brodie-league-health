@@ -30,35 +30,35 @@ export default async function AdminHome() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <AdminCard
-          href="/admin/lms"
+          href="/settings/lms"
           title="League managers"
           count={lmActive ?? 0}
           sub="Everyone's score today, ranked, with day-over-day deltas and per-LM metrics."
         />
         <AdminCard
-          href="/admin/users"
+          href="/settings/users"
           title="Users"
           count={userCount ?? 0}
           sub="Invite staff and manage roles & access. No CRM entry required."
         />
         <AdminCard
-          href="/admin/weights"
+          href="/settings/weights"
           title="Weights"
           count={appCount ?? 0}
           sub="Tune how much each app and metric counts toward the score."
         />
         <AdminCard
-          href="/admin/sync"
+          href="/settings/sync"
           title="Sync & refresh"
           sub="Re-run every adapter and re-score all LMs. Review the last sync runs."
         />
         <AdminCard
-          href="/admin/setup"
+          href="/settings/setup"
           title="Setup"
           sub="Seed apps and metrics, and check the environment is wired up."
         />
         <AdminCard
-          href="/admin/audit-log"
+          href="/settings/audit-log"
           title="Audit log"
           count={auditCount ?? 0}
           sub="Disputes, weight changes, welcome DMs — the compliance trail."

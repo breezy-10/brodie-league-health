@@ -17,8 +17,8 @@ const NAV_ADMIN: NavItem[] = [
   { href: "/district/disputes",  label: "Disputes" },
 ];
 // Settings sits at the far right (appended after the admin items below).
-// Roster/Users + Audit live as cards inside Settings (/admin), not top-level tabs.
-const NAV_SETTINGS: NavItem = { href: "/admin", label: "Settings" };
+// Roster/Users + Audit live as cards inside Settings (/settings), not top-level tabs.
+const NAV_SETTINGS: NavItem = { href: "/settings", label: "Settings" };
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",

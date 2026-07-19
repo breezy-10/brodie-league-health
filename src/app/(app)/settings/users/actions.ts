@@ -36,7 +36,7 @@ export async function updateUser(input: {
     }
   }
 
-  revalidatePath("/admin/users");
+  revalidatePath("/settings/users");
   return { ok: true };
 }
 
@@ -72,7 +72,7 @@ export async function inviteUser(input: {
       .eq("id", data.user.id);
   }
 
-  revalidatePath("/admin/users");
+  revalidatePath("/settings/users");
   return { ok: true };
 }
 
@@ -105,7 +105,7 @@ export async function setUserArchived(userId: string, archived: boolean): Promis
       ban_duration: archived ? "876000h" : "none",
     });
     if (error) return { error: error.message };
-    revalidatePath("/admin/users");
+    revalidatePath("/settings/users");
     return { ok: true };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Unknown error" };

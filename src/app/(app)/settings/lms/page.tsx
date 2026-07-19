@@ -80,7 +80,7 @@ export default async function AdminLMs() {
                     </td>
                     <td className="p-3 text-right space-x-3">
                       <Link href={`/?lm=${row.league_managers.id}`} className="text-glass-gold text-xs">View day →</Link>
-                      <Link href={`/admin/lm/${row.league_managers.id}`} className="text-xs text-glass-text-tertiary hover:text-glass-text">Metrics</Link>
+                      <Link href={`/settings/lm/${row.league_managers.id}`} className="text-xs text-glass-text-tertiary hover:text-glass-text">Metrics</Link>
                     </td>
                   </tr>
                 );

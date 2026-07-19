@@ -45,7 +45,7 @@ export default async function LMDrill({ params }: { params: Promise<{ id: string
 
   return (
     <main className="space-y-6">
-      <Link href="/admin" className="text-xs text-glass-text-tertiary hover:text-glass-text">&larr; Back to admin</Link>
+      <Link href="/settings" className="text-xs text-glass-text-tertiary hover:text-glass-text">&larr; Back to settings</Link>
       <header className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">{lmRow.full_name}</h1>
@@ -55,7 +55,7 @@ export default async function LMDrill({ params }: { params: Promise<{ id: string
         </div>
         <div className="flex gap-2">
           <Link
-            href={`/admin/lm/${id}/monthly`}
+            href={`/settings/lm/${id}/monthly`}
             className="text-xs px-3 py-1.5 rounded-full font-semibold"
             style={{
               background: "var(--accent-soft)",

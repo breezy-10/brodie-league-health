@@ -56,7 +56,7 @@ export default async function AdminUsersPage() {
   return (
     <main className="brodie-fade-in space-y-6">
       <div>
-        <Link href="/admin" className="text-sm text-glass-text-tertiary hover:text-glass-text transition">← Back to settings</Link>
+        <Link href="/settings" className="text-sm text-glass-text-tertiary hover:text-glass-text transition">← Back to settings</Link>
         <p className="font-mono text-xs uppercase tracking-[0.18em] mt-3 mb-1" style={{ color: "var(--glass-gold)" }}>Settings</p>
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>Users</h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
