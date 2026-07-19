@@ -1,14 +1,24 @@
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 import Filters, { type FilterOptions } from "./Filters";
 
-// The 24 markets, copied from the Registration Promo Tracker's locations table.
-const PROMO_LOCATIONS = [
+// Fallbacks copied from the Registration Promo Tracker, used until the live
+// PROMO_SUPABASE_* connection is configured (then these are replaced live).
+const PROMO_LOCATIONS_FALLBACK = [
   "Boston", "Brampton", "Brooklyn - Bushwick", "Brooklyn - Greenpoint", "Burlington",
   "Calgary", "Chicago", "Edmonton", "Kitchener", "London", "Markham", "Milton",
   "Mississauga", "Montreal", "Niagara", "Oakville", "Oshawa", "Ottawa", "Scarborough",
   "Toronto (Downtown)", "Toronto (Hoopdome)", "Vancouver", "Vaughan", "Winnipeg",
 ];
+const PROMO_SEASONS_FALLBACK = ["Fall '26", "Summer '26"];
+
+// Promo Tracker location name -> League Health league_managers.location_name,
+// so selecting a location still matches the roster in the live sections.
+const PROMO_TO_ROSTER: Record<string, string> = {
+  "Brampton": "Brampton (Game6)",
+  "Brooklyn - Bushwick": "Brooklyn (Bushwick)",
+};
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -110,7 +120,7 @@ export default async function DashboardPage({
   searchParams: Promise<{ season?: string; location?: string; lm?: string }>;
 }) {
   await requireRole(["dm", "super_admin"]);
-  const { season = "current", location = "all", lm = "all" } = await searchParams;
+  const { season: seasonParam, location = "all", lm = "all" } = await searchParams;
   const admin = createAdminClient();
 
   const { data: latest } = await admin
@@ -128,6 +138,26 @@ export default async function DashboardPage({
     .order("full_name");
   const activeLMs = lmsRaw ?? [];
 
+  // Locations + seasons from the Registration Promo Tracker — live when the
+  // PROMO_SUPABASE_* connection is wired, otherwise the copied fallbacks.
+  let promoLocations = PROMO_LOCATIONS_FALLBACK;
+  let promoSeasons = PROMO_SEASONS_FALLBACK;
+  let currentSeason: string | undefined;
+  if (sourceConfigured("promo")) {
+    const promo = sourceClient("promo")!;
+    const [locRes, seaRes] = await Promise.all([
+      promo.from("locations").select("name, sort_order").order("sort_order"),
+      promo.from("seasons").select("name, is_current").order("is_current", { ascending: false }),
+    ]);
+    const locNames = ((locRes.data ?? []) as { name: string | null }[]).map((l) => l.name).filter((n): n is string => !!n);
+    if (locNames.length) promoLocations = locNames;
+    const seaRows = (seaRes.data ?? []) as { name: string | null; is_current: boolean | null }[];
+    const seaNames = seaRows.map((s) => s.name).filter((n): n is string => !!n);
+    if (seaNames.length) promoSeasons = seaNames;
+    currentSeason = seaRows.find((s) => s.is_current)?.name ?? undefined;
+  }
+  const selectedSeason = seasonParam || currentSeason || promoSeasons[0] || "current";
+
   const snaps: SnapRow[] = snapDate
     ? (((await admin
         .from("daily_snapshots")
@@ -136,9 +166,11 @@ export default async function DashboardPage({
       ).data) as unknown as SnapRow[]) ?? []
     : [];
 
+  // Map the selected Promo Tracker location to its roster name for matching.
+  const rosterLocation = location !== "all" ? (PROMO_TO_ROSTER[location] ?? location) : "all";
   const filtered = snaps.filter((s) => {
     if (!s.league_managers?.active) return false;
-    if (location !== "all" && s.league_managers.location_name !== location) return false;
+    if (rosterLocation !== "all" && s.league_managers.location_name !== rosterLocation) return false;
     if (lm !== "all" && s.league_managers.id !== lm) return false;
     return true;
   });
@@ -168,8 +200,8 @@ export default async function DashboardPage({
   };
 
   const options: FilterOptions = {
-    seasons: [{ value: "current", label: "Current season" }],
-    locations: PROMO_LOCATIONS,
+    seasons: promoSeasons.map((s) => ({ value: s, label: s })),
+    locations: promoLocations,
     lms: activeLMs.map((l) => ({ id: l.id, name: l.full_name || "—" })),
   };
 
@@ -188,7 +220,7 @@ export default async function DashboardPage({
         </p>
       </header>
 
-      <Filters options={options} current={{ season, location, lm }} />
+      <Filters options={options} current={{ season: selectedSeason, location, lm }} />
 
       <div className="space-y-8">
         <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={SAMPLE.checklist} sample />
