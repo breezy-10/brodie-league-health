@@ -421,10 +421,11 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | nu
 // Registration pacing (teams + athletes at "day N of registration" for this
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
 type Pacing = { day_n: number | null; seasons: { season: string; kind: string; captains: number; athletes: number }[] };
-async function loadRegistrationPacing(regSeason: string): Promise<Pacing | null> {
+async function loadRegistrationPacing(regSeason: string, scope: Scope): Promise<Pacing | null> {
   try {
     const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", regSeason);
+    if (scope.location !== "all") url.searchParams.set("location", scope.location);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as Pacing;
@@ -545,7 +546,7 @@ export default async function DashboardPage({
     loadContentTiles(selectedSeason, scope),
     loadPromoTiles(regSeason, scope),
     loadOverdueTiles(selectedSeason, scope),
-    loadRegistrationPacing(regSeason),
+    loadRegistrationPacing(regSeason, scope),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const regBars = (metric: "captains" | "athletes") =>
