@@ -33,7 +33,7 @@ export default async function AdminHome() {
     <main className="space-y-8">
       <header className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
           <p className="text-glass-text-secondary text-sm mt-1">All LMs, all scores, all knobs.</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
