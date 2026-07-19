@@ -1,6 +1,8 @@
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
+import { resolveLocationsForLM, resolveLocationIdsByName } from "@/lib/source-apps/cross-app-locations";
+import type { AppSlug } from "@/lib/source-apps/clients";
 import { ymd } from "@/lib/source-apps/util";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import Filters, { type FilterOptions } from "./Filters";
@@ -141,12 +143,45 @@ async function resolveSeasonIds(sb: SupabaseClient, season: string): Promise<str
 
 const pctTone = (p: number): Tone => (p >= 70 ? "ok" : p >= 40 ? "warn" : "bad");
 
-async function loadChecklistTiles(season: string): Promise<Tile[] | null> {
+type Scope = { lm: string; location: string; lmEmail?: string };
+
+// Resolve the active Location/LM filter to this source's own location_id(s).
+// null = no location filter (show all); [] = filter matches no location here.
+async function sourceLocationIds(
+  appSlug: Exclude<AppSlug, "facilities" | "crm">,
+  scope: Scope,
+): Promise<string[] | null> {
+  if (scope.lm !== "all") return scope.lmEmail ? resolveLocationsForLM(appSlug, scope.lmEmail) : [];
+  if (scope.location !== "all") return resolveLocationIdsByName(appSlug, scope.location);
+  return null;
+}
+
+// Fetch rows from a source table filtered by season_id and (optionally)
+// location_id, returning [] when either filter excludes everything.
+async function fetchScoped(
+  sb: SupabaseClient, table: string, cols: string, seasonIds: string[], locIds: string[] | null,
+): Promise<Record<string, unknown>[]> {
+  if (!seasonIds.length || (locIds && locIds.length === 0)) return [];
+  let q = sb.from(table).select(cols).in("season_id", seasonIds);
+  if (locIds) q = q.in("location_id", locIds);
+  const { data } = await q;
+  return (data ?? []) as unknown as Record<string, unknown>[];
+}
+
+async function loadChecklistTiles(season: string, scope: Scope): Promise<Tile[] | null> {
   if (!sourceConfigured("checklist")) return null;
   const sb = sourceClient("checklist")!;
-  const ids = await resolveSeasonIds(sb, season);
-  if (!ids.length) return null;
-  const { data } = await sb.from("season_tasks").select("status, due_date").in("season_id", ids);
+  const locIds = await sourceLocationIds("checklist", scope);
+  const locSet = locIds ? new Set(locIds) : null;
+  // Checklist location lives on `seasons.location_id`, not on the tasks.
+  const { data: seasons } = await sb.from("seasons").select("id, name, location_id");
+  const want = seasonKey(season);
+  const ids = ((seasons ?? []) as { id: string; name: string | null; location_id: string | null }[])
+    .filter((s) => s.name && seasonKey(s.name) === want && (!locSet || (s.location_id != null && locSet.has(s.location_id))))
+    .map((s) => s.id);
+  const { data } = ids.length
+    ? await sb.from("season_tasks").select("status, due_date").in("season_id", ids)
+    : { data: [] as { status: string; due_date: string | null }[] };
   const list = (data ?? []) as { status: string; due_date: string | null }[];
   const total = list.length;
   const done = list.filter((t) => t.status === "done").length;
@@ -159,13 +194,11 @@ async function loadChecklistTiles(season: string): Promise<Tile[] | null> {
   ];
 }
 
-async function loadFeedbackTiles(season: string): Promise<Tile[] | null> {
+async function loadFeedbackTiles(season: string, scope: Scope): Promise<Tile[] | null> {
   if (!sourceConfigured("feedback")) return null;
   const sb = sourceClient("feedback")!;
-  const ids = await resolveSeasonIds(sb, season);
-  if (!ids.length) return null;
-  const { data } = await sb.from("responses").select("nps_score, composite_csat, retention_intent").in("season_id", ids);
-  const r = (data ?? []) as { nps_score: number | null; composite_csat: number | null; retention_intent: string | null }[];
+  const [ids, locIds] = await Promise.all([resolveSeasonIds(sb, season), sourceLocationIds("feedback", scope)]);
+  const r = (await fetchScoped(sb, "responses", "nps_score, composite_csat, retention_intent", ids, locIds)) as unknown as { nps_score: number | null; composite_csat: number | null; retention_intent: string | null }[];
   const nps = r.filter((x): x is { nps_score: number; composite_csat: number | null; retention_intent: string | null } => x.nps_score != null);
   const prom = nps.filter((x) => x.nps_score >= 9).length;
   const det = nps.filter((x) => x.nps_score <= 6).length;
@@ -186,13 +219,11 @@ async function loadFeedbackTiles(season: string): Promise<Tile[] | null> {
   ];
 }
 
-async function loadContentTiles(season: string): Promise<Tile[] | null> {
+async function loadContentTiles(season: string, scope: Scope): Promise<Tile[] | null> {
   if (!sourceConfigured("content_health")) return null;
   const sb = sourceClient("content_health")!;
-  const ids = await resolveSeasonIds(sb, season);
-  if (!ids.length) return null;
-  const { data } = await sb.from("content_nights").select("iphone_clips_posted_at, photos_posted_at, videos_posted_at").in("season_id", ids);
-  const cn = (data ?? []) as { iphone_clips_posted_at: string | null; photos_posted_at: string | null; videos_posted_at: string | null }[];
+  const [ids, locIds] = await Promise.all([resolveSeasonIds(sb, season), sourceLocationIds("content_health", scope)]);
+  const cn = (await fetchScoped(sb, "content_nights", "iphone_clips_posted_at, photos_posted_at, videos_posted_at", ids, locIds)) as unknown as { iphone_clips_posted_at: string | null; photos_posted_at: string | null; videos_posted_at: string | null }[];
   const nights = cn.length;
   const mk = (label: string, n: number): Tile => {
     const pct = nights ? Math.round((100 * n) / nights) : 0;
@@ -206,13 +237,11 @@ async function loadContentTiles(season: string): Promise<Tile[] | null> {
   ];
 }
 
-async function loadStatsTiles(season: string): Promise<Tile[] | null> {
+async function loadStatsTiles(season: string, scope: Scope): Promise<Tile[] | null> {
   if (!sourceConfigured("stats_health")) return null;
   const sb = sourceClient("stats_health")!;
-  const ids = await resolveSeasonIds(sb, season);
-  if (!ids.length) return null;
-  const { data } = await sb.from("games").select("stats_source, stats_completed, stream_status, platform_spare_count").in("season_id", ids);
-  const g = (data ?? []) as { stats_source: string | null; stats_completed: boolean | null; stream_status: string | null; platform_spare_count: number | null }[];
+  const [ids, locIds] = await Promise.all([resolveSeasonIds(sb, season), sourceLocationIds("stats_health", scope)]);
+  const g = (await fetchScoped(sb, "games", "stats_source, stats_completed, stream_status, platform_spare_count", ids, locIds)) as unknown as { stats_source: string | null; stats_completed: boolean | null; stream_status: string | null; platform_spare_count: number | null }[];
   const played = g.filter((x) => x.stats_completed != null);
   const completed = played.filter((x) => x.stats_completed === true).length;
   const compPct = played.length ? Math.round((100 * completed) / played.length) : 0;
@@ -254,13 +283,12 @@ async function loadStatsTiles(season: string): Promise<Tile[] | null> {
   ];
 }
 
-async function loadPromoTiles(season: string): Promise<Tile[] | null> {
+async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | null> {
   if (!sourceConfigured("promo")) return null;
   const sb = sourceClient("promo")!;
-  const ids = await resolveSeasonIds(sb, season);
-  if (!ids.length) return null;
-  const { data: regs } = await sb.from("registrations_cache").select("id").in("season_id", ids);
-  const regIds = ((regs ?? []) as { id: string }[]).map((r) => r.id);
+  const [ids, locIds] = await Promise.all([resolveSeasonIds(sb, season), sourceLocationIds("promo", scope)]);
+  const regs = await fetchScoped(sb, "registrations_cache", "id", ids, locIds);
+  const regIds = regs.map((r) => r.id as string);
   const teams = regIds.length;
   let stories = 0, highlights = 0;
   if (regIds.length) {
@@ -297,10 +325,10 @@ export default async function DashboardPage({
 
   const { data: lmsRaw } = await admin
     .from("league_managers")
-    .select("id, full_name, location_name")
+    .select("id, full_name, email, location_name")
     .eq("active", true)
     .order("full_name");
-  const activeLMs = lmsRaw ?? [];
+  const activeLMs = (lmsRaw ?? []) as { id: string; full_name: string | null; email: string; location_name: string | null }[];
 
   // Locations + seasons from the Registration Promo Tracker — live when the
   // PROMO_SUPABASE_* connection is wired, otherwise the copied fallbacks.
@@ -334,13 +362,18 @@ export default async function DashboardPage({
   }
   const selectedSeason = seasonParam || activeSeasonLabel || currentSeason || promoSeasons[0] || "current";
 
-  // Live, season-scoped section cards (each falls back to sample if unwired).
+  // Live, season + location/LM scoped section cards (fall back to sample if unwired).
+  const scope: Scope = {
+    lm,
+    location,
+    lmEmail: lm !== "all" ? activeLMs.find((l) => l.id === lm)?.email : undefined,
+  };
   const [checklistTiles, feedbackTiles, statsTiles, contentTiles, promoTiles] = await Promise.all([
-    loadChecklistTiles(selectedSeason),
-    loadFeedbackTiles(selectedSeason),
-    loadStatsTiles(selectedSeason),
-    loadContentTiles(selectedSeason),
-    loadPromoTiles(selectedSeason),
+    loadChecklistTiles(selectedSeason, scope),
+    loadFeedbackTiles(selectedSeason, scope),
+    loadStatsTiles(selectedSeason, scope),
+    loadContentTiles(selectedSeason, scope),
+    loadPromoTiles(selectedSeason, scope),
   ]);
 
   const snaps: SnapRow[] = snapDate
@@ -418,10 +451,9 @@ export default async function DashboardPage({
       </div>
 
       <p className="text-xs text-glass-text-tertiary">
-        Checklist, Feedback, Stats Health, and Content Health are live and scoped to the selected Season (read straight
-        from each source app); the Promo Tracker goes live once its key is added. Registrations still reads the daily
-        scoreboard and responds to the Location / League-manager filters — those two filters don&apos;t yet narrow the
-        season-scoped sections.
+        Checklist, Feedback, Stats Health, and Content Health read straight from each source app, scoped to the selected
+        Season, Location, and League manager (location names are reconciled across apps by fuzzy match); the Promo Tracker
+        joins them once its key is added. Registrations reads the daily scoreboard.
       </p>
     </main>
   );

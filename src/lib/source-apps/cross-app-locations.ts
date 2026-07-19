@@ -117,6 +117,32 @@ export async function resolveLocationsForLM(
 }
 
 /**
+ * Resolve a single location name (any app's naming) to the matching location
+ * row IDs in the target app, using the same fuzzy matcher as the LM resolver.
+ * Used by the dashboard's Location filter, where the selected value is one
+ * app's location label that must be mapped into each source app.
+ */
+export async function resolveLocationIdsByName(
+  appSlug: Exclude<AppSlug, "facilities" | "crm">,
+  locationName: string
+): Promise<string[]> {
+  const cacheKey = `byname:${appSlug}:${normalize(locationName)}`;
+  const hit = locationCache.get(cacheKey);
+  if (hit) return hit;
+  const target = sourceClient(appSlug);
+  if (!target) {
+    locationCache.set(cacheKey, []);
+    return [];
+  }
+  const { data: locs } = await target.from("locations").select("id, name");
+  const matchIds = ((locs ?? []) as Array<{ id: string; name: string }>)
+    .filter((l) => fuzzyMatch([locationName], l.name))
+    .map((l) => l.id);
+  locationCache.set(cacheKey, matchIds);
+  return matchIds;
+}
+
+/**
  * Facilities has no separate `locations` table; it scopes by `city`. Returns
  * the set of normalized city strings the LM is responsible for, suitable for
  * an `in.()` filter on facilities.city.
