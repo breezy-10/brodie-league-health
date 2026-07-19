@@ -131,6 +131,19 @@ function seasonKey(name: string): string {
   return `${term}${yr}`;
 }
 
+// The registration/promo push runs one season ahead of play:
+// "Summer '26" -> "Fall '26", "Fall '26" -> "Winter '27".
+const SEASON_TERMS = ["winter", "spring", "summer", "fall"];
+function nextSeasonLabel(season: string): string {
+  const term = season.toLowerCase().match(/winter|spring|summer|fall/)?.[0];
+  const yy = parseInt((season.match(/\d{2,4}/)?.[0] ?? "").slice(-2), 10);
+  if (!term || Number.isNaN(yy)) return season;
+  const i = SEASON_TERMS.indexOf(term);
+  const nextTerm = SEASON_TERMS[(i + 1) % 4];
+  const nextYy = i === 3 ? yy + 1 : yy;
+  return `${nextTerm[0].toUpperCase()}${nextTerm.slice(1)} '${String(nextYy).padStart(2, "0")}`;
+}
+
 // Resolve the selected global season to a source's own season_id(s) via its
 // `seasons` table (matched on name term+year). Consistent across every source.
 async function resolveSeasonIds(sb: SupabaseClient, season: string): Promise<string[]> {
@@ -189,8 +202,8 @@ async function loadChecklistTiles(season: string, scope: Scope): Promise<Tile[] 
   const overdue = list.filter((t) => t.due_date && t.due_date < today && t.status === "not_started").length;
   const pct = total ? Math.round((100 * done) / total) : 0;
   return [
-    { label: "Tasks complete", value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pctTone(pct) },
-    { label: "Overdue tasks", value: overdue.toLocaleString(), sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok" },
+    { label: `Tasks complete · ${season}`, value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pctTone(pct) },
+    { label: `Overdue tasks · ${season}`, value: overdue.toLocaleString(), sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok" },
   ];
 }
 
@@ -362,19 +375,25 @@ export default async function DashboardPage({
   }
   const selectedSeason = seasonParam || activeSeasonLabel || currentSeason || promoSeasons[0] || "current";
 
+  // Registration + promo work runs one season ahead of the playing season.
+  const regSeason = nextSeasonLabel(selectedSeason);
+
   // Live, season + location/LM scoped section cards (fall back to sample if unwired).
   const scope: Scope = {
     lm,
     location,
     lmEmail: lm !== "all" ? activeLMs.find((l) => l.id === lm)?.email : undefined,
   };
-  const [checklistTiles, feedbackTiles, statsTiles, contentTiles, promoTiles] = await Promise.all([
+  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles] = await Promise.all([
     loadChecklistTiles(selectedSeason, scope),
+    loadChecklistTiles(regSeason, scope),
     loadFeedbackTiles(selectedSeason, scope),
     loadStatsTiles(selectedSeason, scope),
     loadContentTiles(selectedSeason, scope),
-    loadPromoTiles(selectedSeason, scope),
+    loadPromoTiles(regSeason, scope),
   ]);
+  // Checklist: two cards for the playing season, two for the next (prep) season.
+  const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
 
   const snaps: SnapRow[] = snapDate
     ? (((await admin
@@ -438,12 +457,12 @@ export default async function DashboardPage({
         </p>
       </header>
 
-      <Filters options={options} current={{ season: selectedSeason, location, lm }} />
+      <Filters key={`${selectedSeason}|${location}|${lm}`} options={options} current={{ season: selectedSeason, location, lm }} />
 
       <div className="space-y-8">
         <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} />
-        <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} />
-        <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} />
+        <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} seasonTag={regSeason} />
+        <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
         <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
         <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
         <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? realTiles("content_health")} />
@@ -451,9 +470,9 @@ export default async function DashboardPage({
       </div>
 
       <p className="text-xs text-glass-text-tertiary">
-        Checklist, Feedback, Stats Health, and Content Health read straight from each source app, scoped to the selected
-        Season, Location, and League manager (location names are reconciled across apps by fuzzy match); the Promo Tracker
-        joins them once its key is added. Registrations reads the daily scoreboard.
+        Feedback, Stats Health, and Content Health read live from each source, scoped to the selected Season, Location,
+        and League manager (locations reconciled across apps by fuzzy match). Registration + Promo run one season ahead
+        (the prep season, tagged in gold), and the Checklist shows both. The Promo Tracker joins once its key is added.
       </p>
     </main>
   );
@@ -464,17 +483,25 @@ function Section({
   href,
   tiles,
   sample = false,
+  seasonTag,
 }: {
   title: string;
   href?: string;
   tiles: Tile[];
   sample?: boolean;
+  seasonTag?: string;
 }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h2>
+          {seasonTag && (
+            <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+              style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>
+              {seasonTag}
+            </span>
+          )}
           {sample && (
             <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
               style={{ background: "var(--glass-surface-hover)", color: "var(--glass-text-tertiary)" }}>
