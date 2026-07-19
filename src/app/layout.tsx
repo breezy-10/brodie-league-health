@@ -17,7 +17,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Brodie League Health",
+  title: "League Health | Brodie",
   description: "Daily ops scoreboard for league managers.",
 };
 
