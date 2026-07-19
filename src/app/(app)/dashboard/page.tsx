@@ -284,7 +284,7 @@ async function loadStatsTiles(season: string, scope: Scope): Promise<Tile[] | nu
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as {
-      stats_completion_pct: number | null; games_played: number | null; games_tracked: number;
+      stats_completion_pct: number | null; stats_completion_tone?: Tone; full_recording_tone?: Tone; games_played: number | null; games_tracked: number;
       by_source: { ballertv: number; livebarn: number; scoresheet: number }; no_stats: number;
       full_recording_pct: number | null; full: number; incomplete: number; recording_total: number;
       spare_appearances: number; spare_games: number;
@@ -304,12 +304,12 @@ async function loadStatsTiles(season: string, scope: Scope): Promise<Tile[] | nu
     return [
       {
         label: "Stats completion rate", value: k.stats_completion_pct == null ? "—" : `${k.stats_completion_pct}%`,
-        tone: k.stats_completion_pct == null ? "default" : pctTone(k.stats_completion_pct),
+        tone: k.stats_completion_tone ?? (k.stats_completion_pct == null ? "default" : pctTone(k.stats_completion_pct)),
         lines: completionLines,
       },
       {
         label: "Full recording %", value: k.full_recording_pct == null ? "—" : `${k.full_recording_pct}%`,
-        tone: k.full_recording_pct == null ? "default" : pctTone(k.full_recording_pct),
+        tone: k.full_recording_tone ?? (k.full_recording_pct == null ? "default" : pctTone(k.full_recording_pct)),
         lines: [
           { text: `${n(k.full)} — full` },
           { text: `${n(k.incomplete)} — incomplete` },
