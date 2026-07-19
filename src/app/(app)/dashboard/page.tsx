@@ -207,16 +207,18 @@ async function loadFeedbackTiles(season: string, scope: Scope): Promise<Tile[] |
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as {
-      responses: number; csat_pct: number | null; csat_satisfied: number; csat_total: number;
-      nps: number | null; promoters: number; detractors: number; nps_total: number;
+      responses: number; csat_pct: number | null; csat_tone: Tone; csat_satisfied: number; csat_total: number;
+      nps: number | null; nps_tone: Tone; promoters: number; detractors: number; nps_total: number;
       promoter_pct: number | null; detractor_pct: number | null;
       retention_pct: number | null; retention_yes: number; retention_thinking: number; retention_no: number;
     };
+    // Tones come from the feedback site's own colour functions (csatColor/npsColor);
+    // Returning intent is left uncoloured, matching that site.
     return [
       { label: "Responses", value: k.responses.toLocaleString() },
-      { label: "CSAT", value: k.csat_pct == null ? "—" : `${k.csat_pct}%`, sub: k.csat_pct == null ? "no CSAT question" : `${k.csat_satisfied} of ${k.csat_total} rated 8 or higher`, tone: k.csat_pct == null ? "default" : pctTone(k.csat_pct) },
-      { label: "NPS", value: k.nps == null ? "—" : `${k.nps}`, sub: k.nps == null ? "no NPS scored" : `${k.promoter_pct}% promoters (${k.promoters}) · ${k.detractor_pct}% detractors (${k.detractors}) of ${k.nps_total} scored`, tone: k.nps == null ? "default" : k.nps >= 30 ? "ok" : k.nps >= 0 ? "warn" : "bad" },
-      { label: "Returning intent", value: k.retention_pct == null ? "—" : `${k.retention_pct}%`, sub: k.retention_pct == null ? "no retention question" : `${k.retention_yes} yes · ${k.retention_thinking} thinking · ${k.retention_no} no`, tone: k.retention_pct == null ? "default" : pctTone(k.retention_pct) },
+      { label: "CSAT", value: k.csat_pct == null ? "—" : `${k.csat_pct}%`, sub: k.csat_pct == null ? "no CSAT question" : `${k.csat_satisfied} of ${k.csat_total} rated 8 or higher`, tone: k.csat_tone ?? "default" },
+      { label: "NPS", value: k.nps == null ? "—" : `${k.nps}`, sub: k.nps == null ? "no NPS scored" : `${k.promoter_pct}% promoters (${k.promoters}) · ${k.detractor_pct}% detractors (${k.detractors}) of ${k.nps_total} scored`, tone: k.nps_tone ?? "default" },
+      { label: "Returning intent", value: k.retention_pct == null ? "—" : `${k.retention_pct}%`, sub: k.retention_pct == null ? "no retention question" : `${k.retention_yes} yes · ${k.retention_thinking} thinking · ${k.retention_no} no` },
     ];
   } catch {
     return null;
