@@ -12,10 +12,10 @@ export default async function AdminHome() {
   await requireRole(["dm", "super_admin"]);
   const sb = createAdminClient();
 
-  const [{ count: lmActive }, { count: lmTotal }, { count: appCount }, { count: auditCount }] =
+  const [{ count: lmActive }, { count: userCount }, { count: appCount }, { count: auditCount }] =
     await Promise.all([
       sb.from("league_managers").select("id", { count: "exact", head: true }).eq("active", true),
-      sb.from("league_managers").select("id", { count: "exact", head: true }),
+      sb.from("profiles").select("id", { count: "exact", head: true }),
       sb.from("apps").select("id", { count: "exact", head: true }),
       sb.from("audit_log").select("id", { count: "exact", head: true }),
     ]);
@@ -36,10 +36,10 @@ export default async function AdminHome() {
           sub="Everyone's score today, ranked, with day-over-day deltas and per-LM metrics."
         />
         <AdminCard
-          href="/admin/roster"
-          title="Roster"
-          count={lmTotal ?? 0}
-          sub="Every LM, active or not. Pulled from the CRM on each sync."
+          href="/admin/users"
+          title="Users"
+          count={userCount ?? 0}
+          sub="Invite staff and manage roles & access. No CRM entry required."
         />
         <AdminCard
           href="/admin/weights"
