@@ -1,7 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
+
+function Spinner() {
+  return (
+    <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const SELECT =
   "rounded-lg border border-glass-border bg-glass-surface px-3 py-2 text-sm text-glass-text focus:outline-none focus:border-glass-gold transition";
@@ -21,6 +30,7 @@ export default function Filters({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [pending, startTransition] = useTransition();
 
   // Stage the selections locally; only push to the URL when Apply is clicked.
   const [season, setSeason] = useState(current.season);
@@ -30,12 +40,13 @@ export default function Filters({
   const dirty = season !== current.season || location !== current.location || lm !== current.lm;
 
   function apply() {
+    if (!dirty) return;
     const next = new URLSearchParams();
     if (season) next.set("season", season);
     if (location && location !== "all") next.set("location", location);
     if (lm && lm !== "all") next.set("lm", lm);
     const qs = next.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+    startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname));
   }
 
   return (
@@ -59,10 +70,17 @@ export default function Filters({
       </Field>
       <button
         onClick={apply}
-        disabled={!dirty}
-        className="rounded-lg bg-glass-gold text-black font-semibold text-sm px-5 py-2 hover:brightness-110 disabled:opacity-40 disabled:cursor-default transition"
+        disabled={pending || !dirty}
+        className={`inline-flex items-center gap-2 rounded-lg font-semibold text-sm px-5 py-2 transition ${
+          pending
+            ? "border border-glass-border bg-glass-surface text-glass-text cursor-default"
+            : dirty
+              ? "bg-glass-gold text-black hover:brightness-110"
+              : "bg-glass-gold text-black opacity-40 cursor-default"
+        }`}
       >
-        {dirty ? "Apply" : "Applied"}
+        {pending && <Spinner />}
+        {pending ? "Applying…" : dirty ? "Apply" : "Applied"}
       </button>
     </div>
   );
