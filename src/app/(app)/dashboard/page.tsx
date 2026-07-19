@@ -5,15 +5,19 @@ import Filters, { type FilterOptions } from "./Filters";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// The five domains the dashboard rolls up, in order. Each maps to a source app
-// League Health already ingests per-LM into daily_snapshots.
-const SECTIONS: { slug: string; title: string; blurb: string }[] = [
-  { slug: "crm",            title: "Registrations",             blurb: "Registration pace, lead response, and captain follow-up." },
-  { slug: "feedback",       title: "Feedback",                  blurb: "Player and staff feedback signal." },
-  { slug: "stats_health",   title: "Stats Health",              blurb: "Game stat logging timeliness." },
-  { slug: "content_health", title: "Content Health",            blurb: "Game content posting timeliness." },
-  { slug: "checklist",      title: "Season Success Checklist",  blurb: "Season readiness tasks completed on time." },
-];
+// Deep links to each source app's dashboard ("More details →").
+const APP_URL: Record<string, string> = {
+  crm: "https://brodie-crm-pro.vercel.app",
+  promo: "https://registration-promo-tracker.vercel.app",
+  feedback: "https://brodie-feedback.vercel.app",
+  stats_health: "https://brodie-stats-health.vercel.app",
+  content_health: "https://brodie-content-health.vercel.app",
+  checklist: "https://brodie-season-success-checklist.vercel.app",
+  overdue: "https://brodie-overdue-payments.vercel.app",
+};
+
+type Tone = "default" | "ok" | "warn" | "bad";
+type Tile = { label: string; value: string; unit?: string; sub?: string; tone?: Tone };
 
 type SnapRow = {
   raw_value: number | null;
@@ -28,6 +32,26 @@ function fmt(slug: string, avg: number): string {
   const pctish = /(pace|pct|sla|24h|rate|_in_|complete|response)/.test(slug);
   return pctish ? `${Math.round(avg)}%` : `${rounded}`;
 }
+
+// --- Sample cards (structure-first; wired to live source data in a follow-up) ---
+const SAMPLE: Record<string, Tile[]> = {
+  promo: [
+    { label: "Teams registered", value: "365", sub: "across 19 locations" },
+    { label: "Stories posted", value: "322", unit: "/ 365", sub: "88%", tone: "warn" },
+    { label: "Highlights posted", value: "322", unit: "/ 365", sub: "88%", tone: "warn" },
+    { label: "Avg time to post", value: "14h 40m", sub: "340 posts", tone: "warn" },
+  ],
+  feedback: [
+    { label: "Responses", value: "2,477" },
+    { label: "CSAT", value: "77%", sub: "145 of 188 rated 8 or higher", tone: "ok" },
+    { label: "NPS", value: "28", sub: "53% promoters (972) · 25% detractors (460) of 1,850 scored", tone: "warn" },
+    { label: "Returning intent", value: "52%", sub: "1,136 yes · 646 thinking · 408 no" },
+  ],
+  checklist: [
+    { label: "Tasks complete", value: "39%", sub: "393 / 1,000", tone: "bad" },
+    { label: "Overdue tasks", value: "231", sub: "Across all your checklists", tone: "bad" },
+  ],
+};
 
 export default async function DashboardPage({
   searchParams,
@@ -61,8 +85,6 @@ export default async function DashboardPage({
       ).data) as unknown as SnapRow[]) ?? []
     : [];
 
-  // Apply the location / lead-manager filters (season is not yet a stored
-  // dimension — see the note under the header).
   const filtered = snaps.filter((s) => {
     if (!s.league_managers?.active) return false;
     if (location !== "all" && s.league_managers.location_name !== location) return false;
@@ -70,7 +92,6 @@ export default async function DashboardPage({
     return true;
   });
 
-  // Aggregate raw_value per app → per metric across the filtered LMs.
   type MetricAgg = { name: string; slug: string; sum: number; n: number };
   const byApp = new Map<string, { metrics: Map<string, MetricAgg>; lms: Set<string> }>();
   for (const s of filtered) {
@@ -86,6 +107,14 @@ export default async function DashboardPage({
     }
     byApp.set(appSlug, app);
   }
+  const realTiles = (slug: string): Tile[] => {
+    const app = byApp.get(slug);
+    if (!app) return [];
+    return Array.from(app.metrics.values()).map((m) => ({
+      label: m.name,
+      value: m.n ? fmt(m.slug, m.sum / m.n) : "—",
+    }));
+  };
 
   const options: FilterOptions = {
     seasons: [{ value: "current", label: "Current season" }],
@@ -99,58 +128,93 @@ export default async function DashboardPage({
     : `all ${activeLMs.length} lead managers`;
 
   return (
-    <main className="brodie-fade-in space-y-6">
+    <main className="brodie-fade-in space-y-8">
       <header>
         <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>Dashboard</p>
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>League overview</h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
-          Cross-app health across registrations, feedback, stats, content, and season readiness — for {scopeLabel}.
-          {snapDate ? ` As of ${snapDate}.` : " No snapshot data yet."}
+          Cross-app health for {scopeLabel}.{snapDate ? ` As of ${snapDate}.` : ""}
         </p>
       </header>
 
       <Filters options={options} current={{ season, location, lm }} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {SECTIONS.map((sec) => {
-          const app = byApp.get(sec.slug);
-          const metrics = app ? Array.from(app.metrics.values()) : [];
-          const lmCount = app?.lms.size ?? 0;
-          return (
-            <section key={sec.slug} className="rounded-2xl border border-glass-border bg-glass-surface p-5 flex flex-col">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>{sec.title}</h2>
-                  <p className="text-xs mt-0.5 text-glass-text-tertiary">{sec.blurb}</p>
-                </div>
-                <span className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary shrink-0 mt-1">
-                  {lmCount} LM{lmCount === 1 ? "" : "s"}
-                </span>
-              </div>
-
-              <div className="mt-4 space-y-2">
-                {metrics.length === 0 ? (
-                  <p className="text-sm italic text-glass-text-tertiary py-2">No data for this scope.</p>
-                ) : (
-                  metrics.map((m) => (
-                    <div key={m.slug} className="flex items-center justify-between gap-3 border-t border-glass-border-light pt-2 first:border-t-0 first:pt-0">
-                      <span className="text-sm text-glass-text-secondary">{m.name}</span>
-                      <span className="text-sm font-semibold tabular" style={{ color: "var(--glass-text)" }}>
-                        {m.n ? fmt(m.slug, m.sum / m.n) : "—"}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          );
-        })}
+      <div className="space-y-8">
+        <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} />
+        <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={SAMPLE.promo} sample />
+        <Section title="Feedback" href={APP_URL.feedback} tiles={SAMPLE.feedback} sample />
+        <Section title="Stats Health" href={APP_URL.stats_health} tiles={realTiles("stats_health")} />
+        <Section title="Content Health" href={APP_URL.content_health} tiles={realTiles("content_health")} />
+        <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={SAMPLE.checklist} sample />
+        <Section title="Overdue Payments" href={APP_URL.overdue} tiles={[]} sample />
       </div>
 
       <p className="text-xs text-glass-text-tertiary">
-        Location and lead-manager filters are live. Season filtering is scaffolded — League Health currently stores only
-        rolling daily data, so per-season history needs source-app ingestion (happy to wire it next).
+        Live sections (Registrations, Stats Health, Content Health) respond to the Location and Lead-manager filters.
+        Sections marked <span className="uppercase tracking-wider font-bold">sample</span> show the target layout and
+        link out to the live app — their numbers get wired to source data next. Season filtering is scaffolded pending
+        per-season source ingestion.
       </p>
     </main>
+  );
+}
+
+function Section({
+  title,
+  href,
+  tiles,
+  sample = false,
+}: {
+  title: string;
+  href?: string;
+  tiles: Tile[];
+  sample?: boolean;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h2>
+          {sample && (
+            <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+              style={{ background: "var(--glass-surface-hover)", color: "var(--glass-text-tertiary)" }}>
+              sample
+            </span>
+          )}
+        </div>
+        {href && (
+          <a href={href} target="_blank" rel="noopener noreferrer"
+            className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
+            More details →
+          </a>
+        )}
+      </div>
+      {tiles.length ? (
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {tiles.map((t, i) => <StatTile key={i} {...t} />)}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+          Cards coming soon — open the app for the full view.
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StatTile({ label, value, unit, sub, tone = "default" }: Tile) {
+  const color =
+    tone === "ok" ? "rgb(74,222,128)" :
+    tone === "warn" ? "var(--glass-gold)" :
+    tone === "bad" ? "rgb(248,113,113)" : "var(--glass-text)";
+  return (
+    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
+      <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
+      <div className="mt-1.5 flex items-baseline gap-1.5">
+        <span className="text-2xl font-bold tabular" style={{ color }}>{value}</span>
+        {unit && <span className="text-sm text-glass-text-tertiary">{unit}</span>}
+      </div>
+      {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
+    </div>
   );
 }
