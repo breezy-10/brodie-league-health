@@ -257,50 +257,13 @@ async function loadContentTiles(season: string, scope: Scope): Promise<Tile[] | 
   ];
 }
 
-async function loadStatsTiles(season: string, scope: Scope): Promise<Tile[] | null> {
-  if (!sourceConfigured("stats_health")) return null;
-  const sb = sourceClient("stats_health")!;
-  const [ids, locIds] = await Promise.all([resolveSeasonIds(sb, season), sourceLocationIds("stats_health", scope)]);
-  const g = (await fetchScoped(sb, "games", "stats_source, stats_completed, stream_status, platform_spare_count", ids, locIds)) as unknown as { stats_source: string | null; stats_completed: boolean | null; stream_status: string | null; platform_spare_count: number | null }[];
-  const played = g.filter((x) => x.stats_completed != null);
-  const completed = played.filter((x) => x.stats_completed === true).length;
-  const compPct = played.length ? Math.round((100 * completed) / played.length) : 0;
-  const src = (s: string) => g.filter((x) => x.stats_source === s).length;
-  const resolved = g.filter((x) => x.stream_status && x.stream_status !== "pending");
-  const full = resolved.filter((x) => x.stream_status === "clean").length;
-  const incomplete = resolved.length - full;
-  const fullPct = resolved.length ? Math.round((100 * full) / resolved.length) : 0;
-  const spareGames = g.filter((x) => (x.platform_spare_count ?? 0) > 0).length;
-  const spareTotal = g.reduce((a, x) => a + (x.platform_spare_count ?? 0), 0);
-  return [
-    {
-      label: "Stats completion rate", value: `${compPct}%`, tone: pctTone(compPct),
-      lines: [
-        { text: `${played.length.toLocaleString()} — games played`, strong: true },
-        { text: `${g.length.toLocaleString()} — games tracked`, strong: true },
-        { text: `${src("ballertv").toLocaleString()} — BallerTV` },
-        { text: `${src("livebarn").toLocaleString()} — LiveBarn` },
-        { text: `${src("scoresheet").toLocaleString()} — Scoresheet` },
-        { text: `${(played.length - completed).toLocaleString()} — No stats` },
-      ],
-    },
-    {
-      label: "Full recording %", value: `${fullPct}%`, tone: pctTone(fullPct),
-      lines: [
-        { text: `${full.toLocaleString()} — full` },
-        { text: `${incomplete.toLocaleString()} — incomplete` },
-        { text: `${resolved.length.toLocaleString()} — total` },
-      ],
-    },
-    {
-      label: "Spare players", value: spareTotal.toLocaleString(), tone: "warn",
-      lines: [
-        { text: `${spareGames.toLocaleString()} — games with spares` },
-        { text: `${spareTotal.toLocaleString()} — spare appearances` },
-      ],
-      link: { href: "https://brodie-stats-health.vercel.app", label: "See games with spares →" },
-    },
-  ];
+// Stats Health: the direct query hit the Supabase 1000-row cap and used a
+// different tracked/played definition than the Stats Health site (which pulls
+// "games played" from an external API and windows games from 2026-05-04). Until
+// we read from that app's own KPI feed (like Feedback / Promo / Overdue), fall
+// back to the sample card rather than show wrong live numbers.
+async function loadStatsTiles(_season: string, _scope: Scope): Promise<Tile[] | null> {
+  return null;
 }
 
 // Overdue Payments reads that app's OWN public KPI feed. When a location is
