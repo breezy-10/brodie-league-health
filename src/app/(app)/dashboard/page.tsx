@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 import { ymd } from "@/lib/source-apps/util";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import Filters, { type FilterOptions } from "./Filters";
 
 // Fallbacks copied from the Registration Promo Tracker, used until the live
@@ -115,6 +116,12 @@ const SAMPLE: Record<string, Tile[]> = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Read-through reporting layer. Each loader queries its source app directly,
+// scoped to the selected season via the source's own season_id, and returns
+// card tiles (or null when the source isn't wired -> caller uses the sample).
+// ---------------------------------------------------------------------------
+
 // Normalize a season label to term+2-digit-year: "Fall '26" / "Fall 2026" -> "fall26".
 function seasonKey(name: string): string {
   const term = name.toLowerCase().match(/fall|summer|winter|spring/)?.[0] ?? "";
@@ -122,33 +129,152 @@ function seasonKey(name: string): string {
   return `${term}${yr}`;
 }
 
-// Live Season Success Checklist tiles for the selected season, read straight
-// from the checklist app. Returns null when the source isn't wired, so the
-// caller can fall back to the sample cards.
+// Resolve the selected global season to a source's own season_id(s) via its
+// `seasons` table (matched on name term+year). Consistent across every source.
+async function resolveSeasonIds(sb: SupabaseClient, season: string): Promise<string[]> {
+  const { data } = await sb.from("seasons").select("id, name");
+  const want = seasonKey(season);
+  return ((data ?? []) as { id: string; name: string | null }[])
+    .filter((s) => s.name && seasonKey(s.name) === want)
+    .map((s) => s.id);
+}
+
+const pctTone = (p: number): Tone => (p >= 70 ? "ok" : p >= 40 ? "warn" : "bad");
+
 async function loadChecklistTiles(season: string): Promise<Tile[] | null> {
   if (!sourceConfigured("checklist")) return null;
   const sb = sourceClient("checklist")!;
-  const { data: seasons } = await sb.from("seasons").select("id, name, archived").eq("archived", false);
-  const want = seasonKey(season);
-  const ids = ((seasons ?? []) as { id: string; name: string }[])
-    .filter((s) => seasonKey(s.name) === want)
-    .map((s) => s.id);
-  if (!ids.length) {
-    return [
-      { label: "Tasks complete", value: "—", sub: "no checklist for this season", tone: "default" },
-      { label: "Overdue tasks", value: "—" },
-    ];
-  }
-  const { data: tasks } = await sb.from("season_tasks").select("status, due_date").in("season_id", ids);
-  const list = (tasks ?? []) as { status: string; due_date: string | null }[];
+  const ids = await resolveSeasonIds(sb, season);
+  if (!ids.length) return null;
+  const { data } = await sb.from("season_tasks").select("status, due_date").in("season_id", ids);
+  const list = (data ?? []) as { status: string; due_date: string | null }[];
   const total = list.length;
   const done = list.filter((t) => t.status === "done").length;
   const today = ymd(new Date());
   const overdue = list.filter((t) => t.due_date && t.due_date < today && t.status === "not_started").length;
   const pct = total ? Math.round((100 * done) / total) : 0;
   return [
-    { label: "Tasks complete", value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pct >= 70 ? "ok" : pct >= 40 ? "warn" : "bad" },
+    { label: "Tasks complete", value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pctTone(pct) },
     { label: "Overdue tasks", value: overdue.toLocaleString(), sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok" },
+  ];
+}
+
+async function loadFeedbackTiles(season: string): Promise<Tile[] | null> {
+  if (!sourceConfigured("feedback")) return null;
+  const sb = sourceClient("feedback")!;
+  const ids = await resolveSeasonIds(sb, season);
+  if (!ids.length) return null;
+  const { data } = await sb.from("responses").select("nps_score, composite_csat, retention_intent").in("season_id", ids);
+  const r = (data ?? []) as { nps_score: number | null; composite_csat: number | null; retention_intent: string | null }[];
+  const nps = r.filter((x): x is { nps_score: number; composite_csat: number | null; retention_intent: string | null } => x.nps_score != null);
+  const prom = nps.filter((x) => x.nps_score >= 9).length;
+  const det = nps.filter((x) => x.nps_score <= 6).length;
+  const npsScore = nps.length ? Math.round((100 * (prom - det)) / nps.length) : 0;
+  const csat = r.filter((x): x is { nps_score: number | null; composite_csat: number; retention_intent: string | null } => x.composite_csat != null);
+  const good = csat.filter((x) => x.composite_csat >= 8).length;
+  const csatPct = csat.length ? Math.round((100 * good) / csat.length) : 0;
+  const yes = r.filter((x) => x.retention_intent === "Yes").length;
+  const thinking = r.filter((x) => x.retention_intent === "Thinking about it").length;
+  const no = r.filter((x) => x.retention_intent === "No").length;
+  const retTot = yes + thinking + no;
+  const retPct = retTot ? Math.round((100 * yes) / retTot) : 0;
+  return [
+    { label: "Responses", value: r.length.toLocaleString() },
+    { label: "CSAT", value: `${csatPct}%`, sub: `${good} of ${csat.length} rated 8 or higher`, tone: pctTone(csatPct) },
+    { label: "NPS", value: `${npsScore}`, sub: `${nps.length ? Math.round((100 * prom) / nps.length) : 0}% promoters (${prom}) · ${nps.length ? Math.round((100 * det) / nps.length) : 0}% detractors (${det}) of ${nps.length} scored`, tone: npsScore >= 30 ? "ok" : npsScore >= 0 ? "warn" : "bad" },
+    { label: "Returning intent", value: `${retPct}%`, sub: `${yes.toLocaleString()} yes · ${thinking.toLocaleString()} thinking · ${no.toLocaleString()} no` },
+  ];
+}
+
+async function loadContentTiles(season: string): Promise<Tile[] | null> {
+  if (!sourceConfigured("content_health")) return null;
+  const sb = sourceClient("content_health")!;
+  const ids = await resolveSeasonIds(sb, season);
+  if (!ids.length) return null;
+  const { data } = await sb.from("content_nights").select("iphone_clips_posted_at, photos_posted_at, videos_posted_at").in("season_id", ids);
+  const cn = (data ?? []) as { iphone_clips_posted_at: string | null; photos_posted_at: string | null; videos_posted_at: string | null }[];
+  const nights = cn.length;
+  const mk = (label: string, n: number): Tile => {
+    const pct = nights ? Math.round((100 * n) / nights) : 0;
+    return { label, value: `${n}`, unit: `/ ${nights}`, sub: `${pct}%`, tone: pctTone(pct) };
+  };
+  return [
+    { label: "Content nights", value: nights.toLocaleString() },
+    mk("Clips posted", cn.filter((x) => x.iphone_clips_posted_at).length),
+    mk("Photos posted", cn.filter((x) => x.photos_posted_at).length),
+    mk("Videos posted", cn.filter((x) => x.videos_posted_at).length),
+  ];
+}
+
+async function loadStatsTiles(season: string): Promise<Tile[] | null> {
+  if (!sourceConfigured("stats_health")) return null;
+  const sb = sourceClient("stats_health")!;
+  const ids = await resolveSeasonIds(sb, season);
+  if (!ids.length) return null;
+  const { data } = await sb.from("games").select("stats_source, stats_completed, stream_status, platform_spare_count").in("season_id", ids);
+  const g = (data ?? []) as { stats_source: string | null; stats_completed: boolean | null; stream_status: string | null; platform_spare_count: number | null }[];
+  const played = g.filter((x) => x.stats_completed != null);
+  const completed = played.filter((x) => x.stats_completed === true).length;
+  const compPct = played.length ? Math.round((100 * completed) / played.length) : 0;
+  const src = (s: string) => g.filter((x) => x.stats_source === s).length;
+  const resolved = g.filter((x) => x.stream_status && x.stream_status !== "pending");
+  const full = resolved.filter((x) => x.stream_status === "clean").length;
+  const incomplete = resolved.length - full;
+  const fullPct = resolved.length ? Math.round((100 * full) / resolved.length) : 0;
+  const spareGames = g.filter((x) => (x.platform_spare_count ?? 0) > 0).length;
+  const spareTotal = g.reduce((a, x) => a + (x.platform_spare_count ?? 0), 0);
+  return [
+    {
+      label: "Stats completion rate", value: `${compPct}%`, tone: pctTone(compPct),
+      lines: [
+        { text: `${played.length.toLocaleString()} — games played`, strong: true },
+        { text: `${g.length.toLocaleString()} — games tracked`, strong: true },
+        { text: `${src("ballertv").toLocaleString()} — BallerTV` },
+        { text: `${src("livebarn").toLocaleString()} — LiveBarn` },
+        { text: `${src("scoresheet").toLocaleString()} — Scoresheet` },
+        { text: `${(played.length - completed).toLocaleString()} — No stats` },
+      ],
+    },
+    {
+      label: "Full recording %", value: `${fullPct}%`, tone: pctTone(fullPct),
+      lines: [
+        { text: `${full.toLocaleString()} — full` },
+        { text: `${incomplete.toLocaleString()} — incomplete` },
+        { text: `${resolved.length.toLocaleString()} — total` },
+      ],
+    },
+    {
+      label: "Spare players", value: spareTotal.toLocaleString(), tone: "warn",
+      lines: [
+        { text: `${spareGames.toLocaleString()} — games with spares` },
+        { text: `${spareTotal.toLocaleString()} — spare appearances` },
+      ],
+      link: { href: "https://brodie-stats-health.vercel.app", label: "See games with spares →" },
+    },
+  ];
+}
+
+async function loadPromoTiles(season: string): Promise<Tile[] | null> {
+  if (!sourceConfigured("promo")) return null;
+  const sb = sourceClient("promo")!;
+  const ids = await resolveSeasonIds(sb, season);
+  if (!ids.length) return null;
+  const { data: regs } = await sb.from("registrations_cache").select("id").in("season_id", ids);
+  const regIds = ((regs ?? []) as { id: string }[]).map((r) => r.id);
+  const teams = regIds.length;
+  let stories = 0, highlights = 0;
+  if (regIds.length) {
+    const { data: ps } = await sb.from("promo_states").select("team_locked_story_posted, highlight_posted").in("registration_id", regIds);
+    const list = (ps ?? []) as { team_locked_story_posted: boolean | null; highlight_posted: boolean | null }[];
+    stories = list.filter((x) => x.team_locked_story_posted).length;
+    highlights = list.filter((x) => x.highlight_posted).length;
+  }
+  const sPct = teams ? Math.round((100 * stories) / teams) : 0;
+  const hPct = teams ? Math.round((100 * highlights) / teams) : 0;
+  return [
+    { label: "Teams registered", value: teams.toLocaleString() },
+    { label: "Stories posted", value: `${stories}`, unit: `/ ${teams}`, sub: `${sPct}%`, tone: pctTone(sPct) },
+    { label: "Highlights posted", value: `${highlights}`, unit: `/ ${teams}`, sub: `${hPct}%`, tone: pctTone(hPct) },
   ];
 }
 
@@ -194,10 +320,28 @@ export default async function DashboardPage({
     if (seaNames.length) promoSeasons = seaNames;
     currentSeason = seaRows.find((s) => s.is_current)?.name ?? undefined;
   }
-  const selectedSeason = seasonParam || currentSeason || promoSeasons[0] || "current";
+  // Default to the active PLAYING season (today within its date range, per the
+  // stats source) rather than the promo's registration season — that's where
+  // the games/feedback/content/checklist data actually lives right now.
+  let activeSeasonLabel: string | undefined;
+  if (sourceConfigured("stats_health")) {
+    const st = sourceClient("stats_health")!;
+    const today = ymd(new Date());
+    const { data } = await st.from("seasons").select("name, start_date, end_date");
+    const active = ((data ?? []) as { name: string | null; start_date: string | null; end_date: string | null }[])
+      .find((s) => s.start_date && s.end_date && s.start_date <= today && today <= s.end_date);
+    if (active?.name) activeSeasonLabel = promoSeasons.find((s) => seasonKey(s) === seasonKey(active.name!)) ?? active.name;
+  }
+  const selectedSeason = seasonParam || activeSeasonLabel || currentSeason || promoSeasons[0] || "current";
 
-  // Live, season-scoped Season Success Checklist card (falls back to sample).
-  const checklistTiles = await loadChecklistTiles(selectedSeason);
+  // Live, season-scoped section cards (each falls back to sample if unwired).
+  const [checklistTiles, feedbackTiles, statsTiles, contentTiles, promoTiles] = await Promise.all([
+    loadChecklistTiles(selectedSeason),
+    loadFeedbackTiles(selectedSeason),
+    loadStatsTiles(selectedSeason),
+    loadContentTiles(selectedSeason),
+    loadPromoTiles(selectedSeason),
+  ]);
 
   const snaps: SnapRow[] = snapDate
     ? (((await admin
@@ -266,17 +410,18 @@ export default async function DashboardPage({
       <div className="space-y-8">
         <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} />
         <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} />
-        <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={SAMPLE.promo} sample />
-        <Section title="Feedback" href={APP_URL.feedback} tiles={SAMPLE.feedback} sample />
-        <Section title="Stats Health" href={APP_URL.stats_health} tiles={SAMPLE.stats_health} sample />
-        <Section title="Content Health" href={APP_URL.content_health} tiles={realTiles("content_health")} />
+        <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} />
+        <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
+        <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
+        <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? realTiles("content_health")} />
         <Section title="Overdue Payments" href={APP_URL.overdue} tiles={[]} sample />
       </div>
 
       <p className="text-xs text-glass-text-tertiary">
-        Season Success Checklist is live and scoped to the selected Season; Registrations and Content Health respond to
-        the Location and League-manager filters. Sections still marked <span className="uppercase tracking-wider font-bold">sample</span> link
-        out to the live app — they get wired to source data next, section by section.
+        Checklist, Feedback, Stats Health, and Content Health are live and scoped to the selected Season (read straight
+        from each source app); the Promo Tracker goes live once its key is added. Registrations still reads the daily
+        scoreboard and responds to the Location / League-manager filters — those two filters don&apos;t yet narrow the
+        season-scoped sections.
       </p>
     </main>
   );
