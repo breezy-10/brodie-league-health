@@ -42,9 +42,9 @@ export default function Filters({
           {options.locations.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
       </Field>
-      <Field label="Lead manager">
+      <Field label="League manager">
         <select className={SELECT} value={current.lm} onChange={(e) => set("lm", e.target.value)}>
-          <option value="all">All lead managers</option>
+          <option value="all">All league managers</option>
           {options.lms.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
         </select>
       </Field>

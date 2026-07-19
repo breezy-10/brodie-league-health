@@ -17,7 +17,15 @@ const APP_URL: Record<string, string> = {
 };
 
 type Tone = "default" | "ok" | "warn" | "bad";
-type Tile = { label: string; value: string; unit?: string; sub?: string; tone?: Tone };
+type Tile = {
+  label: string;
+  value: string;
+  unit?: string;
+  sub?: string;
+  lines?: { text: string; strong?: boolean }[];
+  tone?: Tone;
+  link?: { href: string; label: string };
+};
 
 type SnapRow = {
   raw_value: number | null;
@@ -50,6 +58,41 @@ const SAMPLE: Record<string, Tile[]> = {
   checklist: [
     { label: "Tasks complete", value: "39%", sub: "393 / 1,000", tone: "bad" },
     { label: "Overdue tasks", value: "231", sub: "Across all your checklists", tone: "bad" },
+  ],
+  stats_health: [
+    {
+      label: "Stats completion rate",
+      value: "98%",
+      tone: "ok",
+      lines: [
+        { text: "834 — total games played", strong: true },
+        { text: "2,018 — total games tracked", strong: true },
+        { text: "1,901 — BallerTV" },
+        { text: "11 — LiveBarn" },
+        { text: "58 — In-venue" },
+        { text: "48 — No stats" },
+      ],
+    },
+    {
+      label: "Full recording %",
+      value: "91%",
+      tone: "ok",
+      lines: [
+        { text: "1,845 — full" },
+        { text: "173 — incomplete" },
+        { text: "2,018 — total" },
+      ],
+    },
+    {
+      label: "Spare players",
+      value: "464",
+      tone: "warn",
+      lines: [
+        { text: "297 — games with spares" },
+        { text: "464 — spare appearances" },
+      ],
+      link: { href: "https://brodie-stats-health.vercel.app", label: "See games with spares →" },
+    },
   ],
 };
 
@@ -123,9 +166,9 @@ export default async function DashboardPage({
   };
 
   const scopeLabel =
-    lm !== "all" ? (activeLMs.find((l) => l.id === lm)?.full_name ?? "1 lead manager")
+    lm !== "all" ? (activeLMs.find((l) => l.id === lm)?.full_name ?? "1 league manager")
     : location !== "all" ? location
-    : `all ${activeLMs.length} lead managers`;
+    : `all ${activeLMs.length} league managers`;
 
   return (
     <main className="brodie-fade-in space-y-8">
@@ -143,14 +186,14 @@ export default async function DashboardPage({
         <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} />
         <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={SAMPLE.promo} sample />
         <Section title="Feedback" href={APP_URL.feedback} tiles={SAMPLE.feedback} sample />
-        <Section title="Stats Health" href={APP_URL.stats_health} tiles={realTiles("stats_health")} />
+        <Section title="Stats Health" href={APP_URL.stats_health} tiles={SAMPLE.stats_health} sample />
         <Section title="Content Health" href={APP_URL.content_health} tiles={realTiles("content_health")} />
         <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={SAMPLE.checklist} sample />
         <Section title="Overdue Payments" href={APP_URL.overdue} tiles={[]} sample />
       </div>
 
       <p className="text-xs text-glass-text-tertiary">
-        Live sections (Registrations, Stats Health, Content Health) respond to the Location and Lead-manager filters.
+        Live sections (Registrations, Content Health) respond to the Location and League-manager filters.
         Sections marked <span className="uppercase tracking-wider font-bold">sample</span> show the target layout and
         link out to the live app — their numbers get wired to source data next. Season filtering is scaffolded pending
         per-season source ingestion.
@@ -202,7 +245,7 @@ function Section({
   );
 }
 
-function StatTile({ label, value, unit, sub, tone = "default" }: Tile) {
+function StatTile({ label, value, unit, sub, lines, tone = "default", link }: Tile) {
   const color =
     tone === "ok" ? "rgb(74,222,128)" :
     tone === "warn" ? "var(--glass-gold)" :
@@ -215,6 +258,25 @@ function StatTile({ label, value, unit, sub, tone = "default" }: Tile) {
         {unit && <span className="text-sm text-glass-text-tertiary">{unit}</span>}
       </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
+      {lines && lines.length > 0 && (
+        <div className="mt-2 space-y-0.5 tabular">
+          {lines.map((l, i) => (
+            <div
+              key={i}
+              className="text-xs leading-snug"
+              style={{ color: l.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)", fontWeight: l.strong ? 600 : 400 }}
+            >
+              {l.text}
+            </div>
+          ))}
+        </div>
+      )}
+      {link && (
+        <a href={link.href} target="_blank" rel="noopener noreferrer"
+          className="inline-block mt-2.5 text-xs font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
+          {link.label}
+        </a>
+      )}
     </div>
   );
 }
