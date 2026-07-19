@@ -183,12 +183,12 @@ export default async function DashboardPage({
       <Filters options={options} current={{ season, location, lm }} />
 
       <div className="space-y-8">
+        <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={SAMPLE.checklist} sample />
         <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} />
         <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={SAMPLE.promo} sample />
         <Section title="Feedback" href={APP_URL.feedback} tiles={SAMPLE.feedback} sample />
         <Section title="Stats Health" href={APP_URL.stats_health} tiles={SAMPLE.stats_health} sample />
         <Section title="Content Health" href={APP_URL.content_health} tiles={realTiles("content_health")} />
-        <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={SAMPLE.checklist} sample />
         <Section title="Overdue Payments" href={APP_URL.overdue} tiles={[]} sample />
       </div>
 
