@@ -212,29 +212,31 @@ async function loadChecklistTiles(season: string, scope: Scope): Promise<Tile[] 
   ];
 }
 
+// Feedback reads the feedback app's OWN KPI feed (response_summary RPC), so the
+// numbers match its site exactly — correct season (survey.intended_season_id)
+// and pagination included. Returns null on failure -> sample.
 async function loadFeedbackTiles(season: string, scope: Scope): Promise<Tile[] | null> {
-  if (!sourceConfigured("feedback")) return null;
-  const sb = sourceClient("feedback")!;
-  const [ids, locIds] = await Promise.all([resolveSeasonIds(sb, season), sourceLocationIds("feedback", scope)]);
-  const r = (await fetchScoped(sb, "responses", "nps_score, composite_csat, retention_intent", ids, locIds)) as unknown as { nps_score: number | null; composite_csat: number | null; retention_intent: string | null }[];
-  const nps = r.filter((x): x is { nps_score: number; composite_csat: number | null; retention_intent: string | null } => x.nps_score != null);
-  const prom = nps.filter((x) => x.nps_score >= 9).length;
-  const det = nps.filter((x) => x.nps_score <= 6).length;
-  const npsScore = nps.length ? Math.round((100 * (prom - det)) / nps.length) : 0;
-  const csat = r.filter((x): x is { nps_score: number | null; composite_csat: number; retention_intent: string | null } => x.composite_csat != null);
-  const good = csat.filter((x) => x.composite_csat >= 8).length;
-  const csatPct = csat.length ? Math.round((100 * good) / csat.length) : 0;
-  const yes = r.filter((x) => x.retention_intent === "Yes").length;
-  const thinking = r.filter((x) => x.retention_intent === "Thinking about it").length;
-  const no = r.filter((x) => x.retention_intent === "No").length;
-  const retTot = yes + thinking + no;
-  const retPct = retTot ? Math.round((100 * yes) / retTot) : 0;
-  return [
-    { label: "Responses", value: r.length.toLocaleString() },
-    { label: "CSAT", value: `${csatPct}%`, sub: `${good} of ${csat.length} rated 8 or higher`, tone: pctTone(csatPct) },
-    { label: "NPS", value: `${npsScore}`, sub: `${nps.length ? Math.round((100 * prom) / nps.length) : 0}% promoters (${prom}) · ${nps.length ? Math.round((100 * det) / nps.length) : 0}% detractors (${det}) of ${nps.length} scored`, tone: npsScore >= 30 ? "ok" : npsScore >= 0 ? "warn" : "bad" },
-    { label: "Returning intent", value: `${retPct}%`, sub: `${yes.toLocaleString()} yes · ${thinking.toLocaleString()} thinking · ${no.toLocaleString()} no` },
-  ];
+  try {
+    const url = new URL("/api/dashboard-kpis", "https://brodie-feedback.vercel.app");
+    url.searchParams.set("season", season);
+    if (scope.location !== "all") url.searchParams.set("location", scope.location);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as {
+      responses: number; csat_pct: number | null; csat_satisfied: number; csat_total: number;
+      nps: number | null; promoters: number; detractors: number; nps_total: number;
+      promoter_pct: number | null; detractor_pct: number | null;
+      retention_pct: number | null; retention_yes: number; retention_thinking: number; retention_no: number;
+    };
+    return [
+      { label: "Responses", value: k.responses.toLocaleString() },
+      { label: "CSAT", value: k.csat_pct == null ? "—" : `${k.csat_pct}%`, sub: k.csat_pct == null ? "no CSAT question" : `${k.csat_satisfied} of ${k.csat_total} rated 8 or higher`, tone: k.csat_pct == null ? "default" : pctTone(k.csat_pct) },
+      { label: "NPS", value: k.nps == null ? "—" : `${k.nps}`, sub: k.nps == null ? "no NPS scored" : `${k.promoter_pct}% promoters (${k.promoters}) · ${k.detractor_pct}% detractors (${k.detractors}) of ${k.nps_total} scored`, tone: k.nps == null ? "default" : k.nps >= 30 ? "ok" : k.nps >= 0 ? "warn" : "bad" },
+      { label: "Returning intent", value: k.retention_pct == null ? "—" : `${k.retention_pct}%`, sub: k.retention_pct == null ? "no retention question" : `${k.retention_yes} yes · ${k.retention_thinking} thinking · ${k.retention_no} no` },
+    ];
+  } catch {
+    return null;
+  }
 }
 
 async function loadContentTiles(season: string, scope: Scope): Promise<Tile[] | null> {
