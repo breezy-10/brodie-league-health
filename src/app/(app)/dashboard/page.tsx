@@ -262,8 +262,56 @@ async function loadContentTiles(season: string, scope: Scope): Promise<Tile[] | 
 // "games played" from an external API and windows games from 2026-05-04). Until
 // we read from that app's own KPI feed (like Feedback / Promo / Overdue), fall
 // back to the sample card rather than show wrong live numbers.
-async function loadStatsTiles(_season: string, _scope: Scope): Promise<Tile[] | null> {
-  return null;
+// Stats Health reads the app's OWN KPI feed (same paginated card math +
+// scheduledPlayedCount), so the numbers match its site exactly. Null -> sample.
+async function loadStatsTiles(season: string, scope: Scope): Promise<Tile[] | null> {
+  try {
+    const url = new URL("/api/dashboard-kpis", "https://brodie-stats-health.vercel.app");
+    url.searchParams.set("season", season);
+    if (scope.location !== "all") url.searchParams.set("location", scope.location);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as {
+      stats_completion_pct: number | null; games_played: number | null; games_tracked: number;
+      by_source: { ballertv: number; livebarn: number; scoresheet: number }; no_stats: number;
+      full_recording_pct: number | null; full: number; incomplete: number; recording_total: number;
+      spare_appearances: number; spare_games: number;
+    };
+    const n = (x: number) => x.toLocaleString();
+    const completionLines: { text: string; strong?: boolean }[] = [];
+    if (k.games_played != null) completionLines.push({ text: `${n(k.games_played)} — games played`, strong: true });
+    completionLines.push({ text: `${n(k.games_tracked)} — games tracked`, strong: true });
+    completionLines.push({ text: `${n(k.by_source.ballertv)} — BallerTV` });
+    completionLines.push({ text: `${n(k.by_source.livebarn)} — LiveBarn` });
+    completionLines.push({ text: `${n(k.by_source.scoresheet)} — In-venue` });
+    completionLines.push({ text: `${n(k.no_stats)} — No stats` });
+    return [
+      {
+        label: "Stats completion rate", value: k.stats_completion_pct == null ? "—" : `${k.stats_completion_pct}%`,
+        tone: k.stats_completion_pct == null ? "default" : pctTone(k.stats_completion_pct),
+        lines: completionLines,
+      },
+      {
+        label: "Full recording %", value: k.full_recording_pct == null ? "—" : `${k.full_recording_pct}%`,
+        tone: k.full_recording_pct == null ? "default" : pctTone(k.full_recording_pct),
+        lines: [
+          { text: `${n(k.full)} — full` },
+          { text: `${n(k.incomplete)} — incomplete` },
+          { text: `${n(k.recording_total)} — total` },
+        ],
+      },
+      {
+        label: "Spare players", value: n(k.spare_appearances), tone: k.spare_appearances > 0 ? "warn" : "default",
+        lines: [
+          { text: `${n(k.spare_games)} — games with spares` },
+          { text: `${n(k.spare_appearances)} — spare appearances` },
+        ],
+        link: { href: "https://brodie-stats-health.vercel.app", label: "See games with spares →" },
+      },
+    ];
+  } catch {
+    return null;
+  }
 }
 
 // Overdue Payments reads that app's OWN public KPI feed. When a location is
