@@ -435,9 +435,11 @@ async function loadRegistrationPacing(regSeason: string): Promise<Pacing | null>
 }
 
 const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "last year" };
+const REG_COLOR: Record<string, string> = { current: "var(--glass-gold)", prev_season: "#5B8AC4", prev_year: "#A874C9" };
+const TRACK_PX = 130;
 function RegBarCard({ title, subtitle, current, bars }: {
   title: string; subtitle: string; current: number;
-  bars: { label: string; sub: string; value: number; highlight: boolean }[];
+  bars: { label: string; sub: string; value: number; color: string }[];
 }) {
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
@@ -449,13 +451,19 @@ function RegBarCard({ title, subtitle, current, bars }: {
         </div>
         <span className="text-2xl font-bold tabular" style={{ color: "var(--glass-gold)" }}>{current.toLocaleString()}</span>
       </div>
-      <div className="flex items-end gap-6 mt-5" style={{ height: 150 }}>
+      {/* Bars: fixed-px track so heights are truly proportional to value. */}
+      <div className="flex items-end gap-6 mt-5" style={{ height: TRACK_PX + 22 }}>
         {bars.map((b, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
-            <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{b.value.toLocaleString()}</span>
-            <div className="w-full rounded-t-md mt-1"
-              style={{ height: `${Math.max((b.value / max) * 100, 3)}%`, minHeight: 4, background: b.highlight ? "var(--glass-gold)" : "var(--glass-border-light)" }} />
-            <span className="text-[11px] font-semibold mt-2 text-glass-text-secondary">{b.label}</span>
+          <div key={i} className="flex-1 flex flex-col items-center justify-end">
+            <span className="text-sm font-semibold mb-1" style={{ color: "var(--glass-text)" }}>{b.value.toLocaleString()}</span>
+            <div className="w-full rounded-t-md" style={{ height: Math.max(Math.round((b.value / max) * TRACK_PX), 6), background: b.color }} />
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-6 mt-2">
+        {bars.map((b, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center">
+            <span className="text-[11px] font-semibold text-glass-text-secondary">{b.label}</span>
             <span className="text-[10px] uppercase tracking-wider text-glass-text-tertiary">{b.sub}</span>
           </div>
         ))}
@@ -541,7 +549,7 @@ export default async function DashboardPage({
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const regBars = (metric: "captains" | "athletes") =>
-    (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric], highlight: s.kind === "current" }));
+    (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric], color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
   // Checklist: two cards for the playing season, two for the next (prep) season.
   const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
 
