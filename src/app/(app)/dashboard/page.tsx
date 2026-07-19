@@ -4,7 +4,6 @@ import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 import { resolveLocationsForLM, resolveLocationIdsByName } from "@/lib/source-apps/cross-app-locations";
 import type { AppSlug } from "@/lib/source-apps/clients";
 import { ymd } from "@/lib/source-apps/util";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import Filters, { type FilterOptions } from "./Filters";
 
 // Fallbacks copied from the Registration Promo Tracker, used until the live
@@ -86,6 +85,10 @@ const SAMPLE: Record<string, Tile[]> = {
     { label: "Overdue balance (CAD)", value: "$20,799.32 CAD", sub: "80 players" },
     { label: "Overdue balance (USD)", value: "$13,184.17 USD", sub: "64 players" },
   ],
+  content: [
+    { label: "iPhone Clips · 12h", value: "22.0", unit: "/hr", sub: "target 20/hr", tone: "ok", lines: [{ text: "24,632 clips delivered · 1,118.5h worked", strong: true }, { text: "110% of expected · SLA hit 36%" }] },
+    { label: "Photos · 3 days", value: "74.5", unit: "/hr", sub: "target 90/hr", tone: "bad", lines: [{ text: "99,101 photos delivered · 1,331.0h worked", strong: true }, { text: "83% of expected · SLA hit 25%" }] },
+  ],
   stats_health: [
     {
       label: "Stats completion rate",
@@ -149,16 +152,6 @@ function nextSeasonLabel(season: string): string {
   return `${nextTerm[0].toUpperCase()}${nextTerm.slice(1)} '${String(nextYy).padStart(2, "0")}`;
 }
 
-// Resolve the selected global season to a source's own season_id(s) via its
-// `seasons` table (matched on name term+year). Consistent across every source.
-async function resolveSeasonIds(sb: SupabaseClient, season: string): Promise<string[]> {
-  const { data } = await sb.from("seasons").select("id, name");
-  const want = seasonKey(season);
-  return ((data ?? []) as { id: string; name: string | null }[])
-    .filter((s) => s.name && seasonKey(s.name) === want)
-    .map((s) => s.id);
-}
-
 const pctTone = (p: number): Tone => (p >= 70 ? "ok" : p >= 40 ? "warn" : "bad");
 
 type Scope = { lm: string; location: string; lmEmail?: string };
@@ -172,18 +165,6 @@ async function sourceLocationIds(
   if (scope.lm !== "all") return scope.lmEmail ? resolveLocationsForLM(appSlug, scope.lmEmail) : [];
   if (scope.location !== "all") return resolveLocationIdsByName(appSlug, scope.location);
   return null;
-}
-
-// Fetch rows from a source table filtered by season_id and (optionally)
-// location_id, returning [] when either filter excludes everything.
-async function fetchScoped(
-  sb: SupabaseClient, table: string, cols: string, seasonIds: string[], locIds: string[] | null,
-): Promise<Record<string, unknown>[]> {
-  if (!seasonIds.length || (locIds && locIds.length === 0)) return [];
-  let q = sb.from(table).select(cols).in("season_id", seasonIds);
-  if (locIds) q = q.in("location_id", locIds);
-  const { data } = await q;
-  return (data ?? []) as unknown as Record<string, unknown>[];
 }
 
 async function loadChecklistTiles(season: string, scope: Scope): Promise<Tile[] | null> {
@@ -239,22 +220,33 @@ async function loadFeedbackTiles(season: string, scope: Scope): Promise<Tile[] |
   }
 }
 
-async function loadContentTiles(season: string, scope: Scope): Promise<Tile[] | null> {
-  if (!sourceConfigured("content_health")) return null;
-  const sb = sourceClient("content_health")!;
-  const [ids, locIds] = await Promise.all([resolveSeasonIds(sb, season), sourceLocationIds("content_health", scope)]);
-  const cn = (await fetchScoped(sb, "content_nights", "iphone_clips_posted_at, photos_posted_at, videos_posted_at", ids, locIds)) as unknown as { iphone_clips_posted_at: string | null; photos_posted_at: string | null; videos_posted_at: string | null }[];
-  const nights = cn.length;
-  const mk = (label: string, n: number): Tile => {
-    const pct = nights ? Math.round((100 * n) / nights) : 0;
-    return { label, value: `${n}`, unit: `/ ${nights}`, sub: `${pct}%`, tone: pctTone(pct) };
+// Content Health reads the app's OWN KPI feed (SLA + expected-delivery math),
+// so the iPhone Clips + Photos cards match its site exactly. Null -> sample.
+type ContentCard = { delivered: number; hours_worked: number; rate: number | null; target: number; expected_pct: number | null; sla_pct: number | null };
+function contentTile(label: string, unit: string, c: ContentCard): Tile {
+  const hrs = c.hours_worked.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return {
+    label, value: c.rate == null ? "—" : c.rate.toFixed(1), unit: "/hr",
+    sub: `target ${c.target}/hr`,
+    tone: c.rate == null ? "default" : c.rate >= c.target ? "ok" : "bad",
+    lines: [
+      { text: `${c.delivered.toLocaleString()} ${unit} delivered · ${hrs}h worked`, strong: true },
+      { text: `${c.expected_pct == null ? "—" : `${c.expected_pct}%`} of expected · SLA hit ${c.sla_pct == null ? "—" : `${c.sla_pct}%`}` },
+    ],
   };
-  return [
-    { label: "Content nights", value: nights.toLocaleString() },
-    mk("Clips posted", cn.filter((x) => x.iphone_clips_posted_at).length),
-    mk("Photos posted", cn.filter((x) => x.photos_posted_at).length),
-    mk("Videos posted", cn.filter((x) => x.videos_posted_at).length),
-  ];
+}
+async function loadContentTiles(season: string, scope: Scope): Promise<Tile[] | null> {
+  try {
+    const url = new URL("/api/dashboard-kpis", "https://brodie-content-health.vercel.app");
+    url.searchParams.set("season", season);
+    if (scope.location !== "all") url.searchParams.set("location", scope.location);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as { clips: ContentCard; photos: ContentCard };
+    return [contentTile("iPhone Clips · 12h", "clips", k.clips), contentTile("Photos · 3 days", "photos", k.photos)];
+  } catch {
+    return null;
+  }
 }
 
 // Stats Health: the direct query hit the Supabase 1000-row cap and used a
@@ -553,7 +545,7 @@ export default async function DashboardPage({
         <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
         <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
         <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
-        <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? realTiles("content_health")} />
+        <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
         <Section title="Overdue Payments" href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
       </div>
 
