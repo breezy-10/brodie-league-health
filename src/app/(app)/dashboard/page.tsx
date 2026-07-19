@@ -415,6 +415,52 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | nu
   }
 }
 
+// Registration pacing (teams + athletes at "day N of registration" for this
+// season vs the previous season vs a year ago) from the Promo Tracker feed.
+type Pacing = { day_n: number | null; seasons: { season: string; kind: string; captains: number; athletes: number }[] };
+async function loadRegistrationPacing(regSeason: string): Promise<Pacing | null> {
+  try {
+    const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
+    url.searchParams.set("season", regSeason);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as Pacing;
+    return k.seasons?.length ? k : null;
+  } catch {
+    return null;
+  }
+}
+
+const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "last year" };
+function RegBarCard({ title, subtitle, current, bars }: {
+  title: string; subtitle: string; current: number;
+  bars: { label: string; sub: string; value: number; highlight: boolean }[];
+}) {
+  const max = Math.max(...bars.map((b) => b.value), 1);
+  return (
+    <div className="rounded-2xl border border-glass-border bg-glass-surface p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
+          <p className="text-xs mt-0.5 text-glass-text-tertiary">{subtitle}</p>
+        </div>
+        <span className="text-2xl font-bold tabular" style={{ color: "var(--glass-gold)" }}>{current.toLocaleString()}</span>
+      </div>
+      <div className="flex items-end gap-6 mt-5" style={{ height: 150 }}>
+        {bars.map((b, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center justify-end h-full">
+            <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{b.value.toLocaleString()}</span>
+            <div className="w-full rounded-t-md mt-1"
+              style={{ height: `${Math.max((b.value / max) * 100, 3)}%`, minHeight: 4, background: b.highlight ? "var(--glass-gold)" : "var(--glass-border-light)" }} />
+            <span className="text-[11px] font-semibold mt-2 text-glass-text-secondary">{b.label}</span>
+            <span className="text-[10px] uppercase tracking-wider text-glass-text-tertiary">{b.sub}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -480,7 +526,7 @@ export default async function DashboardPage({
     location,
     lmEmail: lm !== "all" ? activeLMs.find((l) => l.id === lm)?.email : undefined,
   };
-  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles] = await Promise.all([
+  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing] = await Promise.all([
     loadChecklistTiles(selectedSeason, scope),
     loadChecklistTiles(regSeason, scope),
     loadFeedbackTiles(selectedSeason, scope),
@@ -488,7 +534,11 @@ export default async function DashboardPage({
     loadContentTiles(selectedSeason, scope),
     loadPromoTiles(regSeason, scope),
     loadOverdueTiles(selectedSeason, scope),
+    loadRegistrationPacing(regSeason),
   ]);
+  const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
+  const regBars = (metric: "captains" | "athletes") =>
+    (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric], highlight: s.kind === "current" }));
   // Checklist: two cards for the playing season, two for the next (prep) season.
   const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
 
@@ -558,7 +608,25 @@ export default async function DashboardPage({
 
       <div className="space-y-8">
         <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} />
-        <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} seasonTag={regSeason} />
+        {pacing && pacingCurrent ? (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Registrations</h2>
+                <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+                  style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{regSeason}</span>
+              </div>
+              <a href={APP_URL.promo} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <RegBarCard title="Total teams" subtitle={`captain registrations · day ${pacing.day_n ?? "?"} of registration`} current={pacingCurrent.captains} bars={regBars("captains")} />
+              <RegBarCard title="Total athletes" subtitle={`athlete registrations · day ${pacing.day_n ?? "?"} of registration`} current={pacingCurrent.athletes} bars={regBars("athletes")} />
+            </div>
+          </section>
+        ) : (
+          <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} seasonTag={regSeason} />
+        )}
         <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
         <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
         <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
