@@ -81,6 +81,11 @@ const SAMPLE: Record<string, Tile[]> = {
     { label: "Tasks complete", value: "39%", sub: "393 / 1,000", tone: "bad" },
     { label: "Overdue tasks", value: "231", sub: "Across all your checklists", tone: "bad" },
   ],
+  overdue: [
+    { label: "Total overdue players", value: "144", sub: "across 19 locations", tone: "bad" },
+    { label: "Overdue balance (CAD)", value: "CA$20,799.32", sub: "80 players" },
+    { label: "Overdue balance (USD)", value: "US$13,184.17", sub: "64 players" },
+  ],
   stats_health: [
     {
       label: "Stats completion rate",
@@ -296,6 +301,31 @@ async function loadStatsTiles(season: string, scope: Scope): Promise<Tile[] | nu
   ];
 }
 
+// Overdue Payments reads that app's OWN public KPI feed. When a location is
+// selected only its currency has players, so only that currency card renders.
+async function loadOverdueTiles(scope: Scope): Promise<Tile[] | null> {
+  try {
+    const url = new URL("/api/dashboard-kpis", "https://brodie-overdue-payments.vercel.app");
+    if (scope.location !== "all") url.searchParams.set("location", scope.location);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as {
+      total_players: number; locations: number;
+      cad: { balance: number; players: number }; usd: { balance: number; players: number };
+    };
+    const money = (n: number, sym: string) =>
+      `${sym}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const tiles: Tile[] = [
+      { label: "Total overdue players", value: k.total_players.toLocaleString(), sub: `across ${k.locations} location${k.locations === 1 ? "" : "s"}`, tone: k.total_players > 0 ? "bad" : "ok" },
+    ];
+    if (k.cad.players > 0) tiles.push({ label: "Overdue balance (CAD)", value: money(k.cad.balance, "CA$"), sub: `${k.cad.players} players` });
+    if (k.usd.players > 0) tiles.push({ label: "Overdue balance (USD)", value: money(k.usd.balance, "US$"), sub: `${k.usd.players} players` });
+    return tiles;
+  } catch {
+    return null;
+  }
+}
+
 // Promo reads the Promo Tracker's OWN public KPI feed, so the numbers match its
 // website exactly (no re-derivation here). Returns null on any failure -> sample.
 async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | null> {
@@ -399,13 +429,14 @@ export default async function DashboardPage({
     location,
     lmEmail: lm !== "all" ? activeLMs.find((l) => l.id === lm)?.email : undefined,
   };
-  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles] = await Promise.all([
+  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles] = await Promise.all([
     loadChecklistTiles(selectedSeason, scope),
     loadChecklistTiles(regSeason, scope),
     loadFeedbackTiles(selectedSeason, scope),
     loadStatsTiles(selectedSeason, scope),
     loadContentTiles(selectedSeason, scope),
     loadPromoTiles(regSeason, scope),
+    loadOverdueTiles(scope),
   ]);
   // Checklist: two cards for the playing season, two for the next (prep) season.
   const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
@@ -481,7 +512,7 @@ export default async function DashboardPage({
         <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
         <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
         <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? realTiles("content_health")} />
-        <Section title="Overdue Payments" href={APP_URL.overdue} tiles={[]} sample />
+        <Section title="Overdue Payments" href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
       </div>
 
       <p className="text-xs text-glass-text-tertiary">
