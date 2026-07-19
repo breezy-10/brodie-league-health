@@ -83,8 +83,8 @@ const SAMPLE: Record<string, Tile[]> = {
   ],
   overdue: [
     { label: "Total overdue players", value: "144", sub: "across 19 locations", tone: "bad" },
-    { label: "Overdue balance (CAD)", value: "CA$20,799.32", sub: "80 players" },
-    { label: "Overdue balance (USD)", value: "US$13,184.17", sub: "64 players" },
+    { label: "Overdue balance (CAD)", value: "$20,799.32 CAD", sub: "80 players" },
+    { label: "Overdue balance (USD)", value: "$13,184.17 USD", sub: "64 players" },
   ],
   stats_health: [
     {
@@ -268,23 +268,48 @@ async function loadStatsTiles(_season: string, _scope: Scope): Promise<Tile[] | 
 
 // Overdue Payments reads that app's OWN public KPI feed. When a location is
 // selected only its currency has players, so only that currency card renders.
-async function loadOverdueTiles(scope: Scope): Promise<Tile[] | null> {
+// Overdue reads the app's OWN checkin-stats feed (season-scoped), which computes
+// the "active" = checked-in breakdown (owed by players who played a completed
+// game that season). Amount-first currency labels; a location selected shows
+// only that location's currency (the other has no players).
+type CurTotals = { total_players: number; total_balance: number; active_players: number; active_balance: number; bad_debt: number };
+async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | null> {
   try {
-    const url = new URL("/api/dashboard-kpis", "https://brodie-overdue-payments.vercel.app");
+    const url = new URL("/api/checkin-stats", "https://brodie-overdue-payments.vercel.app");
+    url.searchParams.set("season", season);
     if (scope.location !== "all") url.searchParams.set("location", scope.location);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as {
-      total_players: number; locations: number;
-      cad: { balance: number; players: number }; usd: { balance: number; players: number };
+      currency_totals?: { cad: CurTotals; usd: CurTotals };
+      overall?: { total_players: number; active_players: number; locations: number };
     };
-    const money = (n: number, sym: string) =>
-      `${sym}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (!k.currency_totals || !k.overall) return null; // pre-deploy shape -> sample
+    const ov = k.overall;
+    const money = (n: number, cur: string) =>
+      `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
     const tiles: Tile[] = [
-      { label: "Total overdue players", value: k.total_players.toLocaleString(), sub: `across ${k.locations} location${k.locations === 1 ? "" : "s"}`, tone: k.total_players > 0 ? "bad" : "ok" },
+      {
+        label: "Total overdue players", value: ov.total_players.toLocaleString(), tone: ov.total_players > 0 ? "bad" : "ok",
+        lines: [
+          { text: `${ov.active_players.toLocaleString()} of ${ov.total_players.toLocaleString()} active`, strong: true },
+          { text: `across ${ov.locations} location${ov.locations === 1 ? "" : "s"}` },
+        ],
+      },
     ];
-    if (k.cad.players > 0) tiles.push({ label: "Overdue balance (CAD)", value: money(k.cad.balance, "CA$"), sub: `${k.cad.players} players` });
-    if (k.usd.players > 0) tiles.push({ label: "Overdue balance (USD)", value: money(k.usd.balance, "US$"), sub: `${k.usd.players} players` });
+    const card = (c: CurTotals, cur: string): Tile | null =>
+      c.total_players === 0 ? null : {
+        label: `Overdue balance (${cur})`, value: money(c.total_balance, cur),
+        lines: [
+          { text: `${c.total_players} player${c.total_players === 1 ? "" : "s"}`, strong: true },
+          { text: `${money(c.active_balance, cur)} from active players` },
+          { text: `${c.active_players} of ${c.total_players} players active` },
+        ],
+      };
+    const cad = card(k.currency_totals.cad, "CAD");
+    const usd = card(k.currency_totals.usd, "USD");
+    if (cad) tiles.push(cad);
+    if (usd) tiles.push(usd);
     return tiles;
   } catch {
     return null;
@@ -401,7 +426,7 @@ export default async function DashboardPage({
     loadStatsTiles(selectedSeason, scope),
     loadContentTiles(selectedSeason, scope),
     loadPromoTiles(regSeason, scope),
-    loadOverdueTiles(scope),
+    loadOverdueTiles(selectedSeason, scope),
   ]);
   // Checklist: two cards for the playing season, two for the next (prep) season.
   const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
