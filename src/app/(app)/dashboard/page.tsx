@@ -296,27 +296,42 @@ async function loadStatsTiles(season: string, scope: Scope): Promise<Tile[] | nu
   ];
 }
 
+// Promo reads the Promo Tracker's OWN public KPI feed, so the numbers match its
+// website exactly (no re-derivation here). Returns null on any failure -> sample.
 async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | null> {
-  if (!sourceConfigured("promo")) return null;
-  const sb = sourceClient("promo")!;
-  const [ids, locIds] = await Promise.all([resolveSeasonIds(sb, season), sourceLocationIds("promo", scope)]);
-  const regs = await fetchScoped(sb, "registrations_cache", "id", ids, locIds);
-  const regIds = regs.map((r) => r.id as string);
-  const teams = regIds.length;
-  let stories = 0, highlights = 0;
-  if (regIds.length) {
-    const { data: ps } = await sb.from("promo_states").select("team_locked_story_posted, highlight_posted").in("registration_id", regIds);
-    const list = (ps ?? []) as { team_locked_story_posted: boolean | null; highlight_posted: boolean | null }[];
-    stories = list.filter((x) => x.team_locked_story_posted).length;
-    highlights = list.filter((x) => x.highlight_posted).length;
+  try {
+    const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
+    url.searchParams.set("season", season);
+    if (scope.location !== "all") url.searchParams.set("location", scope.location);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (res.status === 404) {
+      // Season is beyond the promo horizon — registration hasn't opened.
+      return [
+        { label: "Teams registered", value: "0", sub: `${season} — registration not open yet` },
+        { label: "Stories posted", value: "0", unit: "/ 0", sub: "0%" },
+        { label: "Highlights posted", value: "0", unit: "/ 0", sub: "0%" },
+        { label: "Avg time to post", value: "—", sub: "0 posts" },
+      ];
+    }
+    if (!res.ok) return null;
+    const k = (await res.json()) as {
+      teams_registered: number; stories_posted: number; highlights_posted: number;
+      story_pct: number; highlight_pct: number; avg_time_to_post_ms: number | null;
+      avg_time_to_post_sample: number; locations: number;
+    };
+    const fmt = (ms: number) => {
+      const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+      return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${mm}m` : `${mm}m`;
+    };
+    return [
+      { label: "Teams registered", value: k.teams_registered.toLocaleString(), sub: `across ${k.locations} locations` },
+      { label: "Stories posted", value: `${k.stories_posted}`, unit: `/ ${k.teams_registered}`, sub: `${k.story_pct}%`, tone: pctTone(k.story_pct) },
+      { label: "Highlights posted", value: `${k.highlights_posted}`, unit: `/ ${k.teams_registered}`, sub: `${k.highlight_pct}%`, tone: pctTone(k.highlight_pct) },
+      { label: "Avg time to post", value: k.avg_time_to_post_ms != null ? fmt(k.avg_time_to_post_ms) : "—", sub: `${k.avg_time_to_post_sample} posts`, tone: "warn" },
+    ];
+  } catch {
+    return null;
   }
-  const sPct = teams ? Math.round((100 * stories) / teams) : 0;
-  const hPct = teams ? Math.round((100 * highlights) / teams) : 0;
-  return [
-    { label: "Teams registered", value: teams.toLocaleString() },
-    { label: "Stories posted", value: `${stories}`, unit: `/ ${teams}`, sub: `${sPct}%`, tone: pctTone(sPct) },
-    { label: "Highlights posted", value: `${highlights}`, unit: `/ ${teams}`, sub: `${hPct}%`, tone: pctTone(hPct) },
-  ];
 }
 
 export default async function DashboardPage({
@@ -472,7 +487,8 @@ export default async function DashboardPage({
       <p className="text-xs text-glass-text-tertiary">
         Feedback, Stats Health, and Content Health read live from each source, scoped to the selected Season, Location,
         and League manager (locations reconciled across apps by fuzzy match). Registration + Promo run one season ahead
-        (the prep season, tagged in gold), and the Checklist shows both. The Promo Tracker joins once its key is added.
+        (the prep season, tagged in gold), and the Checklist shows both. The Promo Tracker card reads live from the Promo
+        Tracker&apos;s own KPI feed, so its numbers match that site exactly.
       </p>
     </main>
   );
