@@ -88,6 +88,8 @@ const SAMPLE: Record<string, Tile[]> = {
   content: [
     { label: "iPhone Clips · 12h", value: "22.0", unit: "/hr", sub: "target 20/hr", tone: "ok", lines: [{ text: "24,632 clips delivered · 1,118.5h worked", strong: true }, { text: "110% of expected · SLA hit 36%" }] },
     { label: "Photos · 3 days", value: "74.5", unit: "/hr", sub: "target 90/hr", tone: "bad", lines: [{ text: "99,101 photos delivered · 1,331.0h worked", strong: true }, { text: "83% of expected · SLA hit 25%" }] },
+    { label: "Canto - players tagged", value: "673", unit: "/ 736", sub: "91% complete", tone: "ok", lines: [{ text: "673 this season · 0 past season" }] },
+    { label: "App profiles", value: "641", unit: "/ 736", sub: "87% complete", tone: "ok", lines: [{ text: "577 current team · 64 previous team" }] },
   ],
   stats_health: [
     {
@@ -242,11 +244,26 @@ async function loadContentTiles(season: string, scope: Scope): Promise<Tile[] | 
     if (scope.location !== "all") url.searchParams.set("location", scope.location);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
-    const k = (await res.json()) as { clips: ContentCard; photos: ContentCard };
-    return [contentTile("iPhone Clips · 12h", "clips", k.clips), contentTile("Photos · 3 days", "photos", k.photos)];
+    const k = (await res.json()) as {
+      clips: ContentCard; photos: ContentCard;
+      canto?: RosterCard; app?: RosterCard;
+    };
+    const tiles = [contentTile("iPhone Clips · 12h", "clips", k.clips), contentTile("Photos · 3 days", "photos", k.photos)];
+    if (k.canto) tiles.push(rosterTile("Canto - players tagged", k.canto, `${k.canto.this_season} this season · ${k.canto.past_season} past season`));
+    if (k.app) tiles.push(rosterTile("App profiles", k.app, `${k.app.current_team} current team · ${k.app.previous_team} previous team`));
+    return tiles;
   } catch {
     return null;
   }
+}
+
+type RosterCard = { done: number; total: number; pct: number; this_season: number; past_season: number; current_team: number; previous_team: number };
+function rosterTile(label: string, c: RosterCard, split: string): Tile {
+  return {
+    label, value: c.done.toLocaleString(), unit: `/ ${c.total.toLocaleString()}`,
+    sub: `${c.pct}% complete`, tone: c.total === 0 ? "default" : pctTone(c.pct),
+    lines: [{ text: split }],
+  };
 }
 
 // Stats Health: the direct query hit the Supabase 1000-row cap and used a
