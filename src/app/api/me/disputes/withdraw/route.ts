@@ -26,8 +26,7 @@ export async function POST(req: Request) {
 
   // Confirm caller is the filer (or admin). Filer match handles both
   // self-filed and admin-filed-for-me cases.
-  const isAdmin =
-    ctx.profile?.role === "dm" || ctx.profile?.role === "super_admin";
+  const isAdmin = ctx.profile?.role === "super_admin";
   if (!isAdmin && row.filed_by !== ctx.user.id) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { WeightEditor } from "@/components/WeightEditor";
 
 export default async function WeightsPage() {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const sb = await createClient();
 
   const { data: apps } = await sb.from("apps").select("id, slug, name, weight, display_order").order("display_order", { ascending: true });

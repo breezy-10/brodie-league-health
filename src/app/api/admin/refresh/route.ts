@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST() {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const report = await runDailySync({ triggeredBy: "manual" });
   const scored = await recomputeScores();
   return NextResponse.json({ ok: true, report, scored });

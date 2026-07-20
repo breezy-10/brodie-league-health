@@ -25,7 +25,7 @@ export default async function AuditLog({
 }: {
   searchParams: Promise<{ action?: string; actor?: string }>;
 }) {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const { action, actor } = await searchParams;
   const admin = createAdminClient();
 

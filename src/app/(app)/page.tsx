@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -38,12 +39,17 @@ export default async function MyDay({
   searchParams: Promise<{ lm?: string }>;
 }) {
   const ctx = await requireUser();
+  // My Day (the LM scorecard) is a super-admin-only surface now; everyone else's
+  // home is the Dashboard.
+  if (ctx.profile?.role !== "super_admin") redirect("/dashboard");
   const sb = await createClient();
   const today = ymd(new Date());
   const sevenAgo = ymd(daysAgo(new Date(), 7));
 
   const { lm: viewAsId } = await searchParams;
-  const isAdmin = ctx.profile?.role === "dm" || ctx.profile?.role === "super_admin";
+  // Only super_admin reaches this page (the redirect above sends everyone else
+  // to the Dashboard), so the view-as controls are always available here.
+  const isAdmin = true;
   const viewingAs = isAdmin && !!viewAsId;
 
   // Audit: an admin pulled up another LM's page. Async, fire-and-forget.

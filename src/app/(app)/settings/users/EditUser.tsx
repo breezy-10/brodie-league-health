@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { updateUser, resendInvite, setUserArchived } from "./actions";
+import { LocationMultiSelect } from "./LocationMultiSelect";
 import { ROLE_LABELS, ROLE_ORDER, type UserRole, type UserStatus } from "./roles";
 import type { UserListRow } from "./UsersTable";
 
@@ -17,16 +18,19 @@ function splitName(full: string): { first: string; last: string } {
 export function EditUser({
   user,
   isSelf,
+  allLocations,
   onClose,
 }: {
   user: UserListRow;
   isSelf: boolean;
+  allLocations: string[];
   onClose: () => void;
 }) {
   const initial = useMemo(() => splitName(user.fullName), [user.fullName]);
   const [firstName, setFirstName] = useState(initial.first);
   const [lastName, setLastName] = useState(initial.last);
   const [role, setRole] = useState<UserRole>(user.role);
+  const [locations, setLocations] = useState<string[]>(user.locations);
   const [pending, startTransition] = useTransition();
   const [archiving, startArchive] = useTransition();
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent">("idle");
@@ -35,7 +39,8 @@ export function EditUser({
   const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
   const isArchived = user.status === "inactive";
   const isInvited = user.status === "invited";
-  const dirty = fullName !== user.fullName || role !== user.role;
+  const locsDirty = JSON.stringify([...locations].sort()) !== JSON.stringify([...user.locations].sort());
+  const dirty = fullName !== user.fullName || role !== user.role || locsDirty;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
@@ -51,6 +56,7 @@ export function EditUser({
         userId: user.id,
         fullName: fullName !== user.fullName ? fullName : undefined,
         role: role !== user.role ? role : undefined,
+        locations: locsDirty ? locations : undefined,
       });
       if ("error" in res) { setError(res.error); return; }
       onClose();
@@ -120,12 +126,15 @@ export function EditUser({
             </select>
           </label>
 
-          {user.location && (
-            <label className="block">
-              <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Location</span>
-              <input className={`${INPUT} mt-1`} value={`${user.location} — from CRM`} readOnly style={{ color: "var(--glass-text-tertiary)" }} />
-            </label>
-          )}
+          <div className="block">
+            <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Locations</span>
+            <div className="mt-1">
+              <LocationMultiSelect options={allLocations} value={locations} onChange={setLocations} />
+            </div>
+            {user.location && !locations.includes(user.location) && (
+              <p className="text-xs mt-1 text-glass-text-tertiary">CRM roster location: {user.location}</p>
+            )}
+          </div>
 
           {error && (
             <p className="text-sm rounded-md px-3 py-2" style={{ background: "rgba(239,68,68,0.14)", color: "rgb(248,113,113)", border: "1px solid rgba(239,68,68,0.5)" }}>{error}</p>

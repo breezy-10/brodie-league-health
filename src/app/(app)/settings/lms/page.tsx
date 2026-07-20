@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminLMs() {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const sb = await createClient();
   const today = ymd(new Date());
   const yesterday = ymd(daysAgo(new Date(), 1));

@@ -12,7 +12,7 @@ type Payload = {
 };
 
 export async function PUT(req: Request) {
-  const ctx = await requireRole(["dm", "super_admin"]);
+  const ctx = await requireRole(["super_admin"]);
   const body = (await req.json()) as Payload;
   const sb = createAdminClient();
   const changedBy = ctx.profile?.id ?? null;

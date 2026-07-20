@@ -10,13 +10,38 @@ import type { UserRole } from "./roles";
 // RLS only lets a user update their own row, so admin edits/invites must bypass
 // it. requireRole is the real gate.
 
+// Replace a user's location assignments with exactly `locations` (deduped).
+async function replaceUserLocations(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  locations: string[],
+) {
+  const clean = [...new Set(locations.map((l) => l.trim()).filter(Boolean))];
+  await admin.from("user_locations").delete().eq("user_id", userId);
+  if (clean.length) {
+    await admin.from("user_locations").insert(clean.map((location_name) => ({ user_id: userId, location_name })));
+  }
+}
+
 export async function updateUser(input: {
   userId: string;
   fullName?: string;
   role?: UserRole;
+  locations?: string[];
 }): Promise<{ ok: true } | { error: string }> {
-  await requireRole(["dm", "super_admin"]);
+  const { profile } = await requireRole(["dm", "operations_manager", "super_admin"]);
+  const actorSuper = profile?.role === "super_admin";
   const admin = createAdminClient();
+
+  // Only a super admin may grant the super_admin role or edit an existing one —
+  // stops a dm / operations_manager from escalating themselves or others.
+  if (!actorSuper) {
+    if (input.role === "super_admin") return { error: "Only a super admin can grant the Super Admin role." };
+    const { data: target } = await admin.from("profiles").select("role").eq("id", input.userId).maybeSingle();
+    if ((target as { role?: string } | null)?.role === "super_admin") {
+      return { error: "Only a super admin can edit a Super Admin." };
+    }
+  }
 
   const patch: Record<string, unknown> = {};
   if (input.fullName !== undefined) {
@@ -36,6 +61,8 @@ export async function updateUser(input: {
     }
   }
 
+  if (input.locations !== undefined) await replaceUserLocations(admin, input.userId, input.locations);
+
   revalidatePath("/settings/users");
   return { ok: true };
 }
@@ -45,8 +72,12 @@ export async function inviteUser(input: {
   lastName?: string;
   email: string;
   role: UserRole;
+  locations?: string[];
 }): Promise<{ ok: true } | { error: string }> {
-  await requireRole(["dm", "super_admin"]);
+  const { profile } = await requireRole(["dm", "operations_manager", "super_admin"]);
+  if (input.role === "super_admin" && profile?.role !== "super_admin") {
+    return { error: "Only a super admin can invite a Super Admin." };
+  }
   const email = input.email.trim().toLowerCase();
   const fullName = `${input.firstName.trim()} ${(input.lastName ?? "").trim()}`.trim();
   if (!email || !fullName) return { error: "Name and email are required." };
@@ -70,6 +101,7 @@ export async function inviteUser(input: {
     await admin.from("profiles")
       .update({ role: input.role, full_name: fullName, updated_at: new Date().toISOString() })
       .eq("id", data.user.id);
+    if (input.locations?.length) await replaceUserLocations(admin, data.user.id, input.locations);
   }
 
   revalidatePath("/settings/users");
@@ -78,7 +110,7 @@ export async function inviteUser(input: {
 
 export async function resendInvite(email: string): Promise<{ ok: true } | { error: string }> {
   try {
-    await requireRole(["dm", "super_admin"]);
+    await requireRole(["dm", "operations_manager", "super_admin"]);
     const admin = createAdminClient();
     const h = await headers();
     const host = h.get("x-forwarded-host") ?? h.get("host");
@@ -98,9 +130,15 @@ export async function resendInvite(email: string): Promise<{ ok: true } | { erro
 // This is the enforcement mechanism AND the persisted state — no schema column.
 export async function setUserArchived(userId: string, archived: boolean): Promise<{ ok: true } | { error: string }> {
   try {
-    const { user } = await requireRole(["dm", "super_admin"]);
+    const { user, profile } = await requireRole(["dm", "operations_manager", "super_admin"]);
     if (userId === user.id) return { error: "You can't archive yourself." };
     const admin = createAdminClient();
+    if (profile?.role !== "super_admin") {
+      const { data: target } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+      if ((target as { role?: string } | null)?.role === "super_admin") {
+        return { error: "Only a super admin can archive a Super Admin." };
+      }
+    }
     const { error } = await admin.auth.admin.updateUserById(userId, {
       ban_duration: archived ? "876000h" : "none",
     });

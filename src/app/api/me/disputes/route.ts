@@ -35,8 +35,7 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminClient();
-  const isAdmin =
-    ctx.profile?.role === "dm" || ctx.profile?.role === "super_admin";
+  const isAdmin = ctx.profile?.role === "super_admin";
 
   // Resolve the target LM. If caller is not admin, force lmId = their own.
   let targetLmId: string | null = body.lmId ?? null;

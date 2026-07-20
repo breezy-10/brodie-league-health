@@ -9,7 +9,7 @@ export const revalidate = 0;
 // each admin surface is a card with an optional headline count and a one-line
 // description. Roster + Audit live here as cards rather than top-level nav tabs.
 export default async function AdminHome() {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const sb = createAdminClient();
 
   const [{ count: lmActive }, { count: userCount }, { count: appCount }, { count: auditCount }] =

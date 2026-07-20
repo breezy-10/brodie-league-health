@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -7,7 +7,7 @@ export default async function AchievementsPage({
 }: {
   searchParams: Promise<{ lm?: string }>;
 }) {
-  const ctx = await requireUser();
+  const ctx = await requireRole(["super_admin"]);
   const sb = await createClient();
   const { lm: viewAsId } = await searchParams;
   const isAdmin = ctx.profile?.role === "dm" || ctx.profile?.role === "super_admin";

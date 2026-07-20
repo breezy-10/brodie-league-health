@@ -9,7 +9,7 @@ export default async function District({
 }: {
   searchParams: Promise<{ all?: string }>;
 }) {
-  const ctx = await requireRole(["dm", "super_admin"]);
+  const ctx = await requireRole(["super_admin"]);
   const { all } = await searchParams;
   const showAll = all === "1" || ctx.profile?.role === "super_admin";
 
