@@ -43,7 +43,7 @@ export default async function MonthlyPack({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ month?: string }>;
 }) {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const { id } = await params;
   const { month: queryMonth } = await searchParams;
   const monthStr = queryMonth ?? currentMonthStr();

@@ -54,7 +54,7 @@ async function buildChecks(): Promise<Check[]> {
 }
 
 export default async function SetupDoctor() {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const checks = await buildChecks();
   const allOk = checks.every((c) => c.ok);
   return (

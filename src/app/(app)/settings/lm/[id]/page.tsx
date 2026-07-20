@@ -5,7 +5,7 @@ import { scoreColor, scoreBg, severityDot } from "@/lib/colors";
 import Link from "next/link";
 
 export default async function LMDrill({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const { id } = await params;
   const sb = await createClient();
   const today = ymd(new Date());

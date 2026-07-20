@@ -19,7 +19,7 @@ import { logAudit, AUDIT_ACTIONS } from "@/lib/audit";
  * audit trail is clear, then re-roll the LM's daily total.
  */
 export async function POST(req: Request) {
-  const ctx = await requireRole(["dm", "super_admin"]);
+  const ctx = await requireRole(["super_admin"]);
   const body = (await req.json()) as {
     id: string;
     decision: "approved" | "rejected";

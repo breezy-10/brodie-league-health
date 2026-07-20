@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminSync() {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const sb = await createClient();
 
   const { data: syncs } = await sb

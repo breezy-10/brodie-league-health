@@ -9,7 +9,7 @@ import Link from "next/link";
  * collapsed below for audit.
  */
 export default async function DisputesQueue() {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const admin = createAdminClient();
 
   const { data: open } = await admin

@@ -1,7 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export type Role = "lm" | "dm" | "super_admin";
+export type Role = "lm" | "dm" | "operations_manager" | "super_admin";
+
+// Roles allowed to add/edit users. dm was demoted from full admin; only
+// super_admin now sees the whole Settings hub.
+export const USER_MANAGER_ROLES: Role[] = ["dm", "operations_manager", "super_admin"];
+export function canManageUsers(role: string | null | undefined): boolean {
+  return !!role && (USER_MANAGER_ROLES as string[]).includes(role);
+}
 
 export function isAllowedEmail(email: string | null | undefined): boolean {
   if (!email) return false;

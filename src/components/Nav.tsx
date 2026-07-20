@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, canManageUsers } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SignOutButton } from "@/components/SignOutButton";
@@ -16,25 +16,30 @@ const NAV_ADMIN: NavItem[] = [
   { href: "/district",           label: "District" },
   { href: "/district/disputes",  label: "Disputes" },
 ];
-// Dashboard sits at the far LEFT of the admin bar; Settings at the far right.
-// Both are admin-only. Roster/Users + Audit live as cards inside Settings.
+// Dashboard sits at the far LEFT of the bar. Settings (the full admin hub) is
+// super-admin only; Users is a standalone item for the user-managing roles.
 const NAV_DASHBOARD: NavItem = { href: "/dashboard", label: "Dashboard" };
+const NAV_USERS: NavItem = { href: "/settings/users", label: "Users" };
 const NAV_SETTINGS: NavItem = { href: "/settings", label: "Settings" };
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
   dm: "District Manager",
+  operations_manager: "Operations Manager",
   lm: "League Manager",
 };
 
 export async function Nav() {
   const ctx = await getCurrentUser();
   const role = ctx?.profile?.role ?? "lm";
-  const isAdmin = role === "dm" || role === "super_admin";
-  // Dashboard pinned far left, Settings far right — admin bar only.
-  const items = isAdmin
+  const isSuperAdmin = role === "super_admin";
+  // Super admin gets the full bar. dm / operations_manager get Dashboard + Users.
+  // Everyone else (lm) gets Dashboard only.
+  const items = isSuperAdmin
     ? [NAV_DASHBOARD, ...NAV_BASE, ...NAV_ADMIN, NAV_SETTINGS]
-    : NAV_BASE;
+    : canManageUsers(role)
+      ? [NAV_DASHBOARD, NAV_USERS]
+      : [NAV_DASHBOARD];
   const fullName = ctx?.profile?.full_name ?? ctx?.user?.email ?? "—";
 
   return (

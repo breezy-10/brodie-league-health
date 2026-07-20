@@ -49,7 +49,7 @@ function archetypeScore(arch: Persona["archetype"], dayIndex: number): number {
 function clamp(n: number) { return Math.max(0, Math.min(100, Math.round(n))); }
 
 export async function POST() {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const sb = createAdminClient();
 
   // wipe prior demo data

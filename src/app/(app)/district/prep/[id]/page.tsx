@@ -9,7 +9,7 @@ import Link from "next/link";
  * compose talking points. Copy-paste into your meeting notes.
  */
 export default async function OneOnOnePrep({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const { id } = await params;
   const sb = createAdminClient();
   const today = ymd(new Date());

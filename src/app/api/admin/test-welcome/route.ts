@@ -11,7 +11,7 @@ import { requireRole } from "@/lib/auth";
  *   body: { email: "amy@brodierec.com", firstName?: "Amy" }
  */
 export async function POST(req: Request) {
-  await requireRole(["dm", "super_admin"]);
+  await requireRole(["super_admin"]);
   const { email, firstName } = (await req.json()) as { email: string; firstName?: string };
 
   const token = process.env.SLACK_BOT_TOKEN;
