@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { inviteUser } from "./actions";
 import { EditUser } from "./EditUser";
+import { LocationMultiSelect } from "./LocationMultiSelect";
 import { ROLE_LABELS, ROLE_ORDER, type UserRole, type UserStatus } from "./roles";
 
 export interface UserListRow {
@@ -13,6 +14,7 @@ export interface UserListRow {
   role: UserRole;
   status: UserStatus;
   location: string | null;
+  locations: string[];
 }
 
 const INPUT =
@@ -32,10 +34,12 @@ export default function UsersTable({
   meId,
   rows,
   locations,
+  allLocations,
 }: {
   meId: string;
   rows: UserListRow[];
   locations: string[];
+  allLocations: string[];
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -48,7 +52,7 @@ export default function UsersTable({
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (roleFilter !== "all" && r.role !== roleFilter) return false;
-      if (locFilter !== "all" && r.location !== locFilter) return false;
+      if (locFilter !== "all" && r.location !== locFilter && !r.locations.includes(locFilter)) return false;
       if (q && !r.fullName.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -92,6 +96,7 @@ export default function UsersTable({
 
       {inviteOpen && (
         <InviteForm
+          allLocations={allLocations}
           onDone={() => { setInviteOpen(false); router.refresh(); }}
           onCancel={() => setInviteOpen(false)}
         />
@@ -141,7 +146,9 @@ export default function UsersTable({
                               </td>
                               <td className="px-5 py-3 text-glass-text">{ROLE_LABELS[r.role]}</td>
                               <td className="px-5 py-3 text-glass-text">
-                                {r.location ?? <span className="text-glass-text-tertiary">{r.role === "lm" ? "—" : "All locations"}</span>}
+                                {r.locations.length > 0
+                                  ? r.locations.join(", ")
+                                  : r.location ?? <span className="text-glass-text-tertiary">{r.role === "lm" ? "—" : "All locations"}</span>}
                               </td>
                               <td className="px-5 py-3 text-right">
                                 <button
@@ -168,6 +175,7 @@ export default function UsersTable({
         <EditUser
           user={editing}
           isSelf={editing.id === meId}
+          allLocations={allLocations}
           onClose={() => { setEditing(null); router.refresh(); }}
         />
       )}
@@ -175,11 +183,12 @@ export default function UsersTable({
   );
 }
 
-function InviteForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+function InviteForm({ allLocations, onDone, onCancel }: { allLocations: string[]; onDone: () => void; onCancel: () => void }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>("lm");
+  const [locations, setLocations] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -187,7 +196,7 @@ function InviteForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
     setError(null);
     if (!firstName.trim() || !email.trim()) { setError("First name and email are required."); return; }
     start(async () => {
-      const res = await inviteUser({ firstName, lastName, email, role });
+      const res = await inviteUser({ firstName, lastName, email, role, locations });
       if ("error" in res) setError(res.error);
       else onDone();
     });
@@ -195,7 +204,7 @@ function InviteForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
 
   return (
     <div className="rounded-2xl border border-glass-border bg-glass-surface p-5 space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <label className="block">
           <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">First name</span>
           <input className={`${INPUT} mt-1`} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Paul" />
@@ -214,6 +223,12 @@ function InviteForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => 
             {ROLE_ORDER.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
           </select>
         </label>
+        <div className="block">
+          <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Locations</span>
+          <div className="mt-1">
+            <LocationMultiSelect options={allLocations} value={locations} onChange={setLocations} />
+          </div>
+        </div>
       </div>
       {error && (
         <p className="text-sm rounded-md px-3 py-2" style={{ background: "rgba(239,68,68,0.14)", color: "rgb(248,113,113)", border: "1px solid rgba(239,68,68,0.5)" }}>{error}</p>

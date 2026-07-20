@@ -4,7 +4,14 @@
 
 - Next 15 App Router, TypeScript, Tailwind, Supabase (own project), Vercel.
 - Auth: Google OAuth via Supabase. Allowed-domain gate in `middleware.ts`.
-- Roles: `lm` (default) / `dm` / `super_admin`. Stored on `profiles`.
+- Roles: `lm` (default) / `dm` / `operations_manager` / `super_admin`. Stored on
+  `profiles`. Only `super_admin` is a full admin (sees the whole nav + Settings
+  hub). `dm` + `operations_manager` get Dashboard + Users (can add/edit users,
+  but not grant/edit super_admins). `lm` gets Dashboard only.
+- User -> location assignments live in `user_locations` (many per user, any
+  role), set on invite/edit. Generic and separate from the `league_managers`
+  scoring roster. Picker names come from the Promo Tracker canonical list
+  (`src/lib/locations.ts`), matching the dashboard's location filter.
 
 ## Where things live
 
