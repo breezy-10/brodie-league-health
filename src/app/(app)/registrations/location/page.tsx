@@ -70,35 +70,25 @@ function Metric({ cur, prev, year, prevLabel, yearLabel }: {
   );
 }
 
-// Vertical bar chart of teams per roster size. xMin..xMax + maxCount are passed
-// in so several charts (the daily small multiples) can share one scale and read
-// as comparable. Gaps render as zero-height bars.
-function RosterBars({ sizes, xMin, xMax, maxCount, height }: {
-  sizes: RosterSize[]; xMin: number; xMax: number; maxCount: number; height: number;
+// Horizontal bar chart of teams per roster size: one row per roster size
+// (the y-axis), bar length = number of teams. xMin..xMax + maxCount are passed
+// in so several charts (the daily small multiples) share one scale.
+function RosterBars({ sizes, xMin, xMax, maxCount, barH = 14 }: {
+  sizes: RosterSize[]; xMin: number; xMax: number; maxCount: number; barH?: number;
 }) {
   const countBy = new Map(sizes.map((s) => [s.roster_size, s.team_count]));
-  const bars: { size: number; count: number }[] = [];
-  for (let n = xMin; n <= xMax; n++) bars.push({ size: n, count: countBy.get(n) ?? 0 });
+  const rows: { size: number; count: number }[] = [];
+  for (let n = xMin; n <= xMax; n++) rows.push({ size: n, count: countBy.get(n) ?? 0 });
   const mx = Math.max(1, maxCount);
   return (
-    <div className="flex items-end gap-1.5 overflow-x-auto" style={{ minWidth: bars.length * 30 }}>
-      {bars.map((b) => (
-        <div key={b.size} className="flex flex-col items-center flex-1" style={{ minWidth: 20 }}>
-          {/* Count gets its own fixed row above the bar so the tallest bar's
-              label is never clipped. */}
-          <span className="text-[11px] font-semibold tabular leading-4" style={{ color: "var(--glass-text-secondary)", height: 16 }}>{b.count || ""}</span>
-          <div className="w-full flex items-end" style={{ height }}>
-            <div
-              className="w-full rounded-t"
-              style={{
-                height: b.count > 0 ? Math.max(3, Math.round((b.count / mx) * height)) : 0,
-                background: b.count > 0 ? "var(--glass-gold)" : "transparent",
-                minWidth: 14,
-              }}
-              title={`${b.count} team${b.count === 1 ? "" : "s"} with ${b.size} player${b.size === 1 ? "" : "s"}`}
-            />
+    <div className="space-y-1.5">
+      {rows.map((r) => (
+        <div key={r.size} className="flex items-center gap-2" title={`${r.count} team${r.count === 1 ? "" : "s"} with ${r.size} player${r.size === 1 ? "" : "s"}`}>
+          <span className="w-4 text-right text-[11px] font-semibold tabular shrink-0" style={{ color: "var(--glass-text-tertiary)" }}>{r.size}</span>
+          <div className="flex-1 rounded" style={{ height: barH, background: "var(--glass-surface-hover)" }}>
+            <div className="h-full rounded" style={{ width: `${(r.count / mx) * 100}%`, background: r.count > 0 ? "var(--glass-gold)" : "transparent" }} />
           </div>
-          <span className="text-[11px] font-semibold tabular mt-1" style={{ color: "var(--glass-text-tertiary)" }}>{b.size}</span>
+          <span className="w-6 text-right text-[11px] font-semibold tabular shrink-0" style={{ color: "var(--glass-text-secondary)" }}>{r.count || ""}</span>
         </div>
       ))}
     </div>
@@ -111,8 +101,8 @@ function RosterCharts({ totals, byDay, season }: { totals: RosterSize[]; byDay: 
   if (!totals.length) return null;
   const xMin = Math.min(...totals.map((s) => s.roster_size));
   const xMax = Math.max(...totals.map((s) => s.roster_size));
-  // Daily charts share one y-scale (max count across all days) so bar heights
-  // are comparable night to night.
+  // Daily charts share one length scale (max count across all days) so bar
+  // lengths are comparable night to night.
   const dayMaxCount = Math.max(1, ...byDay.flatMap((d) => d.sizes.map((s) => s.team_count)));
 
   return (
@@ -123,8 +113,8 @@ function RosterCharts({ totals, byDay, season }: { totals: RosterSize[]; byDay: 
           <p className="text-sm text-glass-text-secondary">How many teams have each roster size · {season} · {sum(totals).toLocaleString()} teams</p>
         </div>
         <div className="rounded-2xl border border-glass-border bg-glass-surface p-5">
-          <RosterBars sizes={totals} xMin={xMin} xMax={xMax} maxCount={Math.max(...totals.map((s) => s.team_count))} height={160} />
-          <p className="text-[11px] mt-2 text-glass-text-tertiary">Roster size (players registered) →</p>
+          <RosterBars sizes={totals} xMin={xMin} xMax={xMax} maxCount={Math.max(...totals.map((s) => s.team_count))} barH={18} />
+          <p className="text-[11px] mt-3 text-glass-text-tertiary">Roster size (players registered) ↓ · bar length = teams</p>
         </div>
       </section>
 
@@ -138,11 +128,11 @@ function RosterCharts({ totals, byDay, season }: { totals: RosterSize[]; byDay: 
                   <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{d.day}</span>
                   <span className="text-xs text-glass-text-tertiary">{sum(d.sizes).toLocaleString()} teams</span>
                 </div>
-                <RosterBars sizes={d.sizes} xMin={xMin} xMax={xMax} maxCount={dayMaxCount} height={90} />
+                <RosterBars sizes={d.sizes} xMin={xMin} xMax={xMax} maxCount={dayMaxCount} />
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-glass-text-tertiary">Roster size (players registered) → · bars share one scale across days</p>
+          <p className="text-[11px] text-glass-text-tertiary">Roster size (players registered) ↓ · bar length = teams · shared scale across days</p>
         </section>
       ) : null}
     </>
