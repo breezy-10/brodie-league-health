@@ -70,6 +70,13 @@ function Metric({ cur, prev, year, prevLabel, yearLabel }: {
   );
 }
 
+// Bar colour by roster size: 1-6 red, 7-8 yellow, 9+ green (fuller rosters).
+function rosterSizeColor(size: number): string {
+  if (size >= 9) return "rgb(74,222,128)";
+  if (size >= 7) return "var(--glass-gold)";
+  return "rgb(248,113,113)";
+}
+
 // Horizontal bar chart of teams per roster size: one row per roster size
 // (the y-axis), bar length = number of teams. xMin..xMax + maxCount are passed
 // in so several charts (the daily small multiples) share one scale.
@@ -86,7 +93,7 @@ function RosterBars({ sizes, xMin, xMax, maxCount, barH = 14 }: {
         <div key={r.size} className="flex items-center gap-2" title={`${r.count} team${r.count === 1 ? "" : "s"} with ${r.size} player${r.size === 1 ? "" : "s"}`}>
           <span className="w-4 text-right text-[11px] font-semibold tabular shrink-0" style={{ color: "var(--glass-text-tertiary)" }}>{r.size}</span>
           <div className="flex-1 rounded" style={{ height: barH, background: "var(--glass-surface-hover)" }}>
-            <div className="h-full rounded" style={{ width: `${(r.count / mx) * 100}%`, background: r.count > 0 ? "var(--glass-gold)" : "transparent" }} />
+            <div className="h-full rounded" style={{ width: `${(r.count / mx) * 100}%`, background: r.count > 0 ? rosterSizeColor(r.size) : "transparent" }} />
           </div>
           <span className="w-6 text-right text-[11px] font-semibold tabular shrink-0" style={{ color: "var(--glass-text-secondary)" }}>{r.count || ""}</span>
         </div>
