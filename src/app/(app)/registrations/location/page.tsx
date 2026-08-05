@@ -88,8 +88,14 @@ function RosterBars({ sizes, xMin, xMax, maxCount, barH = 14 }: {
   for (let n = xMin; n <= xMax; n++) rows.push({ size: n, count: countBy.get(n) ?? 0 });
   const mx = Math.max(1, maxCount);
   return (
-    <div className="space-y-1.5">
-      {rows.map((r) => (
+    <div>
+      {/* Column headings: left numbers = roster size, right numbers = teams. */}
+      <div className="flex items-center justify-between mb-2 text-[10px] uppercase tracking-[0.14em] font-bold text-glass-text-tertiary">
+        <span>Players / team</span>
+        <span>Teams</span>
+      </div>
+      <div className="space-y-1.5">
+        {rows.map((r) => (
         <div key={r.size} className="flex items-center gap-2" title={`${r.count} team${r.count === 1 ? "" : "s"} with ${r.size} player${r.size === 1 ? "" : "s"}`}>
           <span className="w-4 text-right text-[11px] font-semibold tabular shrink-0" style={{ color: "var(--glass-text-tertiary)" }}>{r.size}</span>
           <div className="flex-1 rounded" style={{ height: barH, background: "var(--glass-surface-hover)" }}>
@@ -97,7 +103,8 @@ function RosterBars({ sizes, xMin, xMax, maxCount, barH = 14 }: {
           </div>
           <span className="w-6 text-right text-[11px] font-semibold tabular shrink-0" style={{ color: "var(--glass-text-secondary)" }}>{r.count || ""}</span>
         </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -121,7 +128,6 @@ function RosterCharts({ totals, byDay, season }: { totals: RosterSize[]; byDay: 
         </div>
         <div className="rounded-2xl border border-glass-border bg-glass-surface p-5">
           <RosterBars sizes={totals} xMin={xMin} xMax={xMax} maxCount={Math.max(...totals.map((s) => s.team_count))} barH={18} />
-          <p className="text-[11px] mt-3 text-glass-text-tertiary">Roster size (players registered) ↓ · bar length = teams</p>
         </div>
       </section>
 
@@ -139,7 +145,7 @@ function RosterCharts({ totals, byDay, season }: { totals: RosterSize[]; byDay: 
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-glass-text-tertiary">Roster size (players registered) ↓ · bar length = teams · shared scale across days</p>
+          <p className="text-[11px] text-glass-text-tertiary">Bars share one scale across days.</p>
         </section>
       ) : null}
     </>
