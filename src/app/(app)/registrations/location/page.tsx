@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
+import { getAssignableLocations, getRegistrationSeasons } from "@/lib/locations";
+import { DetailFilters } from "./DetailFilters";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const PROMO_URL = "https://registration-promo-tracker.vercel.app";
+
+const BACK_BTN =
+  "inline-flex items-center gap-1.5 rounded-lg border border-glass-border bg-glass-surface px-3.5 py-2 text-sm font-medium text-glass-text hover:bg-glass-surface-hover hover:border-glass-gold transition";
 
 type Cell = { teams: number; athletes: number };
 type DayRow = { day: string; current: Cell; prev_season: Cell; prev_year: Cell };
@@ -151,13 +156,21 @@ export default async function LocationDetailPage({
   if (!loc || !season) {
     return (
       <main className="brodie-fade-in space-y-4">
-        <Link href="/registrations" className="text-sm text-glass-text-tertiary hover:text-glass-text transition">← Back to registrations</Link>
+        <Link href="/registrations" className={BACK_BTN}>← Back to registrations</Link>
         <p className="text-sm text-glass-text-secondary">Missing location or season.</p>
       </main>
     );
   }
 
-  const data = await loadBreakdown(loc, season);
+  const [data, allLocations, allSeasons] = await Promise.all([
+    loadBreakdown(loc, season),
+    getAssignableLocations(),
+    getRegistrationSeasons(),
+  ]);
+  // Make sure the current selection is always in the dropdowns — split-league
+  // cards (e.g. "Calgary (North)") aren't in the promo location list.
+  const locations = allLocations.includes(loc) ? allLocations : [loc, ...allLocations];
+  const seasons = allSeasons.includes(season) ? allSeasons : [season, ...allSeasons];
   const prevLabel = shortSeason(data?.seasons.prev_season ?? "");
   const yearLabel = shortSeason(data?.seasons.prev_year ?? "");
 
@@ -176,14 +189,16 @@ export default async function LocationDetailPage({
   return (
     <main className="brodie-fade-in space-y-6">
       <div>
-        <Link href="/registrations" className="text-sm text-glass-text-tertiary hover:text-glass-text transition">← Back to registrations</Link>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mt-3 mb-1" style={{ color: "var(--glass-gold)" }}>Registrations · {loc}</p>
+        <Link href="/registrations" className={BACK_BTN}>← Back to registrations</Link>
+        <p className="font-mono text-xs uppercase tracking-[0.18em] mt-4 mb-1" style={{ color: "var(--glass-gold)" }}>Registrations · {loc}</p>
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>By day of week</h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
           Teams, athletes, and players per team for {loc} by night, {season}
           {data?.day_n != null ? ` · day ${data.day_n} of registration` : ""}. Deltas vs {data?.seasons.prev_season ?? "prev season"} and {data?.seasons.prev_year ?? "last year"}, same day.
         </p>
       </div>
+
+      <DetailFilters loc={loc} season={season} locations={locations} seasons={seasons} />
 
       {!data || data.days.length === 0 ? (
         <p className="text-sm italic text-glass-text-tertiary py-8">No registration data for this location and season yet.</p>

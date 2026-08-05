@@ -22,3 +22,18 @@ export async function getAssignableLocations(): Promise<string[]> {
   }
   return LOCATIONS_FALLBACK;
 }
+
+export const SEASONS_FALLBACK = ["Fall '26", "Summer '26"];
+
+// Registration seasons from the Promo Tracker (current first), for filters.
+export async function getRegistrationSeasons(): Promise<string[]> {
+  if (sourceConfigured("promo")) {
+    const promo = sourceClient("promo")!;
+    const { data } = await promo.from("seasons").select("name, is_current").order("is_current", { ascending: false });
+    const names = ((data ?? []) as { name: string | null }[])
+      .map((s) => s.name)
+      .filter((n): n is string => !!n);
+    if (names.length) return names;
+  }
+  return SEASONS_FALLBACK;
+}
