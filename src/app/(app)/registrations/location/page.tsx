@@ -81,20 +81,24 @@ function RosterBars({ sizes, xMin, xMax, maxCount, height }: {
   for (let n = xMin; n <= xMax; n++) bars.push({ size: n, count: countBy.get(n) ?? 0 });
   const mx = Math.max(1, maxCount);
   return (
-    <div className="flex items-end gap-1.5 overflow-x-auto" style={{ height: height + 28, minWidth: bars.length * 30 }}>
+    <div className="flex items-end gap-1.5 overflow-x-auto" style={{ minWidth: bars.length * 30 }}>
       {bars.map((b) => (
-        <div key={b.size} className="flex flex-col items-center justify-end gap-1 flex-1" style={{ minWidth: 20 }}>
-          <span className="text-[11px] font-semibold tabular" style={{ color: "var(--glass-text-secondary)" }}>{b.count || ""}</span>
-          <div
-            className="w-full rounded-t"
-            style={{
-              height: b.count > 0 ? Math.max(3, Math.round((b.count / mx) * height)) : 0,
-              background: b.count > 0 ? "var(--glass-gold)" : "transparent",
-              minWidth: 14,
-            }}
-            title={`${b.count} team${b.count === 1 ? "" : "s"} with ${b.size} player${b.size === 1 ? "" : "s"}`}
-          />
-          <span className="text-[11px] font-semibold tabular" style={{ color: "var(--glass-text-tertiary)" }}>{b.size}</span>
+        <div key={b.size} className="flex flex-col items-center flex-1" style={{ minWidth: 20 }}>
+          {/* Count gets its own fixed row above the bar so the tallest bar's
+              label is never clipped. */}
+          <span className="text-[11px] font-semibold tabular leading-4" style={{ color: "var(--glass-text-secondary)", height: 16 }}>{b.count || ""}</span>
+          <div className="w-full flex items-end" style={{ height }}>
+            <div
+              className="w-full rounded-t"
+              style={{
+                height: b.count > 0 ? Math.max(3, Math.round((b.count / mx) * height)) : 0,
+                background: b.count > 0 ? "var(--glass-gold)" : "transparent",
+                minWidth: 14,
+              }}
+              title={`${b.count} team${b.count === 1 ? "" : "s"} with ${b.size} player${b.size === 1 ? "" : "s"}`}
+            />
+          </div>
+          <span className="text-[11px] font-semibold tabular mt-1" style={{ color: "var(--glass-text-tertiary)" }}>{b.size}</span>
         </div>
       ))}
     </div>
