@@ -9,12 +9,14 @@ const PROMO_URL = "https://registration-promo-tracker.vercel.app";
 type Cell = { teams: number; athletes: number };
 type DayRow = { day: string; current: Cell; prev_season: Cell; prev_year: Cell };
 type RosterSize = { roster_size: number; team_count: number };
+type RosterDay = { day: string; sizes: RosterSize[] };
 type Breakdown = {
   location: string;
   day_n: number | null;
   seasons: { current: string; prev_season: string; prev_year: string };
   days: DayRow[];
   roster_sizes: RosterSize[];
+  roster_by_day: RosterDay[];
 };
 
 // "Summer '26" -> "SU'26".
@@ -63,45 +65,78 @@ function Metric({ cur, prev, year, prevLabel, yearLabel }: {
   );
 }
 
-// Vertical bar chart: how many teams have N registered players. Contiguous
-// roster sizes from min..max, gaps rendered as zero-height bars.
-function RosterChart({ sizes, season }: { sizes: RosterSize[]; season: string }) {
-  if (!sizes.length) return null;
-  const min = Math.min(...sizes.map((s) => s.roster_size));
-  const max = Math.max(...sizes.map((s) => s.roster_size));
+// Vertical bar chart of teams per roster size. xMin..xMax + maxCount are passed
+// in so several charts (the daily small multiples) can share one scale and read
+// as comparable. Gaps render as zero-height bars.
+function RosterBars({ sizes, xMin, xMax, maxCount, height }: {
+  sizes: RosterSize[]; xMin: number; xMax: number; maxCount: number; height: number;
+}) {
   const countBy = new Map(sizes.map((s) => [s.roster_size, s.team_count]));
   const bars: { size: number; count: number }[] = [];
-  for (let n = min; n <= max; n++) bars.push({ size: n, count: countBy.get(n) ?? 0 });
-  const maxCount = Math.max(1, ...bars.map((b) => b.count));
-  const totalTeams = bars.reduce((a, b) => a + b.count, 0);
-  const TRACK = 160;
+  for (let n = xMin; n <= xMax; n++) bars.push({ size: n, count: countBy.get(n) ?? 0 });
+  const mx = Math.max(1, maxCount);
   return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Players registered per team</h2>
-        <p className="text-sm text-glass-text-secondary">How many teams have each roster size · {season} · {totalTeams.toLocaleString()} teams</p>
-      </div>
-      <div className="rounded-2xl border border-glass-border bg-glass-surface p-5 overflow-x-auto">
-        <div className="flex items-end gap-2" style={{ height: TRACK + 28, minWidth: bars.length * 40 }}>
-          {bars.map((b) => (
-            <div key={b.size} className="flex flex-col items-center justify-end gap-1 flex-1" style={{ minWidth: 30 }}>
-              <span className="text-[11px] font-semibold tabular" style={{ color: "var(--glass-text-secondary)" }}>{b.count}</span>
-              <div
-                className="w-full rounded-t"
-                style={{
-                  height: Math.max(2, Math.round((b.count / maxCount) * TRACK)),
-                  background: b.count > 0 ? "var(--glass-gold)" : "var(--glass-border-light)",
-                  minWidth: 18,
-                }}
-                title={`${b.count} team${b.count === 1 ? "" : "s"} with ${b.size} player${b.size === 1 ? "" : "s"}`}
-              />
-              <span className="text-[11px] font-semibold tabular" style={{ color: "var(--glass-text-tertiary)" }}>{b.size}</span>
-            </div>
-          ))}
+    <div className="flex items-end gap-1.5 overflow-x-auto" style={{ height: height + 28, minWidth: bars.length * 30 }}>
+      {bars.map((b) => (
+        <div key={b.size} className="flex flex-col items-center justify-end gap-1 flex-1" style={{ minWidth: 20 }}>
+          <span className="text-[11px] font-semibold tabular" style={{ color: "var(--glass-text-secondary)" }}>{b.count || ""}</span>
+          <div
+            className="w-full rounded-t"
+            style={{
+              height: b.count > 0 ? Math.max(3, Math.round((b.count / mx) * height)) : 0,
+              background: b.count > 0 ? "var(--glass-gold)" : "transparent",
+              minWidth: 14,
+            }}
+            title={`${b.count} team${b.count === 1 ? "" : "s"} with ${b.size} player${b.size === 1 ? "" : "s"}`}
+          />
+          <span className="text-[11px] font-semibold tabular" style={{ color: "var(--glass-text-tertiary)" }}>{b.size}</span>
         </div>
-        <p className="text-[11px] mt-2 text-glass-text-tertiary">Roster size (players registered) →</p>
-      </div>
-    </section>
+      ))}
+    </div>
+  );
+}
+
+const sum = (sizes: RosterSize[]) => sizes.reduce((a, s) => a + s.team_count, 0);
+
+function RosterCharts({ totals, byDay, season }: { totals: RosterSize[]; byDay: RosterDay[]; season: string }) {
+  if (!totals.length) return null;
+  const xMin = Math.min(...totals.map((s) => s.roster_size));
+  const xMax = Math.max(...totals.map((s) => s.roster_size));
+  // Daily charts share one y-scale (max count across all days) so bar heights
+  // are comparable night to night.
+  const dayMaxCount = Math.max(1, ...byDay.flatMap((d) => d.sizes.map((s) => s.team_count)));
+
+  return (
+    <>
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Players registered per team</h2>
+          <p className="text-sm text-glass-text-secondary">How many teams have each roster size · {season} · {sum(totals).toLocaleString()} teams</p>
+        </div>
+        <div className="rounded-2xl border border-glass-border bg-glass-surface p-5">
+          <RosterBars sizes={totals} xMin={xMin} xMax={xMax} maxCount={Math.max(...totals.map((s) => s.team_count))} height={160} />
+          <p className="text-[11px] mt-2 text-glass-text-tertiary">Roster size (players registered) →</p>
+        </div>
+      </section>
+
+      {byDay.length ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Players per team by day</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {byDay.map((d) => (
+              <div key={d.day} className="rounded-2xl border border-glass-border bg-glass-surface p-4">
+                <div className="flex items-baseline justify-between mb-2">
+                  <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{d.day}</span>
+                  <span className="text-xs text-glass-text-tertiary">{sum(d.sizes).toLocaleString()} teams</span>
+                </div>
+                <RosterBars sizes={d.sizes} xMin={xMin} xMax={xMax} maxCount={dayMaxCount} height={90} />
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-glass-text-tertiary">Roster size (players registered) → · bars share one scale across days</p>
+        </section>
+      ) : null}
+    </>
   );
 }
 
@@ -198,7 +233,9 @@ export default async function LocationDetailPage({
         </div>
       )}
 
-      {data?.roster_sizes?.length ? <RosterChart sizes={data.roster_sizes} season={season} /> : null}
+      {data?.roster_sizes?.length ? (
+        <RosterCharts totals={data.roster_sizes} byDay={data.roster_by_day ?? []} season={season} />
+      ) : null}
     </main>
   );
 }
