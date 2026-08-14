@@ -1,6 +1,11 @@
 import { requireUser } from "@/lib/auth";
 import { loadActiveLMs, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
+import RatesEditor, { type CurrencyCounts } from "./RatesEditor";
+import { loadReferralRates } from "./rates";
+
+// Changing the terms is a money decision — same roles that own app/metric weights.
+const RATE_EDITOR_ROLES = ["dm", "super_admin"];
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the referral
 // numbers come from its feed rather than being re-derived here — same pattern
@@ -57,7 +62,7 @@ export default async function ReferralsView({
 }: {
   searchParams: Promise<{ season?: string; location?: string; lm?: string }>;
 }) {
-  await requireUser();
+  const ctx = await requireUser();
   const { season: seasonParam, location = "all", lm = "all" } = await searchParams;
 
   const activeLMs = await loadActiveLMs();
@@ -66,8 +71,13 @@ export default async function ReferralsView({
     activeLMs,
   );
   // Referrals attach to registrations, which run one season ahead of play —
-  // the same season the Registrations tab reports on.
-  const feed = await loadReferrals(regSeason, locationNames);
+  // the same season the Registrations tab reports on. The terms are stored
+  // against that same registration season.
+  const [feed, rates] = await Promise.all([
+    loadReferrals(regSeason, locationNames),
+    loadReferralRates(regSeason),
+  ]);
+  const canEditRates = RATE_EDITOR_ROLES.includes(ctx.profile?.role ?? "");
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
@@ -82,6 +92,19 @@ export default async function ReferralsView({
   const rows = feed?.locations ?? [];
   const maxTotal = Math.max(...rows.map((r) => r.total), 1);
   const t = feed?.totals;
+  // Referral counts split by the currency they're owed in, so the terms editor
+  // can cost the season without inventing an exchange rate.
+  const countsByCurrency = new Map<string, CurrencyCounts>();
+  for (const r of rows) {
+    const c = countsByCurrency.get(r.currency)
+      ?? { currency: r.currency, new_athletes: 0, returning_athletes: 0, total: 0 };
+    c.new_athletes += r.new_athletes;
+    c.returning_athletes += r.returning_athletes;
+    c.total += r.total;
+    countsByCurrency.set(r.currency, c);
+  }
+  const currencyCounts = [...countsByCurrency.values()].sort((a, b) => a.currency.localeCompare(b.currency));
+  const amount = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
   const currencies = t ? Object.keys(t.earned).sort() : [];
   // Share of referrals that bring in someone who has never registered before.
   const newPct = t && t.total > 0 ? Math.round((100 * t.new_athletes) / t.total) : null;
@@ -91,11 +114,11 @@ export default async function ReferralsView({
       <header>
         <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: GOLD }}>Referrals</p>
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
-          Referral programme
+          Referral program
         </h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
-          Athletes brought in by the invite code for {scopeLabel}, split into new athletes ($25) and
-          run-it-backs ($5).
+          Athletes brought in by the invite code for {scopeLabel}, split into new athletes
+          ({amount(rates.new_athlete_payment)}) and run-it-backs ({amount(rates.returning_athlete_payment)}).
         </p>
       </header>
 
@@ -184,11 +207,16 @@ export default async function ReferralsView({
           </>
         )}
 
+        {/* Rendered even with no referrals yet, so a season's terms can be set
+            before the first one lands. */}
+        <RatesEditor season={regSeason} rates={rates} canEdit={canEditRates} counts={currencyCounts} />
+
         <p className="text-xs text-glass-text-tertiary">
           Counts only referrals whose registration went through (completed, not cancelled, paid or paying) — the same
           filter the Registrations tab uses. {feed ? `${feed.totals.recorded.toLocaleString()} referrals were recorded in total for ${regSeason}; the difference is drafts, cancellations and failed payments, which earn no credit.` : ""} New
-          athletes are first-ever registrations ($25 to the referrer); returning athletes are run-it-backs ($5). Earned
-          credit is owed in each location&apos;s own currency and is never summed across the two.
+          athletes are first-ever registrations; returning athletes are run-it-backs. Earned credit is what ops actually
+          recorded against each referral, owed in each location&apos;s own currency and never summed across the two — it
+          can differ from the terms below if those changed mid-season.
         </p>
       </section>
     </main>
