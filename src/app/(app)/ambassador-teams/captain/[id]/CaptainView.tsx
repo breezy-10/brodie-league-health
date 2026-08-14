@@ -233,6 +233,16 @@ function TeamRowItem({
   const cells = (
     <>
       <span className="font-semibold truncate" style={{ color: "var(--glass-text)" }} title={row.team}>
+        {roster.length > 0 && (
+          <svg
+            width="9" height="9" viewBox="0 0 10 10" fill="none"
+            className="inline-block mr-1.5 align-middle shrink-0 transition-transform duration-150 group-open:rotate-90"
+            style={{ color: "var(--glass-text-tertiary)" }}
+            aria-hidden
+          >
+            <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
         <span
           className="inline-block w-1 h-3.5 rounded-sm mr-2 align-middle"
           style={{ background: row.players === 0 ? EMPTY : row.players === 1 ? THIN : GOLD }}
@@ -266,7 +276,7 @@ function TeamRowItem({
   return (
     <details className="group">
       <summary
-        className={`${rowClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2`}
+        className={`${rowClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-glass-surface-hover transition-colors focus-visible:outline focus-visible:outline-2`}
         style={{ ...rowStyle, outlineColor: GOLD, outlineOffset: -2 }}
       >
         {cells}
