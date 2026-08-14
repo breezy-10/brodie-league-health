@@ -112,6 +112,8 @@ export default async function ReferralsView({
   const discountByCurrency: Record<string, number> = {};
   for (const c of currencyCounts) discountByCurrency[c.currency] = c.new_athletes * rates.registrant_discount;
   // Share of referrals that bring in someone who has never registered before.
+  // The returning share is derived from it rather than rounded separately, so
+  // the two tiles always add to 100 instead of occasionally reading 101.
   const newPct = t && t.total > 0 ? Math.round((100 * t.new_athletes) / t.total) : null;
 
   return (
@@ -153,7 +155,7 @@ export default async function ReferralsView({
               <Tile label="New athletes" value={t!.new_athletes.toLocaleString()} accent={GOLD}
                 sub={newPct === null ? undefined : `${newPct}% of referrals`} />
               <Tile label="Returning athletes" value={t!.returning_athletes.toLocaleString()} accent={RETURNING}
-                sub="run-it-backs" />
+                sub={newPct === null ? undefined : `${100 - newPct}% of referrals`} />
               <Tile label="Confirmed referrals" value={t!.total.toLocaleString()}
                 sub={`${t!.recorded.toLocaleString()} recorded`} />
               <Tile label="Referrers" value={t!.referrers.toLocaleString()}
