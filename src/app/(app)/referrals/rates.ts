@@ -12,10 +12,14 @@ export type ReferralRates = {
   stored: boolean;
 };
 
+// The standing terms: $25 to the referrer for a new athlete, $5 for a
+// run-it-back, and $25 off the new athlete's first registration. A season that
+// ran different terms carries its own row and is unaffected by these — Fall '26
+// is on $50 / $5 / $20, for instance.
 export const DEFAULT_RATES: ReferralRates = {
   new_athlete_payment: 25,
   returning_athlete_payment: 5,
-  registrant_discount: 0,
+  registrant_discount: 25,
   updated_at: null,
   stored: false,
 };
