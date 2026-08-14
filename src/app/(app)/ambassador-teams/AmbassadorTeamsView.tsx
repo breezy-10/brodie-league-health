@@ -188,8 +188,8 @@ export default async function AmbassadorTeamsView({
                   </div>
                   <p className="text-xs text-glass-text-tertiary">
                     Every captain of an ambassador team in the current filter — {multiTeam} of{" "}
-                    {captainRows.length} run more than one. Ordered by teammates, the distinct people on their
-                    rosters; someone on two of their teams counts once. Select a name for their teams.
+                    {captainRows.length} run more than one. Ordered by teammates — every roster spot they have
+                    filled, counting a player on each team they are on. Select a name for their teams.
                   </p>
                 </div>
                 <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
