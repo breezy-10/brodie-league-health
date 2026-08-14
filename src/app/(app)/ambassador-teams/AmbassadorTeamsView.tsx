@@ -13,6 +13,7 @@ type RosterEntry = {
   player: string;
   is_captain: boolean;
   paid: number;
+  total: number;
   currency: string | null;
   paid_ok: boolean;
   no_registration: boolean;
@@ -203,9 +204,8 @@ export default async function AmbassadorTeamsView({
                   <p className="text-xs text-glass-text-tertiary">
                     Every captain of an ambassador team in the current filter — {multiTeam} of{" "}
                     {captainRows.length} run more than one. Ordered by teammates — every roster spot they have
-                    filled, counting a player on each team they are on. Paid teammates are the ones whose
-                    registration invoice shows $250 CAD or $200 USD or more actually paid, so someone part-way
-                    through an instalment plan counts once they get there. Select a name for their teams.
+                    filled, counting a player on each team they are on. Paid teammates are the ones who have paid
+                    any amount toward their registration this season (on any team). Select a name for their teams.
                   </p>
                 </div>
                 <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
