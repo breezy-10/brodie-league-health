@@ -11,9 +11,18 @@ type RosterEntry = {
   paid: number;
   total: number;
   currency: string | null;
+  paid_completed_at: string | null;
   paid_ok: boolean;
   no_registration: boolean;
 };
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "2026-07-17" -> "Jul 17, '26". "—" when payment isn't complete.
+function fmtCompleted(iso: string | null): string {
+  if (!iso) return "—";
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, '${m[1].slice(2)}` : iso;
+}
 type PlayerTeam = {
   team: string;
   roster?: RosterEntry[];
@@ -266,20 +275,31 @@ function TeamRowItem({
         className="px-4 pb-3 pt-1 space-y-1"
         style={{ background: "var(--glass-surface-hover)", borderTop: "1px solid var(--glass-border)" }}
       >
+        <li className="flex items-baseline gap-3 text-[10px] uppercase tracking-[0.14em] font-bold text-glass-text-tertiary max-w-2xl pb-0.5">
+          <span className="flex-1">Player</span>
+          <span className="shrink-0 w-[128px] text-right">Paid / total</span>
+          <span className="shrink-0 w-[92px] text-right">Completed</span>
+        </li>
         {ordered.map((x, i) => (
-          <li key={`${x.player}-${i}`} className="flex items-baseline justify-between gap-3 text-[12px] max-w-xl">
-            <span className="truncate" style={{ color: x.paid_ok ? "var(--glass-text-secondary)" : "var(--glass-text)" }}>
+          <li key={`${x.player}-${i}`} className="flex items-baseline gap-3 text-[12px] max-w-2xl">
+            <span className="truncate flex-1" style={{ color: x.paid_ok ? "var(--glass-text-secondary)" : "var(--glass-text)" }}>
               {x.player}
               {x.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
             </span>
             <span
-              className="tabular font-mono shrink-0"
+              className="tabular font-mono shrink-0 w-[128px] text-right"
               style={{ color: x.paid_ok ? "var(--glass-text-secondary)" : THIN }}
               title={x.no_registration ? "No registration on file" : undefined}
             >
               {x.no_registration
                 ? "no reg"
                 : `$${Math.round(x.paid)} / $${Math.round(x.total)}${x.currency ? " " + x.currency.toUpperCase() : ""}`}
+            </span>
+            <span
+              className="tabular font-mono shrink-0 w-[92px] text-right text-glass-text-tertiary"
+              title={x.paid_completed_at ? "Payment completed" : "Payment not complete"}
+            >
+              {x.no_registration ? "" : fmtCompleted(x.paid_completed_at)}
             </span>
           </li>
         ))}

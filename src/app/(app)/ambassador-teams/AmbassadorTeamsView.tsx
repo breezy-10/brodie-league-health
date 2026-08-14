@@ -15,6 +15,7 @@ type RosterEntry = {
   paid: number;
   total: number;
   currency: string | null;
+  paid_completed_at: string | null;
   paid_ok: boolean;
   no_registration: boolean;
 };
