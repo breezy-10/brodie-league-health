@@ -85,11 +85,6 @@ export default async function ReferralsView({
     locations: promoLocations,
     lms: activeLMs.map((l) => ({ id: l.id, name: l.full_name || "—" })),
   };
-  const scopeLabel =
-    lm !== "all" ? (activeLMs.find((l) => l.id === lm)?.full_name ?? "1 league manager")
-    : location !== "all" ? location
-    : `all ${activeLMs.length} league managers`;
-
   const rows = feed?.locations ?? [];
   const maxTotal = Math.max(...rows.map((r) => r.total), 1);
   const t = feed?.totals;
@@ -117,6 +112,8 @@ export default async function ReferralsView({
   const discountByCurrency: Record<string, number> = {};
   for (const c of currencyCounts) discountByCurrency[c.currency] = c.new_athletes * rates.registrant_discount;
   // Share of referrals that bring in someone who has never registered before.
+  // The returning share is derived from it rather than rounded separately, so
+  // the two tiles always add to 100 instead of occasionally reading 101.
   const newPct = t && t.total > 0 ? Math.round((100 * t.new_athletes) / t.total) : null;
 
   return (
@@ -126,10 +123,6 @@ export default async function ReferralsView({
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
           Referral program
         </h1>
-        <p className="text-sm mt-1 text-glass-text-secondary">
-          Athletes brought in by the invite code for {scopeLabel}, split into new athletes
-          ({amount(rates.new_athlete_payment)}) and run-it-backs ({amount(rates.returning_athlete_payment)}).
-        </p>
       </header>
 
       <Filters key={`${selectedSeason}|${location}|${lm}`} options={options} current={{ season: selectedSeason, location, lm }} />
@@ -162,7 +155,7 @@ export default async function ReferralsView({
               <Tile label="New athletes" value={t!.new_athletes.toLocaleString()} accent={GOLD}
                 sub={newPct === null ? undefined : `${newPct}% of referrals`} />
               <Tile label="Returning athletes" value={t!.returning_athletes.toLocaleString()} accent={RETURNING}
-                sub="run-it-backs" />
+                sub={newPct === null ? undefined : `${100 - newPct}% of referrals`} />
               <Tile label="Confirmed referrals" value={t!.total.toLocaleString()}
                 sub={`${t!.recorded.toLocaleString()} recorded`} />
               <Tile label="Referrers" value={t!.referrers.toLocaleString()}
