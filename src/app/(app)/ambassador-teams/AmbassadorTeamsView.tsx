@@ -89,8 +89,6 @@ export default async function AmbassadorTeamsView({
 
   const t = feed?.totals;
   const locations = feed?.locations ?? [];
-  const byDay = feed?.by_day ?? [];
-  const maxDay = Math.max(...byDay.map((d) => d.teams), 1);
   // The meter is scaled to the season's largest roster rather than a fixed cap,
   // so it stays honest if a team ever carries more than ten.
   const slots = Math.max(t?.max_roster ?? 0, 1);
@@ -100,6 +98,7 @@ export default async function AmbassadorTeamsView({
   const repeatCaptains = Object.entries(captainTeams)
     .filter(([, n]) => n > 1)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const maxCaptainTeams = Math.max(...repeatCaptains.map(([, n]) => n), 1);
 
   return (
     <main className="brodie-fade-in space-y-8">
@@ -158,39 +157,6 @@ export default async function AmbassadorTeamsView({
               />
             </div>
 
-            {byDay.length > 0 && (
-              <div className="rounded-2xl border border-glass-border bg-glass-surface px-4 py-4">
-                <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-3">
-                  Teams by night
-                </div>
-                <div className="space-y-2">
-                  {byDay.map((d) => (
-                    <div key={d.day} className="flex items-center gap-3">
-                      <div
-                        className="font-mono text-[11px] uppercase tracking-[0.08em] w-20 shrink-0"
-                        style={{ color: "var(--glass-text-secondary)" }}
-                      >
-                        {d.day}
-                      </div>
-                      <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: "var(--glass-border)" }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${Math.max((d.teams / maxDay) * 100, 2)}%`, background: GOLD }}
-                          title={`${d.teams} teams · ${d.players} players`}
-                        />
-                      </div>
-                      <div className="tabular text-sm font-bold w-8 text-right" style={{ color: "var(--glass-text)" }}>
-                        {d.teams}
-                      </div>
-                      <div className="tabular text-[11px] w-20 text-right text-glass-text-tertiary">
-                        {d.players} players
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {repeatCaptains.length > 0 && (
               <div className="rounded-2xl border border-glass-border bg-glass-surface px-4 py-4">
                 <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-1">
@@ -199,16 +165,33 @@ export default async function AmbassadorTeamsView({
                 <p className="text-xs text-glass-text-tertiary mb-3">
                   Counted across the whole season. Losing one of these captains costs several teams at once.
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   {repeatCaptains.map(([name, n]) => (
-                    <span
-                      key={name}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px]"
-                      style={{ border: "1px solid var(--glass-border)", color: "var(--glass-text)" }}
-                    >
-                      {name}
-                      <b className="tabular font-mono text-[11px]" style={{ color: GOLD }}>×{n}</b>
-                    </span>
+                    <div key={name} className="flex items-center gap-3">
+                      <div
+                        className="text-[12px] w-36 sm:w-44 shrink-0 truncate"
+                        style={{ color: "var(--glass-text-secondary)" }}
+                        title={name}
+                      >
+                        {name}
+                      </div>
+                      <div
+                        className="flex-1 h-2.5 rounded-full overflow-hidden"
+                        style={{ background: "var(--glass-border)" }}
+                      >
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${(n / maxCaptainTeams) * 100}%`, background: GOLD }}
+                          title={`${n} ambassador teams`}
+                        />
+                      </div>
+                      <div
+                        className="tabular text-sm font-bold w-5 text-right shrink-0"
+                        style={{ color: "var(--glass-text)" }}
+                      >
+                        {n}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
