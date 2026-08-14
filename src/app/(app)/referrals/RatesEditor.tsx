@@ -118,7 +118,7 @@ export default function RatesEditor({
         <Field label="New athlete payment" hint="to the referrer">
           <Money value={newPay} onChange={setNewPay} disabled={!canEdit || pending} />
         </Field>
-        <Field label="Returning payment" hint="run-it-back">
+        <Field label="Returning payment" hint="to the referrer">
           <Money value={retPay} onChange={setRetPay} disabled={!canEdit || pending} />
         </Field>
         <Field label="Registrant discount" hint="off a new athlete's first registration">
