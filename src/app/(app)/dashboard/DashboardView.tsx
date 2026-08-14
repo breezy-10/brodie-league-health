@@ -692,8 +692,13 @@ export default async function DashboardView({
                 <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
                   style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
               </div>
-              <a href={APP_URL.promo} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+              {/* Only on the Dashboard, where every section deep-links to its
+                  source app. The Registrations tab is the detail view, so
+                  sending people out to the Promo Tracker from it is a dead end. */}
+              {!isReg && (
+                <a href={APP_URL.promo} target="_blank" rel="noopener noreferrer"
+                  className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <RegBarCard title="Total teams" subtitle={`captain registrations · day ${pacing.day_n ?? "?"} of registration`} current={pacingCurrent.captains} bars={regBars("captains")} />
