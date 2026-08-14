@@ -5,8 +5,17 @@ import { resolveScope, loadActiveLMs } from "@/lib/seasons";
 
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
+type RosterEntry = {
+  player: string;
+  is_captain: boolean;
+  paid: number;
+  currency: string | null;
+  paid_ok: boolean;
+  no_registration: boolean;
+};
 type PlayerTeam = {
   team: string;
+  roster?: RosterEntry[];
   type: string; // 'ambassador' | 'squad' | 'franchise' | ''
   is_captain: boolean;
   location: string;
@@ -142,7 +151,8 @@ export default async function CaptainView({
       <p className="text-xs text-glass-text-tertiary">
         Every team this person is on in {selectedSeason}, across all locations — the location filter on the roster
         board does not narrow this page. Players are distinct active roster spots as of the last sync. The marker
-        beside a team name flags a roster that is still just the captain, or empty.
+        beside a team name flags a roster that is still just the captain, or empty. Open a team to see who is on it
+        and what each person has paid.
       </p>
     </main>
   );
@@ -153,6 +163,14 @@ function TeamTable({
 }: {
   title: string; note: string; rows: PlayerTeam[]; showRole?: boolean; showType?: boolean;
 }) {
+  // Laid out as a grid rather than a <table> so each team can be a native
+  // disclosure — a <details> cannot wrap table rows.
+  const cols = ["minmax(150px,2fr)"];
+  if (showType) cols.push("84px");
+  if (showRole) cols.push("84px");
+  cols.push("minmax(110px,1.2fr)", "minmax(90px,1fr)", "minmax(100px,1.1fr)", "96px", "68px");
+  const template = cols.join(" ");
+
   return (
     <section className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
       <div className="px-4 pt-4 pb-3">
@@ -160,59 +178,110 @@ function TeamTable({
         <p className="text-xs text-glass-text-tertiary">{note}</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 660 }}>
-          <thead>
-            <tr className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
-              <Th>Team</Th>
-              {showType && <Th>Type</Th>}
-              {showRole && <Th>Role</Th>}
-              <Th>Location</Th>
-              <Th>Night</Th>
-              <Th>Division</Th>
-              <Th align="right">Players</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={`${r.team}-${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
-                <td className="px-4 py-2.5 font-semibold" style={{ color: "var(--glass-text)" }}>
-                  <span
-                    className="inline-block w-1 h-3.5 rounded-sm mr-2 align-middle"
-                    style={{ background: r.players === 0 ? EMPTY : r.players === 1 ? THIN : GOLD }}
-                  />
-                  {r.team}
-                </td>
-                {showType && (
-                  <td className="px-4 py-2.5 text-glass-text-tertiary">{TYPE_LABEL[r.type] ?? r.type}</td>
-                )}
-                {showRole && (
-                  <td className="px-4 py-2.5" style={{ color: "var(--glass-text-secondary)" }}>
-                    {r.is_captain ? "Captain" : "Player"}
-                  </td>
-                )}
-                <td className="px-4 py-2.5" style={{ color: "var(--glass-text-secondary)" }}>{r.location}</td>
-                <td className="px-4 py-2.5" style={{ color: "var(--glass-text-secondary)" }}>{r.day ?? "—"}</td>
-                <td className="px-4 py-2.5 text-glass-text-tertiary">{r.division ?? "—"}</td>
-                <td className="px-4 py-2.5 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>
-                  {r.players}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ minWidth: 760 }}>
+          <div
+            className="grid gap-3 px-4 py-2.5 text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary"
+            style={{ gridTemplateColumns: template, borderBottom: "1px solid var(--glass-border)" }}
+          >
+            <span>Team</span>
+            {showType && <span>Type</span>}
+            {showRole && <span>Role</span>}
+            <span>Location</span>
+            <span>Night</span>
+            <span>Division</span>
+            <span className="text-right">Paid</span>
+            <span className="text-right">Players</span>
+          </div>
+
+          {rows.map((r, i) => (
+            <TeamRowItem
+              key={`${r.team}-${i}`}
+              row={r}
+              template={template}
+              showRole={showRole}
+              showType={showType}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
-function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+function TeamRowItem({
+  row, template, showRole, showType,
+}: {
+  row: PlayerTeam; template: string; showRole: boolean; showType: boolean;
+}) {
+  const roster = row.roster ?? [];
+  const paid = roster.filter((x) => x.paid_ok).length;
+  // Captain first, then whoever has paid least, so the chase list is on top.
+  const ordered = [...roster].sort(
+    (a, b) => Number(b.is_captain) - Number(a.is_captain) || a.paid - b.paid || a.player.localeCompare(b.player),
+  );
+
+  const cells = (
+    <>
+      <span className="font-semibold truncate" style={{ color: "var(--glass-text)" }} title={row.team}>
+        <span
+          className="inline-block w-1 h-3.5 rounded-sm mr-2 align-middle"
+          style={{ background: row.players === 0 ? EMPTY : row.players === 1 ? THIN : GOLD }}
+        />
+        {row.team}
+      </span>
+      {showType && <span className="text-glass-text-tertiary truncate">{TYPE_LABEL[row.type] ?? row.type}</span>}
+      {showRole && (
+        <span style={{ color: "var(--glass-text-secondary)" }}>{row.is_captain ? "Captain" : "Player"}</span>
+      )}
+      <span className="truncate" style={{ color: "var(--glass-text-secondary)" }}>{row.location}</span>
+      <span style={{ color: "var(--glass-text-secondary)" }}>{row.day ?? "—"}</span>
+      <span className="text-glass-text-tertiary truncate">{row.division ?? "—"}</span>
+      <span
+        className="text-right tabular text-[12px]"
+        style={{ color: roster.length && paid === roster.length ? "var(--glass-text-secondary)" : THIN }}
+      >
+        {roster.length ? `${paid} of ${roster.length}` : "—"}
+      </span>
+      <span className="text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>{row.players}</span>
+    </>
+  );
+
+  const rowClass = "grid gap-3 px-4 py-2.5 text-sm items-baseline";
+  const rowStyle = { gridTemplateColumns: template, borderTop: "1px solid var(--glass-border)" };
+
+  if (!roster.length) {
+    return <div className={rowClass} style={rowStyle}>{cells}</div>;
+  }
+
   return (
-    <th
-      className={`px-4 py-2.5 font-bold ${align === "right" ? "text-right" : "text-left"}`}
-      style={{ borderBottom: "1px solid var(--glass-border)" }}
-    >
-      {children}
-    </th>
+    <details className="group">
+      <summary
+        className={`${rowClass} cursor-pointer list-none [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2`}
+        style={{ ...rowStyle, outlineColor: GOLD, outlineOffset: -2 }}
+      >
+        {cells}
+      </summary>
+      <ul
+        className="px-4 pb-3 pt-1 space-y-1"
+        style={{ background: "var(--glass-surface-hover)", borderTop: "1px solid var(--glass-border)" }}
+      >
+        {ordered.map((x, i) => (
+          <li key={`${x.player}-${i}`} className="flex items-baseline justify-between gap-3 text-[12px] max-w-xl">
+            <span className="truncate" style={{ color: x.paid_ok ? "var(--glass-text-secondary)" : "var(--glass-text)" }}>
+              {x.player}
+              {x.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
+            </span>
+            <span
+              className="tabular font-mono shrink-0"
+              style={{ color: x.paid_ok ? "var(--glass-text-secondary)" : THIN }}
+              title={x.no_registration ? "No registration on file" : undefined}
+            >
+              {x.no_registration ? "no reg" : `$${Math.round(x.paid)}${x.currency ? " " + x.currency.toUpperCase() : ""}`}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
