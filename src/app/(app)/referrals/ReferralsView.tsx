@@ -124,6 +124,11 @@ export default async function ReferralsView({
 
       <Filters key={`${selectedSeason}|${location}|${lm}`} options={options} current={{ season: selectedSeason, location, lm }} />
 
+      {/* Leads the page: the terms are what the numbers below are measured
+          against. Rendered even with no referrals yet, so a season's terms can
+          be set before the first one lands. */}
+      <RatesEditor season={regSeason} rates={rates} canEdit={canEditRates} counts={currencyCounts} />
+
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -207,16 +212,12 @@ export default async function ReferralsView({
           </>
         )}
 
-        {/* Rendered even with no referrals yet, so a season's terms can be set
-            before the first one lands. */}
-        <RatesEditor season={regSeason} rates={rates} canEdit={canEditRates} counts={currencyCounts} />
-
         <p className="text-xs text-glass-text-tertiary">
           Counts only referrals whose registration went through (completed, not cancelled, paid or paying) — the same
           filter the Registrations tab uses. {feed ? `${feed.totals.recorded.toLocaleString()} referrals were recorded in total for ${regSeason}; the difference is drafts, cancellations and failed payments, which earn no credit.` : ""} New
           athletes are first-ever registrations; returning athletes are run-it-backs. Earned credit is what ops actually
           recorded against each referral, owed in each location&apos;s own currency and never summed across the two — it
-          can differ from the terms below if those changed mid-season.
+          can differ from the terms above if those changed mid-season.
         </p>
       </section>
     </main>
