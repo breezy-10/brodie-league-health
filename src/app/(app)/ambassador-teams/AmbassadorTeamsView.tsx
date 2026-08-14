@@ -61,7 +61,10 @@ async function loadAmbassadorTeams(
 const GOLD = "var(--glass-gold)";
 const THIN = "var(--glass-yellow)"; // captain-only roster
 const EMPTY = "var(--glass-red)"; // no roster at all
-const AVG = "var(--glass-blue)"; // average roster size, against the gold team count
+// The average bar needs to read as a second series against the gold team count,
+// and --glass-blue is aliased to the gold accent like every other glass hue.
+// Same blue the Referrals tab and the registration bars use for their second series.
+const AVG = "#5B8AC4";
 
 const DAY_ABBR = (d: string) => d.slice(0, 3).toUpperCase();
 
