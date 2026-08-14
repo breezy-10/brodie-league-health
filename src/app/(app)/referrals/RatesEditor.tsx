@@ -16,7 +16,11 @@ function Spinner() {
 const INPUT =
   "w-28 rounded-lg border border-glass-border bg-glass-surface pl-6 pr-3 py-2 text-sm text-glass-text tabular focus:outline-none focus:border-glass-gold transition disabled:opacity-50";
 
-export type CurrencyCounts = { currency: string; new_athletes: number; returning_athletes: number; total: number };
+export type CurrencyCounts = {
+  currency: string; new_athletes: number; returning_athletes: number; total: number;
+  /** What ops actually recorded owed to referrers, for reconciling the projection. */
+  earned: number;
+};
 
 export default function RatesEditor({
   season,
@@ -51,7 +55,11 @@ export default function RatesEditor({
   const projection = counts.map((c) => {
     const payments = valid ? c.new_athletes * parsed.newPay + c.returning_athletes * parsed.retPay : 0;
     const discounts = valid ? c.new_athletes * parsed.discount : 0;
-    return { currency: c.currency, payments, discounts, total: payments + discounts };
+    // Gap between what these terms imply and what ops actually credited. Only
+    // meaningful while the boxes still hold the saved terms — mid-edit this is
+    // a what-if, so a comparison against recorded amounts means nothing.
+    const drift = Math.round((payments - c.earned) * 100) / 100;
+    return { currency: c.currency, payments, discounts, total: payments + discounts, earned: c.earned, drift };
   });
   const fmt = (v: number, cur: string) =>
     `$${v.toLocaleString("en-US", { minimumFractionDigits: v % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })} ${cur}`;
@@ -130,18 +138,31 @@ export default function RatesEditor({
         ) : projection.length === 0 ? (
           <p className="text-xs mt-1.5 text-glass-text-tertiary">No referrals in this scope yet.</p>
         ) : (
-          <div className="flex flex-wrap gap-x-8 gap-y-2 mt-1.5">
-            {projection.map((p) => (
-              <div key={p.currency}>
-                <div className="text-lg font-bold tabular" style={{ color: "var(--glass-text)" }}>
-                  {fmt(p.total, p.currency)}
+          <>
+            <div className="flex flex-wrap gap-x-8 gap-y-2 mt-1.5">
+              {projection.map((p) => (
+                <div key={p.currency}>
+                  <div className="text-lg font-bold tabular" style={{ color: "var(--glass-text)" }}>
+                    {fmt(p.total, p.currency)}
+                  </div>
+                  <div className="text-[11px] text-glass-text-tertiary">
+                    {fmt(p.payments, p.currency)} to referrers · {fmt(p.discounts, p.currency)} in discounts
+                  </div>
                 </div>
-                <div className="text-[11px] text-glass-text-tertiary">
-                  {fmt(p.payments, p.currency)} to referrers · {fmt(p.discounts, p.currency)} in discounts
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            {/* At rest these terms should reproduce what ops credited. Where they
+                don't, say so — otherwise this figure and the table's total cost
+                disagree with no explanation. */}
+            {!dirty && projection.some((p) => p.drift !== 0) && (
+              <p className="text-[11px] mt-2.5 text-glass-text-tertiary">
+                {projection.filter((p) => p.drift !== 0).map((p) =>
+                  `Ops credited ${fmt(p.earned, p.currency)} to referrers, ${fmt(Math.abs(p.drift), p.currency)} ${p.drift > 0 ? "below" : "above"} these terms`,
+                ).join(" · ")}
+                . The table&apos;s total cost uses the recorded figure, so it differs by that much.
+              </p>
+            )}
+          </>
         )}
       </div>
 
