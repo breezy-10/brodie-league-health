@@ -163,9 +163,10 @@ export default async function ReferralsView({
                 sub={`${t!.recorded.toLocaleString()} recorded`} />
               <Tile label="Referrers" value={t!.referrers.toLocaleString()}
                 sub={t!.referrers_exact ? "distinct athletes" : "distinct per location"} />
+              {/* Both currencies carry equal weight — neither is a footnote to
+                  the other, so they render at the same size. */}
               <Tile label="Earned credit"
-                value={currencies.length ? money(t!.earned[currencies[0]], currencies[0]) : "—"}
-                sub={currencies.slice(1).map((c) => money(t!.earned[c], c)).join(" · ") || undefined} />
+                values={currencies.length ? currencies.map((c) => money(t!.earned[c], c)) : ["—"]} />
             </div>
 
             <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
@@ -262,11 +263,22 @@ function Td({ children, strong = false, color }: { children: React.ReactNode; st
   );
 }
 
-function Tile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
+// `values` renders several equally-weighted figures (one per currency); `value`
+// is the single-figure case.
+function Tile({ label, value, values, sub, accent }: {
+  label: string; value?: string; values?: string[]; sub?: string; accent?: string;
+}) {
+  const figures = values ?? (value === undefined ? [] : [value]);
   return (
     <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
       <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
-      <div className="mt-1.5 text-2xl font-bold tabular" style={{ color: accent ?? "var(--glass-text)" }}>{value}</div>
+      <div className="mt-1.5 space-y-0.5">
+        {figures.map((f, i) => (
+          <div key={i} className="text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>
+            {f}
+          </div>
+        ))}
+      </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
     </div>
   );
