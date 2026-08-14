@@ -9,6 +9,7 @@ type RosterEntry = {
   player: string;
   is_captain: boolean;
   paid: number;
+  total: number;
   currency: string | null;
   paid_ok: boolean;
   no_registration: boolean;
@@ -276,7 +277,9 @@ function TeamRowItem({
               style={{ color: x.paid_ok ? "var(--glass-text-secondary)" : THIN }}
               title={x.no_registration ? "No registration on file" : undefined}
             >
-              {x.no_registration ? "no reg" : `$${Math.round(x.paid)}${x.currency ? " " + x.currency.toUpperCase() : ""}`}
+              {x.no_registration
+                ? "no reg"
+                : `$${Math.round(x.paid)} / $${Math.round(x.total)}${x.currency ? " " + x.currency.toUpperCase() : ""}`}
             </span>
           </li>
         ))}
