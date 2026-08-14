@@ -46,9 +46,11 @@ export default function RatesEditor({
 
   // What the season costs at whatever is currently typed in, so the effect of a
   // change is visible before it is saved. Each currency stays separate.
+  // The discount applies to new athletes only — it comes off a first
+  // registration, so a run-it-back pays the referrer but costs no discount.
   const projection = counts.map((c) => {
     const payments = valid ? c.new_athletes * parsed.newPay + c.returning_athletes * parsed.retPay : 0;
-    const discounts = valid ? c.total * parsed.discount : 0;
+    const discounts = valid ? c.new_athletes * parsed.discount : 0;
     return { currency: c.currency, payments, discounts, total: payments + discounts };
   });
   const fmt = (v: number, cur: string) =>
@@ -111,7 +113,7 @@ export default function RatesEditor({
         <Field label="Returning payment" hint="run-it-back">
           <Money value={retPay} onChange={setRetPay} disabled={!canEdit || pending} />
         </Field>
-        <Field label="Registrant discount" hint="off the referred athlete's fee">
+        <Field label="Registrant discount" hint="off a new athlete's first registration">
           <Money value={discount} onChange={setDiscount} disabled={!canEdit || pending} />
         </Field>
       </div>

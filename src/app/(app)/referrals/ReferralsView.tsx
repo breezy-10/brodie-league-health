@@ -109,9 +109,11 @@ export default async function ReferralsView({
   // What the referred athletes were given off their fee, at the season's stored
   // discount. Ops records the referrer's credit but not the discount, so this
   // side of the cost is derived from the terms rather than read back.
-  const discountFor = (row: { total: number }) => row.total * rates.registrant_discount;
+  // New athletes only — the discount comes off a first registration, so a
+  // run-it-back earns the referrer $5 but costs nothing in discount.
+  const discountFor = (row: { new_athletes: number }) => row.new_athletes * rates.registrant_discount;
   const discountByCurrency: Record<string, number> = {};
-  for (const c of currencyCounts) discountByCurrency[c.currency] = c.total * rates.registrant_discount;
+  for (const c of currencyCounts) discountByCurrency[c.currency] = c.new_athletes * rates.registrant_discount;
   // Share of referrals that bring in someone who has never registered before.
   const newPct = t && t.total > 0 ? Math.round((100 * t.new_athletes) / t.total) : null;
 
@@ -231,8 +233,9 @@ export default async function ReferralsView({
           athletes are first-ever registrations; returning athletes are run-it-backs. Earned credit is what ops actually
           recorded against each referral, owed in each location&apos;s own currency and never summed across the two — it
           can differ from the terms above if those changed mid-season. Discounts are derived from the season&apos;s
-          registrant discount ({amount(rates.registrant_discount)} × referrals), since ops records the referrer&apos;s
-          credit but not the discount; total cost is earned plus discounts.
+          registrant discount ({amount(rates.registrant_discount)} × new athletes — it comes off a first registration,
+          so run-it-backs cost nothing in discount), since ops records the referrer&apos;s credit but not the discount.
+          Total cost is earned plus discounts.
         </p>
       </section>
     </main>
