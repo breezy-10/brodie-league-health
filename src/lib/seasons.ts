@@ -37,6 +37,36 @@ export function nextSeasonLabel(season: string): string {
   return `${nextTerm[0].toUpperCase()}${nextTerm.slice(1)} '${String(nextYy).padStart(2, "0")}`;
 }
 
+// Oldest season offered in the filters. Ops has clean data back to here.
+export const EARLIEST_SEASON = "Winter '25";
+
+function parseSeason(name: string): { i: number; yy: number } | null {
+  const term = name.toLowerCase().match(/winter|spring|summer|fall/)?.[0];
+  const yy = parseInt((name.match(/\d{2,4}/)?.[0] ?? "").slice(-2), 10);
+  if (!term || Number.isNaN(yy)) return null;
+  return { i: SEASON_TERMS.indexOf(term), yy };
+}
+const seasonLabel = (i: number, yy: number) =>
+  `${SEASON_TERMS[i][0].toUpperCase()}${SEASON_TERMS[i].slice(1)} '${String(yy).padStart(2, "0")}`;
+const seasonRank = (s: { i: number; yy: number }) => s.yy * 4 + s.i;
+
+// Every season from `earliest` through `latest` inclusive, oldest first. The
+// promo tracker only lists the seasons it actively syncs, which is far fewer
+// than the filters should offer.
+export function seasonRange(earliest: string, latest: string): string[] {
+  const a = parseSeason(earliest), b = parseSeason(latest);
+  if (!a || !b || seasonRank(b) < seasonRank(a)) return [];
+  const out: string[] = [];
+  let { i, yy } = a;
+  // Guard against a malformed label spinning this forever.
+  for (let n = 0; n <= 60; n++) {
+    out.push(seasonLabel(i, yy));
+    if (i === b.i && yy === b.yy) break;
+    if (i === 3) { i = 0; yy += 1; } else i += 1;
+  }
+  return out;
+}
+
 // "Summer '26" -> "SU'26", so two deltas fit on one line of a narrow card.
 const TERM_ABBR: Record<string, string> = { winter: "W", spring: "SP", summer: "SU", fall: "F" };
 export function shortSeason(name: string): string {
@@ -85,6 +115,10 @@ export type Scope = {
 export async function resolveScope(
   params: { season?: string; location?: string; lm?: string },
   activeLMs: ActiveLM[],
+  // Tabs about registration work (Registrations, Referrals) default to the
+  // season being registered for; the cross-app Dashboard defaults to the season
+  // currently being played, which is where its other sections' data lives.
+  opts: { defaultSeason?: "playing" | "registration" } = {},
 ): Promise<Scope> {
   const { season: seasonParam, location = "all", lm = "all" } = params;
 
@@ -119,7 +153,22 @@ export async function resolveScope(
       .find((s) => s.start_date && s.end_date && s.start_date <= today && today <= s.end_date);
     if (active?.name) activeSeasonLabel = promoSeasons.find((s) => seasonKey(s) === seasonKey(active.name!)) ?? active.name;
   }
-  const selectedSeason = seasonParam || activeSeasonLabel || currentSeason || promoSeasons[0] || "current";
+  // The season being played now. Registration tabs sit one ahead of it.
+  const playingSeason = activeSeasonLabel || currentSeason || promoSeasons[0] || "current";
+  const fallback = opts.defaultSeason === "registration" ? nextSeasonLabel(playingSeason) : playingSeason;
+  const selectedSeason = seasonParam || fallback;
+
+  // Offer the full back catalogue, newest first — not just the seasons the
+  // promo tracker syncs. Anything selected stays in the list even if it falls
+  // outside the range (a linked URL for a future season, say).
+  const newest = [...promoSeasons, playingSeason, nextSeasonLabel(playingSeason), selectedSeason]
+    .map((n) => ({ n, p: parseSeason(n) }))
+    .filter((x): x is { n: string; p: { i: number; yy: number } } => !!x.p)
+    .sort((a, b) => seasonRank(b.p) - seasonRank(a.p))[0]?.n ?? playingSeason;
+  const range = seasonRange(EARLIEST_SEASON, newest).reverse();
+  promoSeasons = [...new Set([...(range.length ? range : promoSeasons), selectedSeason])]
+    .filter((n) => !!parseSeason(n))
+    .sort((a, b) => seasonRank(parseSeason(b)!) - seasonRank(parseSeason(a)!));
 
   // Resolve the scope's location names: an LM maps to the locations they cover
   // (per the districts app); a single location maps to itself.

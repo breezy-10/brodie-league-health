@@ -577,12 +577,17 @@ export default async function DashboardView({
   const snapDate: string | null = latest?.snapshot_date ?? null;
 
   const activeLMs = await loadActiveLMs();
-  // Registration + promo work runs one season ahead of the playing season, so
-  // regSeason is what the Registrations section reports on.
+  // On the Dashboard the filter picks the PLAYING season and the Registrations
+  // card reports one ahead of it (tagged), because the other sections' data
+  // lives in the playing season. The Registrations tab has nothing else on it,
+  // so there the filter picks the registration season directly — selecting
+  // Fall '26 shows Fall '26 rather than silently reporting the season after.
   const { promoLocations, promoSeasons, selectedSeason, regSeason, locationNames } = await resolveScope(
     { season: seasonParam, location, lm },
     activeLMs,
+    { defaultSeason: isReg ? "registration" : "playing" },
   );
+  const pacingSeason = isReg ? selectedSeason : regSeason;
 
   // Live, season + location/LM scoped section cards (fall back to sample if unwired).
   const scope: Scope = { lm, location, locationNames };
@@ -596,7 +601,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadContentTiles(selectedSeason, scope),
     isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
-    loadRegistrationPacing(regSeason, scope),
+    loadRegistrationPacing(pacingSeason, scope),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
@@ -685,7 +690,7 @@ export default async function DashboardView({
               <div className="flex items-center gap-2.5">
                 <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Registrations</h2>
                 <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{regSeason}</span>
+                  style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
               </div>
               <a href={APP_URL.promo} target="_blank" rel="noopener noreferrer"
                 className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
@@ -723,7 +728,7 @@ export default async function DashboardView({
             ) : null}
           </section>
         ) : (
-          <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} seasonTag={regSeason} />
+          <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} seasonTag={pacingSeason} />
         )}
         {!isReg && (
           <>

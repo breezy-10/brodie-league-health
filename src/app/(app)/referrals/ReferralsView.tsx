@@ -66,16 +66,17 @@ export default async function ReferralsView({
   const { season: seasonParam, location = "all", lm = "all" } = await searchParams;
 
   const activeLMs = await loadActiveLMs();
-  const { promoLocations, promoSeasons, selectedSeason, regSeason, locationNames } = await resolveScope(
+  // The filter selects the season this page reports on — no offset. Referrals
+  // attach to registrations, so it defaults to the season being registered for
+  // rather than the one being played. Terms are stored against the same season.
+  const { promoLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
     { season: seasonParam, location, lm },
     activeLMs,
+    { defaultSeason: "registration" },
   );
-  // Referrals attach to registrations, which run one season ahead of play —
-  // the same season the Registrations tab reports on. The terms are stored
-  // against that same registration season.
   const [feed, rates] = await Promise.all([
-    loadReferrals(regSeason, locationNames),
-    loadReferralRates(regSeason),
+    loadReferrals(selectedSeason, locationNames),
+    loadReferralRates(selectedSeason),
   ]);
   const canEditRates = RATE_EDITOR_ROLES.includes(ctx.profile?.role ?? "");
 
@@ -136,24 +137,24 @@ export default async function ReferralsView({
       {/* Leads the page: the terms are what the numbers below are measured
           against. Rendered even with no referrals yet, so a season's terms can
           be set before the first one lands. */}
-      <RatesEditor season={regSeason} rates={rates} canEdit={canEditRates} counts={currencyCounts} />
+      <RatesEditor season={selectedSeason} rates={rates} canEdit={canEditRates} counts={currencyCounts} />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Referrals</h2>
             <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-              style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>{regSeason}</span>
+              style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>{selectedSeason}</span>
           </div>
         </div>
 
         {!feed ? (
           <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
-            Referral feed unavailable — the Promo Tracker didn&apos;t answer for {regSeason}.
+            Referral feed unavailable — the Promo Tracker didn&apos;t answer for {selectedSeason}.
           </div>
         ) : rows.length === 0 ? (
           <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
-            No referrals recorded for {regSeason} in this scope yet.
+            No referrals recorded for {selectedSeason} in this scope yet.
           </div>
         ) : (
           <>
@@ -230,7 +231,7 @@ export default async function ReferralsView({
 
         <p className="text-xs text-glass-text-tertiary">
           Counts only referrals whose registration went through (completed, not cancelled, paid or paying) — the same
-          filter the Registrations tab uses. {feed ? `${feed.totals.recorded.toLocaleString()} referrals were recorded in total for ${regSeason}; the difference is drafts, cancellations and failed payments, which earn no credit.` : ""} New
+          filter the Registrations tab uses. {feed ? `${feed.totals.recorded.toLocaleString()} referrals were recorded in total for ${selectedSeason}; the difference is drafts, cancellations and failed payments, which earn no credit.` : ""} New
           athletes are first-ever registrations; returning athletes are run-it-backs. Earned credit is what ops actually
           recorded against each referral, owed in each location&apos;s own currency and never summed across the two — it
           can differ from the terms above if those changed mid-season. Discounts are derived from the season&apos;s
