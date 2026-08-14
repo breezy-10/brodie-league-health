@@ -8,7 +8,7 @@ const BRODIE_B_LOGO =
 
 type NavItem = { href: string; label: string; exact?: boolean };
 const NAV_BASE: NavItem[] = [
-  { href: "/",             label: "My day",      exact: true },
+  { href: "/my-day",       label: "My day"    },
   { href: "/leaderboard",  label: "Leaderboard" },
   { href: "/achievements", label: "Trophies"    },
 ];

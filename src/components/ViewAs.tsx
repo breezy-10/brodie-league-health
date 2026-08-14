@@ -16,7 +16,7 @@ export function ViewAsBanner({ name, options }: { name: string; options: Option[
       <div className="flex items-center gap-2 ml-auto">
         <ViewAsSwitcher options={options} compact />
         <Link
-          href="/"
+          href="/my-day"
           className="text-xs px-3 py-1.5 rounded-md border border-glass-border bg-[var(--input-bg)] hover:bg-glass-surface-hover transition"
         >
           Back to my day
@@ -35,7 +35,7 @@ export function ViewAsSwitcher({ options, compact = false }: { options: Option[]
     setValue(id);
     if (!id) return;
     startTransition(() => {
-      router.push(`/?lm=${id}`);
+      router.push(`/my-day?lm=${id}`);
     });
   }
 
