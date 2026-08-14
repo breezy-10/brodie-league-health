@@ -107,11 +107,14 @@ export default async function AmbassadorTeamsView({
   const captainRows = (feed?.captains
     ? Object.entries(feed.captains).map(([id, c]) => ({
         id, name: c.name, teams: c.teams, teammates: c.teammates ?? null,
-        avg: c.teams ? c.players / c.teams : 0,
+        // Teammates per team, so the column is the two beside it divided.
+        // players/teams counted the ambassador themselves on every roster,
+        // which is what made this read high next to the teammate count.
+        avg: c.teams && c.teammates != null ? c.teammates / c.teams : null,
       }))
     : Object.entries(captainTeams).map(([name, teams]) => ({
         id: null as string | null, name, teams, teammates: null as number | null,
-        avg: teams ? (captainPlayers?.[name] ?? 0) / teams : 0,
+        avg: teams ? (captainPlayers?.[name] ?? 0) / teams : null,
       }))
   // Ordered by reach — how many people they actually play with — rather than
   // team count, which rewards signing up shells.
@@ -184,7 +187,7 @@ export default async function AmbassadorTeamsView({
                     Ambassadors
                   </div>
                   <p className="text-xs text-glass-text-tertiary">
-                    Every captain of an ambassador team, counted across the whole season — {multiTeam} of{" "}
+                    Every captain of an ambassador team in the current filter — {multiTeam} of{" "}
                     {captainRows.length} run more than one. Ordered by teammates, the distinct people on their
                     rosters; someone on two of their teams counts once. Select a name for their teams.
                   </p>
@@ -202,7 +205,7 @@ export default async function AmbassadorTeamsView({
                             style={{ borderBottom: "1px solid var(--glass-border)" }}>Teammates</th>
                         )}
                         <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
-                          style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg players per team</th>
+                          style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg teammates per team</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -230,7 +233,7 @@ export default async function AmbassadorTeamsView({
                             </td>
                           )}
                           <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
-                            {c.avg.toFixed(1)}
+                            {c.avg == null ? "—" : c.avg.toFixed(1)}
                           </td>
                         </tr>
                       ))}
@@ -375,7 +378,7 @@ function TeamChip({
               <span
                 className="font-mono text-[10px] font-bold px-1 rounded shrink-0"
                 style={{ border: `1px solid ${GOLD}`, color: GOLD }}
-                title={`Runs ${runs} ambassador teams this season`}
+                title={`Runs ${runs} ambassador teams in this view`}
               >
                 ×{runs}
               </span>
