@@ -1,0 +1,149 @@
+// Season + scope resolution shared by every filtered tab (Dashboard,
+// Registrations, Referrals). It lives here rather than in one page so the tabs
+// cannot drift: if the Registrations tab defaults to a different season than
+// the Referrals tab, the same filter bar silently produces numbers that don't
+// line up, which reads as a data bug rather than a UI one.
+import { createAdminClient } from "@/lib/supabase/admin";
+import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
+import { ymd } from "@/lib/source-apps/util";
+
+// Fallbacks copied from the Registration Promo Tracker, used until the live
+// PROMO_SUPABASE_* connection is configured (then these are replaced live).
+const PROMO_LOCATIONS_FALLBACK = [
+  "Boston", "Brampton", "Brooklyn - Bushwick", "Brooklyn - Greenpoint", "Burlington",
+  "Calgary", "Chicago", "Edmonton", "Kitchener", "London", "Markham", "Milton",
+  "Mississauga", "Montreal", "Niagara", "Oakville", "Oshawa", "Ottawa", "Scarborough",
+  "Toronto (Downtown)", "Toronto (Hoopdome)", "Vancouver", "Vaughan", "Winnipeg",
+];
+const PROMO_SEASONS_FALLBACK = ["Fall '26", "Summer '26"];
+
+// Normalize a season label to term+2-digit-year: "Fall '26" / "Fall 2026" -> "fall26".
+export function seasonKey(name: string): string {
+  const term = name.toLowerCase().match(/fall|summer|winter|spring/)?.[0] ?? "";
+  const yr = (name.match(/\d{2,4}/)?.[0] ?? "").slice(-2);
+  return `${term}${yr}`;
+}
+
+// The registration/promo push runs one season ahead of play:
+// "Summer '26" -> "Fall '26", "Fall '26" -> "Winter '27".
+const SEASON_TERMS = ["winter", "spring", "summer", "fall"];
+export function nextSeasonLabel(season: string): string {
+  const term = season.toLowerCase().match(/winter|spring|summer|fall/)?.[0];
+  const yy = parseInt((season.match(/\d{2,4}/)?.[0] ?? "").slice(-2), 10);
+  if (!term || Number.isNaN(yy)) return season;
+  const i = SEASON_TERMS.indexOf(term);
+  const nextTerm = SEASON_TERMS[(i + 1) % 4];
+  const nextYy = i === 3 ? yy + 1 : yy;
+  return `${nextTerm[0].toUpperCase()}${nextTerm.slice(1)} '${String(nextYy).padStart(2, "0")}`;
+}
+
+// "Summer '26" -> "SU'26", so two deltas fit on one line of a narrow card.
+const TERM_ABBR: Record<string, string> = { winter: "W", spring: "SP", summer: "SU", fall: "F" };
+export function shortSeason(name: string): string {
+  const t = name.toLowerCase().match(/winter|spring|summer|fall/)?.[0];
+  const yy = (name.match(/\d{2,4}/)?.[0] ?? "").slice(-2);
+  return t ? `${TERM_ABBR[t]}'${yy}` : name;
+}
+
+export type ActiveLM = { id: string; full_name: string | null; email: string; location_name: string | null };
+
+export async function loadActiveLMs(): Promise<ActiveLM[]> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("league_managers")
+    .select("id, full_name, email, location_name")
+    .eq("active", true)
+    .order("full_name");
+  return (data ?? []) as ActiveLM[];
+}
+
+// Which league manager covers which locations, from the districts app.
+export async function loadLmCoverage(): Promise<{ lm: string; locations: string[] }[] | null> {
+  try {
+    const res = await fetch("https://brodie-districts.vercel.app/api/lm-coverage", { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as { coverage: { lm: string; locations: string[] }[] };
+    return k.coverage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export type Scope = {
+  promoLocations: string[];
+  promoSeasons: string[];
+  /** The playing season the filter bar is set to. */
+  selectedSeason: string;
+  /** The season registration/promo work is running for — one ahead of play. */
+  regSeason: string;
+  /** Locations this view is scoped to. null = all; [] = the filter matches none. */
+  locationNames: string[] | null;
+};
+
+// Resolve the filter bar (season / location / league manager) into the season
+// labels and location list every tab queries with.
+export async function resolveScope(
+  params: { season?: string; location?: string; lm?: string },
+  activeLMs: ActiveLM[],
+): Promise<Scope> {
+  const { season: seasonParam, location = "all", lm = "all" } = params;
+
+  // Locations + seasons from the Registration Promo Tracker — live when the
+  // PROMO_SUPABASE_* connection is wired, otherwise the copied fallbacks.
+  let promoLocations = PROMO_LOCATIONS_FALLBACK;
+  let promoSeasons = PROMO_SEASONS_FALLBACK;
+  let currentSeason: string | undefined;
+  if (sourceConfigured("promo")) {
+    const promo = sourceClient("promo")!;
+    const [locRes, seaRes] = await Promise.all([
+      promo.from("locations").select("name, sort_order").order("sort_order"),
+      promo.from("seasons").select("name, is_current").order("is_current", { ascending: false }),
+    ]);
+    const locNames = ((locRes.data ?? []) as { name: string | null }[]).map((l) => l.name).filter((n): n is string => !!n);
+    if (locNames.length) promoLocations = locNames;
+    const seaRows = (seaRes.data ?? []) as { name: string | null; is_current: boolean | null }[];
+    const seaNames = seaRows.map((s) => s.name).filter((n): n is string => !!n);
+    if (seaNames.length) promoSeasons = seaNames;
+    currentSeason = seaRows.find((s) => s.is_current)?.name ?? undefined;
+  }
+
+  // Default to the active PLAYING season (today within its date range, per the
+  // stats source) rather than the promo's registration season — that's where
+  // the games/feedback/content/checklist data actually lives right now.
+  let activeSeasonLabel: string | undefined;
+  if (sourceConfigured("stats_health")) {
+    const st = sourceClient("stats_health")!;
+    const today = ymd(new Date());
+    const { data } = await st.from("seasons").select("name, start_date, end_date");
+    const active = ((data ?? []) as { name: string | null; start_date: string | null; end_date: string | null }[])
+      .find((s) => s.start_date && s.end_date && s.start_date <= today && today <= s.end_date);
+    if (active?.name) activeSeasonLabel = promoSeasons.find((s) => seasonKey(s) === seasonKey(active.name!)) ?? active.name;
+  }
+  const selectedSeason = seasonParam || activeSeasonLabel || currentSeason || promoSeasons[0] || "current";
+
+  // Resolve the scope's location names: an LM maps to the locations they cover
+  // (per the districts app); a single location maps to itself.
+  let locationNames: string[] | null = null;
+  if (lm !== "all") {
+    const coverage = await loadLmCoverage();
+    const lmName = (activeLMs.find((l) => l.id === lm)?.full_name ?? "").toLowerCase().trim();
+    locationNames = coverage?.find((c) => c.lm.toLowerCase().trim() === lmName)?.locations ?? [];
+  } else if (location !== "all") {
+    locationNames = [location];
+  }
+
+  return {
+    promoLocations,
+    promoSeasons,
+    selectedSeason,
+    regSeason: nextSeasonLabel(selectedSeason),
+    locationNames,
+  };
+}
+
+// The ?location= value to send to a source app's KPI feed: a comma-separated
+// list, a sentinel that matches nothing (empty scope), or undefined (all).
+export function locParam(locationNames: string[] | null): string | undefined {
+  if (!locationNames) return undefined;
+  return locationNames.length ? locationNames.join(",") : " none";
+}
