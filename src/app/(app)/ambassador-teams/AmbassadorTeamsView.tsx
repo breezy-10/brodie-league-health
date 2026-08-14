@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { loadActiveLMs, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
@@ -36,6 +37,8 @@ type AmbassadorFeed = {
   };
   captain_teams: Record<string, number>;
   captain_players?: Record<string, number>;
+  // Keyed by ops player id. Covers every captain, not just repeat ones.
+  captains?: Record<string, { name: string; teams: number; players: number }>;
   by_day: { day: string; teams: number; players: number }[];
   locations: LocationRow[];
 };
@@ -61,10 +64,6 @@ async function loadAmbassadorTeams(
 const GOLD = "var(--glass-gold)";
 const THIN = "var(--glass-yellow)"; // captain-only roster
 const EMPTY = "var(--glass-red)"; // no roster at all
-// The average bar needs to read as a second series against the gold team count,
-// and --glass-blue is aliased to the gold accent like every other glass hue.
-// Same blue the Referrals tab and the registration bars use for their second series.
-const AVG = "#5B8AC4";
 
 const DAY_ABBR = (d: string) => d.slice(0, 3).toUpperCase();
 
@@ -101,15 +100,19 @@ export default async function AmbassadorTeamsView({
   // Captains holding more than one team, counted season-wide by the feed so the
   // figure doesn't shrink when the page is filtered to a single location.
   const captainPlayers = feed?.captain_players;
-  const repeatCaptains = Object.entries(captainTeams)
-    .filter(([, n]) => n > 1)
-    .map(([name, teams]) => ({ name, teams, avg: (captainPlayers?.[name] ?? 0) / teams }))
-    .sort((a, b) => b.teams - a.teams || b.avg - a.avg || a.name.localeCompare(b.name));
-  const maxCaptainTeams = Math.max(...repeatCaptains.map((c) => c.teams), 1);
-  const maxCaptainAvg = Math.max(...repeatCaptains.map((c) => c.avg), 1);
-  // The average bar only renders once the feed carries the player totals, so
-  // this page degrades to the team count alone against an older Promo Tracker.
-  const hasAvg = !!captainPlayers;
+  // Every ambassador, including the 64 running a single team — the one-team
+  // captains are most of the programme. Keyed by ops player id where the feed
+  // supplies it, since two captains can share a name; an older feed falls back
+  // to the name-keyed maps and simply doesn't link through.
+  const captainRows = (feed?.captains
+    ? Object.entries(feed.captains).map(([id, c]) => ({
+        id, name: c.name, teams: c.teams, avg: c.teams ? c.players / c.teams : 0,
+      }))
+    : Object.entries(captainTeams).map(([name, teams]) => ({
+        id: null as string | null, name, teams, avg: teams ? (captainPlayers?.[name] ?? 0) / teams : 0,
+      }))
+  ).sort((a, b) => b.teams - a.teams || b.avg - a.avg || a.name.localeCompare(b.name));
+  const multiTeam = captainRows.filter((c) => c.teams > 1).length;
 
   return (
     <main className="brodie-fade-in space-y-8">
@@ -158,7 +161,7 @@ export default async function AmbassadorTeamsView({
               <Tile
                 label="Distinct captains"
                 value={t!.captains.toLocaleString()}
-                sub={repeatCaptains.length ? `${repeatCaptains.length} run more than one team` : undefined}
+                sub={multiTeam ? `${multiTeam} run more than one team` : undefined}
               />
               <Tile
                 label="Rosters at 0–1"
@@ -168,57 +171,55 @@ export default async function AmbassadorTeamsView({
               />
             </div>
 
-            {repeatCaptains.length > 0 && (
-              <div className="rounded-2xl border border-glass-border bg-glass-surface px-4 py-4">
-                <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-1">
-                  Captains running more than one team
-                </div>
-                <p className="text-xs text-glass-text-tertiary mb-3">
-                  Counted across the whole season. Losing one of these captains costs several teams at once.
-                  {hasAvg && " Each measure is scaled to its own maximum, so bar lengths compare down a column, not across."}
-                </p>
-
-                {hasAvg && (
-                  <div className="flex items-center gap-4 mb-3 text-[11px] text-glass-text-tertiary">
-                    <span className="inline-flex items-center gap-1.5">
-                      <i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: GOLD }} />
-                      Teams
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: AVG }} />
-                      Average players per team
-                    </span>
+            {captainRows.length > 0 && (
+              <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+                <div className="px-4 pt-4 pb-3">
+                  <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-1">
+                    Ambassadors
                   </div>
-                )}
-
-                <div className="space-y-2.5">
-                  {repeatCaptains.map((c) => (
-                    <div key={c.name} className="flex items-center gap-3">
-                      <div
-                        className="text-[12px] w-36 sm:w-44 shrink-0 truncate"
-                        style={{ color: "var(--glass-text-secondary)" }}
-                        title={c.name}
-                      >
-                        {c.name}
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <CaptainBar
-                          pct={(c.teams / maxCaptainTeams) * 100}
-                          color={GOLD}
-                          value={String(c.teams)}
-                          title={`${c.teams} ambassador teams`}
-                        />
-                        {hasAvg && (
-                          <CaptainBar
-                            pct={(c.avg / maxCaptainAvg) * 100}
-                            color={AVG}
-                            value={c.avg.toFixed(1)}
-                            title={`${c.avg.toFixed(1)} players per team on average`}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                  <p className="text-xs text-glass-text-tertiary">
+                    Every captain of an ambassador team, counted across the whole season — {multiTeam} of{" "}
+                    {captainRows.length} run more than one. Select a name for their teams.
+                  </p>
+                </div>
+                <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
+                  <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 420 }}>
+                    <thead>
+                      <tr className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+                        <th className="px-4 py-2.5 text-left font-bold sticky top-0 bg-glass-surface"
+                          style={{ borderBottom: "1px solid var(--glass-border)" }}>Ambassador</th>
+                        <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+                          style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams</th>
+                        <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+                          style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg players per team</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {captainRows.map((c) => (
+                        <tr key={c.id ?? c.name} style={{ borderTop: "1px solid var(--glass-border)" }}>
+                          <td className="px-4 py-2.5">
+                            {c.id ? (
+                              <Link
+                                href={`/ambassador-teams/captain/${encodeURIComponent(c.id)}?season=${encodeURIComponent(selectedSeason)}`}
+                                className="font-medium hover:underline"
+                                style={{ color: "var(--glass-text)" }}
+                              >
+                                {c.name}
+                              </Link>
+                            ) : (
+                              <span className="font-medium" style={{ color: "var(--glass-text)" }}>{c.name}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>
+                            {c.teams}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
+                            {c.avg.toFixed(1)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -385,23 +386,6 @@ function TeamChip({
         ))}
       </div>
     </li>
-  );
-}
-
-// One bar of the captain pair. Each measure carries its own scale, so the value
-// sits on the bar rather than being inferred from its length.
-function CaptainBar({ pct, color, value, title }: {
-  pct: number; color: string; value: string; title: string;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--glass-border)" }}>
-        <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%`, background: color }} title={title} />
-      </div>
-      <div className="tabular text-[12px] font-bold w-7 text-right shrink-0" style={{ color: "var(--glass-text)" }}>
-        {value}
-      </div>
-    </div>
   );
 }
 
