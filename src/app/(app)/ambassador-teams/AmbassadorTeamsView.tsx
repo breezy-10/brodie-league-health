@@ -35,6 +35,7 @@ type AmbassadorFeed = {
     max_roster: number;
   };
   captain_teams: Record<string, number>;
+  captain_players?: Record<string, number>;
   by_day: { day: string; teams: number; players: number }[];
   locations: LocationRow[];
 };
@@ -60,6 +61,7 @@ async function loadAmbassadorTeams(
 const GOLD = "var(--glass-gold)";
 const THIN = "var(--glass-yellow)"; // captain-only roster
 const EMPTY = "var(--glass-red)"; // no roster at all
+const AVG = "var(--glass-blue)"; // average roster size, against the gold team count
 
 const DAY_ABBR = (d: string) => d.slice(0, 3).toUpperCase();
 
@@ -89,17 +91,22 @@ export default async function AmbassadorTeamsView({
 
   const t = feed?.totals;
   const locations = feed?.locations ?? [];
-  const byDay = feed?.by_day ?? [];
-  const maxDay = Math.max(...byDay.map((d) => d.teams), 1);
   // The meter is scaled to the season's largest roster rather than a fixed cap,
   // so it stays honest if a team ever carries more than ten.
   const slots = Math.max(t?.max_roster ?? 0, 1);
   const captainTeams = feed?.captain_teams ?? {};
   // Captains holding more than one team, counted season-wide by the feed so the
   // figure doesn't shrink when the page is filtered to a single location.
+  const captainPlayers = feed?.captain_players;
   const repeatCaptains = Object.entries(captainTeams)
     .filter(([, n]) => n > 1)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    .map(([name, teams]) => ({ name, teams, avg: (captainPlayers?.[name] ?? 0) / teams }))
+    .sort((a, b) => b.teams - a.teams || b.avg - a.avg || a.name.localeCompare(b.name));
+  const maxCaptainTeams = Math.max(...repeatCaptains.map((c) => c.teams), 1);
+  const maxCaptainAvg = Math.max(...repeatCaptains.map((c) => c.avg), 1);
+  // The average bar only renders once the feed carries the player totals, so
+  // this page degrades to the team count alone against an older Promo Tracker.
+  const hasAvg = !!captainPlayers;
 
   return (
     <main className="brodie-fade-in space-y-8">
@@ -158,39 +165,6 @@ export default async function AmbassadorTeamsView({
               />
             </div>
 
-            {byDay.length > 0 && (
-              <div className="rounded-2xl border border-glass-border bg-glass-surface px-4 py-4">
-                <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-3">
-                  Teams by night
-                </div>
-                <div className="space-y-2">
-                  {byDay.map((d) => (
-                    <div key={d.day} className="flex items-center gap-3">
-                      <div
-                        className="font-mono text-[11px] uppercase tracking-[0.08em] w-20 shrink-0"
-                        style={{ color: "var(--glass-text-secondary)" }}
-                      >
-                        {d.day}
-                      </div>
-                      <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: "var(--glass-border)" }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${Math.max((d.teams / maxDay) * 100, 2)}%`, background: GOLD }}
-                          title={`${d.teams} teams · ${d.players} players`}
-                        />
-                      </div>
-                      <div className="tabular text-sm font-bold w-8 text-right" style={{ color: "var(--glass-text)" }}>
-                        {d.teams}
-                      </div>
-                      <div className="tabular text-[11px] w-20 text-right text-glass-text-tertiary">
-                        {d.players} players
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {repeatCaptains.length > 0 && (
               <div className="rounded-2xl border border-glass-border bg-glass-surface px-4 py-4">
                 <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-1">
@@ -198,17 +172,49 @@ export default async function AmbassadorTeamsView({
                 </div>
                 <p className="text-xs text-glass-text-tertiary mb-3">
                   Counted across the whole season. Losing one of these captains costs several teams at once.
+                  {hasAvg && " Each measure is scaled to its own maximum, so bar lengths compare down a column, not across."}
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {repeatCaptains.map(([name, n]) => (
-                    <span
-                      key={name}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px]"
-                      style={{ border: "1px solid var(--glass-border)", color: "var(--glass-text)" }}
-                    >
-                      {name}
-                      <b className="tabular font-mono text-[11px]" style={{ color: GOLD }}>×{n}</b>
+
+                {hasAvg && (
+                  <div className="flex items-center gap-4 mb-3 text-[11px] text-glass-text-tertiary">
+                    <span className="inline-flex items-center gap-1.5">
+                      <i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: GOLD }} />
+                      Teams
                     </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <i className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: AVG }} />
+                      Average players per team
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-2.5">
+                  {repeatCaptains.map((c) => (
+                    <div key={c.name} className="flex items-center gap-3">
+                      <div
+                        className="text-[12px] w-36 sm:w-44 shrink-0 truncate"
+                        style={{ color: "var(--glass-text-secondary)" }}
+                        title={c.name}
+                      >
+                        {c.name}
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <CaptainBar
+                          pct={(c.teams / maxCaptainTeams) * 100}
+                          color={GOLD}
+                          value={String(c.teams)}
+                          title={`${c.teams} ambassador teams`}
+                        />
+                        {hasAvg && (
+                          <CaptainBar
+                            pct={(c.avg / maxCaptainAvg) * 100}
+                            color={AVG}
+                            value={c.avg.toFixed(1)}
+                            title={`${c.avg.toFixed(1)} players per team on average`}
+                          />
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -376,6 +382,23 @@ function TeamChip({
         ))}
       </div>
     </li>
+  );
+}
+
+// One bar of the captain pair. Each measure carries its own scale, so the value
+// sits on the bar rather than being inferred from its length.
+function CaptainBar({ pct, color, value, title }: {
+  pct: number; color: string; value: string; title: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--glass-border)" }}>
+        <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 1)}%`, background: color }} title={title} />
+      </div>
+      <div className="tabular text-[12px] font-bold w-7 text-right shrink-0" style={{ color: "var(--glass-text)" }}>
+        {value}
+      </div>
+    </div>
   );
 }
 
