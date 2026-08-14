@@ -97,10 +97,11 @@ export default async function ReferralsView({
   const countsByCurrency = new Map<string, CurrencyCounts>();
   for (const r of rows) {
     const c = countsByCurrency.get(r.currency)
-      ?? { currency: r.currency, new_athletes: 0, returning_athletes: 0, total: 0 };
+      ?? { currency: r.currency, new_athletes: 0, returning_athletes: 0, total: 0, earned: 0 };
     c.new_athletes += r.new_athletes;
     c.returning_athletes += r.returning_athletes;
     c.total += r.total;
+    c.earned += r.earned;
     countsByCurrency.set(r.currency, c);
   }
   const currencyCounts = [...countsByCurrency.values()].sort((a, b) => a.currency.localeCompare(b.currency));
