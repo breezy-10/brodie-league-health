@@ -17,11 +17,11 @@ type RosterEntry = {
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-// "2026-07-17" -> "Jul 17, '26". "—" when payment isn't complete.
+// "2026-07-17" -> "Jul 17, 2026". "—" when payment isn't complete.
 function fmtCompleted(iso: string | null): string {
   if (!iso) return "—";
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, '${m[1].slice(2)}` : iso;
+  return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}` : iso;
 }
 type PlayerTeam = {
   team: string;
@@ -278,7 +278,7 @@ function TeamRowItem({
         <li className="flex items-baseline gap-3 text-[10px] uppercase tracking-[0.14em] font-bold text-glass-text-tertiary max-w-2xl pb-0.5">
           <span className="flex-1">Player</span>
           <span className="shrink-0 w-[128px] text-right">Paid / total</span>
-          <span className="shrink-0 w-[92px] text-right">Completed</span>
+          <span className="shrink-0 w-[104px] text-right">Completed</span>
         </li>
         {ordered.map((x, i) => (
           <li key={`${x.player}-${i}`} className="flex items-baseline gap-3 text-[12px] max-w-2xl">
@@ -296,7 +296,7 @@ function TeamRowItem({
                 : `$${Math.round(x.paid)} / $${Math.round(x.total)}${x.currency ? " " + x.currency.toUpperCase() : ""}`}
             </span>
             <span
-              className="tabular font-mono shrink-0 w-[92px] text-right text-glass-text-tertiary"
+              className="tabular font-mono shrink-0 w-[104px] text-right text-glass-text-tertiary"
               title={x.paid_completed_at ? "Payment completed" : "Payment not complete"}
             >
               {x.no_registration ? "" : fmtCompleted(x.paid_completed_at)}
