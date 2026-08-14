@@ -38,7 +38,7 @@ type AmbassadorFeed = {
   captain_teams: Record<string, number>;
   captain_players?: Record<string, number>;
   // Keyed by ops player id. Covers every captain, not just repeat ones.
-  captains?: Record<string, { name: string; teams: number; players: number }>;
+  captains?: Record<string, { name: string; teams: number; players: number; teammates?: number }>;
   by_day: { day: string; teams: number; players: number }[];
   locations: LocationRow[];
 };
@@ -106,12 +106,18 @@ export default async function AmbassadorTeamsView({
   // to the name-keyed maps and simply doesn't link through.
   const captainRows = (feed?.captains
     ? Object.entries(feed.captains).map(([id, c]) => ({
-        id, name: c.name, teams: c.teams, avg: c.teams ? c.players / c.teams : 0,
+        id, name: c.name, teams: c.teams, teammates: c.teammates ?? null,
+        avg: c.teams ? c.players / c.teams : 0,
       }))
     : Object.entries(captainTeams).map(([name, teams]) => ({
-        id: null as string | null, name, teams, avg: teams ? (captainPlayers?.[name] ?? 0) / teams : 0,
+        id: null as string | null, name, teams, teammates: null as number | null,
+        avg: teams ? (captainPlayers?.[name] ?? 0) / teams : 0,
       }))
-  ).sort((a, b) => b.teams - a.teams || b.avg - a.avg || a.name.localeCompare(b.name));
+  // Ordered by reach — how many people they actually play with — rather than
+  // team count, which rewards signing up shells.
+  ).sort((a, b) =>
+    (b.teammates ?? 0) - (a.teammates ?? 0) || b.teams - a.teams || a.name.localeCompare(b.name));
+  const hasTeammates = captainRows.some((c) => c.teammates !== null);
   const multiTeam = captainRows.filter((c) => c.teams > 1).length;
 
   return (
@@ -179,7 +185,8 @@ export default async function AmbassadorTeamsView({
                   </div>
                   <p className="text-xs text-glass-text-tertiary">
                     Every captain of an ambassador team, counted across the whole season — {multiTeam} of{" "}
-                    {captainRows.length} run more than one. Select a name for their teams.
+                    {captainRows.length} run more than one. Ordered by teammates, the distinct people on their
+                    rosters; someone on two of their teams counts once. Select a name for their teams.
                   </p>
                 </div>
                 <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
@@ -190,6 +197,10 @@ export default async function AmbassadorTeamsView({
                           style={{ borderBottom: "1px solid var(--glass-border)" }}>Ambassador</th>
                         <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
                           style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams</th>
+                        {hasTeammates && (
+                          <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+                            style={{ borderBottom: "1px solid var(--glass-border)" }}>Teammates</th>
+                        )}
                         <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
                           style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg players per team</th>
                       </tr>
@@ -210,9 +221,14 @@ export default async function AmbassadorTeamsView({
                               <span className="font-medium" style={{ color: "var(--glass-text)" }}>{c.name}</span>
                             )}
                           </td>
-                          <td className="px-4 py-2.5 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>
+                          <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
                             {c.teams}
                           </td>
+                          {hasTeammates && (
+                            <td className="px-4 py-2.5 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>
+                              {c.teammates ?? "—"}
+                            </td>
+                          )}
                           <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
                             {c.avg.toFixed(1)}
                           </td>
