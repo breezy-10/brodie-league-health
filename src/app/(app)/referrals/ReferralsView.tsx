@@ -130,7 +130,11 @@ export default async function ReferralsView({
       {/* Leads the page: the terms are what the numbers below are measured
           against. Rendered even with no referrals yet, so a season's terms can
           be set before the first one lands. */}
-      <RatesEditor season={selectedSeason} rates={rates} canEdit={canEditRates} counts={currencyCounts} />
+      {/* Keyed by season: the editor holds the typed amounts and the save
+          message in local state, which would otherwise survive a season change
+          and show one season's terms (and "Saved for …") under another's. */}
+      <RatesEditor key={selectedSeason} season={selectedSeason} rates={rates}
+        canEdit={canEditRates} counts={currencyCounts} />
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
