@@ -106,6 +106,12 @@ export default async function ReferralsView({
   const currencyCounts = [...countsByCurrency.values()].sort((a, b) => a.currency.localeCompare(b.currency));
   const amount = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
   const currencies = t ? Object.keys(t.earned).sort() : [];
+  // What the referred athletes were given off their fee, at the season's stored
+  // discount. Ops records the referrer's credit but not the discount, so this
+  // side of the cost is derived from the terms rather than read back.
+  const discountFor = (row: { total: number }) => row.total * rates.registrant_discount;
+  const discountByCurrency: Record<string, number> = {};
+  for (const c of currencyCounts) discountByCurrency[c.currency] = c.total * rates.registrant_discount;
   // Share of referrals that bring in someone who has never registered before.
   const newPct = t && t.total > 0 ? Math.round((100 * t.new_athletes) / t.total) : null;
 
@@ -164,7 +170,7 @@ export default async function ReferralsView({
 
             <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 620 }}>
+                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860 }}>
                   <thead>
                     <tr className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
                       <Th align="left">League</Th>
@@ -172,6 +178,8 @@ export default async function ReferralsView({
                       <Th>Returning</Th>
                       <Th>Total</Th>
                       <Th>Earned</Th>
+                      <Th>Discounts</Th>
+                      <Th>Total cost</Th>
                     </tr>
                   </thead>
                   <tbody>
@@ -194,6 +202,8 @@ export default async function ReferralsView({
                         <Td>{r.returning_athletes.toLocaleString()}</Td>
                         <Td>{r.total.toLocaleString()}</Td>
                         <Td>{money(r.earned, r.currency)}</Td>
+                        <Td>{money(discountFor(r), r.currency)}</Td>
+                        <Td strong>{money(r.earned + discountFor(r), r.currency)}</Td>
                       </tr>
                     ))}
                     <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
@@ -201,9 +211,11 @@ export default async function ReferralsView({
                       <Td strong color={GOLD}>{t!.new_athletes.toLocaleString()}</Td>
                       <Td strong>{t!.returning_athletes.toLocaleString()}</Td>
                       <Td strong>{t!.total.toLocaleString()}</Td>
-                      <td className="px-4 py-3 text-right tabular font-bold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
-                        {currencies.map((c) => money(t!.earned[c], c)).join(" · ") || "—"}
-                      </td>
+                      <TotalMoney>{currencies.map((c) => money(t!.earned[c], c)).join(" · ")}</TotalMoney>
+                      <TotalMoney>{currencies.map((c) => money(discountByCurrency[c] ?? 0, c)).join(" · ")}</TotalMoney>
+                      <TotalMoney>
+                        {currencies.map((c) => money(t!.earned[c] + (discountByCurrency[c] ?? 0), c)).join(" · ")}
+                      </TotalMoney>
                     </tr>
                   </tbody>
                 </table>
@@ -217,7 +229,9 @@ export default async function ReferralsView({
           filter the Registrations tab uses. {feed ? `${feed.totals.recorded.toLocaleString()} referrals were recorded in total for ${regSeason}; the difference is drafts, cancellations and failed payments, which earn no credit.` : ""} New
           athletes are first-ever registrations; returning athletes are run-it-backs. Earned credit is what ops actually
           recorded against each referral, owed in each location&apos;s own currency and never summed across the two — it
-          can differ from the terms above if those changed mid-season.
+          can differ from the terms above if those changed mid-season. Discounts are derived from the season&apos;s
+          registrant discount ({amount(rates.registrant_discount)} × referrals), since ops records the referrer&apos;s
+          credit but not the discount; total cost is earned plus discounts.
         </p>
       </section>
     </main>
@@ -227,6 +241,15 @@ export default async function ReferralsView({
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return (
     <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold`}>{children}</th>
+  );
+}
+
+// Totals-row money cell: each currency stays its own figure, never summed.
+function TotalMoney({ children }: { children: React.ReactNode }) {
+  return (
+    <td className="px-4 py-3 text-right tabular font-bold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
+      {children || "—"}
+    </td>
   );
 }
 
