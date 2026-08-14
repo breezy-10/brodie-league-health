@@ -9,8 +9,17 @@ import Filters, { type FilterOptions } from "../dashboard/Filters";
 // can point at a local promo tracker.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
+type RosterEntry = {
+  player: string;
+  is_captain: boolean;
+  paid: number;
+  currency: string | null;
+  paid_ok: boolean;
+  no_registration: boolean;
+};
 type TeamRow = {
   team: string;
+  roster?: RosterEntry[];
   captain: string | null;
   day: string | null;
   division: string | null;
@@ -367,16 +376,16 @@ function TeamChip({
   // The left edge carries roster state, so a thin roster reads before the
   // number does.
   const edge = row.players === 0 ? EMPTY : row.players === 1 ? THIN : GOLD;
+  const roster = row.roster ?? [];
+  const paid = roster.filter((r) => r.paid_ok).length;
+  // Captain first, then whoever has paid least — the chase list surfaces
+  // without having to read the whole roster.
+  const ordered = [...roster].sort(
+    (a, b) => Number(b.is_captain) - Number(a.is_captain) || a.paid - b.paid || a.player.localeCompare(b.player),
+  );
 
-  return (
-    <li
-      className="rounded-lg px-2.5 py-2 space-y-1.5"
-      style={{
-        border: "1px solid var(--glass-border)",
-        borderLeft: `3px solid ${edge}`,
-        background: "var(--glass-surface-hover)",
-      }}
-    >
+  const head = (
+    <>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[13px] font-semibold leading-tight break-words" style={{ color: "var(--glass-text)" }}>
           {row.team}
@@ -429,6 +438,58 @@ function TeamChip({
           />
         ))}
       </div>
+    </>
+  );
+
+  const shell = {
+    border: "1px solid var(--glass-border)",
+    borderLeft: `3px solid ${edge}`,
+    background: "var(--glass-surface-hover)",
+  };
+
+  // Nothing to open when the feed carries no roster (an older Promo Tracker)
+  // or the team has nobody on it yet.
+  if (!roster.length) {
+    return <li className="rounded-lg px-2.5 py-2 space-y-1.5" style={shell}>{head}</li>;
+  }
+
+  return (
+    <li className="rounded-lg" style={shell}>
+      <details className="group">
+        <summary
+          className="px-2.5 py-2 space-y-1.5 cursor-pointer list-none rounded-lg
+            [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2"
+          style={{ outlineColor: GOLD, outlineOffset: -2 }}
+        >
+          {head}
+          <div className="flex items-center justify-between gap-2 text-[11px] pt-0.5">
+            <span style={{ color: paid === roster.length ? "var(--glass-text-secondary)" : THIN }}>
+              {paid} of {roster.length} paid
+            </span>
+            <span className="font-mono text-[10px] text-glass-text-tertiary group-open:hidden">Show roster</span>
+            <span className="font-mono text-[10px] text-glass-text-tertiary hidden group-open:inline">Hide</span>
+          </div>
+        </summary>
+
+        <ul className="px-2.5 pb-2.5 pt-1 space-y-1" style={{ borderTop: "1px solid var(--glass-border)" }}>
+          {ordered.map((r, i) => (
+            <li key={`${r.player}-${i}`} className="flex items-baseline justify-between gap-2 text-[11.5px]">
+              <span className="truncate" style={{ color: r.paid_ok ? "var(--glass-text-secondary)" : "var(--glass-text)" }}
+                title={r.player}>
+                {r.player}
+                {r.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
+              </span>
+              <span
+                className="tabular font-mono shrink-0"
+                style={{ color: r.paid_ok ? "var(--glass-text-secondary)" : THIN }}
+                title={r.no_registration ? "No registration on file" : undefined}
+              >
+                {r.no_registration ? "no reg" : `$${Math.round(r.paid)}${r.currency ? " " + r.currency.toUpperCase() : ""}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
     </li>
   );
 }
