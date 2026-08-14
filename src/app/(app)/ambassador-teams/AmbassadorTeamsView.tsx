@@ -38,7 +38,8 @@ type AmbassadorFeed = {
   captain_teams: Record<string, number>;
   captain_players?: Record<string, number>;
   // Keyed by ops player id. Covers every captain, not just repeat ones.
-  captains?: Record<string, { name: string; teams: number; players: number; teammates?: number }>;
+  captains?: Record<string,
+    { name: string; teams: number; players: number; teammates?: number; paid_teammates?: number }>;
   by_day: { day: string; teams: number; players: number }[];
   locations: LocationRow[];
 };
@@ -111,16 +112,20 @@ export default async function AmbassadorTeamsView({
         // players/teams counted the ambassador themselves on every roster,
         // which is what made this read high next to the teammate count.
         avg: c.teams && c.teammates != null ? c.teammates / c.teams : null,
+        paid: c.paid_teammates ?? null,
+        avgPaid: c.teams && c.paid_teammates != null ? c.paid_teammates / c.teams : null,
       }))
     : Object.entries(captainTeams).map(([name, teams]) => ({
         id: null as string | null, name, teams, teammates: null as number | null,
         avg: teams ? (captainPlayers?.[name] ?? 0) / teams : null,
+        paid: null as number | null, avgPaid: null as number | null,
       }))
   // Ordered by reach — how many people they actually play with — rather than
   // team count, which rewards signing up shells.
   ).sort((a, b) =>
     (b.teammates ?? 0) - (a.teammates ?? 0) || b.teams - a.teams || a.name.localeCompare(b.name));
   const hasTeammates = captainRows.some((c) => c.teammates !== null);
+  const hasPaid = captainRows.some((c) => c.paid !== null);
   const multiTeam = captainRows.filter((c) => c.teams > 1).length;
 
   return (
@@ -189,7 +194,9 @@ export default async function AmbassadorTeamsView({
                   <p className="text-xs text-glass-text-tertiary">
                     Every captain of an ambassador team in the current filter — {multiTeam} of{" "}
                     {captainRows.length} run more than one. Ordered by teammates — every roster spot they have
-                    filled, counting a player on each team they are on. Select a name for their teams.
+                    filled, counting a player on each team they are on. Paid teammates are the ones whose
+                    registration invoice shows $250 CAD or $200 USD or more actually paid, so someone part-way
+                    through an instalment plan counts once they get there. Select a name for their teams.
                   </p>
                 </div>
                 <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
@@ -206,6 +213,14 @@ export default async function AmbassadorTeamsView({
                         )}
                         <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
                           style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg teammates per team</th>
+                        {hasPaid && (
+                          <>
+                            <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+                              style={{ borderBottom: "1px solid var(--glass-border)" }}>Paid teammates</th>
+                            <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+                              style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg paid per team</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -235,6 +250,16 @@ export default async function AmbassadorTeamsView({
                           <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
                             {c.avg == null ? "—" : c.avg.toFixed(1)}
                           </td>
+                          {hasPaid && (
+                            <>
+                              <td className="px-4 py-2.5 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>
+                                {c.paid ?? "—"}
+                              </td>
+                              <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
+                                {c.avgPaid == null ? "—" : c.avgPaid.toFixed(1)}
+                              </td>
+                            </>
+                          )}
                         </tr>
                       ))}
                     </tbody>
