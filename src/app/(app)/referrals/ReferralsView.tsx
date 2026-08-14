@@ -85,11 +85,6 @@ export default async function ReferralsView({
     locations: promoLocations,
     lms: activeLMs.map((l) => ({ id: l.id, name: l.full_name || "—" })),
   };
-  const scopeLabel =
-    lm !== "all" ? (activeLMs.find((l) => l.id === lm)?.full_name ?? "1 league manager")
-    : location !== "all" ? location
-    : `all ${activeLMs.length} league managers`;
-
   const rows = feed?.locations ?? [];
   const maxTotal = Math.max(...rows.map((r) => r.total), 1);
   const t = feed?.totals;
@@ -126,10 +121,6 @@ export default async function ReferralsView({
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
           Referral program
         </h1>
-        <p className="text-sm mt-1 text-glass-text-secondary">
-          Athletes brought in by the invite code for {scopeLabel}, split into new athletes
-          ({amount(rates.new_athlete_payment)}) and run-it-backs ({amount(rates.returning_athlete_payment)}).
-        </p>
       </header>
 
       <Filters key={`${selectedSeason}|${location}|${lm}`} options={options} current={{ season: selectedSeason, location, lm }} />
