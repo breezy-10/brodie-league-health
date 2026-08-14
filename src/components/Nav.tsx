@@ -21,6 +21,7 @@ const NAV_ADMIN: NavItem[] = [
 const NAV_DASHBOARD: NavItem = { href: "/dashboard", label: "Dashboard" };
 const NAV_REGISTRATIONS: NavItem = { href: "/registrations", label: "Registrations" };
 const NAV_REFERRALS: NavItem = { href: "/referrals", label: "Referrals" };
+const NAV_AMBASSADOR: NavItem = { href: "/ambassador-teams", label: "Ambassador teams" };
 const NAV_USERS: NavItem = { href: "/settings/users", label: "Users" };
 const NAV_SETTINGS: NavItem = { href: "/settings", label: "Settings" };
 
@@ -38,10 +39,10 @@ export async function Nav() {
   // Super admin gets the full bar. dm / operations_manager get Dashboard + Users.
   // Everyone else (lm) gets Dashboard only.
   const items = isSuperAdmin
-    ? [NAV_DASHBOARD, NAV_REGISTRATIONS, NAV_REFERRALS, ...NAV_BASE, ...NAV_ADMIN, NAV_SETTINGS]
+    ? [NAV_DASHBOARD, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_AMBASSADOR, ...NAV_BASE, ...NAV_ADMIN, NAV_SETTINGS]
     : canManageUsers(role)
-      ? [NAV_DASHBOARD, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_USERS]
-      : [NAV_DASHBOARD, NAV_REGISTRATIONS, NAV_REFERRALS];
+      ? [NAV_DASHBOARD, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_AMBASSADOR, NAV_USERS]
+      : [NAV_DASHBOARD, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_AMBASSADOR];
   const fullName = ctx?.profile?.full_name ?? ctx?.user?.email ?? "—";
 
   return (
