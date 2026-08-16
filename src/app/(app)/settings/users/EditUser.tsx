@@ -93,7 +93,8 @@ export function EditUser({
       style={{ background: "rgba(0,0,0,0.55)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-[520px] rounded-2xl overflow-hidden" style={{ background: "var(--glass-background)", border: "1px solid var(--glass-border-light)" }}>
+      {/* No overflow-hidden: it clipped the locations dropdown at the modal edge. */}
+      <div className="w-full max-w-[520px] rounded-2xl" style={{ background: "var(--glass-background)", border: "1px solid var(--glass-border-light)" }}>
         <div className="flex items-start justify-between px-6 pt-6">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>

@@ -58,7 +58,19 @@ export function LocationMultiSelect({
           {options.length === 0 ? (
             <p className="px-3 py-2 text-xs text-glass-text-tertiary">No locations available.</p>
           ) : (
-            options.map((loc) => {
+            <>
+            {/* Count + bulk toggle, matching the stats-health picker. */}
+            <div className="flex items-center justify-between px-3 py-1.5">
+              <span className="text-xs text-glass-text-secondary">{value.length} of {options.length}</span>
+              <button
+                type="button"
+                className="text-xs text-glass-gold"
+                onClick={() => onChange(value.length === options.length ? [] : [...options])}
+              >
+                {value.length === options.length ? "Clear all" : "Select all"}
+              </button>
+            </div>
+            {options.map((loc) => {
               const on = selected.has(loc);
               return (
                 <button
@@ -83,7 +95,8 @@ export function LocationMultiSelect({
                   <span className="text-glass-text">{loc}</span>
                 </button>
               );
-            })
+            })}
+            </>
           )}
         </div>
       )}
