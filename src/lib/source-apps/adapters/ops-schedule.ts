@@ -33,7 +33,7 @@ export const opsScheduleAdapter: Adapter = {
       (roles ?? [])
         .filter((r: { name?: string }) => {
           // Match case-insensitively against the spellings used in
-          // brodie-ops-schedule ("League Manager", "Operations Leadership") plus
+          // brodie-ops-schedule ("League Manager", "District Manager") plus
           // the underscored aliases used in other Brodie apps.
           const tag = (r.name ?? "").toLowerCase().replace(/\s+/g, "_");
           return tag === "lm" || tag === "league_manager" || tag === "dm" || tag === "district_manager";

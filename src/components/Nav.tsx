@@ -27,7 +27,7 @@ const NAV_SETTINGS: NavItem = { href: "/settings", label: "Settings" };
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
-  dm: "Operations Leadership",
+  dm: "District Manager",
   operations_manager: "Operations Manager",
   lm: "League Manager",
 };

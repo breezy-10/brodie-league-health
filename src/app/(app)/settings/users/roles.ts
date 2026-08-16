@@ -3,7 +3,7 @@ export type UserRole = "super_admin" | "dm" | "operations_manager" | "lm";
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
-  dm: "Operations Leadership",
+  dm: "District Manager",
   operations_manager: "Operations Manager",
   lm: "League Manager",
 };
