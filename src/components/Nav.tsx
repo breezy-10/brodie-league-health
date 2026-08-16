@@ -26,7 +26,7 @@ const NAV_USERS: NavItem = { href: "/settings/users", label: "Users" };
 const NAV_SETTINGS: NavItem = { href: "/settings", label: "Settings" };
 
 const ROLE_LABELS: Record<string, string> = {
-  super_admin: "Super Admin",
+  super_admin: "Admin",
   dm: "District Manager",
   operations_manager: "Operations Manager",
   lm: "League Manager",

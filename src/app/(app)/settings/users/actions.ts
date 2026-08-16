@@ -36,10 +36,10 @@ export async function updateUser(input: {
   // Only a super admin may grant the super_admin role or edit an existing one —
   // stops a dm / operations_manager from escalating themselves or others.
   if (!actorSuper) {
-    if (input.role === "super_admin") return { error: "Only a super admin can grant the Super Admin role." };
+    if (input.role === "super_admin") return { error: "Only an admin can grant the Admin role." };
     const { data: target } = await admin.from("profiles").select("role").eq("id", input.userId).maybeSingle();
     if ((target as { role?: string } | null)?.role === "super_admin") {
-      return { error: "Only a super admin can edit a Super Admin." };
+      return { error: "Only an admin can edit an Admin." };
     }
   }
 
@@ -76,7 +76,7 @@ export async function inviteUser(input: {
 }): Promise<{ ok: true } | { error: string }> {
   const { profile } = await requireRole(["dm", "operations_manager", "super_admin"]);
   if (input.role === "super_admin" && profile?.role !== "super_admin") {
-    return { error: "Only a super admin can invite a Super Admin." };
+    return { error: "Only an admin can invite an Admin." };
   }
   const email = input.email.trim().toLowerCase();
   const fullName = `${input.firstName.trim()} ${(input.lastName ?? "").trim()}`.trim();
@@ -136,7 +136,7 @@ export async function setUserArchived(userId: string, archived: boolean): Promis
     if (profile?.role !== "super_admin") {
       const { data: target } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
       if ((target as { role?: string } | null)?.role === "super_admin") {
-        return { error: "Only a super admin can archive a Super Admin." };
+        return { error: "Only an admin can archive an Admin." };
       }
     }
     const { error } = await admin.auth.admin.updateUserById(userId, {
