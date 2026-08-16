@@ -27,7 +27,7 @@ export async function saveReferralRates(input: {
   const ctx = await getCurrentUser();
   const role = ctx?.profile?.role;
   if (!role || !EDITOR_ROLES.includes(role)) {
-    return { error: "Only a district manager or super admin can change the referral terms." };
+    return { error: "Only operations leadership or a super admin can change the referral terms." };
   }
   const season = input.season.trim();
   if (!season) return { error: "Missing season." };

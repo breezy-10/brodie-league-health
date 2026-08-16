@@ -92,7 +92,7 @@ export default function RatesEditor({
           <p className="text-xs mt-0.5 text-glass-text-tertiary">
             {canEdit
               ? "What the referrer is paid and what the referred athlete gets off their registration. Set per season."
-              : "Set per season by a district manager or super admin."}
+              : "Set per season by operations leadership or a super admin."}
             {!rates.stored && " Currently on the default terms."}
           </p>
         </div>
