@@ -117,14 +117,14 @@ export default function UsersTable({
                     {g.label}<span className="ml-1.5 text-glass-text-tertiary">({groupRows.length})</span>
                   </h3>
                 </div>
-                <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+                <div className="rounded-2xl border border-glass-border bg-glass-surface">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
-                        <th className="px-5 py-3 font-bold">Name</th>
-                        <th className="px-5 py-3 font-bold">Role</th>
-                        <th className="px-5 py-3 font-bold">Location</th>
-                        <th className="px-5 py-3 font-bold text-right">Edit</th>
+                        <StickyTh>Name</StickyTh>
+                        <StickyTh>Role</StickyTh>
+                        <StickyTh>Location</StickyTh>
+                        <StickyTh align="right">Edit</StickyTh>
                       </tr>
                     </thead>
                     <tbody>
@@ -147,8 +147,17 @@ export default function UsersTable({
                               <td className="px-5 py-3 text-glass-text">{ROLE_LABELS[r.role]}</td>
                               <td className="px-5 py-3 text-glass-text">
                                 {r.locations.length > 0
-                                  ? r.locations.join(", ")
-                                  : r.location ?? <span className="text-glass-text-tertiary">{r.role === "lm" ? "—" : "All locations"}</span>}
+                                  ? (r.locations.length >= allLocations.length
+                                      ? <span className="text-glass-text-tertiary">All locations ({r.locations.length})</span>
+                                      : <span className="flex flex-wrap gap-x-1.5 gap-y-1">
+                                          {r.locations.map((n) => (
+                                            <span key={n} className="rounded px-1.5 py-0.5 text-xs whitespace-nowrap bg-glass-surface-hover text-glass-text-secondary">{n}</span>
+                                          ))}
+                                        </span>)
+                                  : r.location
+                                    ? <span className="rounded px-1.5 py-0.5 text-xs whitespace-nowrap bg-glass-surface-hover text-glass-text-secondary">{r.location}</span>
+                                    // Nothing assigned reads as "No locations" for every role.
+                                    : <span className="text-glass-text-tertiary">No locations</span>}
                               </td>
                               <td className="px-5 py-3 text-right">
                                 <button
@@ -240,5 +249,18 @@ function InviteForm({ allLocations, onDone, onCancel }: { allLocations: string[]
         </button>
       </div>
     </div>
+  );
+}
+
+// Sticky column header: stays visible while a long roster scrolls beneath it.
+function StickyTh({ children, align }: { children?: React.ReactNode; align?: "right" }) {
+  return (
+    <th
+      className={`px-5 py-3 font-bold bg-glass-surface ${align === "right" ? "text-right" : ""}`}
+      style={{ position: "sticky", top: 0, zIndex: 2,
+               boxShadow: "0 -40px 0 var(--glass-background), inset 0 -1px 0 var(--glass-border-light)" }}
+    >
+      {children}
+    </th>
   );
 }
