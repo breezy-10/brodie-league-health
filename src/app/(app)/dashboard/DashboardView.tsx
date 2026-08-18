@@ -263,9 +263,9 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   const today = ymd(new Date());
   const overdue = list.filter((t) => t.due_date && t.due_date < today && t.status === "not_started").length;
   const pct = total ? Math.round((100 * done) / total) : 0;
+  // Setup comes before progress: a location with no checklist isn't counted in
+  // the percentages beside it, so it reads first.
   return [
-    { label: `Tasks complete · ${season}`, value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pct >= 100 ? "ok" : pct > 0 ? "warn" : "bad" },
-    { label: `Overdue tasks · ${season}`, value: overdue.toLocaleString(), sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok" },
     {
       label: `No checklist · ${season}`,
       value: missingLocations.length.toLocaleString(),
@@ -274,6 +274,8 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
       pills: missingLocations,
       pillsEmpty: "every location set up",
     },
+    { label: `Tasks complete · ${season}`, value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pct >= 100 ? "ok" : pct > 0 ? "warn" : "bad" },
+    { label: `Overdue tasks · ${season}`, value: overdue.toLocaleString(), sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok" },
   ];
 }
 
