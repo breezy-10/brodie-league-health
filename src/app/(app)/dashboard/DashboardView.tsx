@@ -360,7 +360,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       },
       {
         label: "Stat delivery time", value: k.stat_delivery_ms == null ? "—" : fmtElapsed(k.stat_delivery_ms),
-        sub: "avg game → stats processed", tone: "default",
+        tone: "default",
         lines: [
           { text: `${n(k.stat_delivery_n)} games processed` },
           ...wowElapsed(k.stat_delivery_ms, k.prev_stat_delivery_ms),
