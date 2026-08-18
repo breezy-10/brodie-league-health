@@ -434,17 +434,18 @@ async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: st
 type SiteVisitWeek = {
   week_start: string; label: string; count: number;
   avg_score: number | null; avg_tone: Tone;
-  visits: { location: string; score: number | null; date: string }[];
+  visits: { location: string; score: number | null; date: string; day: string; dm: string }[];
 };
-async function loadSiteVisits(scope: Scope, week?: string): Promise<SiteVisitWeek[] | null> {
+type SiteVisitsData = { weeks: SiteVisitWeek[]; by_dm: { dm: string; count: number }[] };
+async function loadSiteVisits(scope: Scope, week?: string): Promise<SiteVisitsData | null> {
   try {
     const url = new URL("/api/site-visits-weekly", "https://brodie-feedback.vercel.app");
     if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
-    const k = (await res.json()) as { weeks: SiteVisitWeek[] };
-    return k.weeks ?? [];
+    const k = (await res.json()) as SiteVisitsData;
+    return { weeks: k.weeks ?? [], by_dm: k.by_dm ?? [] };
   } catch {
     return null;
   }
@@ -814,7 +815,7 @@ export default async function DashboardView({
             <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
             <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
             <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
-            {siteVisits && siteVisits.length > 0 && <SiteVisitsSection weeks={siteVisits} />}
+            {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} />}
             <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
           </>
@@ -840,7 +841,8 @@ const scoreTone = (s: number | null): string => TONE_COLOR[s == null ? "default"
 
 // Site visits completed each Saturday–Friday week and their scores (from the
 // Feedback app's site-visit scorecards).
-function SiteVisitsSection({ weeks }: { weeks: SiteVisitWeek[] }) {
+function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
+  const { weeks, by_dm } = data;
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -868,7 +870,7 @@ function SiteVisitsSection({ weeks }: { weeks: SiteVisitWeek[] }) {
                   <div className="flex flex-wrap gap-1.5">
                     {w.visits.map((v, i) => (
                       <span key={i} className="text-[11px] rounded-md px-1.5 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
-                        {v.location} <span className="font-semibold" style={{ color: scoreTone(v.score) }}>{v.score == null ? "—" : `${Math.round(v.score)}%`}</span>
+                        {v.location} <span className="text-glass-text-tertiary">{v.day}</span> <span className="font-semibold" style={{ color: scoreTone(v.score) }}>{v.score == null ? "—" : `${Math.round(v.score)}%`}</span>
                       </span>
                     ))}
                   </div>
@@ -878,6 +880,16 @@ function SiteVisitsSection({ weeks }: { weeks: SiteVisitWeek[] }) {
           </tbody>
         </table>
       </div>
+      {by_dm.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">By district manager</span>
+          {by_dm.map((d) => (
+            <span key={d.dm} className="text-[11px] rounded-md px-2 py-0.5 border border-glass-border" style={{ color: "var(--glass-text-secondary)" }}>
+              {d.dm} <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{d.count}</span>
+            </span>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
