@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { MultiSelect } from "./MultiSelect";
 
 function Spinner() {
   return (
@@ -24,12 +25,17 @@ export interface FilterOptions {
   weeks?: { value: string; label: string }[];
 }
 
+const sameSet = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
 export default function Filters({
   options,
   current,
 }: {
   options: FilterOptions;
-  current: { season: string; location: string; lm: string; week?: string };
+  // Each filter is a list: [] means "all" for location/league manager, and for
+  // season/week means "the default" (the resolved season / current week).
+  current: { seasons: string[]; locations: string[]; lms: string[]; weeks?: string[] };
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -37,22 +43,22 @@ export default function Filters({
   const hasWeeks = !!options.weeks?.length;
 
   // Stage the selections locally; only push to the URL when Apply is clicked.
-  const [season, setSeason] = useState(current.season);
-  const [week, setWeek] = useState(current.week ?? "");
-  const [location, setLocation] = useState(current.location);
-  const [lm, setLm] = useState(current.lm);
+  const [seasons, setSeasons] = useState(current.seasons);
+  const [weeks, setWeeks] = useState(current.weeks ?? []);
+  const [locations, setLocations] = useState(current.locations);
+  const [lms, setLms] = useState(current.lms);
 
   const dirty =
-    season !== current.season || location !== current.location || lm !== current.lm ||
-    (hasWeeks && week !== (current.week ?? ""));
+    !sameSet(seasons, current.seasons) || !sameSet(locations, current.locations) ||
+    !sameSet(lms, current.lms) || (hasWeeks && !sameSet(weeks, current.weeks ?? []));
 
   function apply() {
     if (!dirty) return;
     const next = new URLSearchParams();
-    if (season) next.set("season", season);
-    if (hasWeeks && week) next.set("week", week);
-    if (location && location !== "all") next.set("location", location);
-    if (lm && lm !== "all") next.set("lm", lm);
+    if (seasons.length) next.set("season", seasons.join(","));
+    if (hasWeeks && weeks.length) next.set("week", weeks.join(","));
+    if (locations.length) next.set("location", locations.join(","));
+    if (lms.length) next.set("lm", lms.join(","));
     const qs = next.toString();
     startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname));
   }
@@ -60,28 +66,42 @@ export default function Filters({
   return (
     <div className="flex flex-wrap items-end gap-3">
       <Field label="Season">
-        <select className={SELECT} value={season} onChange={(e) => setSeason(e.target.value)}>
-          {options.seasons.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
+        <MultiSelect
+          options={options.seasons}
+          value={seasons}
+          onChange={setSeasons}
+          allLabel="Current season"
+          singularNoun="seasons"
+        />
       </Field>
       {hasWeeks && (
         <Field label="Week">
-          <select className={SELECT} value={week} onChange={(e) => setWeek(e.target.value)}>
-            {options.weeks!.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
-          </select>
+          <MultiSelect
+            options={options.weeks!}
+            value={weeks}
+            onChange={setWeeks}
+            allLabel="Current week"
+            singularNoun="weeks"
+          />
         </Field>
       )}
       <Field label="Location">
-        <select className={SELECT} value={location} onChange={(e) => setLocation(e.target.value)}>
-          <option value="all">All locations</option>
-          {options.locations.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select>
+        <MultiSelect
+          options={options.locations.map((l) => ({ value: l, label: l }))}
+          value={locations}
+          onChange={setLocations}
+          allLabel="All locations"
+          singularNoun="locations"
+        />
       </Field>
       <Field label="League manager">
-        <select className={SELECT} value={lm} onChange={(e) => setLm(e.target.value)}>
-          <option value="all">All league managers</option>
-          {options.lms.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-        </select>
+        <MultiSelect
+          options={options.lms.map((l) => ({ value: l.id, label: l.name }))}
+          value={lms}
+          onChange={setLms}
+          allLabel="All league managers"
+          singularNoun="league managers"
+        />
       </Field>
       <button
         onClick={apply}

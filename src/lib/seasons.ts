@@ -99,6 +99,13 @@ export async function loadLmCoverage(): Promise<{ lm: string; locations: string[
   }
 }
 
+// Filter params are comma-separated lists so several seasons / locations /
+// league managers / weeks can be selected at once. "all" is the legacy
+// single-select sentinel for "unfiltered" and is dropped.
+export function csvParam(v?: string): string[] {
+  return (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
+}
+
 export type Scope = {
   promoLocations: string[];
   promoSeasons: string[];
@@ -113,7 +120,7 @@ export type Scope = {
 // Resolve the filter bar (season / location / league manager) into the season
 // labels and location list every tab queries with.
 export async function resolveScope(
-  params: { season?: string; location?: string; lm?: string },
+  params: { season?: string; location?: string; lm?: string; seasons?: string[]; locations?: string[]; lms?: string[] },
   activeLMs: ActiveLM[],
   // Tabs about registration work (Registrations, Referrals) default to the
   // season being registered for; the cross-app Dashboard defaults to the season
@@ -170,15 +177,24 @@ export async function resolveScope(
     .filter((n) => !!parseSeason(n))
     .sort((a, b) => seasonRank(parseSeason(b)!) - seasonRank(parseSeason(a)!));
 
-  // Resolve the scope's location names: an LM maps to the locations they cover
-  // (per the districts app); a single location maps to itself.
+  // Resolve the scope's location names. Multiple locations and multiple league
+  // managers can be selected at once: each LM contributes the locations they
+  // cover (per the districts app), each location contributes itself, and the
+  // scope is the UNION of both. null = unfiltered (all locations).
+  const selectedLms = params.lms?.length ? params.lms : (lm !== "all" ? [lm] : []);
+  const selectedLocations = params.locations?.length ? params.locations : (location !== "all" ? [location] : []);
   let locationNames: string[] | null = null;
-  if (lm !== "all") {
-    const coverage = await loadLmCoverage();
-    const lmName = (activeLMs.find((l) => l.id === lm)?.full_name ?? "").toLowerCase().trim();
-    locationNames = coverage?.find((c) => c.lm.toLowerCase().trim() === lmName)?.locations ?? [];
-  } else if (location !== "all") {
-    locationNames = [location];
+  if (selectedLms.length || selectedLocations.length) {
+    const names = new Set<string>(selectedLocations);
+    if (selectedLms.length) {
+      const coverage = await loadLmCoverage();
+      for (const id of selectedLms) {
+        const lmName = (activeLMs.find((l) => l.id === id)?.full_name ?? "").toLowerCase().trim();
+        const covered = coverage?.find((c) => c.lm.toLowerCase().trim() === lmName)?.locations ?? [];
+        for (const n of covered) names.add(n);
+      }
+    }
+    locationNames = [...names];
   }
 
   return {

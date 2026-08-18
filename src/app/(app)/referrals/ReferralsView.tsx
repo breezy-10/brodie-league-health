@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { loadActiveLMs, locParam, resolveScope } from "@/lib/seasons";
+import { csvParam, loadActiveLMs, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import RatesEditor, { type CurrencyCounts } from "./RatesEditor";
 import { loadReferralRates } from "./rates";
@@ -63,14 +63,17 @@ export default async function ReferralsView({
   searchParams: Promise<{ season?: string; location?: string; lm?: string }>;
 }) {
   const ctx = await requireUser();
-  const { season: seasonParam, location = "all", lm = "all" } = await searchParams;
+  const { season: seasonParam, location: locationParam, lm: lmParam } = await searchParams;
+  const selectedSeasons = csvParam(seasonParam);
+  const selectedLocations = csvParam(locationParam);
+  const selectedLms = csvParam(lmParam);
 
   const activeLMs = await loadActiveLMs();
   // The filter selects the season this page reports on — no offset. Referrals
   // attach to registrations, so it defaults to the season being registered for
   // rather than the one being played. Terms are stored against the same season.
   const { promoLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
-    { season: seasonParam, location, lm },
+    { season: selectedSeasons[0], locations: selectedLocations, lms: selectedLms },
     activeLMs,
     { defaultSeason: "registration" },
   );
@@ -125,7 +128,15 @@ export default async function ReferralsView({
         </h1>
       </header>
 
-      <Filters key={`${selectedSeason}|${location}|${lm}`} options={options} current={{ season: selectedSeason, location, lm }} />
+      <Filters
+        key={`${selectedSeasons.join(",")}|${selectedLocations.join(",")}|${selectedLms.join(",")}`}
+        options={options}
+        current={{
+          seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
+          locations: selectedLocations,
+          lms: selectedLms,
+        }}
+      />
 
       {/* Leads the page: the terms are what the numbers below are measured
           against. Rendered even with no referrals yet, so a season's terms can
