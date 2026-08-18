@@ -506,11 +506,18 @@ async function loadSiteVisits(scope: Scope, week?: string): Promise<SiteVisitsDa
   }
 }
 
+// Video reviews report the GAP, not the work done: game nights that ran and
+// never got a review.
 type VideoReviewWeek = {
-  week_start: string; label: string; count: number; prev_count: number; count_delta: number;
-  reviews: { location: string; date: string; day: string; reviewer: string }[];
+  week_start: string; label: string;
+  nights: number; reviewed: number;
+  missing: number; prev_missing: number; missing_delta: number;
+  missing_list: { location: string; date: string; day: string }[];
 };
-type VideoReviewsData = { weeks: VideoReviewWeek[]; by_reviewer: { reviewer: string; count: number; prev_count: number; delta: number }[] };
+type VideoReviewsData = {
+  weeks: VideoReviewWeek[];
+  by_location: { location: string; missing: number; nights: number; prev_missing: number; delta: number }[];
+};
 async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoReviewsData | null> {
   try {
     const url = new URL("/api/video-reviews-weekly", "https://brodie-feedback.vercel.app");
@@ -519,7 +526,7 @@ async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoRevie
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as VideoReviewsData;
-    return { weeks: k.weeks ?? [], by_reviewer: k.by_reviewer ?? [] };
+    return { weeks: k.weeks ?? [], by_location: k.by_location ?? [] };
   } catch {
     return null;
   }
@@ -1035,12 +1042,12 @@ function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
 // Video reviews completed each Sat–Fri week, by reviewer (counts only — video
 // reviews are checklists with no single score).
 function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
-  const { weeks, by_reviewer } = data;
+  const { weeks, by_location } = data;
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video reviews</h2>
-        <a href={`${APP_URL.feedback}/video-reviews`} target="_blank" rel="noopener noreferrer"
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video reviews missing</h2>
+        <a href={`${APP_URL.feedback}/video-review`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
       <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
@@ -1048,8 +1055,8 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
           <thead>
             <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
               <th className="px-5 py-3 font-bold">Week</th>
-              <th className="px-5 py-3 font-bold text-right">Reviews</th>
-              <th className="px-5 py-3 font-bold">Detail</th>
+              <th className="px-5 py-3 font-bold text-right">Missing</th>
+              <th className="px-5 py-3 font-bold">Nights not reviewed</th>
             </tr>
           </thead>
           <tbody>
@@ -1060,33 +1067,46 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
                   <div className="text-[10px] text-glass-text-tertiary mt-0.5">prev: {prevWeekLabel(w.week_start)}</div>
                 </td>
                 <td className="px-5 py-3 text-right align-top">
-                  <div className="tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.count}</div>
-                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_count}</div>
-                  <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(w.count_delta) }}>{signedN(w.count_delta)}</div>
+                  {/* More missing is worse, so the delta's colours are inverted. */}
+                  <div className="tabular font-bold" style={{ color: w.missing > 0 ? "rgb(248,113,113)" : "rgb(74,222,128)" }}>{w.missing}</div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">of {w.nights} nights</div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary whitespace-nowrap">{w.prev_missing}</div>
+                  <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(-w.missing_delta) }}>{signedN(w.missing_delta)}</div>
                 </td>
                 <td className="px-5 py-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {[...w.reviews].sort((a, b) => a.location.localeCompare(b.location)).map((v, i) => (
-                      <span key={i} className="text-[11px] rounded-md px-1.5 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
-                        {v.location} <span className="text-glass-text-tertiary">{v.day}</span> <span className="text-glass-text-tertiary">· {v.reviewer}</span>
-                      </span>
-                    ))}
-                  </div>
+                  {w.missing_list.length === 0 ? (
+                    <span className="text-[11px] italic text-glass-text-tertiary">
+                      {w.nights === 0 ? "no game nights" : "all nights reviewed"}
+                    </span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {w.missing_list.map((v, i) => (
+                        <span key={i} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                          style={{ color: "var(--glass-danger-text, rgb(248,113,113))", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }}>
+                          {v.location} <span style={{ opacity: 0.75 }}>{v.day}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {by_reviewer.length > 0 && (
+      {by_location.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">By reviewer</span>
-          {by_reviewer.map((d) => (
-            <span key={d.reviewer} className="text-[11px] rounded-md px-2 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
-              {d.reviewer} <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{d.count}</span>
-              {" "}<span className="tabular" style={{ color: upColor(d.delta) }}>({signedN(d.delta)})</span>
+          <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">Missing by location</span>
+          {by_location.filter((d) => d.missing > 0).map((d) => (
+            <span key={d.location} className="text-[11px] rounded-md px-2 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
+              {d.location} <span className="font-bold tabular" style={{ color: "rgb(248,113,113)" }}>{d.missing}</span>
+              <span className="text-glass-text-tertiary">/{d.nights}</span>
+              {" "}<span className="tabular" style={{ color: upColor(-d.delta) }}>({signedN(d.delta)})</span>
             </span>
           ))}
+          {by_location.every((d) => d.missing === 0) && (
+            <span className="text-[11px] italic text-glass-text-tertiary">every night reviewed</span>
+          )}
         </div>
       )}
     </section>
