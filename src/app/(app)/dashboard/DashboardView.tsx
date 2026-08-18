@@ -6,6 +6,7 @@ import type { AppSlug } from "@/lib/source-apps/clients";
 import { ymd } from "@/lib/source-apps/util";
 import { loadActiveLMs, locParam, resolveScope, seasonKey, shortSeason } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "./Filters";
+import { BasisToggle } from "./BasisToggle";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -680,11 +681,15 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel }: {
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
-function LocationStrip({ locations, prevLabel, yearLabel, season }: {
+function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true }: {
   locations: PacingLocation[];
   prevLabel: string;
   yearLabel: string;
   season: string;
+  // Athletes-per-team is a roster size, which only holds season-to-date. On a
+  // week basis the two sides count different cohorts — athletes who joined a
+  // team registered in an earlier week — so the ratio is left off.
+  showAvgPerTeam?: boolean;
 }) {
   return (
     <div>
@@ -708,11 +713,13 @@ function LocationStrip({ locations, prevLabel, yearLabel, season }: {
                 <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={l.location}>
                   {l.location}
                 </p>
-                <p className="text-xs font-semibold tabular shrink-0" title="Average athletes per team"
-                  style={{ color: avgColor }}>
-                  {avgPerTeam === null ? "—" : avgPerTeam.toFixed(1)}
-                  <span className="font-normal text-glass-text-tertiary"> / team</span>
-                </p>
+                {showAvgPerTeam && (
+                  <p className="text-xs font-semibold tabular shrink-0" title="Average athletes per team"
+                    style={{ color: avgColor }}>
+                    {avgPerTeam === null ? "—" : avgPerTeam.toFixed(1)}
+                    <span className="font-normal text-glass-text-tertiary"> / team</span>
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3 mt-2.5">
                 <LocationMetric label="Teams"
@@ -765,13 +772,13 @@ export default async function DashboardView({
   searchParams,
   mode = "full",
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string }>;
   mode?: "full" | "registrations" | "weekly";
 }) {
   await requireUser();
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
-  const { season: seasonParam, location: locationParam, week: weekParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, week: weekParam, regBasis } = await searchParams;
   // Every filter accepts a comma-separated list, so several seasons, weeks,
   // locations and league managers can be selected at once.
   const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
@@ -789,6 +796,9 @@ export default async function DashboardView({
   const weekLabel = activeWeeks.length > 1
     ? `${activeWeeks.length} weeks`
     : (weeks.find((w) => w.value === week)?.label ?? "");
+  // Weekly Review reads the registration cards season-to-date by default; the
+  // toggle switches them to the selected week. Ignored on other tabs.
+  const regOnWeek = isWeekly && regBasis === "week";
   const admin = createAdminClient();
 
   const { data: latest } = await admin
@@ -829,7 +839,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadContentTiles(seasonsParam, scope, weeksParam),
     isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
-    loadRegistrationPacing(pacingSeason, scope, week),
+    loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
     isReg ? Promise.resolve(null) : loadSiteVisits(scope, weeksParam),
     isReg ? Promise.resolve(null) : loadVideoReviews(scope, weeksParam),
   ]);
@@ -902,8 +912,8 @@ export default async function DashboardView({
 
   // Registration section subtitles read by week in Weekly Review, by day-of-
   // registration otherwise.
-  const regBarWhen = isWeekly ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"} of registration`;
-  const regDeltaWhen = isWeekly ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"}`;
+  const regBarWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"} of registration`;
+  const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"}`;
 
   return (
     <main className="brodie-fade-in space-y-8">
@@ -940,6 +950,13 @@ export default async function DashboardView({
                 <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Registrations</h2>
                 <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
                   style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
+                {isWeekly && (
+                  <BasisToggle
+                    param="regBasis"
+                    value={regOnWeek ? "week" : "season"}
+                    options={[{ value: "season", label: "Season" }, { value: "week", label: "Week" }]}
+                  />
+                )}
               </div>
               {/* Only on the Dashboard, where every section deep-links to its
                   source app. The Registrations tab is the detail view, so
@@ -977,7 +994,8 @@ export default async function DashboardView({
                   locations={pacing.locations}
                   prevLabel={shortSeason(pacingPrevSeason?.season ?? "")}
                   yearLabel={shortSeason(pacingPrevYear?.season ?? "")}
-                  season={pacingCurrent.season} />
+                  season={pacingCurrent.season}
+                  showAvgPerTeam={!regOnWeek} />
               </div>
             ) : null}
           </section>
