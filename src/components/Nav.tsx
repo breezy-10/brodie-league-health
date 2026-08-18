@@ -1,5 +1,6 @@
 import { getCurrentUser, canManageUsers } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
+import { NavMore } from "@/components/NavMore";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { SignOutButton } from "@/components/SignOutButton";
 
@@ -7,14 +8,15 @@ const BRODIE_B_LOGO =
   "https://cdn.prod.website-files.com/6921d2c2bd3b56136200df40/69a89a46fa2d0409248fc26f_brodie-b-white.svg";
 
 type NavItem = { href: string; label: string; exact?: boolean };
-const NAV_BASE: NavItem[] = [
-  { href: "/my-day",       label: "My day"    },
-  { href: "/leaderboard",  label: "Leaderboard" },
-  { href: "/achievements", label: "Trophies"    },
-];
-const NAV_ADMIN: NavItem[] = [
-  { href: "/district",           label: "District" },
-  { href: "/district/disputes",  label: "Disputes" },
+// Secondary destinations, folded into the "More" dropdown so the main bar
+// stays short. /district is marked exact so /district/disputes doesn't light
+// both rows at once.
+const NAV_MORE: NavItem[] = [
+  { href: "/my-day",             label: "My day"      },
+  { href: "/leaderboard",        label: "Leaderboard" },
+  { href: "/achievements",       label: "Trophies"    },
+  { href: "/district",           label: "District", exact: true },
+  { href: "/district/disputes",  label: "Disputes"    },
 ];
 // Dashboard sits at the far LEFT of the bar. Settings (the full admin hub) is
 // super-admin only; Users is a standalone item for the user-managing roles.
@@ -39,11 +41,10 @@ export async function Nav() {
   const isSuperAdmin = role === "super_admin";
   // Super admin gets the full bar. dm / operations_manager get Dashboard + Users.
   // Everyone else (lm) gets Dashboard only.
-  const items = isSuperAdmin
-    ? [NAV_DASHBOARD, NAV_WEEKLY, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_AMBASSADOR, ...NAV_BASE, ...NAV_ADMIN, NAV_SETTINGS]
-    : canManageUsers(role)
-      ? [NAV_DASHBOARD, NAV_WEEKLY, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_AMBASSADOR, NAV_USERS]
-      : [NAV_DASHBOARD, NAV_WEEKLY, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_AMBASSADOR];
+  const items = [NAV_DASHBOARD, NAV_WEEKLY, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_AMBASSADOR];
+  // Rendered after the main items: the More dropdown, then the settings entry.
+  const moreItems = isSuperAdmin ? NAV_MORE : [];
+  const trailing = isSuperAdmin ? [NAV_SETTINGS] : canManageUsers(role) ? [NAV_USERS] : [];
   const fullName = ctx?.profile?.full_name ?? ctx?.user?.email ?? "—";
 
   return (
@@ -80,6 +81,10 @@ export async function Nav() {
         style={{ scrollbarWidth: "none" }}
       >
         {items.map((item) => (
+          <NavLink key={item.href} href={item.href} label={item.label} exact={item.exact} />
+        ))}
+        <NavMore items={moreItems} />
+        {trailing.map((item) => (
           <NavLink key={item.href} href={item.href} label={item.label} exact={item.exact} />
         ))}
       </nav>
