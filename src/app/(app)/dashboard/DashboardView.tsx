@@ -180,14 +180,32 @@ const BOOKED_STATUSES = ["in_communication", "verbal_confirmation", "booked_with
 // registrations (per the promo tracker) and facility bookings entered at one of
 // the statuses above. A market with neither isn't operating, so it isn't
 // expected to have a season checklist.
+// The facilities season + venue lists are the same for every season on the
+// page, so they're fetched once and shared by both checklist cards.
+let facilityLookups: Promise<{ seasons: { id: string; name: string | null }[]; venues: { id: string; city: string | null }[] }> | null = null;
+function getFacilityLookups() {
+  if (facilityLookups) return facilityLookups;
+  const fac = sourceClient("facilities")!;
+  facilityLookups = (async () => {
+    const [s, v] = await Promise.all([
+      fac.from("seasons").select("id, name"),
+      fac.from("facilities").select("id, city"),
+    ]);
+    return {
+      seasons: (s.data ?? []) as { id: string; name: string | null }[],
+      venues: (v.data ?? []) as { id: string; city: string | null }[],
+    };
+  })().catch(() => { facilityLookups = null; return { seasons: [], venues: [] }; });
+  return facilityLookups;
+}
+
 async function loadOperatingLocations(season: string, candidates: string[]): Promise<string[] | null> {
   if (!candidates.length || !sourceConfigured("facilities")) return null;
   const want = seasonKey(season);
   try {
     const fac = sourceClient("facilities")!;
-    const [{ data: fSeasons }, { data: facilities }, pacingRes] = await Promise.all([
-      fac.from("seasons").select("id, name"),
-      fac.from("facilities").select("id, city"),
+    const [{ seasons: fSeasons, venues: facilities }, pacingRes] = await Promise.all([
+      getFacilityLookups(),
       (async () => {
         const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
         url.searchParams.set("season", season);
@@ -196,11 +214,11 @@ async function loadOperatingLocations(season: string, candidates: string[]): Pro
         return r.ok ? ((await r.json()) as Pacing) : null;
       })(),
     ]);
-    const seasonIds = ((fSeasons ?? []) as { id: string; name: string | null }[])
+    const seasonIds = fSeasons
       .filter((s) => s.name && seasonKey(s.name) === want).map((s) => s.id);
     if (!seasonIds.length || !pacingRes) return null;
 
-    const cityById = new Map(((facilities ?? []) as { id: string; city: string | null }[]).map((f) => [f.id, f.city ?? ""]));
+    const cityById = new Map(facilities.map((f) => [f.id, f.city ?? ""]));
     const { data: bookings } = await fac.from("bookings")
       .select("facility_id").in("season_id", seasonIds).in("status", BOOKED_STATUSES);
     const bookedCities = new Set(((bookings ?? []) as { facility_id: string }[])
@@ -225,10 +243,15 @@ async function loadOperatingLocations(season: string, candidates: string[]): Pro
 async function loadChecklistTiles(season: string, scope: Scope, expectedLocations: string[] = []): Promise<Tile[] | null> {
   if (!sourceConfigured("checklist")) return null;
   const sb = sourceClient("checklist")!;
-  const locIds = await sourceLocationIds("checklist", scope);
+  // Kick off the independent reads together — the operating-locations lookup
+  // hits other apps entirely and used to wait behind the checklist queries.
+  const operatingPromise = loadOperatingLocations(season, expectedLocations);
+  const [locIds, { data: seasons }, { data: clLocs }] = await Promise.all([
+    sourceLocationIds("checklist", scope),
+    sb.from("seasons").select("id, name, location_id"),
+    sb.from("locations").select("id, name"),
+  ]);
   const locSet = locIds ? new Set(locIds) : null;
-  // Checklist location lives on `seasons.location_id`, not on the tasks.
-  const { data: seasons } = await sb.from("seasons").select("id, name, location_id");
   const want = seasonKey(season);
   const seasonRows = ((seasons ?? []) as { id: string; name: string | null; location_id: string | null }[])
     .filter((s) => s.name && seasonKey(s.name) === want);
@@ -242,13 +265,12 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   const withChecklist = new Set(seasonRows.map((s) => s.location_id).filter(Boolean) as string[]);
   let missingLocations: string[] = [];
   if (expectedLocations.length) {
-    const { data: clLocs } = await sb.from("locations").select("id, name");
     const rows = (clLocs ?? []) as { id: string; name: string }[];
     const inScope = scope.locationNames ? new Set(scope.locationNames) : null;
     // Only markets actually running this season are expected to have one. When
     // that can't be determined, fall back to every candidate rather than
     // silently reporting nothing outstanding.
-    const operating = await loadOperatingLocations(season, expectedLocations);
+    const operating = await operatingPromise;
     missingLocations = (operating ?? expectedLocations)
       .filter((n) => !inScope || inScope.has(n))
       .filter((n) => !rows.some((l) => sameLocation(n, l.name) && withChecklist.has(l.id)))

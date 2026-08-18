@@ -89,6 +89,30 @@ async function getCRMLocationNamesForLM(lmEmail: string): Promise<string[]> {
  * `id` + `name`. Use `resolveFacilityCitiesForLM` for facilities.
  */
 const locationCache = new Map<string, string[]>(); // key: appSlug + ':' + email
+
+// Each app's locations table, fetched at most once per app. Resolving a filter
+// with two dozen selected locations used to refetch the whole table once per
+// NAME — the same rows, N times over, for every source app on the page.
+const locationTableCache = new Map<AppSlug, Promise<Array<{ id: string; name: string }>>>();
+function appLocations(appSlug: AppSlug): Promise<Array<{ id: string; name: string }>> {
+  const hit = locationTableCache.get(appSlug);
+  if (hit) return hit;
+  const target = sourceClient(appSlug);
+  const p: Promise<Array<{ id: string; name: string }>> = target
+    ? (async () => {
+        try {
+          const { data } = await target.from("locations").select("id, name");
+          return (data ?? []) as Array<{ id: string; name: string }>;
+        } catch {
+          // A failed read must not poison the cache for the rest of the process.
+          locationTableCache.delete(appSlug);
+          return [];
+        }
+      })()
+    : Promise.resolve([]);
+  locationTableCache.set(appSlug, p);
+  return p;
+}
 export async function resolveLocationsForLM(
   appSlug: Exclude<AppSlug, "facilities" | "crm">,
   lmEmail: string
@@ -103,13 +127,7 @@ export async function resolveLocationsForLM(
     return [];
   }
 
-  const target = sourceClient(appSlug);
-  if (!target) {
-    locationCache.set(cacheKey, []);
-    return [];
-  }
-  const { data: locs } = await target.from("locations").select("id, name");
-  const matchIds = ((locs ?? []) as Array<{ id: string; name: string }>)
+  const matchIds = (await appLocations(appSlug))
     .filter((l) => fuzzyMatch(crmNames, l.name))
     .map((l) => l.id);
   locationCache.set(cacheKey, matchIds);
@@ -129,13 +147,7 @@ export async function resolveLocationIdsByName(
   const cacheKey = `byname:${appSlug}:${normalize(locationName)}`;
   const hit = locationCache.get(cacheKey);
   if (hit) return hit;
-  const target = sourceClient(appSlug);
-  if (!target) {
-    locationCache.set(cacheKey, []);
-    return [];
-  }
-  const { data: locs } = await target.from("locations").select("id, name");
-  const matchIds = ((locs ?? []) as Array<{ id: string; name: string }>)
+  const matchIds = (await appLocations(appSlug))
     .filter((l) => fuzzyMatch([locationName], l.name))
     .map((l) => l.id);
   locationCache.set(cacheKey, matchIds);
@@ -196,4 +208,5 @@ export async function listLMsFromCRM(): Promise<Array<{ email: string; name: str
 export function clearLocationCache(): void {
   crmManagersCache = null;
   locationCache.clear();
+  locationTableCache.clear();
 }
