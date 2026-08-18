@@ -436,9 +436,10 @@ type SiteVisitWeek = {
   avg_score: number | null; avg_tone: Tone;
   visits: { location: string; score: number | null; date: string }[];
 };
-async function loadSiteVisits(scope: Scope): Promise<SiteVisitWeek[] | null> {
+async function loadSiteVisits(scope: Scope, week?: string): Promise<SiteVisitWeek[] | null> {
   try {
     const url = new URL("/api/site-visits-weekly", "https://brodie-feedback.vercel.app");
+    if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
@@ -666,7 +667,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
     loadRegistrationPacing(pacingSeason, scope, week),
-    isReg ? Promise.resolve(null) : loadSiteVisits(scope),
+    isReg ? Promise.resolve(null) : loadSiteVisits(scope, week),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
@@ -813,9 +814,9 @@ export default async function DashboardView({
             <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
             <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
             <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
+            {siteVisits && siteVisits.length > 0 && <SiteVisitsSection weeks={siteVisits} />}
             <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
-            {siteVisits && siteVisits.length > 0 && <SiteVisitsSection weeks={siteVisits} />}
           </>
         )}
       </div>
