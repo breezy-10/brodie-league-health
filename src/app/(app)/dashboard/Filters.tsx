@@ -19,6 +19,9 @@ export interface FilterOptions {
   seasons: { value: string; label: string }[];
   locations: string[];
   lms: { id: string; name: string }[];
+  // When provided, a Week filter (Saturday–Friday) renders between Season and
+  // Location. Values are the week's Saturday, "YYYY-MM-DD".
+  weeks?: { value: string; label: string }[];
 }
 
 export default function Filters({
@@ -26,23 +29,28 @@ export default function Filters({
   current,
 }: {
   options: FilterOptions;
-  current: { season: string; location: string; lm: string };
+  current: { season: string; location: string; lm: string; week?: string };
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
+  const hasWeeks = !!options.weeks?.length;
 
   // Stage the selections locally; only push to the URL when Apply is clicked.
   const [season, setSeason] = useState(current.season);
+  const [week, setWeek] = useState(current.week ?? "");
   const [location, setLocation] = useState(current.location);
   const [lm, setLm] = useState(current.lm);
 
-  const dirty = season !== current.season || location !== current.location || lm !== current.lm;
+  const dirty =
+    season !== current.season || location !== current.location || lm !== current.lm ||
+    (hasWeeks && week !== (current.week ?? ""));
 
   function apply() {
     if (!dirty) return;
     const next = new URLSearchParams();
     if (season) next.set("season", season);
+    if (hasWeeks && week) next.set("week", week);
     if (location && location !== "all") next.set("location", location);
     if (lm && lm !== "all") next.set("lm", lm);
     const qs = next.toString();
@@ -56,6 +64,13 @@ export default function Filters({
           {options.seasons.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
       </Field>
+      {hasWeeks && (
+        <Field label="Week">
+          <select className={SELECT} value={week} onChange={(e) => setWeek(e.target.value)}>
+            {options.weeks!.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+          </select>
+        </Field>
+      )}
       <Field label="Location">
         <select className={SELECT} value={location} onChange={(e) => setLocation(e.target.value)}>
           <option value="all">All locations</option>
