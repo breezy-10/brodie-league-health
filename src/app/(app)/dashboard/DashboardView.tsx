@@ -506,17 +506,18 @@ async function loadSiteVisits(scope: Scope, week?: string): Promise<SiteVisitsDa
   }
 }
 
-// Video reviews report the GAP, not the work done: game nights that ran and
-// never got a review.
+// Counts report reviews completed out of the nights that ran; the unreviewed
+// nights are named individually so the gap is visible at a glance.
 type VideoReviewWeek = {
   week_start: string; label: string;
-  nights: number; reviewed: number;
-  missing: number; prev_missing: number; missing_delta: number;
+  nights: number;
+  reviewed: number; prev_reviewed: number; reviewed_delta: number;
+  missing: number;
   missing_list: { location: string; date: string; day: string }[];
 };
 type VideoReviewsData = {
   weeks: VideoReviewWeek[];
-  by_location: { location: string; missing: number; nights: number; prev_missing: number; delta: number }[];
+  by_location: { location: string; completed: number; nights: number; prev_completed: number; delta: number }[];
 };
 async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoReviewsData | null> {
   try {
@@ -1046,7 +1047,7 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video reviews missing</h2>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video reviews</h2>
         <a href={`${APP_URL.feedback}/video-review`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
@@ -1055,7 +1056,7 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
           <thead>
             <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
               <th className="px-5 py-3 font-bold">Week</th>
-              <th className="px-5 py-3 font-bold text-right">Missing</th>
+              <th className="px-5 py-3 font-bold text-right">Reviews</th>
               <th className="px-5 py-3 font-bold">Nights not reviewed</th>
             </tr>
           </thead>
@@ -1067,11 +1068,10 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
                   <div className="text-[10px] text-glass-text-tertiary mt-0.5">prev: {prevWeekLabel(w.week_start)}</div>
                 </td>
                 <td className="px-5 py-3 text-right align-top">
-                  {/* More missing is worse, so the delta's colours are inverted. */}
-                  <div className="tabular font-bold" style={{ color: w.missing > 0 ? "rgb(248,113,113)" : "rgb(74,222,128)" }}>{w.missing}</div>
+                  <div className="tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.reviewed}</div>
                   <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">of {w.nights} nights</div>
-                  <div className="text-[10px] tabular text-glass-text-tertiary whitespace-nowrap">{w.prev_missing}</div>
-                  <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(-w.missing_delta) }}>{signedN(w.missing_delta)}</div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary whitespace-nowrap">{w.prev_reviewed}</div>
+                  <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(w.reviewed_delta) }}>{signedN(w.reviewed_delta)}</div>
                 </td>
                 <td className="px-5 py-3">
                   {w.missing_list.length === 0 ? (
@@ -1096,17 +1096,14 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
       </div>
       {by_location.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">Missing by location</span>
-          {by_location.filter((d) => d.missing > 0).map((d) => (
+          <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">Completed by location</span>
+          {by_location.map((d) => (
             <span key={d.location} className="text-[11px] rounded-md px-2 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
-              {d.location} <span className="font-bold tabular" style={{ color: "rgb(248,113,113)" }}>{d.missing}</span>
+              {d.location} <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{d.completed}</span>
               <span className="text-glass-text-tertiary">/{d.nights}</span>
-              {" "}<span className="tabular" style={{ color: upColor(-d.delta) }}>({signedN(d.delta)})</span>
+              {" "}<span className="tabular" style={{ color: upColor(d.delta) }}>({signedN(d.delta)})</span>
             </span>
           ))}
-          {by_location.every((d) => d.missing === 0) && (
-            <span className="text-[11px] italic text-glass-text-tertiary">every night reviewed</span>
-          )}
         </div>
       )}
     </section>
