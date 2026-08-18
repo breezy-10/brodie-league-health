@@ -128,7 +128,7 @@ const pctTone = (p: number): Tone => (p >= 90 ? "ok" : p >= 70 ? "warn" : "bad")
 // locationNames = the resolved list of location names this view is scoped to
 // (from the LM's district coverage, or a single selected location). null = all;
 // [] = the filter resolves to no location.
-type Scope = { lm: string; location: string; locationNames: string[] | null };
+type Scope = { locationNames: string[] | null };
 
 // Resolve the scoped location names to this source's own location_id(s).
 // null = no location filter (show all); [] = filter matches no location here.
@@ -299,8 +299,30 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       full_recording_pct: number | null; full: number; incomplete: number; recording_total: number;
       spare_appearances: number; spare_games: number;
       stat_delivery_ms: number | null; stat_delivery_n: number;
+      prev_stats_completion_pct?: number | null;
+      prev_full_recording_pct?: number | null;
+      prev_stat_delivery_ms?: number | null;
     };
     const n = (x: number) => x.toLocaleString();
+    // Week-over-week rows: the previous week's value, then the delta. Present
+    // only in Weekly Review, where the endpoint gets a week to compare against.
+    const wowPct = (cur: number | null, prev: number | null | undefined) => {
+      if (prev == null || cur == null) return [];
+      const d = Math.round((cur - prev) * 10) / 10;
+      return [
+        { text: `prev week ${prev}%` },
+        { text: `${d > 0 ? "+" : ""}${d} pts`, color: upColor(d) },
+      ];
+    };
+    // Faster delivery is better, so a shorter time is the "up" direction.
+    const wowElapsed = (cur: number | null, prev: number | null | undefined) => {
+      if (prev == null || cur == null) return [];
+      const d = cur - prev;
+      return [
+        { text: `prev week ${fmtElapsed(prev)}` },
+        { text: `${d > 0 ? "+" : d < 0 ? "−" : ""}${fmtElapsed(Math.abs(d))}`, color: upColor(-d) },
+      ];
+    };
     const completionLines: { text: string; strong?: boolean }[] = [];
     // Only show "games played" (external schedule count) when it's sane — it must
     // be >= tracked, since every tracked game was played.
@@ -316,7 +338,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       {
         label: "Stats completion rate", value: k.stats_completion_pct == null ? "—" : `${k.stats_completion_pct}%`,
         tone: k.stats_completion_tone ?? (k.stats_completion_pct == null ? "default" : pctTone(k.stats_completion_pct)),
-        lines: completionLines,
+        lines: [...completionLines, ...wowPct(k.stats_completion_pct, k.prev_stats_completion_pct)],
       },
       {
         label: "Full recording %", value: k.full_recording_pct == null ? "—" : `${k.full_recording_pct}%`,
@@ -325,6 +347,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
           { text: `${n(k.full)} — full` },
           { text: `${n(k.incomplete)} — incomplete` },
           { text: `${n(k.recording_total)} — total` },
+          ...wowPct(k.full_recording_pct, k.prev_full_recording_pct),
         ],
       },
       {
@@ -338,7 +361,10 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       {
         label: "Stat delivery time", value: k.stat_delivery_ms == null ? "—" : fmtElapsed(k.stat_delivery_ms),
         sub: "avg game → stats processed", tone: "default",
-        lines: [{ text: `${n(k.stat_delivery_n)} games processed` }],
+        lines: [
+          { text: `${n(k.stat_delivery_n)} games processed` },
+          ...wowElapsed(k.stat_delivery_ms, k.prev_stat_delivery_ms),
+        ],
       },
     ];
   } catch {
@@ -673,13 +699,25 @@ export default async function DashboardView({
   await requireUser();
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
-  const { season: seasonParam, location = "all", lm = "all", week: weekParam } = await searchParams;
-  // Weekly Review: resolve the selected Saturday-Friday week (default = current).
+  const { season: seasonParam, location: locationParam, lm: lmParam, week: weekParam } = await searchParams;
+  // Every filter accepts a comma-separated list, so several seasons, weeks,
+  // locations and league managers can be selected at once.
+  const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
+  const selectedSeasons = csv(seasonParam);
+  const selectedLocations = csv(locationParam);
+  const selectedLms = csv(lmParam);
+  // Weekly Review: resolve the selected Saturday-Friday weeks (default = current).
   const weeks = isWeekly ? weekOptions() : [];
-  const week = isWeekly
-    ? (weekParam && weeks.some((w) => w.value === weekParam) ? weekParam : weeks[0]?.value)
-    : undefined;
-  const weekLabel = weeks.find((w) => w.value === week)?.label ?? "";
+  const selectedWeeks = isWeekly
+    ? csv(weekParam).filter((w) => weeks.some((o) => o.value === w))
+    : [];
+  // The primary week drives WoW comparisons and the header label; extra weeks
+  // widen the window each week-scoped section aggregates over.
+  const activeWeeks = isWeekly ? (selectedWeeks.length ? selectedWeeks : [weeks[0]?.value].filter(Boolean) as string[]) : [];
+  const week = activeWeeks[0];
+  const weekLabel = activeWeeks.length > 1
+    ? `${activeWeeks.length} weeks`
+    : (weeks.find((w) => w.value === week)?.label ?? "");
   const admin = createAdminClient();
 
   const { data: latest } = await admin
@@ -697,27 +735,33 @@ export default async function DashboardView({
   // so there the filter picks the registration season directly — selecting
   // Fall '26 shows Fall '26 rather than silently reporting the season after.
   const { promoLocations, promoSeasons, selectedSeason, regSeason, locationNames } = await resolveScope(
-    { season: seasonParam, location, lm },
+    { season: selectedSeasons[0], locations: selectedLocations, lms: selectedLms },
     activeLMs,
     { defaultSeason: isReg ? "registration" : "playing" },
   );
   const pacingSeason = isReg ? selectedSeason : regSeason;
 
   // Live, season + location/LM scoped section cards (fall back to sample if unwired).
-  const scope: Scope = { lm, location, locationNames };
+  const scope: Scope = { locationNames };
+  // Sections whose source app aggregates over several seasons/weeks get the
+  // whole selection; the rest use the primary one. Registration pacing keeps a
+  // single week because its window is offset-aligned to each season's start,
+  // so a union of calendar weeks has no meaning there.
+  const seasonsParam = selectedSeasons.length ? selectedSeasons.join(",") : selectedSeason;
+  const weeksParam = activeWeeks.length ? activeWeeks.join(",") : undefined;
   // Registrations mode shows only the Registrations section, so skip the other
   // source loads entirely — just fetch pacing.
   const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, siteVisits, videoReviews] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadFeedbackTiles(selectedSeason, scope),
-    isReg ? Promise.resolve(null) : loadStatsTiles(selectedSeason, scope, week),
-    isReg ? Promise.resolve(null) : loadContentTiles(selectedSeason, scope, week),
+    isReg ? Promise.resolve(null) : loadStatsTiles(seasonsParam, scope, weeksParam),
+    isReg ? Promise.resolve(null) : loadContentTiles(seasonsParam, scope, weeksParam),
     isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
     loadRegistrationPacing(pacingSeason, scope, week),
-    isReg ? Promise.resolve(null) : loadSiteVisits(scope, week),
-    isReg ? Promise.resolve(null) : loadVideoReviews(scope, week),
+    isReg ? Promise.resolve(null) : loadSiteVisits(scope, weeksParam),
+    isReg ? Promise.resolve(null) : loadVideoReviews(scope, weeksParam),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
@@ -738,13 +782,17 @@ export default async function DashboardView({
       ).data) as unknown as SnapRow[]) ?? []
     : [];
 
-  // Map the selected Promo Tracker location to its roster name for matching.
-  const rosterLocation = location !== "all" ? (PROMO_TO_ROSTER[location] ?? location) : "all";
+  // Map the selected Promo Tracker locations to their roster names for matching.
+  // A snapshot is in scope if it matches ANY selected location or league
+  // manager (the same union the source-app queries use).
+  const rosterLocations = new Set(selectedLocations.map((l) => PROMO_TO_ROSTER[l] ?? l));
+  const lmIds = new Set(selectedLms);
   const filtered = snaps.filter((s) => {
     if (!s.league_managers?.active) return false;
-    if (rosterLocation !== "all" && s.league_managers.location_name !== rosterLocation) return false;
-    if (lm !== "all" && s.league_managers.id !== lm) return false;
-    return true;
+    if (!rosterLocations.size && !lmIds.size) return true;
+    const locName = s.league_managers.location_name;
+    return (rosterLocations.size > 0 && locName != null && rosterLocations.has(locName))
+      || (lmIds.size > 0 && lmIds.has(s.league_managers.id));
   });
 
   type MetricAgg = { name: string; slug: string; sum: number; n: number };
@@ -778,9 +826,17 @@ export default async function DashboardView({
     ...(isWeekly ? { weeks } : {}),
   };
 
+  // Name the scope: one selection reads by name, several read as a count, and
+  // nothing selected means the whole league.
+  const lmNames = selectedLms.map((id) => activeLMs.find((l) => l.id === id)?.full_name).filter(Boolean) as string[];
   const scopeLabel =
-    lm !== "all" ? (activeLMs.find((l) => l.id === lm)?.full_name ?? "1 league manager")
-    : location !== "all" ? location
+    lmNames.length === 1 && !selectedLocations.length ? lmNames[0]
+    : selectedLocations.length === 1 && !lmNames.length ? selectedLocations[0]
+    : lmNames.length || selectedLocations.length
+      ? [
+          lmNames.length ? `${lmNames.length} league manager${lmNames.length > 1 ? "s" : ""}` : null,
+          selectedLocations.length ? `${selectedLocations.length} location${selectedLocations.length > 1 ? "s" : ""}` : null,
+        ].filter(Boolean).join(" + ")
     : `all ${activeLMs.length} league managers`;
 
   // Registration section subtitles read by week in Weekly Review, by day-of-
@@ -802,7 +858,16 @@ export default async function DashboardView({
         </p>
       </header>
 
-      <Filters key={`${selectedSeason}|${week ?? ""}|${location}|${lm}`} options={options} current={{ season: selectedSeason, location, lm, week }} />
+      <Filters
+        key={`${selectedSeasons.join(",")}|${activeWeeks.join(",")}|${selectedLocations.join(",")}|${selectedLms.join(",")}`}
+        options={options}
+        current={{
+          seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
+          locations: selectedLocations,
+          lms: selectedLms,
+          ...(isWeekly ? { weeks: activeWeeks } : {}),
+        }}
+      />
 
       <div className="space-y-8">
         {!isReg && (
@@ -929,12 +994,12 @@ function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
                 </td>
                 <td className="px-5 py-3 text-right align-top">
                   <div className="tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.count}</div>
-                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_count} prev</div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_count}</div>
                   <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(w.count_delta) }}>{signedN(w.count_delta)}</div>
                 </td>
                 <td className="px-5 py-3 text-right align-top">
                   <div className="tabular font-semibold" style={{ color: TONE_COLOR[w.avg_tone] }}>{w.avg_score == null ? "—" : `${w.avg_score}%`}</div>
-                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_avg == null ? "—" : `${w.prev_avg}%`} prev</div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_avg == null ? "—" : `${w.prev_avg}%`}</div>
                   {w.avg_delta != null && <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(w.avg_delta) }}>{signedN(w.avg_delta)}</div>}
                 </td>
                 <td className="px-5 py-3">
@@ -996,7 +1061,7 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
                 </td>
                 <td className="px-5 py-3 text-right align-top">
                   <div className="tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.count}</div>
-                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_count} prev</div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_count}</div>
                   <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(w.count_delta) }}>{signedN(w.count_delta)}</div>
                 </td>
                 <td className="px-5 py-3">

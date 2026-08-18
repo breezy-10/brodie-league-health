@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { loadActiveLMs, locParam, resolveScope } from "@/lib/seasons";
+import { csvParam, loadActiveLMs, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the ambassador
@@ -85,13 +85,16 @@ export default async function AmbassadorTeamsView({
   searchParams: Promise<{ season?: string; location?: string; lm?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location = "all", lm = "all" } = await searchParams;
+  const { season: seasonParam, location: locationParam, lm: lmParam } = await searchParams;
+  const selectedSeasons = csvParam(seasonParam);
+  const selectedLocations = csvParam(locationParam);
+  const selectedLms = csvParam(lmParam);
 
   const activeLMs = await loadActiveLMs();
   // Ambassador teams are registered for the season being sold, not the one
   // being played, so this defaults to the registration season like Referrals.
   const { promoLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
-    { season: seasonParam, location, lm },
+    { season: selectedSeasons[0], locations: selectedLocations, lms: selectedLms },
     activeLMs,
     { defaultSeason: "registration" },
   );
@@ -151,9 +154,13 @@ export default async function AmbassadorTeamsView({
       </header>
 
       <Filters
-        key={`${selectedSeason}|${location}|${lm}`}
+        key={`${selectedSeasons.join(",")}|${selectedLocations.join(",")}|${selectedLms.join(",")}`}
         options={options}
-        current={{ season: selectedSeason, location, lm }}
+        current={{
+          seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
+          locations: selectedLocations,
+          lms: selectedLms,
+        }}
       />
 
       <section className="space-y-3">
