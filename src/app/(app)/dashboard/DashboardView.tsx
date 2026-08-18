@@ -31,7 +31,7 @@ type Tile = {
   value: string;
   unit?: string;
   sub?: string;
-  lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string }[];
+  lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
 };
@@ -204,6 +204,8 @@ type ContentCard = {
   expected_pct: number | null; sla_pct: number | null;
   drive_ms: number | null; drive_on_time: boolean | null;
   post_ms: number | null; post_on_time: boolean | null;
+  // Same figures for the previous week; only present in Weekly Review.
+  prev?: { rate: number | null; drive_ms: number | null; post_ms: number | null } | null;
 };
 // "0m", "9h 14m", "1d 4h" — matches Content Health's formatElapsedShort.
 function fmtElapsed(ms: number): string {
@@ -219,14 +221,33 @@ function timingLine(label: string, ms: number | null, onTime: boolean | null): {
   return { text: label, strong: true, pill: { text: onTime ? "On time" : "Late", ok: !!onTime }, after: fmtElapsed(ms) };
 }
 function contentTile(label: string, c: ContentCard): Tile {
+  const p = c.prev;
+  const lines: NonNullable<Tile["lines"]> = [
+    timingLine("Drive", c.drive_ms, c.drive_on_time),
+    timingLine("Posted", c.post_ms, c.post_on_time),
+  ];
+  if (p) {
+    // Week-over-week. Faster delivery is better, so the timing deltas invert.
+    const elapsedDelta = (cur: number | null, prev: number | null) => {
+      if (cur == null || prev == null) return null;
+      const d = cur - prev;
+      return { text: `${d > 0 ? "+" : d < 0 ? "−" : ""}${fmtElapsed(Math.abs(d))}`, color: upColor(-d) };
+    };
+    const rateDelta = c.rate != null && p.rate != null ? Math.round((c.rate - p.rate) * 10) / 10 : null;
+    lines.push({
+      text: `prev week ${p.rate == null ? "—" : `${p.rate.toFixed(1)}/hr`}`,
+      ...(rateDelta != null ? { after: `${rateDelta > 0 ? "+" : ""}${rateDelta.toFixed(1)}`, afterColor: upColor(rateDelta) } : {}),
+    });
+    const dd = elapsedDelta(c.drive_ms, p.drive_ms);
+    const pd = elapsedDelta(c.post_ms, p.post_ms);
+    if (p.drive_ms != null) lines.push({ text: `prev Drive ${fmtElapsed(p.drive_ms)}`, ...(dd ? { after: dd.text, afterColor: dd.color } : {}) });
+    if (p.post_ms != null) lines.push({ text: `prev Posted ${fmtElapsed(p.post_ms)}`, ...(pd ? { after: pd.text, afterColor: pd.color } : {}) });
+  }
   return {
     label, value: c.rate == null ? "—" : c.rate.toFixed(1), unit: "/hr",
     sub: `target ${c.target}/hr`,
     tone: c.rate == null ? "default" : c.rate >= c.target ? "ok" : "bad",
-    lines: [
-      timingLine("Drive", c.drive_ms, c.drive_on_time),
-      timingLine("Posted", c.post_ms, c.post_on_time),
-    ],
+    lines,
   };
 }
 async function loadContentTiles(season: string, scope: Scope, week?: string): Promise<Tile[] | null> {
@@ -1202,7 +1223,9 @@ function StatTile({ label, value, unit, sub, lines, tone = "default", link }: Ti
                   {l.pill.text}
                 </span>
               )}
-              {l.after && <span className="font-normal text-glass-text-tertiary">{l.after}</span>}
+              {l.after && (
+                <span className="font-normal" style={{ color: l.afterColor ?? "var(--glass-text-tertiary)" }}>{l.after}</span>
+              )}
             </div>
           ))}
         </div>
