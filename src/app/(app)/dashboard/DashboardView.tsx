@@ -434,9 +434,13 @@ async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: st
 type SiteVisitWeek = {
   week_start: string; label: string; count: number;
   avg_score: number | null; avg_tone: Tone;
+  prev_count: number; prev_avg: number | null; count_delta: number; avg_delta: number | null;
   visits: { location: string; score: number | null; date: string; day: string; dm: string }[];
 };
-type SiteVisitsData = { weeks: SiteVisitWeek[]; by_dm: { dm: string; count: number }[] };
+type SiteVisitsData = {
+  weeks: SiteVisitWeek[];
+  by_dm: { dm: string; count: number; avg_score: number | null; avg_tone: Tone; prev_count: number; delta: number }[];
+};
 async function loadSiteVisits(scope: Scope, week?: string): Promise<SiteVisitsData | null> {
   try {
     const url = new URL("/api/site-visits-weekly", "https://brodie-feedback.vercel.app");
@@ -838,6 +842,9 @@ const TONE_COLOR: Record<string, string> = {
   ok: "rgb(74,222,128)", warn: "var(--glass-gold)", bad: "rgb(248,113,113)", default: "var(--glass-text-secondary)",
 };
 const scoreTone = (s: number | null): string => TONE_COLOR[s == null ? "default" : s >= 80 ? "ok" : s >= 60 ? "warn" : "bad"];
+// WoW deltas: more visits / higher score = green, fewer / lower = red.
+const upColor = (n: number) => (n > 0 ? "rgb(74,222,128)" : n < 0 ? "rgb(248,113,113)" : "var(--glass-text-tertiary)");
+const signedN = (n: number) => `${n > 0 ? "+" : ""}${n}`;
 
 // Site visits completed each Saturday–Friday week and their scores (from the
 // Feedback app's site-visit scorecards).
@@ -864,8 +871,18 @@ function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
             {weeks.map((w) => (
               <tr key={w.week_start} className="border-t border-glass-border-light align-top">
                 <td className="px-5 py-3 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{w.label}</td>
-                <td className="px-5 py-3 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.count}</td>
-                <td className="px-5 py-3 text-right tabular font-semibold" style={{ color: TONE_COLOR[w.avg_tone] }}>{w.avg_score == null ? "—" : `${w.avg_score}%`}</td>
+                <td className="px-5 py-3 text-right align-top">
+                  <div className="tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.count}</div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">
+                    {w.prev_count} prev · <span style={{ color: upColor(w.count_delta) }}>{signedN(w.count_delta)}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-3 text-right align-top">
+                  <div className="tabular font-semibold" style={{ color: TONE_COLOR[w.avg_tone] }}>{w.avg_score == null ? "—" : `${w.avg_score}%`}</div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">
+                    {w.prev_avg == null ? "—" : `${w.prev_avg}%`} prev{w.avg_delta != null && <> · <span style={{ color: upColor(w.avg_delta) }}>{signedN(w.avg_delta)}</span></>}
+                  </div>
+                </td>
                 <td className="px-5 py-3">
                   <div className="flex flex-wrap gap-1.5">
                     {w.visits.map((v, i) => (
@@ -884,8 +901,10 @@ function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">By district manager</span>
           {by_dm.map((d) => (
-            <span key={d.dm} className="text-[11px] rounded-md px-2 py-0.5 border border-glass-border" style={{ color: "var(--glass-text-secondary)" }}>
+            <span key={d.dm} className="text-[11px] rounded-md px-2 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
               {d.dm} <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{d.count}</span>
+              {" "}<span className="tabular" style={{ color: upColor(d.delta) }}>({signedN(d.delta)})</span>
+              {d.avg_score != null && <> <span className="font-semibold tabular" style={{ color: TONE_COLOR[d.avg_tone] }}>{d.avg_score}%</span></>}
             </span>
           ))}
         </div>
