@@ -34,6 +34,9 @@ type Tile = {
   lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
+  // Named items behind the number — rendered as wrapped chips, tinted by tone.
+  pills?: string[];
+  pillsEmpty?: string;
 };
 
 type SnapRow = {
@@ -142,7 +145,22 @@ async function sourceLocationIds(
   return [...new Set(arrs.flat())];
 }
 
-async function loadChecklistTiles(season: string, scope: Scope): Promise<Tile[] | null> {
+// Location names differ in how they mark the sub-venue across apps — the promo
+// list writes "Brooklyn - Bushwick" where the checklist writes
+// "Brooklyn (Bushwick)" — so brackets and dashes are flattened to spaces before
+// comparing. A bare name ("Boston") still matches its only variant
+// ("Boston North") via the shared-first-word rule.
+const flattenLoc = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[()\-–—]/g, " ").replace(/\s+/g, " ").trim();
+function sameLocation(a: string, b: string): boolean {
+  const x = flattenLoc(a), y = flattenLoc(b);
+  if (x === y) return true;
+  if (x.includes(y) || y.includes(x)) return x.split(" ")[0] === y.split(" ")[0];
+  return false;
+}
+
+async function loadChecklistTiles(season: string, scope: Scope, expectedLocations: string[] = []): Promise<Tile[] | null> {
   if (!sourceConfigured("checklist")) return null;
   const sb = sourceClient("checklist")!;
   const locIds = await sourceLocationIds("checklist", scope);
@@ -150,9 +168,26 @@ async function loadChecklistTiles(season: string, scope: Scope): Promise<Tile[] 
   // Checklist location lives on `seasons.location_id`, not on the tasks.
   const { data: seasons } = await sb.from("seasons").select("id, name, location_id");
   const want = seasonKey(season);
-  const ids = ((seasons ?? []) as { id: string; name: string | null; location_id: string | null }[])
-    .filter((s) => s.name && seasonKey(s.name) === want && (!locSet || (s.location_id != null && locSet.has(s.location_id))))
+  const seasonRows = ((seasons ?? []) as { id: string; name: string | null; location_id: string | null }[])
+    .filter((s) => s.name && seasonKey(s.name) === want);
+  const ids = seasonRows
+    .filter((s) => !locSet || (s.location_id != null && locSet.has(s.location_id)))
     .map((s) => s.id);
+
+  // Which locations have no checklist for this season at all. A location the
+  // checklist app has never heard of counts as missing too, so this is matched
+  // by name against the canonical list rather than by id.
+  const withChecklist = new Set(seasonRows.map((s) => s.location_id).filter(Boolean) as string[]);
+  let missingLocations: string[] = [];
+  if (expectedLocations.length) {
+    const { data: clLocs } = await sb.from("locations").select("id, name");
+    const rows = (clLocs ?? []) as { id: string; name: string }[];
+    const inScope = scope.locationNames ? new Set(scope.locationNames) : null;
+    missingLocations = expectedLocations
+      .filter((n) => !inScope || inScope.has(n))
+      .filter((n) => !rows.some((l) => sameLocation(n, l.name) && withChecklist.has(l.id)))
+      .sort((a, b) => a.localeCompare(b));
+  }
   const { data } = ids.length
     ? await sb.from("season_tasks").select("status, due_date").in("season_id", ids)
     : { data: [] as { status: string; due_date: string | null }[] };
@@ -165,6 +200,14 @@ async function loadChecklistTiles(season: string, scope: Scope): Promise<Tile[] 
   return [
     { label: `Tasks complete · ${season}`, value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pct >= 100 ? "ok" : pct > 0 ? "warn" : "bad" },
     { label: `Overdue tasks · ${season}`, value: overdue.toLocaleString(), sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok" },
+    {
+      label: `No checklist · ${season}`,
+      value: missingLocations.length.toLocaleString(),
+      sub: "locations not set up yet",
+      tone: missingLocations.length > 0 ? "bad" : "ok",
+      pills: missingLocations,
+      pillsEmpty: "every location set up",
+    },
   ];
 }
 
@@ -779,8 +822,8 @@ export default async function DashboardView({
   // Registrations mode shows only the Registrations section, so skip the other
   // source loads entirely — just fetch pacing.
   const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, siteVisits, videoReviews] = await Promise.all([
-    isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope),
-    isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope),
+    isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
+    isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadFeedbackTiles(selectedSeason, scope),
     isReg ? Promise.resolve(null) : loadStatsTiles(seasonsParam, scope, weeksParam),
     isReg ? Promise.resolve(null) : loadContentTiles(seasonsParam, scope, weeksParam),
@@ -1190,7 +1233,7 @@ function Section({
   );
 }
 
-function StatTile({ label, value, unit, sub, lines, tone = "default", link }: Tile) {
+function StatTile({ label, value, unit, sub, lines, tone = "default", link, pills, pillsEmpty }: Tile) {
   const color =
     tone === "ok" ? "rgb(74,222,128)" :
     tone === "warn" ? "var(--glass-gold)" :
@@ -1229,6 +1272,24 @@ function StatTile({ label, value, unit, sub, lines, tone = "default", link }: Ti
             </div>
           ))}
         </div>
+      )}
+      {pills && (
+        pills.length === 0 ? (
+          pillsEmpty ? <div className="mt-2 text-[11px] italic text-glass-text-tertiary">{pillsEmpty}</div> : null
+        ) : (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {pills.map((p) => (
+              <span key={p} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                style={
+                  tone === "bad"
+                    ? { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }
+                    : { color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" }
+                }>
+                {p}
+              </span>
+            ))}
+          </div>
+        )
       )}
       {link && (
         <a href={link.href} target="_blank" rel="noopener noreferrer"
