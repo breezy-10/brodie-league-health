@@ -431,6 +431,24 @@ async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: st
   }
 }
 
+type SiteVisitWeek = {
+  week_start: string; label: string; count: number;
+  avg_score: number | null; avg_tone: Tone;
+  visits: { location: string; score: number | null; date: string }[];
+};
+async function loadSiteVisits(scope: Scope): Promise<SiteVisitWeek[] | null> {
+  try {
+    const url = new URL("/api/site-visits-weekly", "https://brodie-feedback.vercel.app");
+    const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as { weeks: SiteVisitWeek[] };
+    return k.weeks ?? [];
+  } catch {
+    return null;
+  }
+}
+
 const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "last year" };
 const REG_COLOR: Record<string, string> = { current: "var(--glass-gold)", prev_season: "#5B8AC4", prev_year: "#A874C9" };
 const TRACK_PX = 130;
@@ -639,7 +657,7 @@ export default async function DashboardView({
   const scope: Scope = { lm, location, locationNames };
   // Registrations mode shows only the Registrations section, so skip the other
   // source loads entirely — just fetch pacing.
-  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing] = await Promise.all([
+  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, siteVisits] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadFeedbackTiles(selectedSeason, scope),
@@ -648,6 +666,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
     loadRegistrationPacing(pacingSeason, scope, week),
+    isReg ? Promise.resolve(null) : loadSiteVisits(scope),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
@@ -796,6 +815,7 @@ export default async function DashboardView({
             <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
             <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
+            {siteVisits && siteVisits.length > 0 && <SiteVisitsSection weeks={siteVisits} />}
           </>
         )}
       </div>
@@ -809,6 +829,55 @@ export default async function DashboardView({
         </p>
       )}
     </main>
+  );
+}
+
+const TONE_COLOR: Record<string, string> = {
+  ok: "rgb(74,222,128)", warn: "var(--glass-gold)", bad: "rgb(248,113,113)", default: "var(--glass-text-secondary)",
+};
+const scoreTone = (s: number | null): string => TONE_COLOR[s == null ? "default" : s >= 80 ? "ok" : s >= 60 ? "warn" : "bad"];
+
+// Site visits completed each Saturday–Friday week and their scores (from the
+// Feedback app's site-visit scorecards).
+function SiteVisitsSection({ weeks }: { weeks: SiteVisitWeek[] }) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site visits</h2>
+        <a href={`${APP_URL.feedback}/site-visits`} target="_blank" rel="noopener noreferrer"
+          className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+      </div>
+      <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+              <th className="px-5 py-3 font-bold">Week</th>
+              <th className="px-5 py-3 font-bold text-right">Visits</th>
+              <th className="px-5 py-3 font-bold text-right">Avg score</th>
+              <th className="px-5 py-3 font-bold">Scores</th>
+            </tr>
+          </thead>
+          <tbody>
+            {weeks.map((w) => (
+              <tr key={w.week_start} className="border-t border-glass-border-light align-top">
+                <td className="px-5 py-3 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{w.label}</td>
+                <td className="px-5 py-3 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.count}</td>
+                <td className="px-5 py-3 text-right tabular font-semibold" style={{ color: TONE_COLOR[w.avg_tone] }}>{w.avg_score == null ? "—" : `${w.avg_score}%`}</td>
+                <td className="px-5 py-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {w.visits.map((v, i) => (
+                      <span key={i} className="text-[11px] rounded-md px-1.5 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
+                        {v.location} <span className="font-semibold" style={{ color: scoreTone(v.score) }}>{v.score == null ? "—" : `${Math.round(v.score)}%`}</span>
+                      </span>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
