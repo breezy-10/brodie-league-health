@@ -161,6 +161,15 @@ function sameLocation(a: string, b: string): boolean {
   return false;
 }
 
+// Markets that don't run in a given season. A checklist is only expected where
+// the league actually operates, so these drop out of the "No checklist" card.
+// Keyed by season (term + 2-digit year) and maintained by hand — add an entry
+// when a market pauses, and remove it when the market comes back.
+const NOT_RUNNING: Record<string, string[]> = {
+  summer26: ["Edmonton", "Montreal", "Oakville", "Scarborough", "Vancouver", "Winnipeg"],
+  fall26: ["Montreal", "Scarborough"],
+};
+
 async function loadChecklistTiles(season: string, scope: Scope, expectedLocations: string[] = []): Promise<Tile[] | null> {
   if (!sourceConfigured("checklist")) return null;
   const sb = sourceClient("checklist")!;
@@ -184,8 +193,10 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
     const { data: clLocs } = await sb.from("locations").select("id, name");
     const rows = (clLocs ?? []) as { id: string; name: string }[];
     const inScope = scope.locationNames ? new Set(scope.locationNames) : null;
+    const paused = NOT_RUNNING[want] ?? [];
     missingLocations = expectedLocations
       .filter((n) => !inScope || inScope.has(n))
+      .filter((n) => !paused.some((p) => sameLocation(p, n)))
       .filter((n) => !rows.some((l) => sameLocation(n, l.name) && withChecklist.has(l.id)))
       .sort((a, b) => a.localeCompare(b));
   }
@@ -941,7 +952,7 @@ export default async function DashboardView({
 
       <div className="space-y-8">
         {!isReg && (
-          <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} />
+          <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} cols={6} />
         )}
         {pacing && pacingCurrent ? (
           <section className="space-y-3">
@@ -1206,12 +1217,16 @@ function Section({
   tiles,
   sample = false,
   seasonTag,
+  cols = 4,
 }: {
   title: string;
   href?: string;
   tiles: Tile[];
   sample?: boolean;
   seasonTag?: string;
+  // Sections with more than four tiles can ask for a wider grid so the row
+  // doesn't wrap. Class names are spelled out because Tailwind scans literals.
+  cols?: 4 | 6;
 }) {
   return (
     <section className="space-y-3">
@@ -1239,7 +1254,9 @@ function Section({
         )}
       </div>
       {tiles.length ? (
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className={cols === 6
+          ? "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6"
+          : "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}>
           {tiles.map((t, i) => <StatTile key={i} {...t} />)}
         </div>
       ) : (
