@@ -31,7 +31,7 @@ type Tile = {
   value: string;
   unit?: string;
   sub?: string;
-  lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string }[];
+  lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
 };
@@ -242,16 +242,35 @@ async function loadContentTiles(season: string, scope: Scope, week?: string): Pr
       canto?: RosterCard; app?: RosterCard;
     };
     const tiles = [contentTile("iPhone Clips · 12h", k.clips), contentTile("Photos · 3 days", k.photos)];
-    if (k.canto) tiles.push(rosterTile("Canto - players tagged", k.canto, `${k.canto.this_season} this season · ${k.canto.past_season} past season`));
-    if (k.app) tiles.push(rosterTile("App profiles", k.app, `${k.app.current_team} current team · ${k.app.previous_team} previous team`));
+    if (k.canto) tiles.push(rosterTile("Canto - players tagged", k.canto, `${k.canto.this_season} this season · ${k.canto.past_season} past season`, "tagged"));
+    if (k.app) tiles.push(rosterTile("App profiles", k.app, `${k.app.current_team} current team · ${k.app.previous_team} previous team`, "set"));
     return tiles;
   } catch {
     return null;
   }
 }
 
-type RosterCard = { done: number; total: number; pct: number; this_season: number; past_season: number; current_team: number; previous_team: number };
-function rosterTile(label: string, c: RosterCard, split: string): Tile {
+type RosterCard = {
+  done: number; total: number; pct: number; this_season: number; past_season: number;
+  current_team: number; previous_team: number;
+  week?: { count: number; prev_count: number; delta: number } | null;
+};
+// In Weekly Review the headline becomes the week's own count (how many athletes
+// were tagged / had a profile set that week), with the previous week and the
+// delta beneath it; season-to-date completion moves to a supporting line.
+function rosterTile(label: string, c: RosterCard, split: string, noun: string): Tile {
+  const w = c.week;
+  if (w) {
+    return {
+      label, value: w.count.toLocaleString(), unit: noun,
+      sub: `${c.done.toLocaleString()} / ${c.total.toLocaleString()} season to date · ${c.pct}%`,
+      tone: w.count === 0 ? "default" : "ok",
+      lines: [
+        { text: `prev week ${w.prev_count.toLocaleString()}` },
+        { text: signedN(w.delta), color: upColor(w.delta) },
+      ],
+    };
+  }
   return {
     label, value: c.done.toLocaleString(), unit: `/ ${c.total.toLocaleString()}`,
     sub: `${c.pct}% complete`, tone: c.total === 0 ? "default" : pctTone(c.pct),
@@ -1079,7 +1098,7 @@ function StatTile({ label, value, unit, sub, lines, tone = "default", link }: Ti
             <div
               key={i}
               className="text-xs leading-snug flex items-center gap-1.5 flex-wrap"
-              style={{ color: l.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)", fontWeight: l.strong ? 600 : 400 }}
+              style={{ color: l.color ?? (l.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)"), fontWeight: l.strong ? 600 : 400 }}
             >
               <span>{l.text}</span>
               {l.pill && (
