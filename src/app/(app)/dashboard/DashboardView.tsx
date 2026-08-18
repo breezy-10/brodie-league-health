@@ -1077,14 +1077,17 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
                     const dPts = pct != null && prevPct != null ? pct - prevPct : null;
                     return (
                       <>
-                        <div className="tabular font-bold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{w.reviewed}/{w.nights}</div>
-                        <div className="text-[11px] tabular font-semibold whitespace-nowrap" style={{ color: pct == null ? "var(--glass-text-tertiary)" : TONE_COLOR[pctTone(pct)] }}>
-                          {pct == null ? "—" : `${pct}%`}
+                        <div className="tabular font-bold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
+                          {w.reviewed}/{w.nights}{" "}
+                          <span style={{ color: pct == null ? "var(--glass-text-tertiary)" : TONE_COLOR[pctTone(pct)] }}>
+                            {pct == null ? "—" : `${pct}%`}
+                          </span>
                         </div>
-                        <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_reviewed}/{w.prev_nights}</div>
-                        <div className="text-[10px] tabular text-glass-text-tertiary whitespace-nowrap">{prevPct == null ? "—" : `${prevPct}%`}</div>
+                        <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">
+                          {w.prev_reviewed}/{w.prev_nights} {prevPct == null ? "—" : `${prevPct}%`}
+                        </div>
                         <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(dPts ?? 0) }}>
-                          {dPts == null ? "—" : `${dPts > 0 ? "+" : ""}${dPts} pts`}
+                          {dPts == null ? "—" : `${dPts > 0 ? "+" : ""}${dPts}%`}
                         </div>
                       </>
                     );
