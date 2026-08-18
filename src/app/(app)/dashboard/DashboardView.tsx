@@ -510,7 +510,7 @@ async function loadSiteVisits(scope: Scope, week?: string): Promise<SiteVisitsDa
 // nights are named individually so the gap is visible at a glance.
 type VideoReviewWeek = {
   week_start: string; label: string;
-  nights: number;
+  nights: number; prev_nights: number;
   reviewed: number; prev_reviewed: number; reviewed_delta: number;
   missing: number;
   missing_list: { location: string; date: string; day: string }[];
@@ -1068,10 +1068,27 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
                   <div className="text-[10px] text-glass-text-tertiary mt-0.5">prev: {prevWeekLabel(w.week_start)}</div>
                 </td>
                 <td className="px-5 py-3 text-right align-top">
-                  <div className="tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.reviewed}</div>
-                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">of {w.nights} nights</div>
-                  <div className="text-[10px] tabular text-glass-text-tertiary whitespace-nowrap">{w.prev_reviewed}</div>
-                  <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(w.reviewed_delta) }}>{signedN(w.reviewed_delta)}</div>
+                  {/* Coverage this week, then last week, then the change in
+                      percentage points — counts alone hide a week that simply
+                      had more nights to cover. */}
+                  {(() => {
+                    const pct = w.nights ? Math.round((w.reviewed / w.nights) * 100) : null;
+                    const prevPct = w.prev_nights ? Math.round((w.prev_reviewed / w.prev_nights) * 100) : null;
+                    const dPts = pct != null && prevPct != null ? pct - prevPct : null;
+                    return (
+                      <>
+                        <div className="tabular font-bold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{w.reviewed}/{w.nights}</div>
+                        <div className="text-[11px] tabular font-semibold whitespace-nowrap" style={{ color: pct == null ? "var(--glass-text-tertiary)" : TONE_COLOR[pctTone(pct)] }}>
+                          {pct == null ? "—" : `${pct}%`}
+                        </div>
+                        <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_reviewed}/{w.prev_nights}</div>
+                        <div className="text-[10px] tabular text-glass-text-tertiary whitespace-nowrap">{prevPct == null ? "—" : `${prevPct}%`}</div>
+                        <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(dPts ?? 0) }}>
+                          {dPts == null ? "—" : `${dPts > 0 ? "+" : ""}${dPts} pts`}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </td>
                 <td className="px-5 py-3">
                   {w.missing_list.length === 0 ? (
