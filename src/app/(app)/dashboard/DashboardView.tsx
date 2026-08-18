@@ -870,7 +870,7 @@ function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
                   <div className="flex flex-wrap gap-1.5">
                     {w.visits.map((v, i) => (
                       <span key={i} className="text-[11px] rounded-md px-1.5 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
-                        {v.location} <span className="text-glass-text-tertiary">{v.day}</span> <span className="font-semibold" style={{ color: scoreTone(v.score) }}>{v.score == null ? "—" : `${Math.round(v.score)}%`}</span>
+                        {v.location} <span className="text-glass-text-tertiary">{v.day}</span> <span className="font-semibold" style={{ color: scoreTone(v.score) }}>{v.score == null ? "—" : `${Math.round(v.score)}%`}</span> <span className="text-glass-text-tertiary">· {v.dm}</span>
                       </span>
                     ))}
                   </div>
