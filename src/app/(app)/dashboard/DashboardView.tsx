@@ -453,6 +453,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       full_recording_pct: number | null; full: number; incomplete: number; recording_total: number;
       spare_appearances: number; spare_games: number;
       stat_delivery_ms: number | null; stat_delivery_n: number;
+      forfeits?: number; pending_review?: number;
       prev_stats_completion_pct?: number | null;
       prev_full_recording_pct?: number | null;
       prev_stat_delivery_ms?: number | null;
@@ -477,7 +478,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         { text: `${d > 0 ? "+" : d < 0 ? "−" : ""}${fmtElapsed(Math.abs(d))}`, color: upColor(-d) },
       ];
     };
-    const completionLines: { text: string; strong?: boolean }[] = [];
+    const completionLines: NonNullable<Tile["lines"]> = [];
     // Only show "games played" (external schedule count) when it's sane — it must
     // be >= tracked, since every tracked game was played.
     if (k.games_played != null && k.games_played >= k.games_tracked) {
@@ -488,6 +489,11 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
     completionLines.push({ text: `${n(k.by_source.livebarn)} — LiveBarn` });
     completionLines.push({ text: `${n(k.by_source.scoresheet)} — In-venue` });
     completionLines.push({ text: `${n(k.no_stats)} — No stats` });
+    // Why played can exceed tracked. A forfeit has no stats to collect, so it's
+    // correctly outside the rate; a pending game just hasn't been reviewed yet,
+    // and would otherwise vanish from the card entirely.
+    if (k.pending_review) completionLines.push({ text: `${n(k.pending_review)} — not yet reviewed`, color: "var(--glass-gold)" });
+    if (k.forfeits) completionLines.push({ text: `${n(k.forfeits)} — forfeit, no stats to collect` });
     return [
       {
         label: "Stats completion rate", value: k.stats_completion_pct == null ? "—" : `${k.stats_completion_pct}%`,
