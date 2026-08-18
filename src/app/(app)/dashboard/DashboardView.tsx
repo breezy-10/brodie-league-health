@@ -1087,7 +1087,7 @@ function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
                           {w.prev_reviewed}/{w.prev_nights} {prevPct == null ? "—" : `${prevPct}%`}
                         </div>
                         <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(dPts ?? 0) }}>
-                          {dPts == null ? "—" : `${dPts > 0 ? "+" : ""}${dPts}%`}
+                          {dPts == null ? "—" : `${dPts > 0 ? "+" : ""}${dPts}pts`}
                         </div>
                       </>
                     );
