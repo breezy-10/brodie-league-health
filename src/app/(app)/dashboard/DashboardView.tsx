@@ -279,6 +279,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       by_source: { ballertv: number; livebarn: number; scoresheet: number }; no_stats: number;
       full_recording_pct: number | null; full: number; incomplete: number; recording_total: number;
       spare_appearances: number; spare_games: number;
+      stat_delivery_ms: number | null; stat_delivery_n: number;
     };
     const n = (x: number) => x.toLocaleString();
     const completionLines: { text: string; strong?: boolean }[] = [];
@@ -314,6 +315,11 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
           { text: `${n(k.spare_appearances)} — spare appearances` },
         ],
         link: { href: "https://brodie-stats-health.vercel.app", label: "See games with spares →" },
+      },
+      {
+        label: "Stat delivery time", value: k.stat_delivery_ms == null ? "—" : fmtElapsed(k.stat_delivery_ms),
+        sub: "avg game → stats processed", tone: "default",
+        lines: [{ text: `${n(k.stat_delivery_n)} games processed` }],
       },
     ];
   } catch {
@@ -450,6 +456,25 @@ async function loadSiteVisits(scope: Scope, week?: string): Promise<SiteVisitsDa
     if (!res.ok) return null;
     const k = (await res.json()) as SiteVisitsData;
     return { weeks: k.weeks ?? [], by_dm: k.by_dm ?? [] };
+  } catch {
+    return null;
+  }
+}
+
+type VideoReviewWeek = {
+  week_start: string; label: string; count: number; prev_count: number; count_delta: number;
+  reviews: { location: string; date: string; day: string; reviewer: string }[];
+};
+type VideoReviewsData = { weeks: VideoReviewWeek[]; by_reviewer: { reviewer: string; count: number; prev_count: number; delta: number }[] };
+async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoReviewsData | null> {
+  try {
+    const url = new URL("/api/video-reviews-weekly", "https://brodie-feedback.vercel.app");
+    if (week) url.searchParams.set("week", week);
+    const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as VideoReviewsData;
+    return { weeks: k.weeks ?? [], by_reviewer: k.by_reviewer ?? [] };
   } catch {
     return null;
   }
@@ -663,7 +688,7 @@ export default async function DashboardView({
   const scope: Scope = { lm, location, locationNames };
   // Registrations mode shows only the Registrations section, so skip the other
   // source loads entirely — just fetch pacing.
-  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, siteVisits] = await Promise.all([
+  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, siteVisits, videoReviews] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadFeedbackTiles(selectedSeason, scope),
@@ -673,6 +698,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
     loadRegistrationPacing(pacingSeason, scope, week),
     isReg ? Promise.resolve(null) : loadSiteVisits(scope, week),
+    isReg ? Promise.resolve(null) : loadVideoReviews(scope, week),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
@@ -820,6 +846,7 @@ export default async function DashboardView({
             <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
             <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
             {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} />}
+            {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} />}
             <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
           </>
@@ -913,6 +940,67 @@ function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
               {d.dm} <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{d.count}</span>
               {" "}<span className="tabular" style={{ color: upColor(d.delta) }}>({signedN(d.delta)})</span>
               {d.avg_score != null && <> <span className="font-semibold tabular" style={{ color: TONE_COLOR[d.avg_tone] }}>{d.avg_score}%</span></>}
+            </span>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Video reviews completed each Sat–Fri week, by reviewer (counts only — video
+// reviews are checklists with no single score).
+function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
+  const { weeks, by_reviewer } = data;
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video reviews</h2>
+        <a href={`${APP_URL.feedback}/video-reviews`} target="_blank" rel="noopener noreferrer"
+          className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+      </div>
+      <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+              <th className="px-5 py-3 font-bold">Week</th>
+              <th className="px-5 py-3 font-bold text-right">Reviews</th>
+              <th className="px-5 py-3 font-bold">Detail</th>
+            </tr>
+          </thead>
+          <tbody>
+            {weeks.map((w) => (
+              <tr key={w.week_start} className="border-t border-glass-border-light align-top">
+                <td className="px-5 py-3 whitespace-nowrap align-top">
+                  <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{w.label}</div>
+                  <div className="text-[10px] text-glass-text-tertiary mt-0.5">prev: {prevWeekLabel(w.week_start)}</div>
+                </td>
+                <td className="px-5 py-3 text-right align-top">
+                  <div className="tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.count}</div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_count} prev</div>
+                  <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(w.count_delta) }}>{signedN(w.count_delta)}</div>
+                </td>
+                <td className="px-5 py-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {[...w.reviews].sort((a, b) => a.location.localeCompare(b.location)).map((v, i) => (
+                      <span key={i} className="text-[11px] rounded-md px-1.5 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
+                        {v.location} <span className="text-glass-text-tertiary">{v.day}</span> <span className="text-glass-text-tertiary">· {v.reviewer}</span>
+                      </span>
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {by_reviewer.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">By reviewer</span>
+          {by_reviewer.map((d) => (
+            <span key={d.reviewer} className="text-[11px] rounded-md px-2 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
+              {d.reviewer} <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{d.count}</span>
+              {" "}<span className="tabular" style={{ color: upColor(d.delta) }}>({signedN(d.delta)})</span>
             </span>
           ))}
         </div>
