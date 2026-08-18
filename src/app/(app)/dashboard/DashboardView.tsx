@@ -161,14 +161,55 @@ function sameLocation(a: string, b: string): boolean {
   return false;
 }
 
-// Markets that don't run in a given season. A checklist is only expected where
-// the league actually operates, so these drop out of the "No checklist" card.
-// Keyed by season (term + 2-digit year) and maintained by hand — add an entry
-// when a market pauses, and remove it when the market comes back.
-const NOT_RUNNING: Record<string, string[]> = {
-  summer26: ["Edmonton", "Montreal", "Oakville", "Scarborough", "Vancouver", "Winnipeg"],
-  fall26: ["Montreal", "Scarborough"],
-};
+// A booking counts as the venue being lined up once it's past "need to book" —
+// the four statuses the facilities app offers after that.
+const BOOKED_STATUSES = ["in_communication", "verbal_confirmation", "booked_with_flexibility", "booked_with_contract"];
+
+// Which markets actually run a given season: the ones that have BOTH
+// registrations (per the promo tracker) and facility bookings entered at one of
+// the statuses above. A market with neither isn't operating, so it isn't
+// expected to have a season checklist.
+async function loadOperatingLocations(season: string, candidates: string[]): Promise<string[] | null> {
+  if (!candidates.length || !sourceConfigured("facilities")) return null;
+  const want = seasonKey(season);
+  try {
+    const fac = sourceClient("facilities")!;
+    const [{ data: fSeasons }, { data: facilities }, pacingRes] = await Promise.all([
+      fac.from("seasons").select("id, name"),
+      fac.from("facilities").select("id, city"),
+      (async () => {
+        const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
+        url.searchParams.set("season", season);
+        url.searchParams.set("breakdown", "location");
+        const r = await fetch(url.toString(), { cache: "no-store" });
+        return r.ok ? ((await r.json()) as Pacing) : null;
+      })(),
+    ]);
+    const seasonIds = ((fSeasons ?? []) as { id: string; name: string | null }[])
+      .filter((s) => s.name && seasonKey(s.name) === want).map((s) => s.id);
+    if (!seasonIds.length || !pacingRes) return null;
+
+    const cityById = new Map(((facilities ?? []) as { id: string; city: string | null }[]).map((f) => [f.id, f.city ?? ""]));
+    const { data: bookings } = await fac.from("bookings")
+      .select("facility_id").in("season_id", seasonIds).in("status", BOOKED_STATUSES);
+    const bookedCities = new Set(((bookings ?? []) as { facility_id: string }[])
+      .map((b) => cityById.get(b.facility_id) ?? "").filter(Boolean));
+    if (!bookedCities.size) return null;
+
+    const registered = (pacingRes.locations ?? [])
+      .filter((l) => {
+        const cur = l.seasons.find((s) => s.kind === "current");
+        return !!cur && (cur.captains > 0 || cur.athletes > 0);
+      })
+      .map((l) => l.location);
+    if (!registered.length) return null;
+
+    return candidates.filter((n) =>
+      registered.some((r) => sameLocation(n, r)) && [...bookedCities].some((c) => sameLocation(n, c)));
+  } catch {
+    return null;
+  }
+}
 
 async function loadChecklistTiles(season: string, scope: Scope, expectedLocations: string[] = []): Promise<Tile[] | null> {
   if (!sourceConfigured("checklist")) return null;
@@ -193,10 +234,12 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
     const { data: clLocs } = await sb.from("locations").select("id, name");
     const rows = (clLocs ?? []) as { id: string; name: string }[];
     const inScope = scope.locationNames ? new Set(scope.locationNames) : null;
-    const paused = NOT_RUNNING[want] ?? [];
-    missingLocations = expectedLocations
+    // Only markets actually running this season are expected to have one. When
+    // that can't be determined, fall back to every candidate rather than
+    // silently reporting nothing outstanding.
+    const operating = await loadOperatingLocations(season, expectedLocations);
+    missingLocations = (operating ?? expectedLocations)
       .filter((n) => !inScope || inScope.has(n))
-      .filter((n) => !paused.some((p) => sameLocation(p, n)))
       .filter((n) => !rows.some((l) => sameLocation(n, l.name) && withChecklist.has(l.id)))
       .sort((a, b) => a.localeCompare(b));
   }
