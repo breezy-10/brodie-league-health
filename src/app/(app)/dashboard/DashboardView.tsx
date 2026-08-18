@@ -845,6 +845,13 @@ const scoreTone = (s: number | null): string => TONE_COLOR[s == null ? "default"
 // WoW deltas: more visits / higher score = green, fewer / lower = red.
 const upColor = (n: number) => (n > 0 ? "rgb(74,222,128)" : n < 0 ? "rgb(248,113,113)" : "var(--glass-text-tertiary)");
 const signedN = (n: number) => `${n > 0 ? "+" : ""}${n}`;
+const SV_MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// The Sat-Fri week before this week's Saturday, e.g. "Aug 1 – Aug 7".
+function prevWeekLabel(sat: string): string {
+  const s = new Date(sat + "T00:00:00Z"); s.setUTCDate(s.getUTCDate() - 7);
+  const f = new Date(s); f.setUTCDate(f.getUTCDate() + 6);
+  return `${SV_MON[s.getUTCMonth()]} ${s.getUTCDate()} – ${SV_MON[f.getUTCMonth()]} ${f.getUTCDate()}`;
+}
 
 // Site visits completed each Saturday–Friday week and their scores (from the
 // Feedback app's site-visit scorecards).
@@ -870,22 +877,23 @@ function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
           <tbody>
             {weeks.map((w) => (
               <tr key={w.week_start} className="border-t border-glass-border-light align-top">
-                <td className="px-5 py-3 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{w.label}</td>
+                <td className="px-5 py-3 whitespace-nowrap align-top">
+                  <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{w.label}</div>
+                  <div className="text-[10px] text-glass-text-tertiary mt-0.5">prev: {prevWeekLabel(w.week_start)}</div>
+                </td>
                 <td className="px-5 py-3 text-right align-top">
                   <div className="tabular font-bold" style={{ color: "var(--glass-text)" }}>{w.count}</div>
-                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">
-                    {w.prev_count} prev · <span style={{ color: upColor(w.count_delta) }}>{signedN(w.count_delta)}</span>
-                  </div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_count} prev</div>
+                  <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(w.count_delta) }}>{signedN(w.count_delta)}</div>
                 </td>
                 <td className="px-5 py-3 text-right align-top">
                   <div className="tabular font-semibold" style={{ color: TONE_COLOR[w.avg_tone] }}>{w.avg_score == null ? "—" : `${w.avg_score}%`}</div>
-                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">
-                    {w.prev_avg == null ? "—" : `${w.prev_avg}%`} prev{w.avg_delta != null && <> · <span style={{ color: upColor(w.avg_delta) }}>{signedN(w.avg_delta)}</span></>}
-                  </div>
+                  <div className="text-[10px] tabular text-glass-text-tertiary mt-0.5 whitespace-nowrap">{w.prev_avg == null ? "—" : `${w.prev_avg}%`} prev</div>
+                  {w.avg_delta != null && <div className="text-[10px] tabular whitespace-nowrap" style={{ color: upColor(w.avg_delta) }}>{signedN(w.avg_delta)}</div>}
                 </td>
                 <td className="px-5 py-3">
                   <div className="flex flex-wrap gap-1.5">
-                    {w.visits.map((v, i) => (
+                    {[...w.visits].sort((a, b) => a.location.localeCompare(b.location)).map((v, i) => (
                       <span key={i} className="text-[11px] rounded-md px-1.5 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
                         {v.location} <span className="text-glass-text-tertiary">{v.day}</span> <span className="font-semibold" style={{ color: scoreTone(v.score) }}>{v.score == null ? "—" : `${Math.round(v.score)}%`}</span> <span className="text-glass-text-tertiary">· {v.dm}</span>
                       </span>
