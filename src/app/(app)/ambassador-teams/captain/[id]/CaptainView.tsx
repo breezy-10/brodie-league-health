@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { resolveScope, loadActiveLMs } from "@/lib/seasons";
+import { resolveScope } from "@/lib/seasons";
 
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
@@ -77,10 +77,8 @@ export default async function CaptainView({
   const { id } = await params;
   const { season: seasonParam } = await searchParams;
 
-  const activeLMs = await loadActiveLMs();
   const { selectedSeason } = await resolveScope(
-    { season: seasonParam, location: "all", lm: "all" },
-    activeLMs,
+    { season: seasonParam },
     { defaultSeason: "registration" },
   );
 

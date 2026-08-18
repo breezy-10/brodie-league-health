@@ -707,13 +707,12 @@ export default async function DashboardView({
   await requireUser();
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
-  const { season: seasonParam, location: locationParam, lm: lmParam, week: weekParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, week: weekParam } = await searchParams;
   // Every filter accepts a comma-separated list, so several seasons, weeks,
   // locations and league managers can be selected at once.
   const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
   const selectedSeasons = csv(seasonParam);
   const selectedLocations = csv(locationParam);
-  const selectedLms = csv(lmParam);
   // Weekly Review: resolve the selected Saturday-Friday weeks (default = current).
   const weeks = isWeekly ? weekOptions() : [];
   const selectedWeeks = isWeekly
@@ -743,8 +742,7 @@ export default async function DashboardView({
   // so there the filter picks the registration season directly — selecting
   // Fall '26 shows Fall '26 rather than silently reporting the season after.
   const { promoLocations, promoSeasons, selectedSeason, regSeason, locationNames } = await resolveScope(
-    { season: selectedSeasons[0], locations: selectedLocations, lms: selectedLms },
-    activeLMs,
+    { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: isReg ? "registration" : "playing" },
   );
   const pacingSeason = isReg ? selectedSeason : regSeason;
@@ -794,13 +792,11 @@ export default async function DashboardView({
   // A snapshot is in scope if it matches ANY selected location or league
   // manager (the same union the source-app queries use).
   const rosterLocations = new Set(selectedLocations.map((l) => PROMO_TO_ROSTER[l] ?? l));
-  const lmIds = new Set(selectedLms);
   const filtered = snaps.filter((s) => {
     if (!s.league_managers?.active) return false;
-    if (!rosterLocations.size && !lmIds.size) return true;
+    if (!rosterLocations.size) return true;
     const locName = s.league_managers.location_name;
-    return (rosterLocations.size > 0 && locName != null && rosterLocations.has(locName))
-      || (lmIds.size > 0 && lmIds.has(s.league_managers.id));
+    return locName != null && rosterLocations.has(locName);
   });
 
   type MetricAgg = { name: string; slug: string; sum: number; n: number };
@@ -830,21 +826,14 @@ export default async function DashboardView({
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
     locations: promoLocations,
-    lms: activeLMs.map((l) => ({ id: l.id, name: l.full_name || "—" })),
     ...(isWeekly ? { weeks } : {}),
   };
 
-  // Name the scope: one selection reads by name, several read as a count, and
+  // Name the scope: one location reads by name, several read as a count, and
   // nothing selected means the whole league.
-  const lmNames = selectedLms.map((id) => activeLMs.find((l) => l.id === id)?.full_name).filter(Boolean) as string[];
   const scopeLabel =
-    lmNames.length === 1 && !selectedLocations.length ? lmNames[0]
-    : selectedLocations.length === 1 && !lmNames.length ? selectedLocations[0]
-    : lmNames.length || selectedLocations.length
-      ? [
-          lmNames.length ? `${lmNames.length} league manager${lmNames.length > 1 ? "s" : ""}` : null,
-          selectedLocations.length ? `${selectedLocations.length} location${selectedLocations.length > 1 ? "s" : ""}` : null,
-        ].filter(Boolean).join(" + ")
+    selectedLocations.length === 1 ? selectedLocations[0]
+    : selectedLocations.length ? `${selectedLocations.length} locations`
     : `all ${activeLMs.length} league managers`;
 
   // Registration section subtitles read by week in Weekly Review, by day-of-
@@ -867,12 +856,11 @@ export default async function DashboardView({
       </header>
 
       <Filters
-        key={`${selectedSeasons.join(",")}|${activeWeeks.join(",")}|${selectedLocations.join(",")}|${selectedLms.join(",")}`}
+        key={`${selectedSeasons.join(",")}|${activeWeeks.join(",")}|${selectedLocations.join(",")}`}
         options={options}
         current={{
           seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
           locations: selectedLocations,
-          lms: selectedLms,
           ...(isWeekly ? { weeks: activeWeeks } : {}),
         }}
       />
