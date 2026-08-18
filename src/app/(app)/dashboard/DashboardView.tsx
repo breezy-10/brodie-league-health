@@ -31,7 +31,7 @@ type Tile = {
   value: string;
   unit?: string;
   sub?: string;
-  lines?: { text: string; strong?: boolean }[];
+  lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
 };
@@ -74,8 +74,8 @@ const SAMPLE: Record<string, Tile[]> = {
     { label: "Overdue Balance - US Locations", value: "$13,184.17 USD", sub: "64 players" },
   ],
   content: [
-    { label: "iPhone Clips · 12h", value: "22.0", unit: "/hr", sub: "target 20/hr", tone: "ok", lines: [{ text: "24,632 clips delivered · 1,118.5h worked", strong: true }, { text: "110% of expected · SLA hit 36%" }] },
-    { label: "Photos · 3 days", value: "74.5", unit: "/hr", sub: "target 90/hr", tone: "bad", lines: [{ text: "99,101 photos delivered · 1,331.0h worked", strong: true }, { text: "83% of expected · SLA hit 25%" }] },
+    { label: "iPhone Clips · 12h", value: "22.0", unit: "/hr", sub: "target 20/hr", tone: "ok", lines: [{ text: "Drive", strong: true, pill: { text: "On time", ok: true }, after: "0m" }, { text: "Posted", strong: true, pill: { text: "On time", ok: true }, after: "9h 14m" }] },
+    { label: "Photos · 3 days", value: "74.5", unit: "/hr", sub: "target 90/hr", tone: "bad", lines: [{ text: "Drive", strong: true, pill: { text: "On time", ok: true }, after: "3h" }, { text: "Posted", strong: true, pill: { text: "Late", ok: false }, after: "4d 2h" }] },
     { label: "Canto - players tagged", value: "673", unit: "/ 736", sub: "91% complete", tone: "ok", lines: [{ text: "673 this season · 0 past season" }] },
     { label: "App profiles", value: "641", unit: "/ 736", sub: "87% complete", tone: "ok", lines: [{ text: "577 current team · 64 previous team" }] },
   ],
@@ -199,16 +199,33 @@ async function loadFeedbackTiles(season: string, scope: Scope): Promise<Tile[] |
 
 // Content Health reads the app's OWN KPI feed (SLA + expected-delivery math),
 // so the iPhone Clips + Photos cards match its site exactly. Null -> sample.
-type ContentCard = { delivered: number; hours_worked: number; rate: number | null; target: number; expected_pct: number | null; sla_pct: number | null };
-function contentTile(label: string, unit: string, c: ContentCard): Tile {
-  const hrs = c.hours_worked.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+type ContentCard = {
+  delivered: number; hours_worked: number; rate: number | null; target: number;
+  expected_pct: number | null; sla_pct: number | null;
+  drive_ms: number | null; drive_on_time: boolean | null;
+  post_ms: number | null; post_on_time: boolean | null;
+};
+// "0m", "9h 14m", "1d 4h" — matches Content Health's formatElapsedShort.
+function fmtElapsed(ms: number): string {
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) { const m = mins % 60; return m ? `${hours}h ${m}m` : `${hours}h`; }
+  const days = Math.floor(hours / 24); const h = hours % 24;
+  return h ? `${days}d ${h}h` : `${days}d`;
+}
+function timingLine(label: string, ms: number | null, onTime: boolean | null): { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string } {
+  if (ms == null) return { text: label, strong: true, after: "—" };
+  return { text: label, strong: true, pill: { text: onTime ? "On time" : "Late", ok: !!onTime }, after: fmtElapsed(ms) };
+}
+function contentTile(label: string, c: ContentCard): Tile {
   return {
     label, value: c.rate == null ? "—" : c.rate.toFixed(1), unit: "/hr",
     sub: `target ${c.target}/hr`,
     tone: c.rate == null ? "default" : c.rate >= c.target ? "ok" : "bad",
     lines: [
-      { text: `${c.delivered.toLocaleString()} ${unit} delivered · ${hrs}h worked`, strong: true },
-      { text: `${c.expected_pct == null ? "—" : `${c.expected_pct}%`} of expected · SLA hit ${c.sla_pct == null ? "—" : `${c.sla_pct}%`}` },
+      timingLine("Drive", c.drive_ms, c.drive_on_time),
+      timingLine("Posted", c.post_ms, c.post_on_time),
     ],
   };
 }
@@ -224,7 +241,7 @@ async function loadContentTiles(season: string, scope: Scope, week?: string): Pr
       clips: ContentCard; photos: ContentCard;
       canto?: RosterCard; app?: RosterCard;
     };
-    const tiles = [contentTile("iPhone Clips · 12h", "clips", k.clips), contentTile("Photos · 3 days", "photos", k.photos)];
+    const tiles = [contentTile("iPhone Clips · 12h", k.clips), contentTile("Photos · 3 days", k.photos)];
     if (k.canto) tiles.push(rosterTile("Canto - players tagged", k.canto, `${k.canto.this_season} this season · ${k.canto.past_season} past season`));
     if (k.app) tiles.push(rosterTile("App profiles", k.app, `${k.app.current_team} current team · ${k.app.previous_team} previous team`));
     return tiles;
@@ -864,10 +881,22 @@ function StatTile({ label, value, unit, sub, lines, tone = "default", link }: Ti
           {lines.map((l, i) => (
             <div
               key={i}
-              className="text-xs leading-snug"
+              className="text-xs leading-snug flex items-center gap-1.5 flex-wrap"
               style={{ color: l.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)", fontWeight: l.strong ? 600 : 400 }}
             >
-              {l.text}
+              <span>{l.text}</span>
+              {l.pill && (
+                <span
+                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                  style={{
+                    color: l.pill.ok ? "rgb(74,222,128)" : "rgb(248,113,113)",
+                    background: l.pill.ok ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)",
+                  }}
+                >
+                  {l.pill.text}
+                </span>
+              )}
+              {l.after && <span className="font-normal text-glass-text-tertiary">{l.after}</span>}
             </div>
           ))}
         </div>
