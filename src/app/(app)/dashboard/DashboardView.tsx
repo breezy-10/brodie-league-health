@@ -212,10 +212,11 @@ function contentTile(label: string, unit: string, c: ContentCard): Tile {
     ],
   };
 }
-async function loadContentTiles(season: string, scope: Scope): Promise<Tile[] | null> {
+async function loadContentTiles(season: string, scope: Scope, week?: string): Promise<Tile[] | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://brodie-content-health.vercel.app");
     url.searchParams.set("season", season);
+    if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
@@ -248,10 +249,11 @@ function rosterTile(label: string, c: RosterCard, split: string): Tile {
 // back to the sample card rather than show wrong live numbers.
 // Stats Health reads the app's OWN KPI feed (same paginated card math +
 // scheduledPlayedCount), so the numbers match its site exactly. Null -> sample.
-async function loadStatsTiles(season: string, scope: Scope): Promise<Tile[] | null> {
+async function loadStatsTiles(season: string, scope: Scope, week?: string): Promise<Tile[] | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://brodie-stats-health.vercel.app");
     url.searchParams.set("season", season);
+    if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
@@ -396,11 +398,12 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string };
 type PacingLocation = { location: string; seasons: PacingSeason[]; retention?: Retention | null };
 type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[] };
-async function loadRegistrationPacing(regSeason: string, scope: Scope): Promise<Pacing | null> {
+async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string): Promise<Pacing | null> {
   try {
     const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", regSeason);
     url.searchParams.set("breakdown", "location");
+    if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
@@ -556,16 +559,42 @@ function LocationStrip({ locations, prevLabel, yearLabel, season }: {
   );
 }
 
+// Saturday-Friday weeks for the Weekly Review filter. Value = the Saturday
+// (YYYY-MM-DD); most recent first.
+const WK_MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function weekOptions(count = 16): { value: string; label: string }[] {
+  const now = new Date();
+  const sat = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  sat.setUTCDate(sat.getUTCDate() - ((sat.getUTCDay() - 6 + 7) % 7));
+  const out: { value: string; label: string }[] = [];
+  for (let i = 0; i < count; i++) {
+    const s = new Date(sat); s.setUTCDate(s.getUTCDate() - 7 * i);
+    const f = new Date(s); f.setUTCDate(f.getUTCDate() + 6);
+    out.push({
+      value: s.toISOString().slice(0, 10),
+      label: `${WK_MON[s.getUTCMonth()]} ${s.getUTCDate()} – ${WK_MON[f.getUTCMonth()]} ${f.getUTCDate()}`,
+    });
+  }
+  return out;
+}
+
 export default async function DashboardView({
   searchParams,
   mode = "full",
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string }>;
-  mode?: "full" | "registrations";
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string }>;
+  mode?: "full" | "registrations" | "weekly";
 }) {
   await requireUser();
   const isReg = mode === "registrations";
-  const { season: seasonParam, location = "all", lm = "all" } = await searchParams;
+  const isWeekly = mode === "weekly";
+  const { season: seasonParam, location = "all", lm = "all", week: weekParam } = await searchParams;
+  // Weekly Review: resolve the selected Saturday-Friday week (default = current).
+  const weeks = isWeekly ? weekOptions() : [];
+  const week = isWeekly
+    ? (weekParam && weeks.some((w) => w.value === weekParam) ? weekParam : weeks[0]?.value)
+    : undefined;
+  const weekLabel = weeks.find((w) => w.value === week)?.label ?? "";
   const admin = createAdminClient();
 
   const { data: latest } = await admin
@@ -597,11 +626,11 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadFeedbackTiles(selectedSeason, scope),
-    isReg ? Promise.resolve(null) : loadStatsTiles(selectedSeason, scope),
-    isReg ? Promise.resolve(null) : loadContentTiles(selectedSeason, scope),
+    isReg ? Promise.resolve(null) : loadStatsTiles(selectedSeason, scope, week),
+    isReg ? Promise.resolve(null) : loadContentTiles(selectedSeason, scope, week),
     isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
-    loadRegistrationPacing(pacingSeason, scope),
+    loadRegistrationPacing(pacingSeason, scope, week),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
@@ -659,6 +688,7 @@ export default async function DashboardView({
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
     locations: promoLocations,
     lms: activeLMs.map((l) => ({ id: l.id, name: l.full_name || "—" })),
+    ...(isWeekly ? { weeks } : {}),
   };
 
   const scopeLabel =
@@ -666,19 +696,26 @@ export default async function DashboardView({
     : location !== "all" ? location
     : `all ${activeLMs.length} league managers`;
 
+  // Registration section subtitles read by week in Weekly Review, by day-of-
+  // registration otherwise.
+  const regBarWhen = isWeekly ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"} of registration`;
+  const regDeltaWhen = isWeekly ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"}`;
+
   return (
     <main className="brodie-fade-in space-y-8">
       <header>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>{isReg ? "Registrations" : "Dashboard"}</p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>{isReg ? "Registration pacing" : "League overview"}</h1>
+        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>{isReg ? "Registrations" : isWeekly ? "Weekly review" : "Dashboard"}</p>
+        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>{isReg ? "Registration pacing" : isWeekly ? "Weekly review" : "League overview"}</h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
           {isReg
             ? <>Teams &amp; athletes at day N of registration for {scopeLabel}, vs the previous season and last year.</>
-            : <>Cross-app health for {scopeLabel}.{snapDate ? ` As of ${snapDate}.` : ""}</>}
+            : isWeekly
+              ? <>Cross-app health for {scopeLabel}, scoped to the week of {weekLabel} (Sat–Fri). Registrations, Stats Health &amp; Content Health are week-scoped; other sections show the season to date.</>
+              : <>Cross-app health for {scopeLabel}.{snapDate ? ` As of ${snapDate}.` : ""}</>}
         </p>
       </header>
 
-      <Filters key={`${selectedSeason}|${location}|${lm}`} options={options} current={{ season: selectedSeason, location, lm }} />
+      <Filters key={`${selectedSeason}|${week ?? ""}|${location}|${lm}`} options={options} current={{ season: selectedSeason, location, lm, week }} />
 
       <div className="space-y-8">
         {!isReg && (
@@ -701,25 +738,25 @@ export default async function DashboardView({
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <RegBarCard title="Total teams" subtitle={`captain registrations · day ${pacing.day_n ?? "?"} of registration`} current={pacingCurrent.captains} bars={regBars("captains")} />
-              <RegBarCard title="Total athletes" subtitle={`athlete registrations · day ${pacing.day_n ?? "?"} of registration`} current={pacingCurrent.athletes} bars={regBars("athletes")} />
+              <RegBarCard title="Total teams" subtitle={`captain registrations · ${regBarWhen}`} current={pacingCurrent.captains} bars={regBars("captains")} />
+              <RegBarCard title="Total athletes" subtitle={`athlete registrations · ${regBarWhen}`} current={pacingCurrent.athletes} bars={regBars("athletes")} />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <RegDeltaCard
                 title="Teams vs prev season"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · day ${pacing.day_n ?? "?"}`}
+                subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
                 delta={regDelta("captains", pacingPrevSeason)} />
               <RegDeltaCard
                 title="Teams vs last year"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · day ${pacing.day_n ?? "?"}`}
+                subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
                 delta={regDelta("captains", pacingPrevYear)} />
               <RegDeltaCard
                 title="Athletes vs prev season"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · day ${pacing.day_n ?? "?"}`}
+                subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
                 delta={regDelta("athletes", pacingPrevSeason)} />
               <RegDeltaCard
                 title="Athletes vs last year"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · day ${pacing.day_n ?? "?"}`}
+                subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
                 delta={regDelta("athletes", pacingPrevYear)} />
             </div>
             {pacing.locations?.length ? (
