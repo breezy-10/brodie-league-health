@@ -19,7 +19,6 @@ const SELECT =
 export interface FilterOptions {
   seasons: { value: string; label: string }[];
   locations: string[];
-  lms: { id: string; name: string }[];
   // When provided, a Week filter (Saturday–Friday) renders between Season and
   // Location. Values are the week's Saturday, "YYYY-MM-DD".
   weeks?: { value: string; label: string }[];
@@ -33,9 +32,9 @@ export default function Filters({
   current,
 }: {
   options: FilterOptions;
-  // Each filter is a list: [] means "all" for location/league manager, and for
-  // season/week means "the default" (the resolved season / current week).
-  current: { seasons: string[]; locations: string[]; lms: string[]; weeks?: string[] };
+  // Each filter is a list: [] means "all locations", and for season/week means
+  // "the default" (the resolved season / current week).
+  current: { seasons: string[]; locations: string[]; weeks?: string[] };
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -46,11 +45,10 @@ export default function Filters({
   const [seasons, setSeasons] = useState(current.seasons);
   const [weeks, setWeeks] = useState(current.weeks ?? []);
   const [locations, setLocations] = useState(current.locations);
-  const [lms, setLms] = useState(current.lms);
 
   const dirty =
     !sameSet(seasons, current.seasons) || !sameSet(locations, current.locations) ||
-    !sameSet(lms, current.lms) || (hasWeeks && !sameSet(weeks, current.weeks ?? []));
+    (hasWeeks && !sameSet(weeks, current.weeks ?? []));
 
   function apply() {
     if (!dirty) return;
@@ -58,7 +56,6 @@ export default function Filters({
     if (seasons.length) next.set("season", seasons.join(","));
     if (hasWeeks && weeks.length) next.set("week", weeks.join(","));
     if (locations.length) next.set("location", locations.join(","));
-    if (lms.length) next.set("lm", lms.join(","));
     const qs = next.toString();
     startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname));
   }
@@ -92,15 +89,6 @@ export default function Filters({
           onChange={setLocations}
           allLabel="All locations"
           singularNoun="locations"
-        />
-      </Field>
-      <Field label="League manager">
-        <MultiSelect
-          options={options.lms.map((l) => ({ value: l.id, label: l.name }))}
-          value={lms}
-          onChange={setLms}
-          allLabel="All league managers"
-          singularNoun="league managers"
         />
       </Field>
       <button

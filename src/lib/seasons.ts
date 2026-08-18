@@ -117,17 +117,16 @@ export type Scope = {
   locationNames: string[] | null;
 };
 
-// Resolve the filter bar (season / location / league manager) into the season
-// labels and location list every tab queries with.
+// Resolve the filter bar (season / location) into the season labels and
+// location list every tab queries with.
 export async function resolveScope(
-  params: { season?: string; location?: string; lm?: string; seasons?: string[]; locations?: string[]; lms?: string[] },
-  activeLMs: ActiveLM[],
+  params: { season?: string; location?: string; seasons?: string[]; locations?: string[] },
   // Tabs about registration work (Registrations, Referrals) default to the
   // season being registered for; the cross-app Dashboard defaults to the season
   // currently being played, which is where its other sections' data lives.
   opts: { defaultSeason?: "playing" | "registration" } = {},
 ): Promise<Scope> {
-  const { season: seasonParam, location = "all", lm = "all" } = params;
+  const { season: seasonParam, location = "all" } = params;
 
   // Locations + seasons from the Registration Promo Tracker — live when the
   // PROMO_SUPABASE_* connection is wired, otherwise the copied fallbacks.
@@ -177,25 +176,10 @@ export async function resolveScope(
     .filter((n) => !!parseSeason(n))
     .sort((a, b) => seasonRank(parseSeason(b)!) - seasonRank(parseSeason(a)!));
 
-  // Resolve the scope's location names. Multiple locations and multiple league
-  // managers can be selected at once: each LM contributes the locations they
-  // cover (per the districts app), each location contributes itself, and the
-  // scope is the UNION of both. null = unfiltered (all locations).
-  const selectedLms = params.lms?.length ? params.lms : (lm !== "all" ? [lm] : []);
+  // Resolve the scope's location names. Several locations can be selected at
+  // once and the scope is their union. null = unfiltered (all locations).
   const selectedLocations = params.locations?.length ? params.locations : (location !== "all" ? [location] : []);
-  let locationNames: string[] | null = null;
-  if (selectedLms.length || selectedLocations.length) {
-    const names = new Set<string>(selectedLocations);
-    if (selectedLms.length) {
-      const coverage = await loadLmCoverage();
-      for (const id of selectedLms) {
-        const lmName = (activeLMs.find((l) => l.id === id)?.full_name ?? "").toLowerCase().trim();
-        const covered = coverage?.find((c) => c.lm.toLowerCase().trim() === lmName)?.locations ?? [];
-        for (const n of covered) names.add(n);
-      }
-    }
-    locationNames = [...names];
-  }
+  const locationNames: string[] | null = selectedLocations.length ? [...new Set(selectedLocations)] : null;
 
   return {
     promoLocations,
