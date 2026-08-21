@@ -599,20 +599,44 @@ function addDaysIso(iso: string, days: number): string {
 // it, so the per-manager rows always sum to the headline total.
 type TouchRow = { manager: string; touches: number; notes: number };
 type TouchData = { touches: number; notes: number; rows: TouchRow[] };
-async function loadTouchData(scope: Scope, fromIso?: string, toIso?: string): Promise<TouchData | null> {
+async function loadTouchData(
+  scope: Scope,
+  opts: { fromIso?: string; toIso?: string; season?: string; weekLabel?: string },
+): Promise<(TouchData & { label: string }) | null> {
   if (!sourceConfigured("crm")) return null;
   try {
     const sb = sourceClient("crm")!;
 
+    // Window. A week beats a season when both are given (Weekly Review). For a
+    // season, the CRM's own registry supplies the recruiting window; seasons
+    // with no registration_start recorded can't be bounded, so those read all
+    // time rather than inventing a range.
+    let fromIso = opts.fromIso, toIso = opts.toIso;
+    let label = opts.weekLabel ?? (fromIso ? "selected week" : "all time");
+    if (!fromIso && opts.season) {
+      const { data: seas } = await sb.from("seasons").select("key, p1_name, ordinal, registration_start");
+      const rows = ((seas ?? []) as { key: string; p1_name: string | null; ordinal: number; registration_start: string | null }[])
+        .sort((a, b) => a.ordinal - b.ordinal);
+      const hit = rows.find((s) => seasonKey(s.p1_name ?? s.key) === seasonKey(opts.season!));
+      if (hit?.registration_start) {
+        fromIso = hit.registration_start;
+        const next = rows.find((s) => s.ordinal > hit.ordinal && s.registration_start);
+        toIso = next?.registration_start ?? undefined;
+        label = `${opts.season} registration`;
+      } else {
+        label = "all time";
+      }
+    }
+
     // Scope to the filtered locations via the lead each activity is against.
     let leadIds: string[] | null = null;
     if (scope.locationNames) {
-      if (!scope.locationNames.length) return { touches: 0, notes: 0, rows: [] };
+      if (!scope.locationNames.length) return { touches: 0, notes: 0, rows: [], label };
       const { data: locs } = await sb.from("locations").select("id, name");
       const wanted = ((locs ?? []) as { id: string; name: string }[])
         .filter((l) => scope.locationNames!.some((n) => sameLocation(n, l.name)))
         .map((l) => l.id);
-      if (!wanted.length) return { touches: 0, notes: 0, rows: [] };
+      if (!wanted.length) return { touches: 0, notes: 0, rows: [], label };
       const ids: string[] = [];
       for (let from = 0; ; from += 1000) {
         const { data } = await sb.from("leads").select("id").in("location_id", wanted).order("id").range(from, from + 999);
@@ -620,55 +644,71 @@ async function loadTouchData(scope: Scope, fromIso?: string, toIso?: string): Pr
         ids.push(...page.map((l) => l.id));
         if (page.length < 1000) break;
       }
-      if (!ids.length) return { touches: 0, notes: 0, rows: [] };
+      if (!ids.length) return { touches: 0, notes: 0, rows: [], label };
       leadIds = ids;
     }
 
     const { data: mgrs } = await sb.from("managers").select("id, name");
     const nameById = new Map(((mgrs ?? []) as { id: string; name: string }[]).map((m) => [m.id, m.name]));
 
-    type A = { manager_id: string | null; actor_manager_id: string | null; channel: string; direction: string };
-    const rows: A[] = [];
-    for (let from = 0; from < 200000; from += 1000) {
-      let q = sb.from("activities").select("manager_id, actor_manager_id, channel, direction").order("id");
-      if (fromIso) q = q.gte("occurred_at", fromIso);
-      if (toIso) q = q.lt("occurred_at", toIso);
-      // A location filter can select more lead ids than a URL-length .in()
-      // comfortably takes, so it's chunked rather than sent as one list.
-      if (leadIds) {
-        const pages: A[] = [];
-        for (let i = 0; i < leadIds.length; i += 200) {
-          let cq = sb.from("activities").select("manager_id, actor_manager_id, channel, direction")
-            .in("lead_id", leadIds.slice(i, i + 200));
-          if (fromIso) cq = cq.gte("occurred_at", fromIso);
-          if (toIso) cq = cq.lt("occurred_at", toIso);
-          const { data } = await cq;
-          pages.push(...((data ?? []) as A[]));
+    type Row = { manager_id: string | null; actor_manager_id: string | null; source?: string | null; body?: string | null };
+    // One paginated read, optionally chunked over the scoped lead ids because
+    // a location filter can select more than a single .in() list should carry.
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    async function read(cols: string, apply: (q: any) => any): Promise<Row[]> {
+      const out: Row[] = [];
+      const chunks: (string[] | null)[] = leadIds
+        ? Array.from({ length: Math.ceil(leadIds.length / 200) }, (_, i) => leadIds!.slice(i * 200, i * 200 + 200))
+        : [null];
+      for (const chunk of chunks) {
+        for (let from = 0; from < 200000; from += 1000) {
+          let q = apply(sb.from("activities").select(cols));
+          if (fromIso) q = q.gte("occurred_at", fromIso);
+          if (toIso) q = q.lt("occurred_at", toIso);
+          if (chunk) q = q.in("lead_id", chunk);
+          const { data, error } = await q.order("id").range(from, from + 999);
+          if (error || !data) break;
+          out.push(...(data as unknown as Row[]));
+          if (data.length < 1000) break;
         }
-        rows.push(...pages);
-        break;
       }
-      const { data, error } = await q.range(from, from + 999);
-      if (error || !data) break;
-      rows.push(...(data as A[]));
-      if (data.length < 1000) break;
+      return out;
     }
 
+    const [touchRows, noteRowsRaw] = await Promise.all([
+      read("manager_id, actor_manager_id", (q) => q.eq("direction", "outbound").neq("channel", "note")),
+      read("manager_id, actor_manager_id, source, body", (q) => q.eq("channel", "note")),
+    ]);
+
+    // A note is LM insight, not machine chatter — the same exclusions the CRM's
+    // own notes feed applies (p1_reconcile reconciliation rows and [STAGE]
+    // kanban audit entries were ~1,700 of the total).
+    const noteRows = noteRowsRaw.filter((r) => {
+      const body = (r.body ?? "").trim();
+      if (!body) return false;
+      if ((r.source ?? "") === "p1_reconcile") return false;
+      if (body.startsWith("Name reconciled from Player One")) return false;
+      if (body.startsWith("[STAGE]")) return false;
+      return true;
+    });
+
     const byMgr = new Map<string, { touches: number; notes: number }>();
-    let touches = 0, notes = 0;
-    for (const a of rows) {
-      const who = a.actor_manager_id ?? a.manager_id;
-      const isNote = a.channel === "note";
-      const isTouch = !isNote && a.direction === "outbound";
-      if (!isNote && !isTouch) continue;
-      if (isTouch) touches++; else notes++;
+    const credit = (r: Row, kind: "touches" | "notes") => {
+      const who = r.actor_manager_id ?? r.manager_id;
       const key = (who && nameById.get(who)) || "Unassigned";
       const cur = byMgr.get(key) ?? { touches: 0, notes: 0 };
-      if (isTouch) cur.touches++; else cur.notes++;
+      cur[kind]++;
       byMgr.set(key, cur);
-    }
-    const out = [...byMgr.entries()].map(([manager, v]) => ({ manager, ...v }));
-    return { touches, notes, rows: out };
+    };
+    for (const r of touchRows) credit(r, "touches");
+    for (const r of noteRows) credit(r, "notes");
+
+    return {
+      touches: touchRows.length,
+      notes: noteRows.length,
+      rows: [...byMgr.entries()].map(([manager, v]) => ({ manager, ...v })),
+      label,
+    };
   } catch {
     return null;
   }
@@ -1031,7 +1071,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
-    isReg ? Promise.resolve(null) : loadTouchData(scope, touchFrom, touchTo),
+    isReg ? Promise.resolve(null) : loadTouchData(scope, { fromIso: touchFrom, toIso: touchTo, season: regSeason, weekLabel: activeWeeks.length ? `week of ${weekLabel}` : undefined }),
     isReg ? Promise.resolve(null) : loadSiteVisits(scope, weeksParam),
     isReg ? Promise.resolve(null) : loadVideoReviews(scope, weeksParam),
   ]);
@@ -1239,7 +1279,7 @@ function prevWeekLabel(sat: string): string {
 // Feedback app's site-visit scorecards).
 // Two CRM outreach cards: the headline count, then every league manager who
 // logged any, listed small underneath. Managers with none are left off.
-function TouchesSection({ data, when }: { data: TouchData | null; when: string }) {
+function TouchesSection({ data, when }: { data: (TouchData & { label: string }) | null; when: string }) {
   const card = (
     title: string,
     total: number,
@@ -1253,7 +1293,7 @@ function TouchesSection({ data, when }: { data: TouchData | null; when: string }
         <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{title}</div>
         <div className="mt-1.5 flex items-baseline gap-2">
           <span className="text-2xl font-bold tabular" style={{ color: "var(--glass-gold)" }}>{total.toLocaleString()}</span>
-          <span className="text-[11px] text-glass-text-tertiary">{when}</span>
+          <span className="text-[11px] text-glass-text-tertiary">{data?.label ?? when}</span>
         </div>
         {rows.length === 0 ? (
           <div className="mt-2 text-[11px] italic text-glass-text-tertiary">
