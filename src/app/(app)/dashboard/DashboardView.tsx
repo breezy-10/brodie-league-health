@@ -1197,7 +1197,7 @@ export default async function DashboardView({
         {!isReg && (
           <>
             <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
-            {touchData && <TouchesSection data={touchData} when={touchWhen} />}
+            <TouchesSection data={touchData} when={touchWhen} />
             {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} />}
             {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} />}
             <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
@@ -1239,13 +1239,14 @@ function prevWeekLabel(sat: string): string {
 // Feedback app's site-visit scorecards).
 // Two CRM outreach cards: the headline count, then every league manager who
 // logged any, listed small underneath. Managers with none are left off.
-function TouchesSection({ data, when }: { data: TouchData; when: string }) {
+function TouchesSection({ data, when }: { data: TouchData | null; when: string }) {
   const card = (
     title: string,
     total: number,
     pick: (r: TouchRow) => number,
   ) => {
-    const rows = data.rows.filter((r) => pick(r) > 0).sort((a, b) => pick(b) - pick(a) || a.manager.localeCompare(b.manager));
+    const rows = (data?.rows ?? []).filter((r) => pick(r) > 0)
+      .sort((a, b) => pick(b) - pick(a) || a.manager.localeCompare(b.manager));
     const max = Math.max(...rows.map(pick), 1);
     return (
       <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
@@ -1255,7 +1256,9 @@ function TouchesSection({ data, when }: { data: TouchData; when: string }) {
           <span className="text-[11px] text-glass-text-tertiary">{when}</span>
         </div>
         {rows.length === 0 ? (
-          <div className="mt-2 text-[11px] italic text-glass-text-tertiary">none logged</div>
+          <div className="mt-2 text-[11px] italic text-glass-text-tertiary">
+            {data ? "none logged" : "CRM feed unavailable"}
+          </div>
         ) : (
           <div className="mt-2 space-y-1">
             {rows.map((r) => (
@@ -1279,8 +1282,8 @@ function TouchesSection({ data, when }: { data: TouchData; when: string }) {
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
       <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-        {card("Touches", data.touches, (r) => r.touches)}
-        {card("Notes added", data.notes, (r) => r.notes)}
+        {card("Touches", data?.touches ?? 0, (r) => r.touches)}
+        {card("Notes added", data?.notes ?? 0, (r) => r.notes)}
       </div>
     </section>
   );
