@@ -584,6 +584,96 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
 
 // Promo reads the Promo Tracker's OWN public KPI feed, so the numbers match its
 // website exactly (no re-derivation here). Returns null on any failure -> sample.
+// Add whole days to a "YYYY-MM-DD" string (UTC-safe, no tz drift).
+function addDaysIso(iso: string, days: number): string {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+// CRM outreach: touches (outbound messages) and notes, per league manager.
+// Mirrors the CRM's own leaderboard definitions — a touch is an outbound
+// activity on any channel except 'note'; a note is a 'note' activity. The CRM
+// credits a row to both manager_id and actor_manager_id, which double-counts
+// when they differ; here each activity is credited once, to whoever performed
+// it, so the per-manager rows always sum to the headline total.
+type TouchRow = { manager: string; touches: number; notes: number };
+type TouchData = { touches: number; notes: number; rows: TouchRow[] };
+async function loadTouchData(scope: Scope, fromIso?: string, toIso?: string): Promise<TouchData | null> {
+  if (!sourceConfigured("crm")) return null;
+  try {
+    const sb = sourceClient("crm")!;
+
+    // Scope to the filtered locations via the lead each activity is against.
+    let leadIds: string[] | null = null;
+    if (scope.locationNames) {
+      if (!scope.locationNames.length) return { touches: 0, notes: 0, rows: [] };
+      const { data: locs } = await sb.from("locations").select("id, name");
+      const wanted = ((locs ?? []) as { id: string; name: string }[])
+        .filter((l) => scope.locationNames!.some((n) => sameLocation(n, l.name)))
+        .map((l) => l.id);
+      if (!wanted.length) return { touches: 0, notes: 0, rows: [] };
+      const ids: string[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data } = await sb.from("leads").select("id").in("location_id", wanted).order("id").range(from, from + 999);
+        const page = (data ?? []) as { id: string }[];
+        ids.push(...page.map((l) => l.id));
+        if (page.length < 1000) break;
+      }
+      if (!ids.length) return { touches: 0, notes: 0, rows: [] };
+      leadIds = ids;
+    }
+
+    const { data: mgrs } = await sb.from("managers").select("id, name");
+    const nameById = new Map(((mgrs ?? []) as { id: string; name: string }[]).map((m) => [m.id, m.name]));
+
+    type A = { manager_id: string | null; actor_manager_id: string | null; channel: string; direction: string };
+    const rows: A[] = [];
+    for (let from = 0; from < 200000; from += 1000) {
+      let q = sb.from("activities").select("manager_id, actor_manager_id, channel, direction").order("id");
+      if (fromIso) q = q.gte("occurred_at", fromIso);
+      if (toIso) q = q.lt("occurred_at", toIso);
+      // A location filter can select more lead ids than a URL-length .in()
+      // comfortably takes, so it's chunked rather than sent as one list.
+      if (leadIds) {
+        const pages: A[] = [];
+        for (let i = 0; i < leadIds.length; i += 200) {
+          let cq = sb.from("activities").select("manager_id, actor_manager_id, channel, direction")
+            .in("lead_id", leadIds.slice(i, i + 200));
+          if (fromIso) cq = cq.gte("occurred_at", fromIso);
+          if (toIso) cq = cq.lt("occurred_at", toIso);
+          const { data } = await cq;
+          pages.push(...((data ?? []) as A[]));
+        }
+        rows.push(...pages);
+        break;
+      }
+      const { data, error } = await q.range(from, from + 999);
+      if (error || !data) break;
+      rows.push(...(data as A[]));
+      if (data.length < 1000) break;
+    }
+
+    const byMgr = new Map<string, { touches: number; notes: number }>();
+    let touches = 0, notes = 0;
+    for (const a of rows) {
+      const who = a.actor_manager_id ?? a.manager_id;
+      const isNote = a.channel === "note";
+      const isTouch = !isNote && a.direction === "outbound";
+      if (!isNote && !isTouch) continue;
+      if (isTouch) touches++; else notes++;
+      const key = (who && nameById.get(who)) || "Unassigned";
+      const cur = byMgr.get(key) ?? { touches: 0, notes: 0 };
+      if (isTouch) cur.touches++; else cur.notes++;
+      byMgr.set(key, cur);
+    }
+    const out = [...byMgr.entries()].map(([manager, v]) => ({ manager, ...v }));
+    return { touches, notes, rows: out };
+  } catch {
+    return null;
+  }
+}
+
 async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
@@ -923,10 +1013,16 @@ export default async function DashboardView({
   // single week because its window is offset-aligned to each season's start,
   // so a union of calendar weeks has no meaning there.
   const seasonsParam = selectedSeasons.length ? selectedSeasons.join(",") : selectedSeason;
+  // Outreach window: the selected week(s) on Weekly Review, else everything.
+  const touchFrom = activeWeeks.length ? `${activeWeeks[0]}T00:00:00Z` : undefined;
+  const touchTo = activeWeeks.length
+    ? `${addDaysIso(activeWeeks[activeWeeks.length - 1], 7)}T00:00:00Z`
+    : undefined;
+  const touchWhen = activeWeeks.length ? `week of ${weekLabel}` : "all time";
   const weeksParam = activeWeeks.length ? activeWeeks.join(",") : undefined;
   // Registrations mode shows only the Registrations section, so skip the other
   // source loads entirely — just fetch pacing.
-  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, siteVisits, videoReviews] = await Promise.all([
+  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, touchData, siteVisits, videoReviews] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadFeedbackTiles(selectedSeason, scope),
@@ -935,6 +1031,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
+    isReg ? Promise.resolve(null) : loadTouchData(scope, touchFrom, touchTo),
     isReg ? Promise.resolve(null) : loadSiteVisits(scope, weeksParam),
     isReg ? Promise.resolve(null) : loadVideoReviews(scope, weeksParam),
   ]);
@@ -1100,6 +1197,7 @@ export default async function DashboardView({
         {!isReg && (
           <>
             <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
+            {touchData && <TouchesSection data={touchData} when={touchWhen} />}
             {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} />}
             {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} />}
             <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
@@ -1139,6 +1237,55 @@ function prevWeekLabel(sat: string): string {
 
 // Site visits completed each Saturday–Friday week and their scores (from the
 // Feedback app's site-visit scorecards).
+// Two CRM outreach cards: the headline count, then every league manager who
+// logged any, listed small underneath. Managers with none are left off.
+function TouchesSection({ data, when }: { data: TouchData; when: string }) {
+  const card = (
+    title: string,
+    total: number,
+    pick: (r: TouchRow) => number,
+  ) => {
+    const rows = data.rows.filter((r) => pick(r) > 0).sort((a, b) => pick(b) - pick(a) || a.manager.localeCompare(b.manager));
+    const max = Math.max(...rows.map(pick), 1);
+    return (
+      <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{title}</div>
+        <div className="mt-1.5 flex items-baseline gap-2">
+          <span className="text-2xl font-bold tabular" style={{ color: "var(--glass-gold)" }}>{total.toLocaleString()}</span>
+          <span className="text-[11px] text-glass-text-tertiary">{when}</span>
+        </div>
+        {rows.length === 0 ? (
+          <div className="mt-2 text-[11px] italic text-glass-text-tertiary">none logged</div>
+        ) : (
+          <div className="mt-2 space-y-1">
+            {rows.map((r) => (
+              <div key={r.manager} className="flex items-center gap-2">
+                <span className="text-[11px] text-glass-text-secondary truncate flex-1 min-w-0">{r.manager}</span>
+                {/* A bar makes the spread readable without a second column of numbers. */}
+                <span className="h-1 rounded-full shrink-0" style={{ width: `${Math.round((pick(r) / max) * 56)}px`, background: "var(--glass-gold)", opacity: 0.5 }} />
+                <span className="text-[11px] tabular font-semibold shrink-0" style={{ color: "var(--glass-text)" }}>{pick(r).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Outreach</h2>
+        <a href={APP_URL.crm} target="_blank" rel="noopener noreferrer"
+          className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+      </div>
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+        {card("Touches", data.touches, (r) => r.touches)}
+        {card("Notes added", data.notes, (r) => r.notes)}
+      </div>
+    </section>
+  );
+}
+
 function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
   const { weeks, by_dm } = data;
   return (
