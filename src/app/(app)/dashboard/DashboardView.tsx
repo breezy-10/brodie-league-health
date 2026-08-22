@@ -35,6 +35,9 @@ type Tile = {
   lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
+  // A second headline number on the right of the same card, set at the same
+  // size as the main value, with its own small label and follow-up lines.
+  corner?: { label: string; value: string; color?: string; lines?: { text: string; color?: string }[] };
   // Named items behind the number — rendered as wrapped chips, tinted by tone.
   pills?: string[];
   pillsEmpty?: string;
@@ -453,7 +456,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       full_recording_pct: number | null; full: number; incomplete: number; recording_total: number;
       spare_appearances: number; spare_games: number;
       stat_delivery_ms: number | null; stat_delivery_n: number;
-      forfeits?: number; pending_review?: number;
+      forfeits?: number; pending_review?: number; prev_forfeits?: number | null;
       prev_stats_completion_pct?: number | null;
       prev_full_recording_pct?: number | null;
       prev_stat_delivery_ms?: number | null;
@@ -493,11 +496,22 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
     // correctly outside the rate; a pending game just hasn't been reviewed yet,
     // and would otherwise vanish from the card entirely.
     if (k.pending_review) completionLines.push({ text: `${n(k.pending_review)} — not yet reviewed`, color: "var(--glass-gold)" });
-    if (k.forfeits) completionLines.push({ text: `${n(k.forfeits)} — forfeit, no stats to collect` });
+    // Forfeits move to the card's right-hand headline, so they aren't a line.
+    const fDelta = k.forfeits != null && k.prev_forfeits != null ? k.forfeits - k.prev_forfeits : null;
+    const forfeitCorner = k.forfeits == null ? undefined : {
+      label: "Forfeits",
+      value: n(k.forfeits),
+      // Fewer forfeits is better, so the delta's colours invert.
+      lines: [
+        ...(k.prev_forfeits != null ? [{ text: `prev week ${n(k.prev_forfeits)}` }] : []),
+        ...(fDelta != null ? [{ text: `${fDelta > 0 ? "+" : ""}${fDelta}`, color: upColor(-fDelta) }] : []),
+      ],
+    };
     return [
       {
         label: "Stats completion rate", value: k.stats_completion_pct == null ? "—" : `${k.stats_completion_pct}%`,
         tone: k.stats_completion_tone ?? (k.stats_completion_pct == null ? "default" : pctTone(k.stats_completion_pct)),
+        corner: forfeitCorner,
         lines: [...completionLines, ...wowPct(k.stats_completion_pct, k.prev_stats_completion_pct)],
       },
       {
@@ -1547,7 +1561,7 @@ function Section({
   );
 }
 
-function StatTile({ label, value, unit, sub, lines, tone = "default", link, pills, pillsEmpty }: Tile) {
+function StatTile({ label, value, unit, sub, lines, tone = "default", link, pills, pillsEmpty, corner }: Tile) {
   const color =
     tone === "ok" ? "rgb(74,222,128)" :
     tone === "warn" ? "var(--glass-gold)" :
@@ -1555,9 +1569,20 @@ function StatTile({ label, value, unit, sub, lines, tone = "default", link, pill
   return (
     <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
       <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
-      <div className="mt-1.5 flex items-baseline gap-1.5">
-        <span className="text-2xl font-bold tabular" style={{ color }}>{value}</span>
-        {unit && <span className="text-sm text-glass-text-tertiary">{unit}</span>}
+      <div className="mt-1.5 flex items-start justify-between gap-3">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-2xl font-bold tabular" style={{ color }}>{value}</span>
+          {unit && <span className="text-sm text-glass-text-tertiary">{unit}</span>}
+        </div>
+        {corner && (
+          <div className="text-right shrink-0 leading-tight">
+            <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{corner.label}</div>
+            <div className="text-2xl font-bold tabular" style={{ color: corner.color ?? "var(--glass-text)" }}>{corner.value}</div>
+            {corner.lines?.map((l, i) => (
+              <div key={i} className="text-[10px] tabular whitespace-nowrap" style={{ color: l.color ?? "var(--glass-text-tertiary)" }}>{l.text}</div>
+            ))}
+          </div>
+        )}
       </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
       {lines && lines.length > 0 && (
