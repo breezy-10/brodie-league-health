@@ -512,7 +512,9 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         label: "Stats completion rate", value: k.stats_completion_pct == null ? "—" : `${k.stats_completion_pct}%`,
         tone: k.stats_completion_tone ?? (k.stats_completion_pct == null ? "default" : pctTone(k.stats_completion_pct)),
         corner: forfeitCorner,
-        lines: [...completionLines, ...wowPct(k.stats_completion_pct, k.prev_stats_completion_pct)],
+        // The rate's own week-over-week rows lead, so they sit level with the
+        // forfeit comparison on the right of the same card.
+        lines: [...wowPct(k.stats_completion_pct, k.prev_stats_completion_pct), ...completionLines],
       },
       {
         label: "Full recording %", value: k.full_recording_pct == null ? "—" : `${k.full_recording_pct}%`,
@@ -1568,33 +1570,38 @@ function StatTile({ label, value, unit, sub, lines, tone = "default", link, pill
     tone === "bad" ? "rgb(248,113,113)" : "var(--glass-text)";
   return (
     <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
-      <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
-      <div className="mt-1.5 flex items-start justify-between gap-3">
+      {/* The corner shares the card's rows rather than stacking beside them:
+          its label sits on the label row, its value on the value row, and its
+          follow-up lines on the first lines below. */}
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
+        {corner && (
+          <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary shrink-0">{corner.label}</div>
+        )}
+      </div>
+      <div className="mt-1.5 flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold tabular" style={{ color }}>{value}</span>
           {unit && <span className="text-sm text-glass-text-tertiary">{unit}</span>}
         </div>
         {corner && (
-          <div className="text-right shrink-0 leading-tight">
-            <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{corner.label}</div>
-            <div className="text-2xl font-bold tabular" style={{ color: corner.color ?? "var(--glass-text)" }}>{corner.value}</div>
-            {corner.lines?.map((l, i) => (
-              <div key={i} className="text-[10px] tabular whitespace-nowrap" style={{ color: l.color ?? "var(--glass-text-tertiary)" }}>{l.text}</div>
-            ))}
-          </div>
+          <span className="text-2xl font-bold tabular shrink-0" style={{ color: corner.color ?? "var(--glass-text)" }}>{corner.value}</span>
         )}
       </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
-      {lines && lines.length > 0 && (
+      {((lines?.length ?? 0) > 0 || (corner?.lines?.length ?? 0) > 0) && (
         <div className="mt-2 space-y-0.5 tabular">
-          {lines.map((l, i) => (
+          {Array.from({ length: Math.max(lines?.length ?? 0, corner?.lines?.length ?? 0) }).map((_, i) => {
+            const l = lines?.[i];
+            const c = corner?.lines?.[i];
+            return (
+            <div key={i} className="text-xs leading-snug flex items-baseline gap-2">
             <div
-              key={i}
-              className="text-xs leading-snug flex items-center gap-1.5 flex-wrap"
-              style={{ color: l.color ?? (l.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)"), fontWeight: l.strong ? 600 : 400 }}
+              className="flex items-center gap-1.5 flex-wrap min-w-0"
+              style={{ color: l?.color ?? (l?.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)"), fontWeight: l?.strong ? 600 : 400 }}
             >
-              <span>{l.text}</span>
-              {l.pill && (
+              {l && <span>{l.text}</span>}
+              {l?.pill && (
                 <span
                   className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                   style={{
@@ -1605,11 +1612,17 @@ function StatTile({ label, value, unit, sub, lines, tone = "default", link, pill
                   {l.pill.text}
                 </span>
               )}
-              {l.after && (
+              {l?.after && (
                 <span className="font-normal" style={{ color: l.afterColor ?? "var(--glass-text-tertiary)" }}>{l.after}</span>
               )}
             </div>
-          ))}
+            {c && (
+              <span className="ml-auto text-[10px] tabular whitespace-nowrap shrink-0"
+                style={{ color: c.color ?? "var(--glass-text-tertiary)" }}>{c.text}</span>
+            )}
+            </div>
+            );
+          })}
         </div>
       )}
       {pills && (
