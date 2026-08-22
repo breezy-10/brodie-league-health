@@ -1595,7 +1595,8 @@ function StatTile({ label, value, unit, sub, lines, tone = "default", link, pill
             const l = lines?.[i];
             const c = corner?.lines?.[i];
             return (
-            <div key={i} className="text-xs leading-snug flex items-baseline gap-2">
+            // A row paired with a corner line matches its size on both sides.
+            <div key={i} className={`${c ? "text-[10px]" : "text-xs"} leading-snug flex items-baseline gap-2`}>
             <div
               className="flex items-center gap-1.5 flex-wrap min-w-0"
               style={{ color: l?.color ?? (l?.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)"), fontWeight: l?.strong ? 600 : 400 }}
