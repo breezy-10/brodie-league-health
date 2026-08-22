@@ -1016,7 +1016,12 @@ export default async function DashboardView({
     : [];
   // The primary week drives WoW comparisons and the header label; extra weeks
   // widen the window each week-scoped section aggregates over.
-  const activeWeeks = isWeekly ? (selectedWeeks.length ? selectedWeeks : [weeks[0]?.value].filter(Boolean) as string[]) : [];
+  // Default to the LAST COMPLETE week, not the one in progress — a review of a
+  // week that is still running would read as a shortfall every time. weeks[0]
+  // is the current week, so weeks[1] is the one just finished; it stays
+  // selectable in the list either way.
+  const defaultWeek = weeks[1]?.value ?? weeks[0]?.value;
+  const activeWeeks = isWeekly ? (selectedWeeks.length ? selectedWeeks : [defaultWeek].filter(Boolean) as string[]) : [];
   const week = activeWeeks[0];
   const weekLabel = activeWeeks.length > 1
     ? `${activeWeeks.length} weeks`
