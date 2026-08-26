@@ -1240,8 +1240,8 @@ export default async function DashboardView({
   // registration otherwise.
   // Weekly Review mixes week-scoped and season-to-date sections, so each
   // heading says which it is. Blank everywhere else.
-  const fullTag = isWeekly ? " (Full Season)" : "";
-  const weekTag = isWeekly ? " (Weekly)" : "";
+  const fullTag = isWeekly ? "(Full Season)" : "";
+  const weekTag = isWeekly ? "(Weekly)" : "";
 
   const regBarWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"} of registration`;
   const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"}`;
@@ -1272,7 +1272,7 @@ export default async function DashboardView({
 
       <div className="space-y-8">
         {!isReg && (
-          <Section title={`Season Success Checklist${fullTag}`} href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} cols={6} />
+          <Section title="Season Success Checklist" scopeTag={fullTag} href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} cols={6} />
         )}
         {pacing && pacingCurrent ? (
           <section className="space-y-3">
@@ -1335,15 +1335,15 @@ export default async function DashboardView({
         )}
         {!isReg && (
           <>
-            <Section title={`Registration Promo Tracker${fullTag}`} href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
+            <Section title="Registration Promo Tracker" scopeTag={fullTag} href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
             <TouchesSection data={touchData} when={touchWhen} titleSuffix={weekTag} />
             {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} titleSuffix={weekTag} />}
             {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} titleSuffix={weekTag} />}
-            {trainingTiles && <Section title={`Training${fullTag}`} href={APP_URL.training} tiles={trainingTiles} />}
-            <Section title={`Stats Health${weekTag}`} href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
-            <Section title={`Content Health${weekTag}`} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
-            <Section title={`Feedback${fullTag}`} href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
-            <Section title={`Overdue Payments${fullTag}`} href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
+            {trainingTiles && <Section title="Training" scopeTag={fullTag} href={APP_URL.training} tiles={trainingTiles} />}
+            <Section title="Stats Health" scopeTag={weekTag} href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
+            <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
+            <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
+            <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
             {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} />}
           </>
         )}
@@ -1418,7 +1418,10 @@ function TouchesSection({ data, when, titleSuffix = "" }: { data: (TouchData & {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Outreach{titleSuffix}</h2>
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Outreach</h2>
+          {titleSuffix && <span className="text-xs font-normal text-glass-text-tertiary">{titleSuffix}</span>}
+        </div>
         <a href={APP_URL.crm} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
@@ -1488,7 +1491,8 @@ function BookingsSection({ data, season, titleSuffix = "" }: { data: BookingData
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility Bookings{titleSuffix}</h2>
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility Bookings</h2>
+          {titleSuffix && <span className="text-xs font-normal text-glass-text-tertiary">{titleSuffix}</span>}
           <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
             style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{season}</span>
         </div>
@@ -1545,7 +1549,10 @@ function SiteVisitsSection({ data, titleSuffix = "" }: { data: SiteVisitsData; t
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site Visits{titleSuffix}</h2>
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site Visits</h2>
+          {titleSuffix && <span className="text-xs font-normal text-glass-text-tertiary">{titleSuffix}</span>}
+        </div>
         <a href={`${APP_URL.feedback}/site-visits`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
@@ -1613,7 +1620,10 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video Reviews{titleSuffix}</h2>
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video Reviews</h2>
+          {titleSuffix && <span className="text-xs font-normal text-glass-text-tertiary">{titleSuffix}</span>}
+        </div>
         <a href={`${APP_URL.feedback}/video-review`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
@@ -1702,6 +1712,7 @@ function Section({
   tiles,
   sample = false,
   seasonTag,
+  scopeTag,
   cols = 4,
 }: {
   title: string;
@@ -1709,6 +1720,9 @@ function Section({
   tiles: Tile[];
   sample?: boolean;
   seasonTag?: string;
+  // Scope note beside the heading ("(Weekly)"), set smaller and muted so it
+  // reads as a label rather than part of the title.
+  scopeTag?: string;
   // Sections with more than four tiles can ask for a wider grid so the row
   // doesn't wrap. Class names are spelled out because Tailwind scans literals.
   cols?: 4 | 6;
@@ -1718,6 +1732,7 @@ function Section({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h2>
+          {scopeTag && <span className="text-xs font-normal text-glass-text-tertiary">{scopeTag}</span>}
           {seasonTag && (
             <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
               style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>
