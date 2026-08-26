@@ -113,6 +113,18 @@ export function csvParam(v?: string): string[] {
   return (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
 }
 
+// Locations that have been renamed. A bookmark or shared link still carrying
+// the old name has to keep working — otherwise it silently filters to nothing
+// across every section, which reads as missing data rather than a stale URL.
+const LOCATION_RENAMES: Record<string, string> = {
+  "toronto (hoopdome)": "Toronto (Uptown)",
+  "toronto hoopdome": "Toronto (Uptown)",
+  "hoopdome": "Toronto (Uptown)",
+};
+export function canonicalLocation(name: string): string {
+  return LOCATION_RENAMES[name.toLowerCase().trim()] ?? name;
+}
+
 export type Scope = {
   promoLocations: string[];
   promoSeasons: string[];

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { csvParam, locParam, resolveScope } from "@/lib/seasons";
+import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the ambassador
@@ -87,7 +87,7 @@ export default async function AmbassadorTeamsView({
   await requireUser();
   const { season: seasonParam, location: locationParam } = await searchParams;
   const selectedSeasons = csvParam(seasonParam);
-  const selectedLocations = csvParam(locationParam);
+  const selectedLocations = csvParam(locationParam).map(canonicalLocation);
 
   // Ambassador teams are registered for the season being sold, not the one
   // being played, so this defaults to the registration season like Referrals.

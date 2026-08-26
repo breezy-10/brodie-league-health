@@ -4,7 +4,7 @@ import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 import { resolveLocationsForLM, resolveLocationIdsByName } from "@/lib/source-apps/cross-app-locations";
 import type { AppSlug } from "@/lib/source-apps/clients";
 import { ymd } from "@/lib/source-apps/util";
-import { loadActiveLMs, locParam, resolveScope, seasonKey, shortSeason } from "@/lib/seasons";
+import { canonicalLocation, loadActiveLMs, locParam, resolveScope, seasonKey, shortSeason } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "./Filters";
 import { BasisToggle } from "./BasisToggle";
 
@@ -1071,7 +1071,7 @@ export default async function DashboardView({
   // locations and league managers can be selected at once.
   const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
   const selectedSeasons = csv(seasonParam);
-  const selectedLocations = csv(locationParam);
+  const selectedLocations = csv(locationParam).map(canonicalLocation);
   // Weekly Review: resolve the selected Saturday-Friday weeks (default = current).
   const weeks = isWeekly ? weekOptions() : [];
   const selectedWeeks = isWeekly
