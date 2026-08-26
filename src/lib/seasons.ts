@@ -9,11 +9,18 @@ import { ymd } from "@/lib/source-apps/util";
 
 // Fallbacks copied from the Registration Promo Tracker, used until the live
 // PROMO_SUPABASE_* connection is configured (then these are replaced live).
+// Mirrors the Promo Tracker's `locations` table, which is the canonical list
+// every sister app is matched against. Used when PROMO_SUPABASE_* isn't
+// configured — so a name that has drifted here silently filters to nothing
+// everywhere downstream. "Toronto (Hoopdome)" was one: the market is named
+// "Toronto (Uptown)" everywhere else, so selecting it matched no registrations,
+// no promo rows and no bookings.
 const PROMO_LOCATIONS_FALLBACK = [
-  "Boston", "Brampton", "Brooklyn - Bushwick", "Brooklyn - Greenpoint", "Burlington",
+  "Boston", "Brampton", "Burlington", "Brooklyn - Bushwick", "Brooklyn - Greenpoint",
   "Calgary", "Chicago", "Edmonton", "Kitchener", "London", "Markham", "Milton",
-  "Mississauga", "Montreal", "Niagara", "Oakville", "Oshawa", "Ottawa", "Scarborough",
-  "Toronto (Downtown)", "Toronto (Hoopdome)", "Vancouver", "Vaughan", "Winnipeg",
+  "Mississauga", "Montreal", "Niagara", "Oshawa", "Ottawa", "Scarborough",
+  "Toronto (Downtown)", "Toronto (Uptown)", "Vaughan", "Winnipeg",
+  "Richmond", "Oakville", "Surrey",
 ];
 const PROMO_SEASONS_FALLBACK = ["Fall '26", "Summer '26"];
 
