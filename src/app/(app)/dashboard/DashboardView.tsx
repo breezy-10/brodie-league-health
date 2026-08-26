@@ -24,6 +24,7 @@ const APP_URL: Record<string, string> = {
   content_health: "https://brodie-content-health.vercel.app",
   checklist: "https://brodie-season-success-checklist.vercel.app",
   training: "https://brodie-training.vercel.app/admin/reports",
+  facilities: "https://brodie-facilities.vercel.app/calendar",
   overdue: "https://brodie-overdue-payments.vercel.app",
 };
 
@@ -1129,7 +1130,7 @@ export default async function DashboardView({
   const weeksParam = activeWeeks.length ? activeWeeks.join(",") : undefined;
   // Registrations mode shows only the Registrations section, so skip the other
   // source loads entirely — just fetch pacing.
-  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, touchData, trainingTiles, siteVisits, videoReviews] = await Promise.all([
+  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, touchData, trainingTiles, bookings, siteVisits, videoReviews] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadFeedbackTiles(selectedSeason, scope),
@@ -1140,6 +1141,7 @@ export default async function DashboardView({
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
     isReg ? Promise.resolve(null) : loadTouchData(scope, { fromIso: touchFrom, toIso: touchTo, season: regSeason, weekLabel: activeWeeks.length ? `week of ${weekLabel}` : undefined }),
     isReg ? Promise.resolve(null) : loadTrainingTiles(scope),
+    isReg ? Promise.resolve(null) : loadBookings(regSeason, scope),
     isReg ? Promise.resolve(null) : loadSiteVisits(scope, weeksParam),
     isReg ? Promise.resolve(null) : loadVideoReviews(scope, weeksParam),
   ]);
@@ -1313,6 +1315,7 @@ export default async function DashboardView({
             <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
             <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
+            {bookings && <BookingsSection data={bookings} season={regSeason} />}
           </>
         )}
       </div>
@@ -1393,6 +1396,116 @@ function TouchesSection({ data, when }: { data: (TouchData & { label: string }) 
       <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
         {card("Touches", data?.touches ?? 0, (r) => r.touches)}
         {card("Notes added", data?.notes ?? 0, (r) => r.notes)}
+      </div>
+    </section>
+  );
+}
+
+// Facilities reads the facilities app's OWN booking feed, so team capacity
+// matches its calendar exactly (courts x hours x 2). Null -> section omitted.
+type BookingLoc = {
+  location: string; nights: number; teams: number;
+  by_status: Record<string, number>; off: number;
+};
+type BookingData = {
+  season: string | null;
+  locations: BookingLoc[];
+  totals: { nights: number; teams: number; to_book: number; locations: number; by_status: Record<string, number> } | null;
+};
+const BOOKING_STATUS_LABEL: Record<string, string> = {
+  booked_with_contract: "Contract",
+  booked_with_flexibility: "Flexible",
+  verbal_confirmation: "Verbal",
+  in_communication: "In comms",
+  need_to_book: "Need to book",
+};
+// Ordered from firmest to least committed, so a row reads left to right.
+const BOOKING_STATUS_ORDER = ["booked_with_contract", "booked_with_flexibility", "verbal_confirmation", "in_communication", "need_to_book"];
+const BOOKING_STATUS_COLOR: Record<string, string> = {
+  booked_with_contract: "rgb(74,222,128)",
+  booked_with_flexibility: "rgb(74,222,128)",
+  verbal_confirmation: "var(--glass-gold)",
+  in_communication: "var(--glass-text-secondary)",
+  need_to_book: "rgb(248,113,113)",
+};
+async function loadBookings(season: string, scope: Scope): Promise<BookingData | null> {
+  try {
+    const url = new URL("/api/dashboard-kpis", "https://brodie-facilities.vercel.app");
+    url.searchParams.set("season", season);
+    const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as BookingData;
+    return k.locations ? k : null;
+  } catch {
+    return null;
+  }
+}
+
+function BookingsSection({ data, season }: { data: BookingData; season: string }) {
+  const t = data.totals;
+  const booked = data.locations.filter((l) => l.nights > 0).length;
+  const statusPill = (s: string, n: number) => (
+    <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+      style={{
+        color: BOOKING_STATUS_COLOR[s] ?? "var(--glass-text-secondary)",
+        borderColor: s === "need_to_book" ? "rgba(239,68,68,0.35)" : "var(--glass-border)",
+        background: s === "need_to_book" ? "rgba(239,68,68,0.10)" : "transparent",
+      }}>
+      {BOOKING_STATUS_LABEL[s] ?? s} <span className="font-bold tabular">{n}</span>
+    </span>
+  );
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility bookings</h2>
+          <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{season}</span>
+        </div>
+        <a href={APP_URL.facilities} target="_blank" rel="noopener noreferrer"
+          className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+      </div>
+
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <StatTile label="Teams booked for" value={(t?.teams ?? 0).toLocaleString()}
+          sub="courts x hours x 2" tone="default" />
+        <StatTile label="Nights booked" value={(t?.nights ?? 0).toLocaleString()}
+          sub="past need-to-book" tone="default"
+          lines={BOOKING_STATUS_ORDER.filter((s) => s !== "need_to_book" && t?.by_status[s])
+            .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
+        <StatTile label="Still to book" value={(t?.to_book ?? 0).toLocaleString()}
+          sub="nights at need-to-book" tone={(t?.to_book ?? 0) > 0 ? "bad" : "ok"} />
+        <StatTile label="Locations booked" value={`${booked}`} unit={`/ ${data.locations.length}`}
+          sub="with at least one night" tone={booked === data.locations.length ? "ok" : "warn"} />
+      </div>
+
+      <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+              <th className="px-5 py-3 font-bold">Location</th>
+              <th className="px-5 py-3 font-bold text-right">Nights</th>
+              <th className="px-5 py-3 font-bold text-right">Teams</th>
+              <th className="px-5 py-3 font-bold">Booking status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.locations.map((l) => (
+              <tr key={l.location} className="border-t border-glass-border-light align-top">
+                <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
+                <td className="px-5 py-3 text-right tabular font-bold"
+                  style={{ color: l.nights > 0 ? "var(--glass-text)" : "rgb(248,113,113)" }}>{l.nights}</td>
+                <td className="px-5 py-3 text-right tabular font-bold" style={{ color: "var(--glass-gold)" }}>{l.teams.toLocaleString()}</td>
+                <td className="px-5 py-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {BOOKING_STATUS_ORDER.filter((s) => l.by_status[s]).map((s) => statusPill(s, l.by_status[s]))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );
