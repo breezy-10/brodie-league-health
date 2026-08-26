@@ -5,10 +5,11 @@ import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 // assigned location matches the dashboard by name; falls back to this copy when
 // the PROMO_SUPABASE_* connection isn't configured.
 export const LOCATIONS_FALLBACK = [
-  "Boston", "Brampton", "Brooklyn - Bushwick", "Brooklyn - Greenpoint", "Burlington",
+  "Boston", "Brampton", "Burlington", "Brooklyn - Bushwick", "Brooklyn - Greenpoint",
   "Calgary", "Chicago", "Edmonton", "Kitchener", "London", "Markham", "Milton",
-  "Mississauga", "Montreal", "Niagara", "Oakville", "Oshawa", "Ottawa", "Scarborough",
-  "Toronto (Downtown)", "Toronto (Hoopdome)", "Vancouver", "Vaughan", "Winnipeg",
+  "Mississauga", "Montreal", "Niagara", "Oshawa", "Ottawa", "Scarborough",
+  "Toronto (Downtown)", "Toronto (Uptown)", "Vaughan", "Winnipeg",
+  "Richmond", "Oakville", "Surrey",
 ];
 
 export async function getAssignableLocations(): Promise<string[]> {
