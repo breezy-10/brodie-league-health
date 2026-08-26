@@ -19,10 +19,14 @@ export async function getAssignableLocations(): Promise<string[]> {
     const names = ((data ?? []) as { name: string | null }[])
       .map((l) => l.name)
       .filter((n): n is string => !!n);
-    if (names.length) return names;
+    if (names.length) return alphabetical(names);
   }
-  return LOCATIONS_FALLBACK;
+  return alphabetical(LOCATIONS_FALLBACK);
 }
+
+// The Promo Tracker's sort_order appends new markets at the end, which buries
+// them under the scroll in a picker. Presented A-Z instead.
+const alphabetical = (names: string[]) => [...names].sort((a, b) => a.localeCompare(b));
 
 export const SEASONS_FALLBACK = ["Fall '26", "Summer '26"];
 

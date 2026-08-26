@@ -201,7 +201,9 @@ export async function resolveScope(
   const locationNames: string[] | null = selectedLocations.length ? [...new Set(selectedLocations)] : null;
 
   return {
-    promoLocations,
+    // Alphabetical: the Promo Tracker's own sort_order appends new markets at
+    // the end, which buries them under the scroll in the filter.
+    promoLocations: [...promoLocations].sort((a, b) => a.localeCompare(b)),
     promoSeasons,
     selectedSeason,
     regSeason: nextSeasonLabel(selectedSeason),
