@@ -570,31 +570,52 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
     const k = (await res.json()) as {
       currency_totals?: { cad: CurTotals; usd: CurTotals };
       overall?: { total_players: number; active_players: number; locations: number };
+      prev?: {
+        as_of: string; total_players: number;
+        cad: { total_players: number; total_balance: number };
+        usd: { total_players: number; total_balance: number };
+      } | null;
     };
     if (!k.currency_totals || !k.overall) return null; // pre-deploy shape -> sample
     const ov = k.overall;
     const money = (n: number, cur: string) =>
       `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
+    // Owing less is an improvement, so these deltas run the other way.
+    const wowCount = (cur: number, prev?: number) =>
+      prev == null ? [] : [
+        { text: `prev week ${prev.toLocaleString()}` },
+        { text: `${cur - prev > 0 ? "+" : ""}${(cur - prev).toLocaleString()}`, color: upColor(-(cur - prev)) },
+      ];
+    const wowMoney = (cur: number, prev: number | undefined, c: string) => {
+      if (prev == null) return [];
+      const d = Math.round((cur - prev) * 100) / 100;
+      return [
+        { text: `prev week ${money(prev, c)}` },
+        { text: `${d > 0 ? "+" : d < 0 ? "−" : ""}${money(Math.abs(d), c)}`, color: upColor(-d) },
+      ];
+    };
     const tiles: Tile[] = [
       {
         label: "Total overdue players", value: ov.total_players.toLocaleString(), tone: ov.total_players > 0 ? "bad" : "ok",
         lines: [
           { text: `${ov.active_players.toLocaleString()} of ${ov.total_players.toLocaleString()} active`, strong: true },
           { text: `across ${ov.locations} location${ov.locations === 1 ? "" : "s"}` },
+          ...wowCount(ov.total_players, k.prev?.total_players),
         ],
       },
     ];
-    const card = (c: CurTotals, cur: string, label: string): Tile | null =>
+    const card = (c: CurTotals, cur: string, label: string, prev?: { total_players: number; total_balance: number }): Tile | null =>
       c.total_players === 0 ? null : {
         label, value: money(c.total_balance, cur),
         lines: [
           { text: `${c.total_players} player${c.total_players === 1 ? "" : "s"}`, strong: true },
           { text: `${money(c.active_balance, cur)} from active players` },
           { text: `${c.active_players} of ${c.total_players} players active` },
+          ...wowMoney(c.total_balance, prev?.total_balance, cur),
         ],
       };
-    const cad = card(k.currency_totals.cad, "CAD", "Overdue Balance - Canadian Locations");
-    const usd = card(k.currency_totals.usd, "USD", "Overdue Balance - US Locations");
+    const cad = card(k.currency_totals.cad, "CAD", "Overdue Balance - Canadian Locations", k.prev?.cad);
+    const usd = card(k.currency_totals.usd, "USD", "Overdue Balance - US Locations", k.prev?.usd);
     if (cad) tiles.push(cad);
     if (usd) tiles.push(usd);
     return tiles;
@@ -1467,7 +1488,7 @@ function BookingsSection({ data, season, titleSuffix = "" }: { data: BookingData
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility bookings{titleSuffix}</h2>
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility Bookings{titleSuffix}</h2>
           <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
             style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{season}</span>
         </div>
@@ -1524,7 +1545,7 @@ function SiteVisitsSection({ data, titleSuffix = "" }: { data: SiteVisitsData; t
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site visits{titleSuffix}</h2>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site Visits{titleSuffix}</h2>
         <a href={`${APP_URL.feedback}/site-visits`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
@@ -1592,7 +1613,7 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video reviews{titleSuffix}</h2>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video Reviews{titleSuffix}</h2>
         <a href={`${APP_URL.feedback}/video-review`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
