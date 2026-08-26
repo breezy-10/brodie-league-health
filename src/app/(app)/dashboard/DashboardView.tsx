@@ -745,9 +745,11 @@ const TRAINING_MODULES = [
   "AHS Playbook",
   "Scorekeeper Playbook",
 ];
-async function loadTrainingTiles(): Promise<Tile[] | null> {
+async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
   try {
-    const res = await fetch("https://brodie-training.vercel.app/api/dashboard-kpis", { cache: "no-store" });
+    const url = new URL("/api/dashboard-kpis", "https://brodie-training.vercel.app");
+    const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
+    const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as { modules?: ModuleRollup[] };
     const byTitle = new Map((k.modules ?? []).map((m) => [m.title.toLowerCase(), m]));
@@ -1137,7 +1139,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
     isReg ? Promise.resolve(null) : loadTouchData(scope, { fromIso: touchFrom, toIso: touchTo, season: regSeason, weekLabel: activeWeeks.length ? `week of ${weekLabel}` : undefined }),
-    isReg ? Promise.resolve(null) : loadTrainingTiles(),
+    isReg ? Promise.resolve(null) : loadTrainingTiles(scope),
     isReg ? Promise.resolve(null) : loadSiteVisits(scope, weeksParam),
     isReg ? Promise.resolve(null) : loadVideoReviews(scope, weeksParam),
   ]);
