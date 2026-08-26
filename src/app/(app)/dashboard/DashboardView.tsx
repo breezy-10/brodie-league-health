@@ -34,6 +34,8 @@ type Tile = {
   value: string;
   unit?: string;
   sub?: string;
+  // Render `sub` beside the value instead of on its own line below it.
+  subInline?: boolean;
   lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
@@ -294,9 +296,10 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   // the percentages beside it, so it reads first.
   return [
     {
-      label: `No checklist · ${season}`,
+      label: `Checklist · ${season}`,
       value: missingLocations.length.toLocaleString(),
       sub: "locations not set up yet",
+      subInline: true,
       tone: missingLocations.length > 0 ? "bad" : "ok",
       pills: missingLocations,
       pillsEmpty: "every location set up",
@@ -1724,7 +1727,7 @@ function Section({
   );
 }
 
-function StatTile({ label, value, unit, sub, lines, tone = "default", link, pills, pillsEmpty, corner }: Tile) {
+function StatTile({ label, value, unit, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, corner }: Tile) {
   const color =
     tone === "ok" ? "rgb(74,222,128)" :
     tone === "warn" ? "var(--glass-gold)" :
@@ -1744,12 +1747,13 @@ function StatTile({ label, value, unit, sub, lines, tone = "default", link, pill
         <div className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold tabular" style={{ color }}>{value}</span>
           {unit && <span className="text-sm text-glass-text-tertiary">{unit}</span>}
+          {sub && subInline && <span className="text-[11px] text-glass-text-tertiary leading-snug">{sub}</span>}
         </div>
         {corner && (
           <span className="text-2xl font-bold tabular shrink-0" style={{ color: corner.color ?? "var(--glass-text)" }}>{corner.value}</span>
         )}
       </div>
-      {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
+      {sub && !subInline && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
       {((lines?.length ?? 0) > 0 || (corner?.lines?.length ?? 0) > 0) && (
         <div className="mt-2 space-y-0.5 tabular">
           {Array.from({ length: Math.max(lines?.length ?? 0, corner?.lines?.length ?? 0) }).map((_, i) => {
