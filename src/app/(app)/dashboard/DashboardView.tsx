@@ -1217,6 +1217,11 @@ export default async function DashboardView({
 
   // Registration section subtitles read by week in Weekly Review, by day-of-
   // registration otherwise.
+  // Weekly Review mixes week-scoped and season-to-date sections, so each
+  // heading says which it is. Blank everywhere else.
+  const fullTag = isWeekly ? " (Full Season)" : "";
+  const weekTag = isWeekly ? " (Weekly)" : "";
+
   const regBarWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"} of registration`;
   const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"}`;
 
@@ -1246,7 +1251,7 @@ export default async function DashboardView({
 
       <div className="space-y-8">
         {!isReg && (
-          <Section title="Season Success Checklist" href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} cols={6} />
+          <Section title={`Season Success Checklist${fullTag}`} href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} cols={6} />
         )}
         {pacing && pacingCurrent ? (
           <section className="space-y-3">
@@ -1309,16 +1314,16 @@ export default async function DashboardView({
         )}
         {!isReg && (
           <>
-            <Section title="Registration Promo Tracker" href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
-            <TouchesSection data={touchData} when={touchWhen} />
-            {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} />}
-            {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} />}
-            {trainingTiles && <Section title="Training" href={APP_URL.training} tiles={trainingTiles} />}
-            <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
-            <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
-            <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
-            <Section title="Overdue Payments" href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
-            {bookings && <BookingsSection data={bookings} season={regSeason} />}
+            <Section title={`Registration Promo Tracker${fullTag}`} href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
+            <TouchesSection data={touchData} when={touchWhen} titleSuffix={weekTag} />
+            {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} titleSuffix={weekTag} />}
+            {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} titleSuffix={weekTag} />}
+            {trainingTiles && <Section title={`Training${fullTag}`} href={APP_URL.training} tiles={trainingTiles} />}
+            <Section title={`Stats Health${weekTag}`} href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
+            <Section title={`Content Health${weekTag}`} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
+            <Section title={`Feedback${fullTag}`} href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
+            <Section title={`Overdue Payments${fullTag}`} href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
+            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} />}
           </>
         )}
       </div>
@@ -1354,7 +1359,7 @@ function prevWeekLabel(sat: string): string {
 // Feedback app's site-visit scorecards).
 // Two CRM outreach cards: the headline count, then every league manager who
 // logged any, listed small underneath. Managers with none are left off.
-function TouchesSection({ data, when }: { data: (TouchData & { label: string }) | null; when: string }) {
+function TouchesSection({ data, when, titleSuffix = "" }: { data: (TouchData & { label: string }) | null; when: string; titleSuffix?: string }) {
   const card = (
     title: string,
     total: number,
@@ -1392,7 +1397,7 @@ function TouchesSection({ data, when }: { data: (TouchData & { label: string }) 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Outreach</h2>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Outreach{titleSuffix}</h2>
         <a href={APP_URL.crm} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
@@ -1445,7 +1450,7 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
   }
 }
 
-function BookingsSection({ data, season }: { data: BookingData; season: string }) {
+function BookingsSection({ data, season, titleSuffix = "" }: { data: BookingData; season: string; titleSuffix?: string }) {
   const t = data.totals;
   const booked = data.locations.filter((l) => l.nights > 0).length;
   const statusPill = (s: string, n: number) => (
@@ -1462,7 +1467,7 @@ function BookingsSection({ data, season }: { data: BookingData; season: string }
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility bookings</h2>
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility bookings{titleSuffix}</h2>
           <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
             style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{season}</span>
         </div>
@@ -1514,12 +1519,12 @@ function BookingsSection({ data, season }: { data: BookingData; season: string }
   );
 }
 
-function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
+function SiteVisitsSection({ data, titleSuffix = "" }: { data: SiteVisitsData; titleSuffix?: string }) {
   const { weeks, by_dm } = data;
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site visits</h2>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site visits{titleSuffix}</h2>
         <a href={`${APP_URL.feedback}/site-visits`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
@@ -1582,12 +1587,12 @@ function SiteVisitsSection({ data }: { data: SiteVisitsData }) {
 
 // Video reviews completed each Sat–Fri week, by reviewer (counts only — video
 // reviews are checklists with no single score).
-function VideoReviewsSection({ data }: { data: VideoReviewsData }) {
+function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsData; titleSuffix?: string }) {
   const { weeks, by_location } = data;
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video reviews</h2>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video reviews{titleSuffix}</h2>
         <a href={`${APP_URL.feedback}/video-review`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
