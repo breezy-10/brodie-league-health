@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth";
-import { csvParam, locParam, resolveScope } from "@/lib/seasons";
+import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import RatesEditor, { type CurrencyCounts } from "./RatesEditor";
 import { loadReferralRates } from "./rates";
@@ -65,7 +65,7 @@ export default async function ReferralsView({
   const ctx = await requireUser();
   const { season: seasonParam, location: locationParam } = await searchParams;
   const selectedSeasons = csvParam(seasonParam);
-  const selectedLocations = csvParam(locationParam);
+  const selectedLocations = csvParam(locationParam).map(canonicalLocation);
 
   // The filter selects the season this page reports on — no offset. Referrals
   // attach to registrations, so it defaults to the season being registered for
