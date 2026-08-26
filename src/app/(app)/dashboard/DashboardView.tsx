@@ -23,6 +23,7 @@ const APP_URL: Record<string, string> = {
   stats_health: "https://brodie-stats-health.vercel.app",
   content_health: "https://brodie-content-health.vercel.app",
   checklist: "https://brodie-season-success-checklist.vercel.app",
+  training: "https://brodie-training.vercel.app/admin/reports",
   overdue: "https://brodie-overdue-payments.vercel.app",
 };
 
@@ -730,6 +731,49 @@ async function loadTouchData(
   }
 }
 
+// Training reads the training app's OWN module-rollup feed, so the numbers
+// match its Reports page exactly (role-based + explicit assignment, minus
+// exclusions, expiry-aware). Null -> the section is left off.
+type ModuleRollup = {
+  slug: string; title: string; assigned: number; certified: number;
+  not_certified: number; expired: number; overdue: number; completion_pct: number | null;
+};
+// The four playbooks the dashboard tracks, in the order they should read.
+const TRAINING_MODULES = [
+  "League Manager Playbook",
+  "AES Playbook",
+  "AHS Playbook",
+  "Scorekeeper Playbook",
+];
+async function loadTrainingTiles(): Promise<Tile[] | null> {
+  try {
+    const res = await fetch("https://brodie-training.vercel.app/api/dashboard-kpis", { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as { modules?: ModuleRollup[] };
+    const byTitle = new Map((k.modules ?? []).map((m) => [m.title.toLowerCase(), m]));
+    const tiles: Tile[] = [];
+    for (const title of TRAINING_MODULES) {
+      const m = byTitle.get(title.toLowerCase());
+      if (!m) continue;
+      const pct = m.completion_pct;
+      tiles.push({
+        label: title.replace(/ Playbook$/, ""),
+        value: pct == null ? "—" : `${pct}%`,
+        tone: pct == null ? "default" : pctTone(pct),
+        sub: `${m.certified} of ${m.assigned} certified`,
+        lines: [
+          { text: `${m.not_certified} — not certified` },
+          ...(m.expired ? [{ text: `${m.expired} — expired` }] : []),
+          ...(m.overdue ? [{ text: `${m.overdue} — overdue`, color: "rgb(248,113,113)" }] : []),
+        ],
+      });
+    }
+    return tiles.length ? tiles : null;
+  } catch {
+    return null;
+  }
+}
+
 async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
@@ -1083,7 +1127,7 @@ export default async function DashboardView({
   const weeksParam = activeWeeks.length ? activeWeeks.join(",") : undefined;
   // Registrations mode shows only the Registrations section, so skip the other
   // source loads entirely — just fetch pacing.
-  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, touchData, siteVisits, videoReviews] = await Promise.all([
+  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, touchData, trainingTiles, siteVisits, videoReviews] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadFeedbackTiles(selectedSeason, scope),
@@ -1093,6 +1137,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
     isReg ? Promise.resolve(null) : loadTouchData(scope, { fromIso: touchFrom, toIso: touchTo, season: regSeason, weekLabel: activeWeeks.length ? `week of ${weekLabel}` : undefined }),
+    isReg ? Promise.resolve(null) : loadTrainingTiles(),
     isReg ? Promise.resolve(null) : loadSiteVisits(scope, weeksParam),
     isReg ? Promise.resolve(null) : loadVideoReviews(scope, weeksParam),
   ]);
@@ -1261,6 +1306,7 @@ export default async function DashboardView({
             <TouchesSection data={touchData} when={touchWhen} />
             {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} />}
             {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} />}
+            {trainingTiles && <Section title="Training" href={APP_URL.training} tiles={trainingTiles} />}
             <Section title="Stats Health" href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
             <Section title="Content Health" href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
             <Section title="Feedback" href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
