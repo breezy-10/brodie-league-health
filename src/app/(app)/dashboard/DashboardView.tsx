@@ -1544,7 +1544,8 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
 
 function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null }) {
   const t = data.totals;
-  const booked = data.locations.filter((l) => l.nights > 0).length;
+  const locTone = (l: BookingLoc) => BOOKING_STATUS_TONE[firmestStatus(l)] ?? "default";
+  const secured = data.locations.filter((l) => locTone(l) === "ok" || locTone(l) === "warn").length;
   const statusPill = (s: string, n: number) => (
     <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
       style={{
@@ -1602,13 +1603,15 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           sub="across every location" tone="default"
           lines={BOOKING_STATUS_ORDER.filter((s) => s !== "need_to_book" && t?.by_status[s])
             .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
-        <StatTile label="Locations booked" value={`${booked}`} unit={`/ ${data.locations.length}`}
-          sub="with a day booked" tone={booked === data.locations.length ? "ok" : "warn"}
+        <StatTile label="Locations secured" value={`${secured}`} unit={`/ ${data.locations.length}`}
+          sub="a contract or verbal on at least one night"
+          tone={secured === data.locations.length ? "ok" : "warn"}
           // The whole roster, each location tinted by its firmest status, so the
           // red ones are read against everywhere else rather than on their own.
+          // The count above is the green and gold chips, so the two agree.
           pills={[...data.locations]
             .sort((a, b) => a.location.localeCompare(b.location))
-            .map((l) => ({ text: l.location, tone: BOOKING_STATUS_TONE[firmestStatus(l)] ?? "default" }))}
+            .map((l) => ({ text: l.location, tone: locTone(l) }))}
           pillsEmpty="no locations" />
       </div>
 
