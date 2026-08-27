@@ -818,7 +818,7 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
   }
 }
 
-type VenueRegs = { venue: string; teams_registered: number };
+type VenueRegs = { venue: string; day?: string | null; teams_registered: number; full_roster?: number };
 async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Tile[]; teamsRegistered: number; teamsFullRoster: number | null; byVenue: VenueRegs[] } | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
@@ -1520,6 +1520,7 @@ const BOOKING_STATUS_COLOR: Record<string, string> = {
   in_communication: "var(--glass-text-secondary)",
   need_to_book: "rgb(248,113,113)",
 };
+const DOW_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const BOOKING_STATUS_TONE: Record<string, Tone> = {
   booked_with_contract: "ok",
   booked_with_flexibility: "ok",
@@ -1549,9 +1550,27 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
 
 function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster, venueRegs }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null; venueRegs?: VenueRegs[] }) {
   // Registrations arrive keyed by the ops league's venue name, which spells a
-  // market slightly differently from the facilities calendar.
-  const regsFor = (loc: string) =>
-    venueRegs?.find((v) => sameLocation(v.venue, loc))?.teams_registered ?? null;
+  // market slightly differently from the facilities calendar, and name their
+  // night in full where the calendar abbreviates it.
+  const SHORT_DAY: Record<string, string> = {
+    sunday: "Sun", monday: "Mon", tuesday: "Tue", wednesday: "Wed",
+    thursday: "Thu", friday: "Fri", saturday: "Sat",
+  };
+  const shortDay = (d: string | null) => (d ? SHORT_DAY[d.trim().toLowerCase()] ?? d.trim().slice(0, 3) : null);
+  // Every night a venue has signups on, whether or not it has been booked.
+  const regDaysFor = (loc: string) => {
+    const m = new Map<string, { teams: number; full: number }>();
+    for (const v of venueRegs ?? []) {
+      if (!sameLocation(v.venue, loc)) continue;
+      const d = shortDay(v.day ?? null);
+      if (!d) continue;
+      const cur = m.get(d) ?? { teams: 0, full: 0 };
+      cur.teams += v.teams_registered;
+      cur.full += v.full_roster ?? 0;
+      m.set(d, cur);
+    }
+    return m;
+  };
   const t = data.totals;
   const locTone = (l: BookingLoc) => BOOKING_STATUS_TONE[firmestStatus(l)] ?? "default";
   const secured = data.locations.filter((l) => locTone(l) === "ok" || locTone(l) === "warn").length;
@@ -1625,37 +1644,54 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           pillsEmpty="no locations" />
       </div>
 
-      <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+      <div className="rounded-2xl border border-glass-border bg-glass-surface">
         <table className="w-full text-sm">
+          {/* Sticky per cell rather than on the row: the page's scroll container
+              starts directly under the nav, so top:0 lands flush against it. */}
           <thead>
-            <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
-              <th className="px-5 py-3 font-bold">Location</th>
-              <th className="px-5 py-3 font-bold">Night</th>
-              <th className="px-5 py-3 font-bold text-right">Teams registered</th>
-              <th className="px-5 py-3 font-bold text-right">Teams booked</th>
-              <th className="px-5 py-3 font-bold">Booking status</th>
+            <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary">
+              {[
+                { label: "Location", align: "" },
+                { label: "Night", align: "" },
+                { label: "Teams registered", align: "text-right" },
+                { label: "Teams booked", align: "text-right" },
+                { label: "Booking status", align: "" },
+              ].map((h) => (
+                <th key={h.label}
+                  className={`px-5 py-3 font-bold sticky top-0 z-[5] border-b border-glass-border-light ${h.align}`}
+                  style={{ background: "var(--glass-surface)" }}>
+                  {h.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {data.locations.flatMap((l) => {
-              const nights = l.by_day ?? [];
+              // A venue's nights are everything it has booked plus everything it
+              // has signups for — a night people registered for but nobody has
+              // booked is the gap worth seeing, so it gets a row of its own.
+              const regDays = regDaysFor(l.location);
+              const booked = l.by_day ?? [];
+              const nights = [...new Set([...booked.map((n) => n.day), ...regDays.keys()])]
+                .sort((a, b) => DOW_WEEK.indexOf(a) - DOW_WEEK.indexOf(b))
+                .map((day) => booked.find((n) => n.day === day) ?? { day, teams: 0, by_status: {} });
               if (!nights.length) {
                 return [(
                   <tr key={l.location} className="border-t border-glass-border align-top">
                     <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
                     <td className="px-5 py-3 font-semibold" style={{ color: "rgb(248,113,113)" }}>none booked</td>
-                    <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">{regsFor(l.location) ?? "—"}</td>
+                    <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">—</td>
                     <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">0</td>
                     <td className="px-5 py-3" />
                   </tr>
                 )];
               }
-              const regs = regsFor(l.location);
               return nights.map((n, i) => {
                 // The night takes the colour of the firmest thing booked on it,
                 // so an unsecured Friday reads red inside an otherwise fine venue.
                 const firm = BOOKING_STATUS_ORDER.find((s) => (n.by_status[s] ?? 0) > 0) ?? "need_to_book";
                 const dayColor = BOOKING_STATUS_COLOR[firm] ?? "var(--glass-text)";
+                const reg = regDays.get(n.day);
                 return (
                   <tr key={`${l.location}|${n.day}`}
                     className={`align-top border-t ${i === 0 ? "border-glass-border" : "border-glass-border-light"}`}>
@@ -1664,13 +1700,18 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                         style={{ color: "var(--glass-text)" }}>{l.location}</td>
                     )}
                     <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: dayColor }}>{n.day}</td>
-                    {i === 0 && (
-                      <td rowSpan={nights.length} className="px-5 py-3 text-right tabular font-bold align-top"
-                        style={{ color: regs == null ? "var(--glass-text-tertiary)" : "var(--glass-text)" }}>
-                        {regs == null ? "—" : regs.toLocaleString()}
-                      </td>
-                    )}
-                    <td className="px-5 py-3 text-right tabular font-bold"
+                    <td className="px-5 py-3 text-right tabular align-top">
+                      <div className="font-bold" style={{ color: reg ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
+                        {reg ? reg.teams.toLocaleString() : "—"}
+                      </div>
+                      {!!reg?.full && (
+                        <span className="inline-block mt-1 text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                          style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
+                          {reg.full} with 7+ players
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-right tabular font-bold align-top"
                       style={{ color: n.teams ? "var(--glass-gold)" : "var(--glass-text-tertiary)" }}>
                       {n.teams.toLocaleString()}
                     </td>
