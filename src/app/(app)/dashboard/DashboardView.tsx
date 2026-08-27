@@ -1460,7 +1460,8 @@ type BookingData = {
   locations: BookingLoc[];
   totals: {
     nights: number; teams: number; to_book: number; locations: number;
-    teams_per_week?: number; nights_per_week?: number; nights_to_book?: number;
+    teams_per_week?: number; teams_week_one?: number; week_one?: string | null;
+    nights_per_week?: number; nights_to_book?: number;
     by_status: Record<string, number>;
   } | null;
 };
@@ -1525,17 +1526,16 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
             the two read side by side rather than needing a second card. */}
         <StatTile
           label={teamsRegistered != null ? "Teams registered" : "Teams booked for"}
-          value={(teamsRegistered ?? t?.teams ?? 0).toLocaleString()}
-          sub={teamsRegistered != null ? "registered" : "courts x hours x 2"}
+          value={(teamsRegistered ?? t?.teams_week_one ?? 0).toLocaleString()}
           tone="default"
           corner={teamsRegistered != null
             ? {
+                // Capacity is per night, so the comparable figure is one week's
+                // worth — week 1 of the regular season, not the season's nights
+                // added together.
                 label: "Teams booked",
-                // Capacity is per night, so the comparable figure is what one
-                // week holds, not the season's nights added together.
-                value: (t?.teams_per_week ?? 0).toLocaleString(),
+                value: (t?.teams_week_one ?? 0).toLocaleString(),
                 color: "var(--glass-gold)",
-                lines: [{ text: "busiest week" }],
               }
             : undefined}
         />
