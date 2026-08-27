@@ -725,8 +725,15 @@ async function loadTouchData(
           if (fromIso) q = q.gte("occurred_at", fromIso);
           if (toIso) q = q.lt("occurred_at", toIso);
           if (chunk) q = q.in("lead_id", chunk);
-          const { data, error } = await q.order("id").range(from, from + 999);
-          if (error || !data) break;
+          // Ordered by occurred_at, which the window already filters on.
+          // Ordering by id walked the primary key across ~900k rows and hit the
+          // statement timeout, and the error below turned that into a confident
+          // zero. id breaks ties so paging stays stable.
+          const { data, error } = await q.order("occurred_at").order("id").range(from, from + 999);
+          // A failed read is not an empty one. Swallowing this reported "none
+          // logged" for a season with nearly 2,000 touches in it.
+          if (error) throw new Error(`activities read failed: ${error.message}`);
+          if (!data) break;
           out.push(...(data as unknown as Row[]));
           if (data.length < 1000) break;
         }
