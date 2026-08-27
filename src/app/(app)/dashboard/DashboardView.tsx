@@ -529,11 +529,13 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       {
         label: "Full recording %", value: k.full_recording_pct == null ? "—" : `${k.full_recording_pct}%`,
         tone: k.full_recording_tone ?? (k.full_recording_pct == null ? "default" : pctTone(k.full_recording_pct)),
+        // Week-over-week leads, as on the completion-rate card, so the same
+        // comparison sits in the same place on every card in the row.
         lines: [
+          ...wowPct(k.full_recording_pct, k.prev_full_recording_pct),
           { text: `${n(k.full)} — full` },
           { text: `${n(k.incomplete)} — incomplete` },
           { text: `${n(k.recording_total)} — total` },
-          ...wowPct(k.full_recording_pct, k.prev_full_recording_pct),
         ],
       },
       {
@@ -548,8 +550,8 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         label: "Stat delivery time", value: k.stat_delivery_ms == null ? "—" : fmtElapsed(k.stat_delivery_ms),
         tone: "default",
         lines: [
-          { text: `${n(k.stat_delivery_n)} games processed` },
           ...wowElapsed(k.stat_delivery_ms, k.prev_stat_delivery_ms),
+          { text: `${n(k.stat_delivery_n)} games processed` },
         ],
       },
     ];
