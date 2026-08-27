@@ -43,7 +43,7 @@ type Tile = {
   // size as the main value, with its own small label and follow-up lines.
   corner?: { label: string; value: string; color?: string; lines?: { text: string; color?: string }[] };
   // Named items behind the number — rendered as wrapped chips, tinted by tone.
-  pills?: string[];
+  pills?: (string | { text: string; tone?: Tone })[];
   pillsEmpty?: string;
   // Defaults to the card's tone; set when the chips mean something different
   // from the headline (an amber card listing red gaps).
@@ -1592,10 +1592,12 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           sub="with a day booked" tone={booked === data.locations.length ? "ok" : "warn"}
           // Flags what is not locked in: nothing booked at all, or booked only
           // as far as a conversation.
-          pills={data.locations
-            .filter((l) => l.nights === 0 || (l.by_status["in_communication"] ?? 0) > 0)
-            .map((l) => l.location)
-            .sort((a, b) => a.localeCompare(b))}
+          pills={[
+            ...data.locations.filter((l) => l.nights === 0)
+              .map((l) => ({ text: l.location, tone: "bad" as Tone })),
+            ...data.locations.filter((l) => l.nights > 0 && (l.by_status["in_communication"] ?? 0) > 0)
+              .map((l) => ({ text: l.location, tone: "warn" as Tone })),
+          ].sort((a, b) => a.text.localeCompare(b.text))}
           pillsEmpty="every location booked"
           pillTone="bad" />
       </div>
@@ -1932,16 +1934,21 @@ function StatTile({ label, value, unit, sub, subInline, lines, tone = "default",
           pillsEmpty ? <div className="mt-2 text-[11px] italic text-glass-text-tertiary">{pillsEmpty}</div> : null
         ) : (
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {pills.map((p) => (
-              <span key={p} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                style={
-                  (pillTone ?? tone) === "bad"
-                    ? { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }
-                    : { color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" }
-                }>
-                {p}
-              </span>
-            ))}
+            {pills.map((p) => {
+              const text = typeof p === "string" ? p : p.text;
+              const chipTone = (typeof p === "string" ? undefined : p.tone) ?? pillTone ?? tone;
+              const style =
+                chipTone === "bad"
+                  ? { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }
+                  : chipTone === "warn"
+                    ? { color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }
+                    : { color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" };
+              return (
+                <span key={text} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap" style={style}>
+                  {text}
+                </span>
+              );
+            })}
           </div>
         )
       )}
