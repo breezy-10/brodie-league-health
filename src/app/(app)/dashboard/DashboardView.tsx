@@ -970,8 +970,11 @@ function RegBarCard({ title, subtitle, current, bars, note }: {
 
 // Difference vs a comparison season at the same day of registration. Green =
 // ahead of that season's pace, red = behind. null when the feed is missing a side.
-function RegDeltaCard({ title, subtitle, delta }: {
+function RegDeltaCard({ title, subtitle, delta, rosterDelta }: {
   title: string; subtitle: string; delta: number | null;
+  // The same comparison for teams that can field a side, which can move
+  // very differently from the headline count.
+  rosterDelta?: number | null;
 }) {
   const color =
     delta === null || delta === 0 ? "var(--glass-text)" :
@@ -983,6 +986,12 @@ function RegDeltaCard({ title, subtitle, delta }: {
       <p className="text-3xl font-bold tabular mt-2" style={{ color }}>
         {delta === null ? "—" : `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`}
       </p>
+      {rosterDelta != null && (
+        <p className="text-[11px] font-semibold mt-1 tabular" style={{ color: upColor(rosterDelta) }}>
+          {`${rosterDelta > 0 ? "+" : ""}${rosterDelta.toLocaleString()}`}
+          <span className="font-normal text-glass-text-tertiary"> with 7+ players</span>
+        </p>
+      )}
     </div>
   );
 }
@@ -1008,7 +1017,14 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note }: 
       <p className="text-[11px] font-semibold" style={{ color: deltaColor(dYear) }}>
         {signed(dYear)} <span className="font-normal text-glass-text-tertiary">vs {yearLabel}</span>
       </p>
-      {note && <p className="text-[10px] text-glass-text-tertiary mt-1 leading-snug">{note}</p>}
+      {note && (
+        // Set as a chip rather than another grey line: it competes with the
+        // deltas above it and is the number worth reading twice.
+        <span className="inline-block mt-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+          style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>
+          {note}
+        </span>
+      )}
     </div>
   );
 }
@@ -1060,7 +1076,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                 <LocationMetric label="Teams"
                   cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
                   prevLabel={prevLabel} yearLabel={yearLabel}
-                  note={`${get("current", "full_roster").toLocaleString()} with 7+`} />
+                  note={`${get("current", "full_roster").toLocaleString()} with 7+ players`} />
                 <LocationMetric label="Athletes"
                   cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
@@ -1199,6 +1215,10 @@ export default async function DashboardView({
   // Same-day difference: current season minus the comparison season at day N.
   const regDelta = (metric: "captains" | "athletes", against: typeof pacingPrevSeason) =>
     pacingCurrent && against ? pacingCurrent[metric] - against[metric] : null;
+  const rosterDelta = (against: typeof pacingPrevSeason) =>
+    pacingCurrent?.full_roster != null && against?.full_roster != null
+      ? pacingCurrent.full_roster - against.full_roster
+      : null;
   const regBars = (metric: "captains" | "athletes") =>
     (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric], color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
   // Checklist: two cards for the playing season, two for the next (prep) season.
@@ -1330,11 +1350,11 @@ export default async function DashboardView({
               <RegDeltaCard
                 title="Teams vs prev season"
                 subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
-                delta={regDelta("captains", pacingPrevSeason)} />
+                delta={regDelta("captains", pacingPrevSeason)} rosterDelta={rosterDelta(pacingPrevSeason)} />
               <RegDeltaCard
                 title="Teams vs last year"
                 subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
-                delta={regDelta("captains", pacingPrevYear)} />
+                delta={regDelta("captains", pacingPrevYear)} rosterDelta={rosterDelta(pacingPrevYear)} />
               <RegDeltaCard
                 title="Athletes vs prev season"
                 subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
