@@ -1590,7 +1590,12 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
             .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
         <StatTile label="Locations booked" value={`${booked}`} unit={`/ ${data.locations.length}`}
           sub="with a day booked" tone={booked === data.locations.length ? "ok" : "warn"}
-          pills={data.locations.filter((l) => l.nights === 0).map((l) => l.location).sort((a, b) => a.localeCompare(b))}
+          // Flags what is not locked in: nothing booked at all, or booked only
+          // as far as a conversation.
+          pills={data.locations
+            .filter((l) => l.nights === 0 || (l.by_status["in_communication"] ?? 0) > 0)
+            .map((l) => l.location)
+            .sort((a, b) => a.localeCompare(b))}
           pillsEmpty="every location booked"
           pillTone="bad" />
       </div>
