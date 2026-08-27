@@ -45,6 +45,9 @@ type Tile = {
   // Named items behind the number — rendered as wrapped chips, tinted by tone.
   pills?: string[];
   pillsEmpty?: string;
+  // Defaults to the card's tone; set when the chips mean something different
+  // from the headline (an amber card listing red gaps).
+  pillTone?: Tone;
 };
 
 type SnapRow = {
@@ -811,7 +814,7 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
   }
 }
 
-async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | null> {
+async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Tile[]; teamsRegistered: number } | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", season);
@@ -819,12 +822,13 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | nu
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (res.status === 404) {
       // Season is beyond the promo horizon — registration hasn't opened.
-      return [
+      const zero: Tile[] = [
         { label: "Teams registered", value: "0", sub: `${season} — registration not open yet` },
         { label: "Stories posted", value: "0", unit: "/ 0", sub: "0%" },
         { label: "Highlights posted", value: "0", unit: "/ 0", sub: "0%" },
         { label: "Avg time to post", value: "—", sub: "0 posts" },
-      ];
+      ].map((x) => x) as Tile[];
+      return { tiles: zero, teamsRegistered: 0 };
     }
     if (!res.ok) return null;
     const k = (await res.json()) as {
@@ -836,12 +840,13 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<Tile[] | nu
       const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
       return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${mm}m` : `${mm}m`;
     };
-    return [
+    const tiles: Tile[] = [
       { label: "Teams registered", value: k.teams_registered.toLocaleString(), sub: `across ${k.locations} locations` },
       { label: "Stories posted", value: `${k.stories_posted}`, unit: `/ ${k.teams_registered}`, sub: `${k.story_pct}%`, tone: k.story_tone ?? pctTone(k.story_pct) },
       { label: "Highlights posted", value: `${k.highlights_posted}`, unit: `/ ${k.teams_registered}`, sub: `${k.highlight_pct}%`, tone: k.highlight_tone ?? pctTone(k.highlight_pct) },
       { label: "Avg time to post", value: k.avg_time_to_post_ms != null ? fmt(k.avg_time_to_post_ms) : "—", sub: `${k.avg_time_to_post_sample} posts`, tone: "warn" },
     ];
+    return { tiles, teamsRegistered: k.teams_registered };
   } catch {
     return null;
   }
@@ -1345,7 +1350,7 @@ export default async function DashboardView({
         )}
         {!isReg && (
           <>
-            <Section title="Registration Promo Tracker" scopeTag={fullTag} href={APP_URL.promo} tiles={promoTiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
+            <Section title="Registration Promo Tracker" scopeTag={fullTag} href={APP_URL.promo} tiles={promoTiles?.tiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
             <TouchesSection data={touchData} when={touchWhen} titleSuffix={weekTag} />
             {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} titleSuffix={weekTag} />}
             {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} titleSuffix={weekTag} />}
@@ -1354,7 +1359,7 @@ export default async function DashboardView({
             <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
             <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
-            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} />}
+            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} teamsRegistered={promoTiles?.teamsRegistered} />}
           </>
         )}
       </div>
@@ -1484,7 +1489,7 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
   }
 }
 
-function BookingsSection({ data, season, titleSuffix = "" }: { data: BookingData; season: string; titleSuffix?: string }) {
+function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number }) {
   const t = data.totals;
   const booked = data.locations.filter((l) => l.nights > 0).length;
   const statusPill = (s: string, n: number) => (
@@ -1511,8 +1516,17 @@ function BookingsSection({ data, season, titleSuffix = "" }: { data: BookingData
       </div>
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-        <StatTile label="Teams booked for" value={(t?.teams ?? 0).toLocaleString()}
-          sub="courts x hours x 2" tone="default" />
+        {/* Teams actually registered against the capacity booked for them, so
+            the two read side by side rather than needing a second card. */}
+        <StatTile
+          label={teamsRegistered != null ? "Teams" : "Teams booked for"}
+          value={(teamsRegistered ?? t?.teams ?? 0).toLocaleString()}
+          sub={teamsRegistered != null ? "registered" : "courts x hours x 2"}
+          tone="default"
+          corner={teamsRegistered != null
+            ? { label: "Booked for", value: (t?.teams ?? 0).toLocaleString(), color: "var(--glass-gold)" }
+            : undefined}
+        />
         <StatTile label="Nights booked" value={(t?.nights ?? 0).toLocaleString()}
           sub="past need-to-book" tone="default"
           lines={BOOKING_STATUS_ORDER.filter((s) => s !== "need_to_book" && t?.by_status[s])
@@ -1520,7 +1534,10 @@ function BookingsSection({ data, season, titleSuffix = "" }: { data: BookingData
         <StatTile label="Still to book" value={(t?.to_book ?? 0).toLocaleString()}
           sub="nights at need-to-book" tone={(t?.to_book ?? 0) > 0 ? "bad" : "ok"} />
         <StatTile label="Locations booked" value={`${booked}`} unit={`/ ${data.locations.length}`}
-          sub="with at least one night" tone={booked === data.locations.length ? "ok" : "warn"} />
+          sub="with at least one night" tone={booked === data.locations.length ? "ok" : "warn"}
+          pills={data.locations.filter((l) => l.nights === 0).map((l) => l.location).sort((a, b) => a.localeCompare(b))}
+          pillsEmpty="every location booked"
+          pillTone="bad" />
       </div>
 
       <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
@@ -1778,7 +1795,7 @@ function Section({
   );
 }
 
-function StatTile({ label, value, unit, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, corner }: Tile) {
+function StatTile({ label, value, unit, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, corner }: Tile) {
   const color =
     tone === "ok" ? "rgb(74,222,128)" :
     tone === "warn" ? "var(--glass-gold)" :
@@ -1850,7 +1867,7 @@ function StatTile({ label, value, unit, sub, subInline, lines, tone = "default",
             {pills.map((p) => (
               <span key={p} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
                 style={
-                  tone === "bad"
+                  (pillTone ?? tone) === "bad"
                     ? { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }
                     : { color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" }
                 }>
