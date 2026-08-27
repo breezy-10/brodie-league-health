@@ -1483,6 +1483,7 @@ function TouchesSection({ data, when, titleSuffix = "" }: { data: (TouchData & {
 type BookingLoc = {
   location: string; nights: number; teams: number; teams_per_week?: number;
   days?: string[]; days_to_book?: string[];
+  by_day?: { day: string; teams: number; by_status: Record<string, number> }[];
   by_status: Record<string, number>; off: number;
 };
 type BookingData = {
@@ -1616,33 +1617,54 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           <thead>
             <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
               <th className="px-5 py-3 font-bold">Location</th>
-              <th className="px-5 py-3 font-bold">Days played</th>
-              <th className="px-5 py-3 font-bold text-right">Teams / wk</th>
+              <th className="px-5 py-3 font-bold">Night</th>
+              <th className="px-5 py-3 font-bold text-right">Teams</th>
               <th className="px-5 py-3 font-bold">Booking status</th>
             </tr>
           </thead>
           <tbody>
-            {data.locations.map((l) => (
-              <tr key={l.location} className="border-t border-glass-border-light align-top">
-                <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
-                <td className="px-5 py-3 whitespace-nowrap">
-                  <span className="font-semibold" style={{ color: l.days?.length ? "var(--glass-text)" : "rgb(248,113,113)" }}>
-                    {l.days?.length ? l.days.join(", ") : "none booked"}
-                  </span>
-                  {!!l.days_to_book?.length && (
-                    <span className="text-[10px] block mt-0.5" style={{ color: "rgb(248,113,113)" }}>
-                      {l.days_to_book.join(", ")} to secure
-                    </span>
-                  )}
-                </td>
-                <td className="px-5 py-3 text-right tabular font-bold" style={{ color: "var(--glass-gold)" }}>{(l.teams_per_week ?? 0).toLocaleString()}</td>
-                <td className="px-5 py-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {BOOKING_STATUS_ORDER.filter((s) => l.by_status[s]).map((s) => statusPill(s, l.by_status[s]))}
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {data.locations.flatMap((l) => {
+              const nights = l.by_day ?? [];
+              if (!nights.length) {
+                return [(
+                  <tr key={l.location} className="border-t border-glass-border align-top">
+                    <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
+                    <td className="px-5 py-3 font-semibold" style={{ color: "rgb(248,113,113)" }}>none booked</td>
+                    <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">0</td>
+                    <td className="px-5 py-3" />
+                  </tr>
+                )];
+              }
+              return nights.map((n, i) => {
+                // The night takes the colour of the firmest thing booked on it,
+                // so an unsecured Friday reads red inside an otherwise fine venue.
+                const firm = BOOKING_STATUS_ORDER.find((s) => (n.by_status[s] ?? 0) > 0) ?? "need_to_book";
+                const dayColor = BOOKING_STATUS_COLOR[firm] ?? "var(--glass-text)";
+                return (
+                  <tr key={`${l.location}|${n.day}`}
+                    className={`align-top border-t ${i === 0 ? "border-glass-border" : "border-glass-border-light"}`}>
+                    {i === 0 && (
+                      <td rowSpan={nights.length} className="px-5 py-3 whitespace-nowrap align-top">
+                        <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</div>
+                        <div className="text-[10px] mt-0.5 text-glass-text-tertiary">
+                          {(l.teams_per_week ?? 0).toLocaleString()} teams / wk
+                        </div>
+                      </td>
+                    )}
+                    <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: dayColor }}>{n.day}</td>
+                    <td className="px-5 py-3 text-right tabular font-bold"
+                      style={{ color: n.teams ? "var(--glass-gold)" : "var(--glass-text-tertiary)" }}>
+                      {n.teams.toLocaleString()}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {BOOKING_STATUS_ORDER.filter((s) => n.by_status[s]).map((s) => statusPill(s, n.by_status[s]))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              });
+            })}
           </tbody>
         </table>
       </div>
