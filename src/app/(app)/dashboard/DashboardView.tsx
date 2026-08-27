@@ -572,8 +572,8 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
       overall?: { total_players: number; active_players: number; locations: number };
       prev?: {
         as_of: string; total_players: number;
-        cad: { total_players: number; total_balance: number };
-        usd: { total_players: number; total_balance: number };
+        cad: { total_players: number; total_balance: number; active_players: number; active_balance: number };
+        usd: { total_players: number; total_balance: number; active_players: number; active_balance: number };
       } | null;
     };
     if (!k.currency_totals || !k.overall) return null; // pre-deploy shape -> sample
@@ -586,12 +586,22 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
         { text: `prev week ${prev.toLocaleString()}` },
         { text: `${cur - prev > 0 ? "+" : ""}${(cur - prev).toLocaleString()}`, color: upColor(-(cur - prev)) },
       ];
-    const wowMoney = (cur: number, prev: number | undefined, c: string) => {
-      if (prev == null) return [];
-      const d = Math.round((cur - prev) * 100) / 100;
+    // Compare what is still collectable — active players and their balance —
+    // rather than the headline total, which includes people who have stopped
+    // showing up. Owing less is an improvement, so the deltas run the other way.
+    const wowActive = (
+      c: CurTotals, cur: string,
+      prev: { active_players: number; active_balance: number; total_players: number } | undefined,
+    ) => {
+      if (!prev) return [];
+      const dBal = Math.round((c.active_balance - prev.active_balance) * 100) / 100;
+      const dAct = c.active_players - prev.active_players;
       return [
-        { text: `prev week ${money(prev, c)}` },
-        { text: `${d > 0 ? "+" : d < 0 ? "−" : ""}${money(Math.abs(d), c)}`, color: upColor(-d) },
+        { text: `prev week ${prev.active_players} of ${prev.total_players} active · ${money(prev.active_balance, cur)}` },
+        {
+          text: `${dAct > 0 ? "+" : ""}${dAct} active · ${dBal > 0 ? "+" : dBal < 0 ? "−" : ""}${money(Math.abs(dBal), cur)}`,
+          color: upColor(-dBal),
+        },
       ];
     };
     const tiles: Tile[] = [
@@ -604,14 +614,14 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
         ],
       },
     ];
-    const card = (c: CurTotals, cur: string, label: string, prev?: { total_players: number; total_balance: number }): Tile | null =>
+    const card = (c: CurTotals, cur: string, label: string, prev?: { total_players: number; total_balance: number; active_players: number; active_balance: number }): Tile | null =>
       c.total_players === 0 ? null : {
         label, value: money(c.total_balance, cur),
         lines: [
           { text: `${c.total_players} player${c.total_players === 1 ? "" : "s"}`, strong: true },
           { text: `${money(c.active_balance, cur)} from active players` },
           { text: `${c.active_players} of ${c.total_players} players active` },
-          ...wowMoney(c.total_balance, prev?.total_balance, cur),
+          ...wowActive(c, cur, prev),
         ],
       };
     const cad = card(k.currency_totals.cad, "CAD", "Overdue Balance - Canadian Locations", k.prev?.cad);
