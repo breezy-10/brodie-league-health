@@ -1605,7 +1605,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
       </div>
 
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
         {/* Teams actually registered against the capacity booked for them, so
             the two read side by side rather than needing a second card. */}
         <StatTile
@@ -1633,12 +1633,6 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
               }
             : undefined}
         />
-        {/* A season repeats the same weeknights, so playing days are the unit
-            that matters — not how many dates they add up to. */}
-        <StatTile label="Game nights a week" value={(t?.nights_per_week ?? 0).toLocaleString()}
-          sub="across every location" tone="default"
-          lines={BOOKING_STATUS_ORDER.filter((s) => s !== "need_to_book" && t?.by_status[s])
-            .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
         <StatTile label="Locations secured" value={`${secured}`} unit={`/ ${locations.length}`}
           valueSuffix={locations.length ? `${Math.round((secured / locations.length) * 100)}%` : undefined}
           sub="a contract or verbal on at least one night"
