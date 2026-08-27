@@ -1952,8 +1952,9 @@ function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone
             const l = lines?.[i];
             const c = corner?.lines?.[i];
             return (
-            // A row paired with a corner line matches its size on both sides.
-            <div key={i} className={`${c ? "text-[10px]" : "text-xs"} leading-snug flex items-baseline gap-2`}>
+            // One size for every row, on both sides of a card and across the
+            // row of cards — a card with a corner used to shrink its paired rows.
+            <div key={i} className="text-xs leading-snug flex items-baseline gap-2">
             <div
               className="flex items-center gap-1.5 flex-wrap min-w-0"
               style={{ color: l?.color ?? (l?.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)"), fontWeight: l?.strong ? 600 : 400 }}
@@ -1975,7 +1976,7 @@ function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone
               )}
             </div>
             {c && (
-              <span className="ml-auto text-[10px] tabular whitespace-nowrap shrink-0"
+              <span className="ml-auto text-xs tabular whitespace-nowrap shrink-0"
                 style={{ color: c.color ?? "var(--glass-text-tertiary)" }}>{c.text}</span>
             )}
             </div>
