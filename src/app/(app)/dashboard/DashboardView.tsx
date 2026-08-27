@@ -1452,12 +1452,17 @@ function TouchesSection({ data, when, titleSuffix = "" }: { data: (TouchData & {
 // matches its calendar exactly (courts x hours x 2). Null -> section omitted.
 type BookingLoc = {
   location: string; nights: number; teams: number; teams_per_week?: number;
+  days?: string[]; days_to_book?: string[];
   by_status: Record<string, number>; off: number;
 };
 type BookingData = {
   season: string | null;
   locations: BookingLoc[];
-  totals: { nights: number; teams: number; to_book: number; locations: number; teams_per_week?: number; by_status: Record<string, number> } | null;
+  totals: {
+    nights: number; teams: number; to_book: number; locations: number;
+    teams_per_week?: number; nights_per_week?: number; nights_to_book?: number;
+    by_status: Record<string, number>;
+  } | null;
 };
 const BOOKING_STATUS_LABEL: Record<string, string> = {
   booked_with_contract: "Contract",
@@ -1534,14 +1539,16 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
               }
             : undefined}
         />
-        <StatTile label="Nights booked" value={(t?.nights ?? 0).toLocaleString()}
-          sub="past need-to-book" tone="default"
+        {/* A season repeats the same weeknights, so playing days are the unit
+            that matters — not how many dates they add up to. */}
+        <StatTile label="Game nights a week" value={(t?.nights_per_week ?? 0).toLocaleString()}
+          sub="across every location" tone="default"
           lines={BOOKING_STATUS_ORDER.filter((s) => s !== "need_to_book" && t?.by_status[s])
             .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
-        <StatTile label="Still to book" value={(t?.to_book ?? 0).toLocaleString()}
-          sub="nights at need-to-book" tone={(t?.to_book ?? 0) > 0 ? "bad" : "ok"} />
+        <StatTile label="Still to secure" value={(t?.nights_to_book ?? 0).toLocaleString()}
+          sub="nights a week with nothing booked" tone={(t?.nights_to_book ?? 0) > 0 ? "bad" : "ok"} />
         <StatTile label="Locations booked" value={`${booked}`} unit={`/ ${data.locations.length}`}
-          sub="with at least one night" tone={booked === data.locations.length ? "ok" : "warn"}
+          sub="with a day booked" tone={booked === data.locations.length ? "ok" : "warn"}
           pills={data.locations.filter((l) => l.nights === 0).map((l) => l.location).sort((a, b) => a.localeCompare(b))}
           pillsEmpty="every location booked"
           pillTone="bad" />
@@ -1552,7 +1559,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
           <thead>
             <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
               <th className="px-5 py-3 font-bold">Location</th>
-              <th className="px-5 py-3 font-bold text-right">Nights</th>
+              <th className="px-5 py-3 font-bold">Days played</th>
               <th className="px-5 py-3 font-bold text-right">Teams / wk</th>
               <th className="px-5 py-3 font-bold">Booking status</th>
             </tr>
@@ -1561,8 +1568,16 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
             {data.locations.map((l) => (
               <tr key={l.location} className="border-t border-glass-border-light align-top">
                 <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
-                <td className="px-5 py-3 text-right tabular font-bold"
-                  style={{ color: l.nights > 0 ? "var(--glass-text)" : "rgb(248,113,113)" }}>{l.nights}</td>
+                <td className="px-5 py-3 whitespace-nowrap">
+                  <span className="font-semibold" style={{ color: l.days?.length ? "var(--glass-text)" : "rgb(248,113,113)" }}>
+                    {l.days?.length ? l.days.join(", ") : "none booked"}
+                  </span>
+                  {!!l.days_to_book?.length && (
+                    <span className="text-[10px] block mt-0.5" style={{ color: "rgb(248,113,113)" }}>
+                      {l.days_to_book.join(", ")} to secure
+                    </span>
+                  )}
+                </td>
                 <td className="px-5 py-3 text-right tabular font-bold" style={{ color: "var(--glass-gold)" }}>{(l.teams_per_week ?? 0).toLocaleString()}</td>
                 <td className="px-5 py-3">
                   <div className="flex flex-wrap gap-1.5">
