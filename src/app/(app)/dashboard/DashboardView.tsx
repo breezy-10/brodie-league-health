@@ -854,7 +854,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 
 // Registration pacing (teams + athletes at "day N of registration" for this
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
-type PacingSeason = { season: string; kind: string; captains: number; athletes: number };
+type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number };
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string };
 type PacingLocation = { location: string; seasons: PacingSeason[]; retention?: Retention | null };
 type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[] };
@@ -928,9 +928,11 @@ async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoRevie
 const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "last year" };
 const REG_COLOR: Record<string, string> = { current: "var(--glass-gold)", prev_season: "#5B8AC4", prev_year: "#A874C9" };
 const TRACK_PX = 130;
-function RegBarCard({ title, subtitle, current, bars }: {
+function RegBarCard({ title, subtitle, current, bars, note }: {
   title: string; subtitle: string; current: number;
   bars: { label: string; sub: string; value: number; color: string }[];
+  // A second reading of the headline — how many of those teams can field a side.
+  note?: string;
 }) {
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
@@ -940,7 +942,10 @@ function RegBarCard({ title, subtitle, current, bars }: {
           <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
           <p className="text-xs mt-0.5 text-glass-text-tertiary">{subtitle}</p>
         </div>
-        <span className="text-2xl font-bold tabular" style={{ color: "var(--glass-gold)" }}>{current.toLocaleString()}</span>
+        <div className="text-right shrink-0">
+          <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{current.toLocaleString()}</span>
+          {note && <span className="text-[11px] text-glass-text-tertiary">{note}</span>}
+        </div>
       </div>
       {/* Bars: fixed-px track so heights are truly proportional to value. */}
       <div className="flex items-end gap-6 mt-5" style={{ height: TRACK_PX + 22 }}>
@@ -987,8 +992,10 @@ const deltaColor = (d: number) =>
 const signed = (d: number) => `${d > 0 ? "+" : ""}${d.toLocaleString()}`;
 
 // One metric column inside a location card: count + both same-day deltas.
-function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel }: {
+function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note }: {
   label: string; cur: number; prev: number; year: number; prevLabel: string; yearLabel: string;
+  // Reads under the deltas — how many of these teams can field a side.
+  note?: string;
 }) {
   const dPrev = cur - prev, dYear = cur - year;
   return (
@@ -1001,6 +1008,7 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel }: {
       <p className="text-[11px] font-semibold" style={{ color: deltaColor(dYear) }}>
         {signed(dYear)} <span className="font-normal text-glass-text-tertiary">vs {yearLabel}</span>
       </p>
+      {note && <p className="text-[10px] text-glass-text-tertiary mt-1 leading-snug">{note}</p>}
     </div>
   );
 }
@@ -1023,7 +1031,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
       <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary mb-2">By location</h3>
       <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
         {locations.map((l) => {
-          const get = (kind: string, metric: "captains" | "athletes") =>
+          const get = (kind: string, metric: "captains" | "athletes" | "full_roster") =>
             l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
           const curTeams = get("current", "captains");
           const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
@@ -1051,7 +1059,8 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
               <div className="grid grid-cols-2 gap-3 mt-2.5">
                 <LocationMetric label="Teams"
                   cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
-                  prevLabel={prevLabel} yearLabel={yearLabel} />
+                  prevLabel={prevLabel} yearLabel={yearLabel}
+                  note={`${get("current", "full_roster").toLocaleString()} with 7+`} />
                 <LocationMetric label="Athletes"
                   cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
@@ -1313,7 +1322,8 @@ export default async function DashboardView({
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <RegBarCard title="Total teams" subtitle={`captain registrations · ${regBarWhen}`} current={pacingCurrent.captains} bars={regBars("captains")} />
+              <RegBarCard title="Total teams" subtitle={`captain registrations · ${regBarWhen}`} current={pacingCurrent.captains} bars={regBars("captains")}
+                note={pacingCurrent.full_roster != null ? `${pacingCurrent.full_roster.toLocaleString()} with 7+ players` : undefined} />
               <RegBarCard title="Total athletes" subtitle={`athlete registrations · ${regBarWhen}`} current={pacingCurrent.athletes} bars={regBars("athletes")} />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
