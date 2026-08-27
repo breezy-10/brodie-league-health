@@ -1394,7 +1394,7 @@ export default async function DashboardView({
             <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
             <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
-            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} teamsRegistered={promoTiles?.teamsRegistered} teamsFullRoster={promoTiles?.teamsFullRoster} venueRegs={promoTiles?.byVenue} />}
+            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} teamsRegistered={promoTiles?.teamsRegistered} teamsFullRoster={promoTiles?.teamsFullRoster} venueRegs={promoTiles?.byVenue} scopeLocations={locationNames} />}
           </>
         )}
       </div>
@@ -1548,7 +1548,7 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
   }
 }
 
-function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster, venueRegs }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null; venueRegs?: VenueRegs[] }) {
+function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster, venueRegs, scopeLocations }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null; venueRegs?: VenueRegs[]; scopeLocations?: string[] | null }) {
   // Registrations arrive keyed by the ops league's venue name, which spells a
   // market slightly differently from the facilities calendar, and name their
   // night in full where the calendar abbreviates it.
@@ -1579,6 +1579,11 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
   // and no Fall bookings, and simply was not listed.
   const regOnly: BookingLoc[] = [...new Set((venueRegs ?? []).map((v) => v.venue))]
     .filter((venue) => !data.locations.some((l) => sameLocation(venue, l.location)))
+    // Only markets the view actually asked for. Without this, a feed that
+    // ignores the location filter drags every other market into a filtered
+    // view — which is exactly what happened when the registration feed
+    // returned all 26 venues under ?location=Vaughan.
+    .filter((venue) => !scopeLocations?.length || scopeLocations.some((n) => sameLocation(venue, n)))
     .map((venue) => ({ location: venue, nights: 0, teams: 0, by_status: {}, off: 0, by_day: [] }));
   const locations = [...data.locations, ...regOnly].sort((a, b) => a.location.localeCompare(b.location));
   const secured = locations.filter((l) => locTone(l) === "ok" || locTone(l) === "warn").length;
