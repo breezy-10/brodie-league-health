@@ -1519,12 +1519,20 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
         {/* Teams actually registered against the capacity booked for them, so
             the two read side by side rather than needing a second card. */}
         <StatTile
-          label={teamsRegistered != null ? "Teams" : "Teams booked for"}
+          label={teamsRegistered != null ? "Teams registered" : "Teams booked for"}
           value={(teamsRegistered ?? t?.teams ?? 0).toLocaleString()}
           sub={teamsRegistered != null ? "registered" : "courts x hours x 2"}
           tone="default"
           corner={teamsRegistered != null
-            ? { label: "Booked for", value: (t?.teams ?? 0).toLocaleString(), color: "var(--glass-gold)" }
+            ? {
+                label: "Team slots booked",
+                value: (t?.teams ?? 0).toLocaleString(),
+                color: "var(--glass-gold)",
+                // Slots are team appearances (courts x hours x 2) summed over
+                // every booked night, so the raw number is not comparable to a
+                // team count — the per-week figure is what a team experiences.
+                lines: [{ text: `${(t?.nights ?? 0).toLocaleString()} nights` }],
+              }
             : undefined}
         />
         <StatTile label="Nights booked" value={(t?.nights ?? 0).toLocaleString()}
