@@ -1660,8 +1660,18 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 { label: "Booking status", align: "" },
               ].map((h) => (
                 <th key={h.label}
-                  className={`px-5 py-3 font-bold sticky top-0 z-[5] border-b border-glass-border-light ${h.align}`}
-                  style={{ background: "var(--glass-surface)" }}>
+                  className={`px-5 py-3 font-bold sticky top-0 z-[5] ${h.align}`}
+                  style={{
+                    // Rows share the card's surface, so a header on the same
+                    // colour with a hairline under it just looks like the first
+                    // row. A darker bar, a solid rule and a shadow underneath
+                    // make it read as sitting above the content it covers.
+                    // Tinting toward the text colour darkens the bar in light
+                    // mode and lightens it in dark, so it separates from the
+                    // rows either way — the page background only works in one.
+                    background: "color-mix(in srgb, var(--glass-text) 9%, var(--glass-surface))",
+                    boxShadow: "inset 0 -1px 0 var(--glass-border), 0 10px 14px -10px rgba(0,0,0,0.55)",
+                  }}>
                   {h.label}
                 </th>
               ))}
