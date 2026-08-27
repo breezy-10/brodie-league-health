@@ -38,7 +38,7 @@ type Tile = {
   subInline?: boolean;
   // Sits just after the unit, in the value's own colour — a ratio read as a share.
   valueSuffix?: string;
-  lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
+  lines?: { text: string; strong?: boolean; chip?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
   // A second headline number on the right of the same card, set at the same
@@ -1618,7 +1618,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           value={(teamsRegistered ?? t?.teams_week_one ?? 0).toLocaleString()}
           tone="default"
           lines={teamsFullRoster != null
-            ? [{ text: `${teamsFullRoster.toLocaleString()} with 7+ players` }]
+            ? [{ text: `${teamsFullRoster.toLocaleString()} with 7+ players`, chip: true }]
             : undefined}
           corner={teamsRegistered != null
             ? {
@@ -2024,7 +2024,12 @@ function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone
               className="flex items-center gap-1.5 flex-wrap min-w-0"
               style={{ color: l?.color ?? (l?.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)"), fontWeight: l?.strong ? 600 : 400 }}
             >
-              {l && <span>{l.text}</span>}
+              {l && (l.chip
+                ? <span className="text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                    style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
+                    {l.text}
+                  </span>
+                : <span>{l.text}</span>)}
               {l?.pill && (
                 <span
                   className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
