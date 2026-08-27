@@ -1660,12 +1660,8 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                   <tr key={`${l.location}|${n.day}`}
                     className={`align-top border-t ${i === 0 ? "border-glass-border" : "border-glass-border-light"}`}>
                     {i === 0 && (
-                      <td rowSpan={nights.length} className="px-5 py-3 whitespace-nowrap align-top">
-                        <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</div>
-                        <div className="text-[10px] mt-0.5 text-glass-text-tertiary">
-                          {(l.teams_per_week ?? 0).toLocaleString()} teams / wk
-                        </div>
-                      </td>
+                      <td rowSpan={nights.length} className="px-5 py-3 whitespace-nowrap align-top font-semibold"
+                        style={{ color: "var(--glass-text)" }}>{l.location}</td>
                     )}
                     <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: dayColor }}>{n.day}</td>
                     {i === 0 && (
