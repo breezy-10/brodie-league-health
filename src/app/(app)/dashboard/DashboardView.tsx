@@ -1530,7 +1530,13 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
 
 function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null }) {
   const t = data.totals;
-  const booked = data.locations.filter((l) => l.nights > 0).length;
+  // "Booked" has to mean the same thing in the number and the chips, or they
+  // stop adding up. A night held only by a conversation is not secured.
+  const FIRM = ["booked_with_contract", "booked_with_flexibility", "verbal_confirmation"];
+  const isFirm = (l: BookingLoc) => FIRM.some((s) => (l.by_status[s] ?? 0) > 0);
+  const secured = data.locations.filter(isFirm);
+  const nothingBooked = data.locations.filter((l) => l.nights === 0);
+  const talkingOnly = data.locations.filter((l) => l.nights > 0 && !isFirm(l));
   const statusPill = (s: string, n: number) => (
     <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
       style={{
@@ -1588,18 +1594,16 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           sub="across every location" tone="default"
           lines={BOOKING_STATUS_ORDER.filter((s) => s !== "need_to_book" && t?.by_status[s])
             .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
-        <StatTile label="Locations booked" value={`${booked}`} unit={`/ ${data.locations.length}`}
-          sub="with a day booked" tone={booked === data.locations.length ? "ok" : "warn"}
-          // Flags what is not locked in: nothing booked at all, or booked only
-          // as far as a conversation.
+        <StatTile label="Locations secured" value={`${secured.length}`} unit={`/ ${data.locations.length}`}
+          sub="a contract or verbal on at least one day"
+          tone={secured.length === data.locations.length ? "ok" : "warn"}
+          // The rest, split by why: nothing booked at all, or only talking.
+          // Secured + these two adds back to the location count.
           pills={[
-            ...data.locations.filter((l) => l.nights === 0)
-              .map((l) => ({ text: l.location, tone: "bad" as Tone })),
-            ...data.locations.filter((l) => l.nights > 0 && (l.by_status["in_communication"] ?? 0) > 0)
-              .map((l) => ({ text: l.location, tone: "warn" as Tone })),
+            ...nothingBooked.map((l) => ({ text: l.location, tone: "bad" as Tone })),
+            ...talkingOnly.map((l) => ({ text: l.location, tone: "warn" as Tone })),
           ].sort((a, b) => a.text.localeCompare(b.text))}
-          pillsEmpty="every location booked"
-          pillTone="bad" />
+          pillsEmpty="every location secured" />
       </div>
 
       <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
