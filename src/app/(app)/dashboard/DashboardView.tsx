@@ -1488,7 +1488,7 @@ function TouchesSection({ data, when, titleSuffix = "" }: { data: (TouchData & {
 type BookingLoc = {
   location: string; nights: number; teams: number; teams_per_week?: number;
   days?: string[]; days_to_book?: string[];
-  by_day?: { day: string; teams: number; by_status: Record<string, number> }[];
+  by_day?: { day: string; teams: number; teams_capacity?: number; by_status: Record<string, number> }[];
   by_status: Record<string, number>; off: number;
 };
 type BookingData = {
@@ -1654,7 +1654,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 { label: "Location", align: "" },
                 { label: "Night", align: "" },
                 { label: "Teams registered", align: "text-right" },
-                { label: "Teams booked", align: "text-right" },
+                { label: "Team spots", align: "text-right" },
                 { label: "Booking status", align: "" },
               ].map((h) => (
                 <th key={h.label}
@@ -1674,7 +1674,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
               const booked = l.by_day ?? [];
               const nights = [...new Set([...booked.map((n) => n.day), ...regDays.keys()])]
                 .sort((a, b) => DOW_WEEK.indexOf(a) - DOW_WEEK.indexOf(b))
-                .map((day) => booked.find((n) => n.day === day) ?? { day, teams: 0, by_status: {} });
+                .map((day) => booked.find((n) => n.day === day) ?? { day, teams: 0, teams_capacity: 0, by_status: {} });
               if (!nights.length) {
                 return [(
                   <tr key={l.location} className="border-t border-glass-border align-top">
@@ -1711,9 +1711,20 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-right tabular font-bold align-top"
-                      style={{ color: n.teams ? "var(--glass-gold)" : "var(--glass-text-tertiary)" }}>
-                      {n.teams.toLocaleString()}
+                    {/* The night's own capacity, whatever its status — a night the
+                        calendar shows as "12 teams" is 12 spots even while it is
+                        still need-to-book. What is secured sits underneath when
+                        the two differ. */}
+                    <td className="px-5 py-3 text-right tabular align-top">
+                      <div className="font-bold"
+                        style={{ color: n.teams ? "var(--glass-gold)" : "var(--glass-text-tertiary)" }}>
+                        {(n.teams_capacity ?? n.teams).toLocaleString()}
+                      </div>
+                      {(n.teams_capacity ?? 0) > n.teams && (
+                        <div className="text-[10px] mt-0.5 text-glass-text-tertiary">
+                          {n.teams.toLocaleString()} booked
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-wrap gap-1.5">
