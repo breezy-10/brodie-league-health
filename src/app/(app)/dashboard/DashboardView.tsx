@@ -816,7 +816,8 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
   }
 }
 
-async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Tile[]; teamsRegistered: number; teamsFullRoster: number | null } | null> {
+type VenueRegs = { venue: string; teams_registered: number };
+async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Tile[]; teamsRegistered: number; teamsFullRoster: number | null; byVenue: VenueRegs[] } | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", season);
@@ -830,13 +831,13 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
         { label: "Highlights posted", value: "0", unit: "/ 0", sub: "0%" },
         { label: "Avg time to post", value: "—", sub: "0 posts" },
       ].map((x) => x) as Tile[];
-      return { tiles: zero, teamsRegistered: 0, teamsFullRoster: null };
+      return { tiles: zero, teamsRegistered: 0, teamsFullRoster: null, byVenue: [] };
     }
     if (!res.ok) return null;
     const k = (await res.json()) as {
       teams_registered: number; teams_full_roster?: number | null; stories_posted: number; highlights_posted: number;
       story_pct: number; highlight_pct: number; story_tone?: Tone; highlight_tone?: Tone; avg_time_to_post_ms: number | null;
-      avg_time_to_post_sample: number; locations: number;
+      avg_time_to_post_sample: number; locations: number; by_venue?: VenueRegs[];
     };
     const fmt = (ms: number) => {
       const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
@@ -848,7 +849,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
       { label: "Highlights posted", value: `${k.highlights_posted}`, unit: `/ ${k.teams_registered}`, sub: `${k.highlight_pct}%`, tone: k.highlight_tone ?? pctTone(k.highlight_pct) },
       { label: "Avg time to post", value: k.avg_time_to_post_ms != null ? fmt(k.avg_time_to_post_ms) : "—", sub: `${k.avg_time_to_post_sample} posts`, tone: "warn" },
     ];
-    return { tiles, teamsRegistered: k.teams_registered, teamsFullRoster: k.teams_full_roster ?? null };
+    return { tiles, teamsRegistered: k.teams_registered, teamsFullRoster: k.teams_full_roster ?? null, byVenue: k.by_venue ?? [] };
   } catch {
     return null;
   }
@@ -1391,7 +1392,7 @@ export default async function DashboardView({
             <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
             <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
-            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} teamsRegistered={promoTiles?.teamsRegistered} teamsFullRoster={promoTiles?.teamsFullRoster} />}
+            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} teamsRegistered={promoTiles?.teamsRegistered} teamsFullRoster={promoTiles?.teamsFullRoster} venueRegs={promoTiles?.byVenue} />}
           </>
         )}
       </div>
@@ -1544,18 +1545,22 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
   }
 }
 
-function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null }) {
+function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster, venueRegs }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null; venueRegs?: VenueRegs[] }) {
+  // Registrations arrive keyed by the ops league's venue name, which spells a
+  // market slightly differently from the facilities calendar.
+  const regsFor = (loc: string) =>
+    venueRegs?.find((v) => sameLocation(v.venue, loc))?.teams_registered ?? null;
   const t = data.totals;
   const locTone = (l: BookingLoc) => BOOKING_STATUS_TONE[firmestStatus(l)] ?? "default";
   const secured = data.locations.filter((l) => locTone(l) === "ok" || locTone(l) === "warn").length;
-  const statusPill = (s: string, n: number) => (
+  const statusPill = (s: string, n?: number) => (
     <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
       style={{
         color: BOOKING_STATUS_COLOR[s] ?? "var(--glass-text-secondary)",
         borderColor: s === "need_to_book" ? "rgba(239,68,68,0.35)" : "var(--glass-border)",
         background: s === "need_to_book" ? "rgba(239,68,68,0.10)" : "transparent",
       }}>
-      {BOOKING_STATUS_LABEL[s] ?? s} <span className="font-bold tabular">{n}</span>
+      {BOOKING_STATUS_LABEL[s] ?? s}{n != null && <> <span className="font-bold tabular">{n}</span></>}
     </span>
   );
   return (
@@ -1624,7 +1629,8 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
             <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
               <th className="px-5 py-3 font-bold">Location</th>
               <th className="px-5 py-3 font-bold">Night</th>
-              <th className="px-5 py-3 font-bold text-right">Teams</th>
+              <th className="px-5 py-3 font-bold text-right">Teams registered</th>
+              <th className="px-5 py-3 font-bold text-right">Teams booked</th>
               <th className="px-5 py-3 font-bold">Booking status</th>
             </tr>
           </thead>
@@ -1636,11 +1642,13 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                   <tr key={l.location} className="border-t border-glass-border align-top">
                     <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
                     <td className="px-5 py-3 font-semibold" style={{ color: "rgb(248,113,113)" }}>none booked</td>
+                    <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">{regsFor(l.location) ?? "—"}</td>
                     <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">0</td>
                     <td className="px-5 py-3" />
                   </tr>
                 )];
               }
+              const regs = regsFor(l.location);
               return nights.map((n, i) => {
                 // The night takes the colour of the firmest thing booked on it,
                 // so an unsecured Friday reads red inside an otherwise fine venue.
@@ -1658,13 +1666,19 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                       </td>
                     )}
                     <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: dayColor }}>{n.day}</td>
+                    {i === 0 && (
+                      <td rowSpan={nights.length} className="px-5 py-3 text-right tabular font-bold align-top"
+                        style={{ color: regs == null ? "var(--glass-text-tertiary)" : "var(--glass-text)" }}>
+                        {regs == null ? "—" : regs.toLocaleString()}
+                      </td>
+                    )}
                     <td className="px-5 py-3 text-right tabular font-bold"
                       style={{ color: n.teams ? "var(--glass-gold)" : "var(--glass-text-tertiary)" }}>
                       {n.teams.toLocaleString()}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex flex-wrap gap-1.5">
-                        {BOOKING_STATUS_ORDER.filter((s) => n.by_status[s]).map((s) => statusPill(s, n.by_status[s]))}
+                        {BOOKING_STATUS_ORDER.filter((s) => n.by_status[s]).map((s) => statusPill(s))}
                       </div>
                     </td>
                   </tr>
