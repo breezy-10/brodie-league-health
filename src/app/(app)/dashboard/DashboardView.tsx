@@ -839,7 +839,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
     const k = (await res.json()) as {
       teams_registered: number; teams_full_roster?: number | null; stories_posted: number; highlights_posted: number;
       story_pct: number; highlight_pct: number; story_tone?: Tone; highlight_tone?: Tone; avg_time_to_post_ms: number | null;
-      avg_time_to_post_sample: number; locations: number; by_venue?: VenueRegs[];
+      avg_time_to_post_sample: number; locations: number; by_venue_day?: VenueRegs[];
     };
     const fmt = (ms: number) => {
       const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
@@ -851,7 +851,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
       { label: "Highlights posted", value: `${k.highlights_posted}`, unit: `/ ${k.teams_registered}`, sub: `${k.highlight_pct}%`, tone: k.highlight_tone ?? pctTone(k.highlight_pct) },
       { label: "Avg time to post", value: k.avg_time_to_post_ms != null ? fmt(k.avg_time_to_post_ms) : "—", sub: `${k.avg_time_to_post_sample} posts`, tone: "warn" },
     ];
-    return { tiles, teamsRegistered: k.teams_registered, teamsFullRoster: k.teams_full_roster ?? null, byVenue: k.by_venue ?? [] };
+    return { tiles, teamsRegistered: k.teams_registered, teamsFullRoster: k.teams_full_roster ?? null, byVenue: k.by_venue_day ?? [] };
   } catch {
     return null;
   }
