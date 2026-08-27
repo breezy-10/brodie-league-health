@@ -1573,7 +1573,15 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
   };
   const t = data.totals;
   const locTone = (l: BookingLoc) => BOOKING_STATUS_TONE[firmestStatus(l)] ?? "default";
-  const secured = data.locations.filter((l) => locTone(l) === "ok" || locTone(l) === "warn").length;
+  // A market with signups but nothing on the calendar has no row in the
+  // bookings feed at all, so it used to drop out of the list entirely — the one
+  // case you would most want to see. Ottawa had 26 teams registered for Fall
+  // and no Fall bookings, and simply was not listed.
+  const regOnly: BookingLoc[] = [...new Set((venueRegs ?? []).map((v) => v.venue))]
+    .filter((venue) => !data.locations.some((l) => sameLocation(venue, l.location)))
+    .map((venue) => ({ location: venue, nights: 0, teams: 0, by_status: {}, off: 0, by_day: [] }));
+  const locations = [...data.locations, ...regOnly].sort((a, b) => a.location.localeCompare(b.location));
+  const secured = locations.filter((l) => locTone(l) === "ok" || locTone(l) === "warn").length;
   const statusPill = (s: string, n?: number) => (
     <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
       style={{
@@ -1631,14 +1639,14 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           sub="across every location" tone="default"
           lines={BOOKING_STATUS_ORDER.filter((s) => s !== "need_to_book" && t?.by_status[s])
             .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
-        <StatTile label="Locations secured" value={`${secured}`} unit={`/ ${data.locations.length}`}
-          valueSuffix={data.locations.length ? `${Math.round((secured / data.locations.length) * 100)}%` : undefined}
+        <StatTile label="Locations secured" value={`${secured}`} unit={`/ ${locations.length}`}
+          valueSuffix={locations.length ? `${Math.round((secured / locations.length) * 100)}%` : undefined}
           sub="a contract or verbal on at least one night"
-          tone={secured === data.locations.length ? "ok" : "warn"}
+          tone={secured === locations.length ? "ok" : "warn"}
           // The whole roster, each location tinted by its firmest status, so the
           // red ones are read against everywhere else rather than on their own.
           // The count above is the green and gold chips, so the two agree.
-          pills={[...data.locations]
+          pills={[...locations]
             .sort((a, b) => a.location.localeCompare(b.location))
             .map((l) => ({ text: l.location, tone: locTone(l) }))}
           pillsEmpty="no locations" />
@@ -1666,7 +1674,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
             </tr>
           </thead>
           <tbody>
-            {data.locations.flatMap((l) => {
+            {locations.flatMap((l) => {
               // A venue's nights are everything it has booked plus everything it
               // has signups for — a night people registered for but nobody has
               // booked is the gap worth seeing, so it gets a row of its own.
