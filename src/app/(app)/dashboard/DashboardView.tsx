@@ -36,6 +36,8 @@ type Tile = {
   sub?: string;
   // Render `sub` beside the value instead of on its own line below it.
   subInline?: boolean;
+  // Sits just after the unit, in the value's own colour — a ratio read as a share.
+  valueSuffix?: string;
   lines?: { text: string; strong?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
@@ -1604,6 +1606,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           lines={BOOKING_STATUS_ORDER.filter((s) => s !== "need_to_book" && t?.by_status[s])
             .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
         <StatTile label="Locations secured" value={`${secured}`} unit={`/ ${data.locations.length}`}
+          valueSuffix={data.locations.length ? `${Math.round((secured / data.locations.length) * 100)}%` : undefined}
           sub="a contract or verbal on at least one night"
           tone={secured === data.locations.length ? "ok" : "warn"}
           // The whole roster, each location tinted by its firmest status, so the
@@ -1899,7 +1902,7 @@ function Section({
   );
 }
 
-function StatTile({ label, value, unit, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, corner }: Tile) {
+function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, corner }: Tile) {
   const color =
     tone === "ok" ? "rgb(74,222,128)" :
     tone === "warn" ? "var(--glass-gold)" :
@@ -1919,6 +1922,7 @@ function StatTile({ label, value, unit, sub, subInline, lines, tone = "default",
         <div className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold tabular" style={{ color }}>{value}</span>
           {unit && <span className="text-sm text-glass-text-tertiary">{unit}</span>}
+          {valueSuffix && <span className="text-base font-bold tabular" style={{ color }}>{valueSuffix}</span>}
           {sub && subInline && <span className="text-[11px] text-glass-text-tertiary leading-snug">{sub}</span>}
         </div>
         {corner && (
