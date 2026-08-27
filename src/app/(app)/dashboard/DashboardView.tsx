@@ -1451,13 +1451,13 @@ function TouchesSection({ data, when, titleSuffix = "" }: { data: (TouchData & {
 // Facilities reads the facilities app's OWN booking feed, so team capacity
 // matches its calendar exactly (courts x hours x 2). Null -> section omitted.
 type BookingLoc = {
-  location: string; nights: number; teams: number;
+  location: string; nights: number; teams: number; teams_per_week?: number;
   by_status: Record<string, number>; off: number;
 };
 type BookingData = {
   season: string | null;
   locations: BookingLoc[];
-  totals: { nights: number; teams: number; to_book: number; locations: number; by_status: Record<string, number> } | null;
+  totals: { nights: number; teams: number; to_book: number; locations: number; teams_per_week?: number; by_status: Record<string, number> } | null;
 };
 const BOOKING_STATUS_LABEL: Record<string, string> = {
   booked_with_contract: "Contract",
@@ -1525,13 +1525,12 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
           tone="default"
           corner={teamsRegistered != null
             ? {
-                label: "Team slots booked",
-                value: (t?.teams ?? 0).toLocaleString(),
+                label: "Teams booked",
+                // Capacity is per night, so the comparable figure is what one
+                // week holds, not the season's nights added together.
+                value: (t?.teams_per_week ?? 0).toLocaleString(),
                 color: "var(--glass-gold)",
-                // Slots are team appearances (courts x hours x 2) summed over
-                // every booked night, so the raw number is not comparable to a
-                // team count — the per-week figure is what a team experiences.
-                lines: [{ text: `${(t?.nights ?? 0).toLocaleString()} nights` }],
+                lines: [{ text: "busiest week" }],
               }
             : undefined}
         />
@@ -1554,7 +1553,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
             <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
               <th className="px-5 py-3 font-bold">Location</th>
               <th className="px-5 py-3 font-bold text-right">Nights</th>
-              <th className="px-5 py-3 font-bold text-right">Teams</th>
+              <th className="px-5 py-3 font-bold text-right">Teams / wk</th>
               <th className="px-5 py-3 font-bold">Booking status</th>
             </tr>
           </thead>
@@ -1564,7 +1563,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
                 <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
                 <td className="px-5 py-3 text-right tabular font-bold"
                   style={{ color: l.nights > 0 ? "var(--glass-text)" : "rgb(248,113,113)" }}>{l.nights}</td>
-                <td className="px-5 py-3 text-right tabular font-bold" style={{ color: "var(--glass-gold)" }}>{l.teams.toLocaleString()}</td>
+                <td className="px-5 py-3 text-right tabular font-bold" style={{ color: "var(--glass-gold)" }}>{(l.teams_per_week ?? 0).toLocaleString()}</td>
                 <td className="px-5 py-3">
                   <div className="flex flex-wrap gap-1.5">
                     {BOOKING_STATUS_ORDER.filter((s) => l.by_status[s]).map((s) => statusPill(s, l.by_status[s]))}
