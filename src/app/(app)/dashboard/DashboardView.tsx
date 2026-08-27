@@ -1514,6 +1514,19 @@ const BOOKING_STATUS_COLOR: Record<string, string> = {
   in_communication: "var(--glass-text-secondary)",
   need_to_book: "rgb(248,113,113)",
 };
+const BOOKING_STATUS_TONE: Record<string, Tone> = {
+  booked_with_contract: "ok",
+  booked_with_flexibility: "ok",
+  verbal_confirmation: "warn",
+  in_communication: "default",
+  cannot_book_until_later: "default",
+  need_to_book: "bad",
+};
+// A location is only as booked as its firmest day: one signed night makes it
+// green even while other nights are still being chased.
+const firmestStatus = (l: BookingLoc) =>
+  BOOKING_STATUS_ORDER.find((s) => (l.by_status[s] ?? 0) > 0) ?? "need_to_book";
+
 async function loadBookings(season: string, scope: Scope): Promise<BookingData | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://brodie-facilities.vercel.app");
@@ -1590,16 +1603,12 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
             .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
         <StatTile label="Locations booked" value={`${booked}`} unit={`/ ${data.locations.length}`}
           sub="with a day booked" tone={booked === data.locations.length ? "ok" : "warn"}
-          // Flags what is not locked in: nothing booked at all, or booked only
-          // as far as a conversation.
-          pills={[
-            ...data.locations.filter((l) => l.nights === 0)
-              .map((l) => ({ text: l.location, tone: "bad" as Tone })),
-            ...data.locations.filter((l) => l.nights > 0 && (l.by_status["in_communication"] ?? 0) > 0)
-              .map((l) => ({ text: l.location, tone: "warn" as Tone })),
-          ].sort((a, b) => a.text.localeCompare(b.text))}
-          pillsEmpty="every location booked"
-          pillTone="bad" />
+          // The whole roster, each location tinted by its firmest status, so the
+          // red ones are read against everywhere else rather than on their own.
+          pills={[...data.locations]
+            .sort((a, b) => a.location.localeCompare(b.location))
+            .map((l) => ({ text: l.location, tone: BOOKING_STATUS_TONE[firmestStatus(l)] ?? "default" }))}
+          pillsEmpty="no locations" />
       </div>
 
       <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
@@ -1942,7 +1951,9 @@ function StatTile({ label, value, unit, sub, subInline, lines, tone = "default",
                   ? { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }
                   : chipTone === "warn"
                     ? { color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }
-                    : { color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" };
+                    : chipTone === "ok"
+                      ? { color: "rgb(74,222,128)", borderColor: "rgba(74,222,128,0.35)", background: "rgba(74,222,128,0.10)" }
+                      : { color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" };
               return (
                 <span key={text} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap" style={style}>
                   {text}
