@@ -814,7 +814,7 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
   }
 }
 
-async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Tile[]; teamsRegistered: number } | null> {
+async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Tile[]; teamsRegistered: number; teamsFullRoster: number | null } | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", season);
@@ -828,11 +828,11 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
         { label: "Highlights posted", value: "0", unit: "/ 0", sub: "0%" },
         { label: "Avg time to post", value: "—", sub: "0 posts" },
       ].map((x) => x) as Tile[];
-      return { tiles: zero, teamsRegistered: 0 };
+      return { tiles: zero, teamsRegistered: 0, teamsFullRoster: null };
     }
     if (!res.ok) return null;
     const k = (await res.json()) as {
-      teams_registered: number; stories_posted: number; highlights_posted: number;
+      teams_registered: number; teams_full_roster?: number | null; stories_posted: number; highlights_posted: number;
       story_pct: number; highlight_pct: number; story_tone?: Tone; highlight_tone?: Tone; avg_time_to_post_ms: number | null;
       avg_time_to_post_sample: number; locations: number;
     };
@@ -846,7 +846,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
       { label: "Highlights posted", value: `${k.highlights_posted}`, unit: `/ ${k.teams_registered}`, sub: `${k.highlight_pct}%`, tone: k.highlight_tone ?? pctTone(k.highlight_pct) },
       { label: "Avg time to post", value: k.avg_time_to_post_ms != null ? fmt(k.avg_time_to_post_ms) : "—", sub: `${k.avg_time_to_post_sample} posts`, tone: "warn" },
     ];
-    return { tiles, teamsRegistered: k.teams_registered };
+    return { tiles, teamsRegistered: k.teams_registered, teamsFullRoster: k.teams_full_roster ?? null };
   } catch {
     return null;
   }
@@ -1359,7 +1359,7 @@ export default async function DashboardView({
             <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
             <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
-            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} teamsRegistered={promoTiles?.teamsRegistered} />}
+            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} teamsRegistered={promoTiles?.teamsRegistered} teamsFullRoster={promoTiles?.teamsFullRoster} />}
           </>
         )}
       </div>
@@ -1461,11 +1461,13 @@ type BookingData = {
   totals: {
     nights: number; teams: number; to_book: number; locations: number;
     teams_per_week?: number; teams_week_one?: number; week_one?: string | null;
+    teams_week_one_by_status?: Record<string, number>;
     nights_per_week?: number; nights_to_book?: number;
     by_status: Record<string, number>;
   } | null;
 };
 const BOOKING_STATUS_LABEL: Record<string, string> = {
+  cannot_book_until_later: "Cannot book yet",
   booked_with_contract: "Contract",
   booked_with_flexibility: "Flexible",
   verbal_confirmation: "Verbal",
@@ -1473,8 +1475,9 @@ const BOOKING_STATUS_LABEL: Record<string, string> = {
   need_to_book: "Need to book",
 };
 // Ordered from firmest to least committed, so a row reads left to right.
-const BOOKING_STATUS_ORDER = ["booked_with_contract", "booked_with_flexibility", "verbal_confirmation", "in_communication", "need_to_book"];
+const BOOKING_STATUS_ORDER = ["booked_with_contract", "booked_with_flexibility", "verbal_confirmation", "in_communication", "cannot_book_until_later", "need_to_book"];
 const BOOKING_STATUS_COLOR: Record<string, string> = {
+  cannot_book_until_later: "var(--glass-text-tertiary)",
   booked_with_contract: "rgb(74,222,128)",
   booked_with_flexibility: "rgb(74,222,128)",
   verbal_confirmation: "var(--glass-gold)",
@@ -1495,7 +1498,7 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
   }
 }
 
-function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number }) {
+function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null }) {
   const t = data.totals;
   const booked = data.locations.filter((l) => l.nights > 0).length;
   const statusPill = (s: string, n: number) => (
@@ -1528,6 +1531,9 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
           label={teamsRegistered != null ? "Teams registered" : "Teams booked for"}
           value={(teamsRegistered ?? t?.teams_week_one ?? 0).toLocaleString()}
           tone="default"
+          lines={teamsFullRoster != null
+            ? [{ text: `${teamsFullRoster.toLocaleString()} with 7+ players` }]
+            : undefined}
           corner={teamsRegistered != null
             ? {
                 // Capacity is per night, so the comparable figure is one week's
@@ -1536,6 +1542,13 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
                 label: "Teams booked",
                 value: (t?.teams_week_one ?? 0).toLocaleString(),
                 color: "var(--glass-gold)",
+                // How firm week 1 is, not just how big.
+                lines: BOOKING_STATUS_ORDER
+                  .filter((s) => (t?.teams_week_one_by_status?.[s] ?? 0) > 0)
+                  .map((s) => ({
+                    text: `${(t!.teams_week_one_by_status![s]).toLocaleString()} ${BOOKING_STATUS_LABEL[s]}`,
+                    color: BOOKING_STATUS_COLOR[s],
+                  })),
               }
             : undefined}
         />
@@ -1545,8 +1558,6 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered }: { 
           sub="across every location" tone="default"
           lines={BOOKING_STATUS_ORDER.filter((s) => s !== "need_to_book" && t?.by_status[s])
             .map((s) => ({ text: `${t!.by_status[s]} — ${BOOKING_STATUS_LABEL[s]}` }))} />
-        <StatTile label="Still to secure" value={(t?.nights_to_book ?? 0).toLocaleString()}
-          sub="nights a week with nothing booked" tone={(t?.nights_to_book ?? 0) > 0 ? "bad" : "ok"} />
         <StatTile label="Locations booked" value={`${booked}`} unit={`/ ${data.locations.length}`}
           sub="with a day booked" tone={booked === data.locations.length ? "ok" : "warn"}
           pills={data.locations.filter((l) => l.nights === 0).map((l) => l.location).sort((a, b) => a.localeCompare(b))}
