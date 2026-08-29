@@ -867,7 +867,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 // Registration pacing (teams + athletes at "day N of registration" for this
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
 type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number };
-type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string };
+type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
 type PacingLocation = { location: string; seasons: PacingSeason[]; retention?: Retention | null; retention_year?: Retention | null };
 type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[] };
 async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string): Promise<Pacing | null> {
@@ -1031,15 +1031,15 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note }: 
       {/* The count and the share it moved by, then what it is measured against.
           Left to wrap rather than forced onto one line — the column is narrow
           and a clipped percentage is worse than a second line. */}
-      <p className="text-[11px] font-semibold mt-1 leading-snug" style={{ color: deltaColor(dPrev) }}>
+      <p className="text-[11px] font-semibold mt-1 leading-snug whitespace-nowrap" style={{ color: deltaColor(dPrev) }}>
         {signed(dPrev)}
         <span className="font-normal text-glass-text-tertiary"> vs {prevLabel}</span>
-        {pctPrev && <span className="text-[10px] font-normal"> ({pctPrev})</span>}
+        {pctPrev && <span className="text-[9px] font-normal"> ({pctPrev})</span>}
       </p>
-      <p className="text-[11px] font-semibold leading-snug" style={{ color: deltaColor(dYear) }}>
+      <p className="text-[11px] font-semibold leading-snug whitespace-nowrap" style={{ color: deltaColor(dYear) }}>
         {signed(dYear)}
         <span className="font-normal text-glass-text-tertiary"> vs {yearLabel}</span>
-        {pctYear && <span className="text-[10px] font-normal"> ({pctYear})</span>}
+        {pctYear && <span className="text-[9px] font-normal"> ({pctYear})</span>}
       </p>
       {note && (
         // Set as a chip rather than another grey line: it competes with the
@@ -1108,19 +1108,26 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
               <div className="mt-3 flex items-end justify-between gap-2">
                 {/* Retention against both comparison seasons, matching the two
                     deltas above. One decimal, as the endpoint sends it. */}
+                {/* Both lines ask the same question — what share of the prior
+                    season's athletes came back — the second one a year earlier,
+                    so the two can actually be compared. Each names the season
+                    people came FROM. */}
                 {(l.retention || l.retention_year) ? (
                   <span className="text-[11px] leading-snug">
-                    {([[l.retention, prevLabel], [l.retention_year, yearLabel]] as const)
-                      .filter(([r]) => !!r)
-                      .map(([r, lbl]) => (
-                        <span key={lbl} className="block"
-                          title={`${r!.retained} of ${r!.prev_athletes} ${lbl} athletes registered again this season`}>
+                    {[l.retention, l.retention_year].filter(Boolean).map((r) => {
+                      const into = shortSeason(r!.into_season ?? season);
+                      return (
+                        <span key={r!.prev_season} className="block whitespace-nowrap"
+                          title={`${r!.retained} of ${r!.prev_athletes} ${shortSeason(r!.prev_season)} athletes registered again in ${into}`}>
                           <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
                             {r!.pct.toFixed(1)}%
                           </span>
-                          <span className="text-glass-text-tertiary"> retained vs {lbl}</span>
+                          <span className="text-glass-text-tertiary">
+                            {" "}of {shortSeason(r!.prev_season)} returned in {into}
+                          </span>
                         </span>
-                      ))}
+                      );
+                    })}
                   </span>
                 ) : <span />}
                 <a href={`/registrations/location?loc=${encodeURIComponent(l.location)}&season=${encodeURIComponent(season)}`}
