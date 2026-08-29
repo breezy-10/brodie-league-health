@@ -1113,33 +1113,43 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
-              <div className="mt-3 flex items-end justify-between gap-2">
-                {/* Retention against both comparison seasons, matching the two
-                    deltas above. One decimal, as the endpoint sends it. */}
-                {/* Both lines ask the same question — what share of the prior
-                    season's athletes came back — the second one a year earlier,
-                    so the two can actually be compared. Each names the season
-                    people came FROM. */}
-                {(l.retention || l.retention_year) ? (
-                  <span className="text-[11px] leading-snug">
-                    {[l.retention, l.retention_year].filter(Boolean).map((r) => {
-                      const into = shortSeason(r!.into_season ?? season);
-                      return (
-                        <span key={r!.prev_season} className="block whitespace-nowrap"
-                          title={`${r!.retained} of ${r!.prev_athletes} ${shortSeason(r!.prev_season)} athletes registered again in ${into}`}>
-                          <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
-                            {r!.pct.toFixed(1)}%
-                          </span>
-                          <span className="text-glass-text-tertiary">
-                            {" "}of {shortSeason(r!.prev_season)} returned in {into}
-                          </span>
+              {/* Both lines ask the same question — what share of the prior
+                  season's athletes came back — the second one a year earlier,
+                  so the two can actually be compared. Each names the season
+                  people came FROM. The current line carries the movement
+                  between them, in points: the difference of two percentages is
+                  points, not a percentage of a percentage. */}
+              {(l.retention || l.retention_year) && (
+                <div className="mt-3 text-[11px] leading-snug">
+                  {[l.retention, l.retention_year].filter(Boolean).map((r, i) => {
+                    const into = shortSeason(r!.into_season ?? season);
+                    const pts = i === 0 && l.retention && l.retention_year
+                      ? Math.round((l.retention.pct - l.retention_year.pct) * 10) / 10
+                      : null;
+                    return (
+                      <span key={r!.prev_season} className="block whitespace-nowrap"
+                        title={`${r!.retained} of ${r!.prev_athletes} ${shortSeason(r!.prev_season)} athletes registered again in ${into}`}>
+                        <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
+                          {r!.pct.toFixed(1)}%
                         </span>
-                      );
-                    })}
-                  </span>
-                ) : <span />}
+                        <span className="text-glass-text-tertiary">
+                          {" "}of {shortSeason(r!.prev_season)} returned in {into}
+                        </span>
+                        {pts != null && (
+                          <span className="text-[9px] font-semibold" style={{ color: upColor(pts) }}>
+                            {" "}({pts > 0 ? "+" : ""}{pts.toFixed(1)} pts)
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Its own row, so it is not competing with the retention lines
+                  for the same baseline. */}
+              <div className="mt-2 flex justify-end">
                 <a href={`/registrations/location?loc=${encodeURIComponent(l.location)}&season=${encodeURIComponent(season)}`}
-                  className="text-[11px] font-semibold hover:brightness-110 transition shrink-0" style={{ color: "var(--glass-gold)" }}>
+                  className="text-[11px] font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
                   More details →
                 </a>
               </div>
