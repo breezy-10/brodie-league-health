@@ -866,7 +866,17 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 
 // Registration pacing (teams + athletes at "day N of registration" for this
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
-type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number };
+type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; revenue?: number };
+type PacingMetric = "captains" | "athletes" | "full_roster" | "revenue";
+// Accrued registration revenue, already normalised to CAD by the feed. Whole
+// dollars everywhere — cents are noise at this size.
+const money = (n: number) => `${n < 0 ? "\u2212" : ""}$${Math.abs(Math.round(n)).toLocaleString()}`;
+// Bars sit three to a card, so their labels abbreviate.
+const moneyShort = (n: number) => {
+  const a = Math.abs(n);
+  const s = a >= 1_000_000 ? `${(a / 1_000_000).toFixed(2)}M` : a >= 1_000 ? `${Math.round(a / 1_000)}k` : `${Math.round(a)}`;
+  return `${n < 0 ? "\u2212" : ""}$${s}`;
+};
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
 type PacingLocation = { location: string; seasons: PacingSeason[]; retention?: Retention | null; retention_year?: Retention | null };
 type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[] };
@@ -940,12 +950,15 @@ async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoRevie
 const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "last year" };
 const REG_COLOR: Record<string, string> = { current: "var(--glass-gold)", prev_season: "#5B8AC4", prev_year: "#A874C9" };
 const TRACK_PX = 130;
-function RegBarCard({ title, subtitle, current, bars, note }: {
+function RegBarCard({ title, subtitle, current, bars, note, format = "number" }: {
   title: string; subtitle: string; current: number;
   bars: { label: string; sub: string; value: number; color: string }[];
   // A second reading of the headline — how many of those teams can field a side.
   note?: string;
+  format?: "number" | "money";
 }) {
+  const fmtBig = (n: number) => (format === "money" ? money(n) : n.toLocaleString());
+  const fmtBar = (n: number) => (format === "money" ? moneyShort(n) : n.toLocaleString());
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
     <div className="rounded-2xl border border-glass-border bg-glass-surface p-5">
@@ -955,7 +968,7 @@ function RegBarCard({ title, subtitle, current, bars, note }: {
           <p className="text-xs mt-0.5 text-glass-text-tertiary">{subtitle}</p>
         </div>
         <div className="text-right shrink-0">
-          <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{current.toLocaleString()}</span>
+          <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{fmtBig(current)}</span>
           {note && <span className="text-[11px] text-glass-text-tertiary">{note}</span>}
         </div>
       </div>
@@ -963,7 +976,7 @@ function RegBarCard({ title, subtitle, current, bars, note }: {
       <div className="flex items-end gap-6 mt-5" style={{ height: TRACK_PX + 22 }}>
         {bars.map((b, i) => (
           <div key={i} className="flex-1 flex flex-col items-center justify-end">
-            <span className="text-sm font-semibold mb-1" style={{ color: "var(--glass-text)" }}>{b.value.toLocaleString()}</span>
+            <span className="text-sm font-semibold mb-1" style={{ color: "var(--glass-text)" }}>{fmtBar(b.value)}</span>
             <div className="w-full rounded-t-md" style={{ height: Math.max(Math.round((b.value / max) * TRACK_PX), 6), background: b.color }} />
           </div>
         ))}
@@ -982,7 +995,7 @@ function RegBarCard({ title, subtitle, current, bars, note }: {
 
 // Difference vs a comparison season at the same day of registration. Green =
 // ahead of that season's pace, red = behind. null when the feed is missing a side.
-function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase }: {
+function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, format = "number" }: {
   title: string; subtitle: string; delta: number | null;
   // The comparison season's own figure, so the delta can be read as a share
   // as well as a count.
@@ -991,6 +1004,7 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase }:
   // very differently from the headline count.
   rosterDelta?: number | null;
   rosterBase?: number | null;
+  format?: "number" | "money";
 }) {
   const pct = delta != null && base ? signedPct(base + delta, base) : null;
   const rosterPct = rosterDelta != null && rosterBase ? signedPct(rosterBase + rosterDelta, rosterBase) : null;
@@ -1002,7 +1016,9 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase }:
       <h3 className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
       <p className="text-[11px] mt-0.5 text-glass-text-tertiary">{subtitle}</p>
       <p className="text-3xl font-bold tabular mt-2" style={{ color }}>
-        {delta === null ? "—" : `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`}
+        {delta === null ? "—" : format === "money"
+          ? `${delta > 0 ? "+" : ""}${money(delta)}`
+          : `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`}
         {pct && <span className="text-sm font-semibold"> ({pct})</span>}
       </p>
       {rosterDelta != null && (
@@ -1025,27 +1041,31 @@ const signedPct = (cur: number, base: number): string | null =>
   base === 0 ? null : `${cur - base > 0 ? "+" : ""}${(((cur - base) / base) * 100).toFixed(1)}%`;
 
 // One metric column inside a location card: count + both same-day deltas.
-function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note }: {
+function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note, money: isMoney }: {
   label: string; cur: number; prev: number; year: number; prevLabel: string; yearLabel: string;
   // Reads under the deltas — how many of these teams can field a side.
   note?: string;
+  // Revenue reads as dollars; the counts do not.
+  money?: boolean;
 }) {
+  const fmt = (n: number) => (isMoney ? money(n) : n.toLocaleString());
+  const fmtDelta = (n: number) => (isMoney ? `${n > 0 ? "+" : ""}${money(n)}` : signed(n));
   const dPrev = cur - prev, dYear = cur - year;
   const pctPrev = signedPct(cur, prev), pctYear = signedPct(cur, year);
   return (
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary">{label}</p>
-      <p className="text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>{cur.toLocaleString()}</p>
+      <p className="text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>{fmt(cur)}</p>
       {/* The count and the share it moved by, then what it is measured against.
           Left to wrap rather than forced onto one line — the column is narrow
           and a clipped percentage is worse than a second line. */}
       <p className="text-[11px] font-semibold mt-1 leading-snug whitespace-nowrap" style={{ color: deltaColor(dPrev) }}>
-        {signed(dPrev)}
+        {fmtDelta(dPrev)}
         <span className="font-normal text-glass-text-tertiary"> vs {prevLabel}</span>
         {pctPrev && <span className="text-[9px] font-normal"> ({pctPrev})</span>}
       </p>
       <p className="text-[11px] font-semibold leading-snug whitespace-nowrap" style={{ color: deltaColor(dYear) }}>
-        {signed(dYear)}
+        {fmtDelta(dYear)}
         <span className="font-normal text-glass-text-tertiary"> vs {yearLabel}</span>
         {pctYear && <span className="text-[9px] font-normal"> ({pctYear})</span>}
       </p>
@@ -1079,7 +1099,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
       <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary mb-2">By location</h3>
       <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
         {locations.map((l) => {
-          const get = (kind: string, metric: "captains" | "athletes" | "full_roster") =>
+          const get = (kind: string, metric: PacingMetric) =>
             l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
           const curTeams = get("current", "captains");
           const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
@@ -1111,6 +1131,11 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   note={`${get("current", "full_roster").toLocaleString()} with 7+ players`} />
                 <LocationMetric label="Athletes"
                   cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
+                  prevLabel={prevLabel} yearLabel={yearLabel} />
+              </div>
+              <div className="mt-2.5 pt-2.5 border-t border-glass-border-light">
+                <LocationMetric label="Revenue (CAD)" money
+                  cur={get("current", "revenue")} prev={get("prev_season", "revenue")} year={get("prev_year", "revenue")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
               {/* Both lines ask the same question — what share of the prior
@@ -1273,14 +1298,14 @@ export default async function DashboardView({
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
   const pacingPrevYear = pacing?.seasons.find((s) => s.kind === "prev_year");
   // Same-day difference: current season minus the comparison season at day N.
-  const regDelta = (metric: "captains" | "athletes", against: typeof pacingPrevSeason) =>
-    pacingCurrent && against ? pacingCurrent[metric] - against[metric] : null;
+  const regDelta = (metric: "captains" | "athletes" | "revenue", against: typeof pacingPrevSeason) =>
+    pacingCurrent && against ? (pacingCurrent[metric] ?? 0) - (against[metric] ?? 0) : null;
   const rosterDelta = (against: typeof pacingPrevSeason) =>
     pacingCurrent?.full_roster != null && against?.full_roster != null
       ? pacingCurrent.full_roster - against.full_roster
       : null;
-  const regBars = (metric: "captains" | "athletes") =>
-    (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric], color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
+  const regBars = (metric: "captains" | "athletes" | "revenue") =>
+    (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric] ?? 0, color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
   // Checklist: two cards for the playing season, two for the next (prep) season.
   const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
 
@@ -1401,10 +1426,14 @@ export default async function DashboardView({
                   className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <RegBarCard title="Total teams" subtitle={`registered teams · ${regBarWhen}`} current={pacingCurrent.captains} bars={regBars("captains")}
                 note={pacingCurrent.full_roster != null ? `${pacingCurrent.full_roster.toLocaleString()} with 7+ players` : undefined} />
               <RegBarCard title="Total athletes" subtitle={`athlete registrations · ${regBarWhen}`} current={pacingCurrent.athletes} bars={regBars("athletes")} />
+              {/* Accrued, and normalised to CAD by the feed — US venues invoice
+                  in USD, so a raw sum would mix two currencies. */}
+              <RegBarCard title="Total revenue" subtitle={`accrued, CAD · ${regBarWhen}`} format="money"
+                current={pacingCurrent.revenue ?? 0} bars={regBars("revenue")} />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <RegDeltaCard
@@ -1425,6 +1454,14 @@ export default async function DashboardView({
                 title="Athletes vs last year"
                 subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
                 delta={regDelta("athletes", pacingPrevYear)} base={pacingPrevYear?.athletes ?? null} />
+              <RegDeltaCard
+                title="Revenue vs prev season" format="money"
+                subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
+                delta={regDelta("revenue", pacingPrevSeason)} base={pacingPrevSeason?.revenue ?? null} />
+              <RegDeltaCard
+                title="Revenue vs last year" format="money"
+                subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
+                delta={regDelta("revenue", pacingPrevYear)} base={pacingPrevYear?.revenue ?? null} />
             </div>
             {pacing.locations?.length ? (
               <div className="pt-1">
