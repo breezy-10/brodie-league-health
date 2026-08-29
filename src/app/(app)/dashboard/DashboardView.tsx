@@ -1431,41 +1431,48 @@ export default async function DashboardView({
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <RegBarCard title="Total teams" subtitle={`registered teams · ${regBarWhen}`} current={pacingCurrent.captains} bars={regBars("captains")}
-                note={pacingCurrent.full_roster != null ? `${pacingCurrent.full_roster.toLocaleString()} with 7+ players` : undefined} />
-              <RegBarCard title="Total athletes" subtitle={`athlete registrations · ${regBarWhen}`} current={pacingCurrent.athletes} bars={regBars("athletes")} />
-              {/* Accrued, and normalised to CAD by the feed — US venues invoice
-                  in USD, so a raw sum would mix two currencies. */}
-              <RegBarCard title="Total revenue" subtitle={`accrued, CAD · ${regBarWhen}`} format="money"
-                current={pacingCurrent.revenue ?? 0} bars={regBars("revenue")} />
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <RegDeltaCard
-                title="Teams vs prev season"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
-                delta={regDelta("captains", pacingPrevSeason)} base={pacingPrevSeason?.captains ?? null}
-                rosterDelta={rosterDelta(pacingPrevSeason)} rosterBase={pacingPrevSeason?.full_roster ?? null} />
-              <RegDeltaCard
-                title="Teams vs last year"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
-                delta={regDelta("captains", pacingPrevYear)} base={pacingPrevYear?.captains ?? null}
-                rosterDelta={rosterDelta(pacingPrevYear)} rosterBase={pacingPrevYear?.full_roster ?? null} />
-              <RegDeltaCard
-                title="Athletes vs prev season"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
-                delta={regDelta("athletes", pacingPrevSeason)} base={pacingPrevSeason?.athletes ?? null} />
-              <RegDeltaCard
-                title="Athletes vs last year"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
-                delta={regDelta("athletes", pacingPrevYear)} base={pacingPrevYear?.athletes ?? null} />
-              <RegDeltaCard
-                title="Revenue vs prev season" format="money"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
-                delta={regDelta("revenue", pacingPrevSeason)} base={pacingPrevSeason?.revenue ?? null} />
-              <RegDeltaCard
-                title="Revenue vs last year" format="money"
-                subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
-                delta={regDelta("revenue", pacingPrevYear)} base={pacingPrevYear?.revenue ?? null} />
+              {/* One column per metric: its season bars, then the two same-day
+                  comparisons underneath. The deltas used to run four-across on
+                  their own row, so they lined up with nothing above them. */}
+              {([
+                {
+                  key: "captains" as const, format: "number" as const,
+                  title: "Teams", barTitle: "Total teams", barSub: `registered teams · ${regBarWhen}`,
+                  note: pacingCurrent.full_roster != null ? `${pacingCurrent.full_roster.toLocaleString()} with 7+ players` : undefined,
+                  roster: true,
+                },
+                {
+                  key: "athletes" as const, format: "number" as const,
+                  title: "Athletes", barTitle: "Total athletes", barSub: `athlete registrations · ${regBarWhen}`,
+                  note: undefined, roster: false,
+                },
+                // Accrued, and normalised to CAD by the feed — US venues invoice
+                // in USD, so a raw sum would mix two currencies.
+                {
+                  key: "revenue" as const, format: "money" as const,
+                  title: "Revenue", barTitle: "Total revenue", barSub: `accrued, CAD · ${regBarWhen}`,
+                  note: undefined, roster: false,
+                },
+              ]).map((m) => (
+                <div key={m.key} className="flex flex-col gap-4">
+                  <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
+                    current={pacingCurrent[m.key] ?? 0} bars={regBars(m.key)} note={m.note} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <RegDeltaCard
+                      title={`${m.title} vs prev season`} format={m.format}
+                      subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
+                      delta={regDelta(m.key, pacingPrevSeason)} base={pacingPrevSeason?.[m.key] ?? null}
+                      rosterDelta={m.roster ? rosterDelta(pacingPrevSeason) : undefined}
+                      rosterBase={m.roster ? pacingPrevSeason?.full_roster ?? null : undefined} />
+                    <RegDeltaCard
+                      title={`${m.title} vs last year`} format={m.format}
+                      subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
+                      delta={regDelta(m.key, pacingPrevYear)} base={pacingPrevYear?.[m.key] ?? null}
+                      rosterDelta={m.roster ? rosterDelta(pacingPrevYear) : undefined}
+                      rosterBase={m.roster ? pacingPrevYear?.full_roster ?? null : undefined} />
+                  </div>
+                </div>
+              ))}
             </div>
             {pacing.locations?.length ? (
               <div className="pt-1">
