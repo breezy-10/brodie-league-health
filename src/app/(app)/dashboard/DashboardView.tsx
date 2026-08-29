@@ -1336,7 +1336,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                 <LocationMetric label={`Revenue (${locCurrency})`} money
                   cur={get("current", "revenue_native")} prev={get("prev_season", "revenue_native")} year={get("prev_year", "revenue_native")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
-                <LocationMetric label="Per athlete" money
+                <LocationMetric label={`Per athlete (${locCurrency})`} money
                   cur={perAthlete("current")} prev={perAthlete("prev_season")} year={perAthlete("prev_year")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
