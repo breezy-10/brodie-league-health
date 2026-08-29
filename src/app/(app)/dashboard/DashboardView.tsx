@@ -961,7 +961,7 @@ function RegBarCard({ title, subtitle, current, bars, note, format = "number" }:
   const fmtBar = (n: number) => (format === "money" ? moneyShort(n) : n.toLocaleString());
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
-    <div className="rounded-2xl border border-glass-border bg-glass-surface p-5">
+    <div className="h-full flex flex-col rounded-2xl border border-glass-border bg-glass-surface p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
@@ -969,7 +969,11 @@ function RegBarCard({ title, subtitle, current, bars, note, format = "number" }:
         </div>
         <div className="text-right shrink-0">
           <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{fmtBig(current)}</span>
-          {note && <span className="text-[11px] text-glass-text-tertiary">{note}</span>}
+          {/* Reserved when absent, so the bars start at the same height on
+              every card rather than one card's note pushing them down. */}
+          {note
+            ? <span className="text-[11px] text-glass-text-tertiary">{note}</span>
+            : <span className="text-[11px] block" aria-hidden="true">&nbsp;</span>}
         </div>
       </div>
       {/* Bars: fixed-px track so heights are truly proportional to value. */}
@@ -1012,7 +1016,7 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
     delta === null || delta === 0 ? "var(--glass-text)" :
     delta > 0 ? "rgb(74,222,128)" : "rgb(248,113,113)";
   return (
-    <div className="rounded-2xl border border-glass-border bg-glass-surface p-4">
+    <div className="h-full rounded-2xl border border-glass-border bg-glass-surface p-4">
       <h3 className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
       <p className="text-[11px] mt-0.5 text-glass-text-tertiary">{subtitle}</p>
       <p className="text-3xl font-bold tabular mt-2" style={{ color }}>
@@ -1021,12 +1025,16 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
           : `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`}
         {pct && <span className="text-sm font-semibold"> ({pct})</span>}
       </p>
-      {rosterDelta != null && (
+      {/* The line is reserved even when a metric has no roster figure, so
+          every delta card is the same height as the ones beside it. */}
+      {rosterDelta != null ? (
         <p className="text-[11px] font-semibold mt-1 tabular whitespace-nowrap" style={{ color: upColor(rosterDelta) }}>
           {`${rosterDelta > 0 ? "+" : ""}${rosterDelta.toLocaleString()}`}
           <span className="font-normal text-glass-text-tertiary"> with 7+ players</span>
           {rosterPct && <span className="text-[9px] font-normal"> ({rosterPct})</span>}
         </p>
+      ) : (
+        <p className="text-[11px] mt-1" aria-hidden="true">&nbsp;</p>
       )}
     </div>
   );
@@ -1454,9 +1462,11 @@ export default async function DashboardView({
                   note: undefined, roster: false,
                 },
               ]).map((m) => (
-                <div key={m.key} className="flex flex-col gap-4">
-                  <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
-                    current={pacingCurrent[m.key] ?? 0} bars={regBars(m.key)} note={m.note} />
+                <div key={m.key} className="h-full flex flex-col gap-4">
+                  <div className="flex-1">
+                    <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
+                      current={pacingCurrent[m.key] ?? 0} bars={regBars(m.key)} note={m.note} />
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <RegDeltaCard
                       title={`${m.title} vs prev season`} format={m.format}
