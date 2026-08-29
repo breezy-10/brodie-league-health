@@ -1033,13 +1033,13 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note }: 
           and a clipped percentage is worse than a second line. */}
       <p className="text-[11px] font-semibold mt-1 leading-snug" style={{ color: deltaColor(dPrev) }}>
         {signed(dPrev)}
-        {pctPrev && <span className="font-normal"> {pctPrev}</span>}
         <span className="font-normal text-glass-text-tertiary"> vs {prevLabel}</span>
+        {pctPrev && <span className="text-[10px] font-normal"> ({pctPrev})</span>}
       </p>
       <p className="text-[11px] font-semibold leading-snug" style={{ color: deltaColor(dYear) }}>
         {signed(dYear)}
-        {pctYear && <span className="font-normal"> {pctYear}</span>}
         <span className="font-normal text-glass-text-tertiary"> vs {yearLabel}</span>
+        {pctYear && <span className="text-[10px] font-normal"> ({pctYear})</span>}
       </p>
       {note && (
         // Set as a chip rather than another grey line: it competes with the
