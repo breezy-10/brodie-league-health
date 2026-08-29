@@ -1089,51 +1089,76 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note, mo
   );
 }
 
-// The two movements side by side per location. A scatter of the same numbers
-// put every venue on the diagonal — true, but it hides the values; paired bars
-// let you read each one and see where they part company.
+// The two movements side by side per location, against both comparison
+// seasons. A scatter of the same numbers put every venue on the diagonal —
+// true, but it hides the values; paired bars let you read each one and see
+// where they part company.
 const ATH_COLOR = "#5B8AC4";
-function AthletesVsRevenueChart({ locations, prevLabel }: {
-  locations: PacingLocation[]; prevLabel: string;
+function AthletesVsRevenueChart({ locations, prevLabel, yearLabel }: {
+  locations: PacingLocation[]; prevLabel: string; yearLabel: string;
 }) {
-  type Row = { location: string; ath: number; rev: number };
-  const rows: Row[] = [];
-  for (const l of locations) {
-    const cur = l.seasons.find((s) => s.kind === "current");
-    const prev = l.seasons.find((s) => s.kind === "prev_season");
-    // Needs a prior season with both figures for a change to exist at all.
-    if (!cur || !prev || !prev.athletes || !prev.revenue_native) continue;
-    rows.push({
+  type Pair = { ath: number | null; rev: number | null };
+  type Row = { location: string; prev: Pair; year: Pair };
+  const pct = (cur: number, base: number | undefined | null) =>
+    base ? ((cur - base) / base) * 100 : null;
+  const rows: Row[] = locations.map((l) => {
+    const c = l.seasons.find((s) => s.kind === "current");
+    const p = l.seasons.find((s) => s.kind === "prev_season");
+    const y = l.seasons.find((s) => s.kind === "prev_year");
+    return {
       location: l.location,
-      ath: ((cur.athletes - prev.athletes) / prev.athletes) * 100,
-      rev: (((cur.revenue_native ?? 0) - prev.revenue_native) / prev.revenue_native) * 100,
-    });
-  }
-  if (rows.length < 2) return null;
-  rows.sort((a, b) => b.rev - a.rev);
+      prev: { ath: pct(c?.athletes ?? 0, p?.athletes), rev: pct(c?.revenue_native ?? 0, p?.revenue_native) },
+      year: { ath: pct(c?.athletes ?? 0, y?.athletes), rev: pct(c?.revenue_native ?? 0, y?.revenue_native) },
+    };
+  });
+  if (!rows.length) return null;
+  // Venues with nothing to compare against sort to the bottom rather than
+  // dropping out — they are still locations, they are just new.
+  rows.sort((a, b) =>
+    (a.prev.rev === null ? 1 : 0) - (b.prev.rev === null ? 1 : 0) ||
+    (b.prev.rev ?? -Infinity) - (a.prev.rev ?? -Infinity));
 
-  const RH = 34, W = 1000, PAD = { l: 170, r: 70, t: 34, b: 26 };
+  const RH = 32, W = 1000, PAD = { l: 168, t: 48, b: 24 }, GAP = 44;
   const H = PAD.t + PAD.b + RH * rows.length;
-  const span = Math.max(20, Math.ceil(Math.max(...rows.flatMap((r) => [Math.abs(r.ath), Math.abs(r.rev)])) / 10) * 10);
-  const zx = PAD.l + (W - PAD.l - PAD.r) / 2;
-  const scale = (W - PAD.l - PAD.r) / 2 / span;
-  const ticks = [-span, -span / 2, 0, span / 2, span];
+  const panel = (W - PAD.l - GAP - 8) / 2;
+  const all = rows.flatMap((r) => [r.prev.ath, r.prev.rev, r.year.ath, r.year.rev])
+    .filter((v): v is number => v !== null).map(Math.abs);
+  // One scale across both panels, so a bar means the same thing on either side.
+  const span = Math.max(20, Math.ceil(Math.max(...all, 20) / 20) * 20);
+  const panels = [
+    { title: `vs ${prevLabel}`, key: "prev" as const },
+    { title: `vs ${yearLabel}`, key: "year" as const },
+  ];
+  const zeroX = (i: number) => PAD.l + i * (panel + GAP) + panel / 2;
+  const scale = (panel / 2) / span;
 
   return (
-    <div className="rounded-2xl border border-glass-border bg-glass-surface p-5">
+    <div className="rounded-2xl border border-glass-border bg-glass-surface p-5 overflow-x-auto">
       <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>Athletes and revenue per location</h3>
       <p className="text-xs mt-0.5 text-glass-text-tertiary">
-        % change vs {prevLabel} · <span style={{ color: ATH_COLOR }}>athletes</span>
+        % change · <span style={{ color: ATH_COLOR }}>athletes</span>
         {" "}and <span style={{ color: "var(--glass-gold)" }}>revenue</span>, each venue in its own currency
       </p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-3" role="img"
-        aria-label={`Percent change in athletes and in revenue for each location versus ${prevLabel}`}>
-        {ticks.map((v) => (
-          <g key={v}>
-            <line x1={zx + v * scale} y1={PAD.t - 8} x2={zx + v * scale} y2={H - PAD.b}
-              stroke="var(--glass-border-light)" strokeWidth={1} />
-            <text x={zx + v * scale} y={PAD.t - 14} textAnchor="middle" fontSize={11}
-              fill="var(--glass-text-tertiary)">{v}%</text>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-3" style={{ minWidth: 720 }} role="img"
+        aria-label={`Percent change in athletes and revenue for each location, against ${prevLabel} and ${yearLabel}`}>
+        {panels.map((p, pi) => (
+          <g key={p.key}>
+            <text x={zeroX(pi)} y={PAD.t - 28} textAnchor="middle" fontSize={12} fontWeight={600}
+              fill="var(--glass-text)">{p.title}</text>
+            {[-span, -span / 2, 0, span / 2, span].map((v) => (
+              <g key={v}>
+                <line x1={zeroX(pi) + v * scale} y1={PAD.t - 12} x2={zeroX(pi) + v * scale} y2={H - PAD.b}
+                  stroke="var(--glass-border-light)" strokeWidth={1} />
+                {/* Only the inner ticks are labelled — the outermost pair
+                    collides across the gap between the panels. */}
+                {Math.abs(v) !== span && (
+                  <text x={zeroX(pi) + v * scale} y={PAD.t - 16} textAnchor="middle" fontSize={10}
+                    fill="var(--glass-text-tertiary)">{v}%</text>
+                )}
+              </g>
+            ))}
+            <line x1={zeroX(pi)} y1={PAD.t - 12} x2={zeroX(pi)} y2={H - PAD.b}
+              stroke="var(--glass-border)" strokeWidth={1.4} />
           </g>
         ))}
         {rows.map((r, i) => {
@@ -1142,22 +1167,29 @@ function AthletesVsRevenueChart({ locations, prevLabel }: {
             <g key={r.location}>
               <text x={PAD.l - 12} y={y + RH / 2 + 4} textAnchor="end" fontSize={12}
                 fill="var(--glass-text)">{r.location}</text>
-              {([[r.ath, ATH_COLOR], [r.rev, "var(--glass-gold)"]] as const).map(([v, color], j) => (
-                <g key={j}>
-                  <rect x={Math.min(zx, zx + v * scale)} y={y + 5 + j * 11}
-                    width={Math.max(Math.abs(v * scale), 1.5)} height={9} rx={2} fill={color} />
-                  <text x={zx + v * scale + (v >= 0 ? 5 : -5)} y={y + 13 + j * 11}
-                    textAnchor={v >= 0 ? "start" : "end"} fontSize={9.5} fill={color}>
-                    {v > 0 ? "+" : ""}{v.toFixed(1)}%
-                  </text>
-                </g>
-              ))}
-              <title>{`${r.location}: athletes ${r.ath.toFixed(1)}%, revenue ${r.rev.toFixed(1)}%`}</title>
+              {panels.map((p, pi) => {
+                const pair = r[p.key];
+                if (pair.ath === null && pair.rev === null) {
+                  return (
+                    <text key={p.key} x={zeroX(pi)} y={y + RH / 2 + 4} textAnchor="middle" fontSize={10}
+                      fill="var(--glass-text-tertiary)">no {p.title.replace("vs ", "")} season</text>
+                  );
+                }
+                return ([[pair.ath, ATH_COLOR], [pair.rev, "var(--glass-gold)"]] as const).map(([v, color], j) =>
+                  v === null ? null : (
+                    <g key={`${p.key}${j}`}>
+                      <rect x={Math.min(zeroX(pi), zeroX(pi) + v * scale)} y={y + 4 + j * 10}
+                        width={Math.max(Math.abs(v * scale), 1.5)} height={8} rx={2} fill={color} />
+                      <text x={zeroX(pi) + v * scale + (v >= 0 ? 4 : -4)} y={y + 11.5 + j * 10}
+                        textAnchor={v >= 0 ? "start" : "end"} fontSize={9} fill={color}>
+                        {v > 0 ? "+" : ""}{v.toFixed(0)}%
+                      </text>
+                    </g>
+                  ));
+              })}
             </g>
           );
         })}
-        {/* Zero: the line between growing and shrinking. */}
-        <line x1={zx} y1={PAD.t - 8} x2={zx} y2={H - PAD.b} stroke="var(--glass-border)" strokeWidth={1.5} />
       </svg>
     </div>
   );
@@ -1571,7 +1603,8 @@ export default async function DashboardView({
             {pacing.locations?.length ? (
               <AthletesVsRevenueChart
                 locations={pacing.locations}
-                prevLabel={shortSeason(pacingPrevSeason?.season ?? "")} />
+                prevLabel={shortSeason(pacingPrevSeason?.season ?? "")}
+                yearLabel={shortSeason(pacingPrevYear?.season ?? "")} />
             ) : null}
           </section>
         ) : (
