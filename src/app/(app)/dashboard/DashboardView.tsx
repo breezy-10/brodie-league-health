@@ -1354,7 +1354,7 @@ export default async function DashboardView({
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <RegBarCard title="Total teams" subtitle={`captain registrations · ${regBarWhen}`} current={pacingCurrent.captains} bars={regBars("captains")}
+              <RegBarCard title="Total teams" subtitle={`registered teams · ${regBarWhen}`} current={pacingCurrent.captains} bars={regBars("captains")}
                 note={pacingCurrent.full_roster != null ? `${pacingCurrent.full_roster.toLocaleString()} with 7+ players` : undefined} />
               <RegBarCard title="Total athletes" subtitle={`athlete registrations · ${regBarWhen}`} current={pacingCurrent.athletes} bars={regBars("athletes")} />
             </div>
