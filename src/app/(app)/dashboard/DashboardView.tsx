@@ -1089,6 +1089,80 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note, mo
   );
 }
 
+// The two movements side by side per location. A scatter of the same numbers
+// put every venue on the diagonal — true, but it hides the values; paired bars
+// let you read each one and see where they part company.
+const ATH_COLOR = "#5B8AC4";
+function AthletesVsRevenueChart({ locations, prevLabel }: {
+  locations: PacingLocation[]; prevLabel: string;
+}) {
+  type Row = { location: string; ath: number; rev: number };
+  const rows: Row[] = [];
+  for (const l of locations) {
+    const cur = l.seasons.find((s) => s.kind === "current");
+    const prev = l.seasons.find((s) => s.kind === "prev_season");
+    // Needs a prior season with both figures for a change to exist at all.
+    if (!cur || !prev || !prev.athletes || !prev.revenue_native) continue;
+    rows.push({
+      location: l.location,
+      ath: ((cur.athletes - prev.athletes) / prev.athletes) * 100,
+      rev: (((cur.revenue_native ?? 0) - prev.revenue_native) / prev.revenue_native) * 100,
+    });
+  }
+  if (rows.length < 2) return null;
+  rows.sort((a, b) => b.rev - a.rev);
+
+  const RH = 34, W = 1000, PAD = { l: 170, r: 70, t: 34, b: 26 };
+  const H = PAD.t + PAD.b + RH * rows.length;
+  const span = Math.max(20, Math.ceil(Math.max(...rows.flatMap((r) => [Math.abs(r.ath), Math.abs(r.rev)])) / 10) * 10);
+  const zx = PAD.l + (W - PAD.l - PAD.r) / 2;
+  const scale = (W - PAD.l - PAD.r) / 2 / span;
+  const ticks = [-span, -span / 2, 0, span / 2, span];
+
+  return (
+    <div className="rounded-2xl border border-glass-border bg-glass-surface p-5">
+      <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>Athletes and revenue per location</h3>
+      <p className="text-xs mt-0.5 text-glass-text-tertiary">
+        % change vs {prevLabel} · <span style={{ color: ATH_COLOR }}>athletes</span>
+        {" "}and <span style={{ color: "var(--glass-gold)" }}>revenue</span>, each venue in its own currency
+      </p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-3" role="img"
+        aria-label={`Percent change in athletes and in revenue for each location versus ${prevLabel}`}>
+        {ticks.map((v) => (
+          <g key={v}>
+            <line x1={zx + v * scale} y1={PAD.t - 8} x2={zx + v * scale} y2={H - PAD.b}
+              stroke="var(--glass-border-light)" strokeWidth={1} />
+            <text x={zx + v * scale} y={PAD.t - 14} textAnchor="middle" fontSize={11}
+              fill="var(--glass-text-tertiary)">{v}%</text>
+          </g>
+        ))}
+        {rows.map((r, i) => {
+          const y = PAD.t + i * RH;
+          return (
+            <g key={r.location}>
+              <text x={PAD.l - 12} y={y + RH / 2 + 4} textAnchor="end" fontSize={12}
+                fill="var(--glass-text)">{r.location}</text>
+              {([[r.ath, ATH_COLOR], [r.rev, "var(--glass-gold)"]] as const).map(([v, color], j) => (
+                <g key={j}>
+                  <rect x={Math.min(zx, zx + v * scale)} y={y + 5 + j * 11}
+                    width={Math.max(Math.abs(v * scale), 1.5)} height={9} rx={2} fill={color} />
+                  <text x={zx + v * scale + (v >= 0 ? 5 : -5)} y={y + 13 + j * 11}
+                    textAnchor={v >= 0 ? "start" : "end"} fontSize={9.5} fill={color}>
+                    {v > 0 ? "+" : ""}{v.toFixed(1)}%
+                  </text>
+                </g>
+              ))}
+              <title>{`${r.location}: athletes ${r.ath.toFixed(1)}%, revenue ${r.rev.toFixed(1)}%`}</title>
+            </g>
+          );
+        })}
+        {/* Zero: the line between growing and shrinking. */}
+        <line x1={zx} y1={PAD.t - 8} x2={zx} y2={H - PAD.b} stroke="var(--glass-border)" strokeWidth={1.5} />
+      </svg>
+    </div>
+  );
+}
+
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
@@ -1493,6 +1567,11 @@ export default async function DashboardView({
                   season={pacingCurrent.season}
                   showAvgPerTeam={!regOnWeek} />
               </div>
+            ) : null}
+            {pacing.locations?.length ? (
+              <AthletesVsRevenueChart
+                locations={pacing.locations}
+                prevLabel={shortSeason(pacingPrevSeason?.season ?? "")} />
             ) : null}
           </section>
         ) : (
