@@ -1061,18 +1061,22 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note, mo
   const dPrev = cur - prev, dYear = cur - year;
   const pctPrev = signedPct(cur, prev), pctYear = signedPct(cur, year);
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary">{label}</p>
       <p className="text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>{fmt(cur)}</p>
       {/* The count and the share it moved by, then what it is measured against.
           Left to wrap rather than forced onto one line — the column is narrow
           and a clipped percentage is worse than a second line. */}
-      <p className="text-[11px] font-semibold mt-1 leading-snug whitespace-nowrap" style={{ color: deltaColor(dPrev) }}>
+      {/* Money runs to twice the characters of a count, so it sets a size
+          down and is free to wrap rather than run into the next column. */}
+      <p className={`font-semibold mt-1 leading-snug ${isMoney ? "text-[10px]" : "text-[11px] whitespace-nowrap"}`}
+        style={{ color: deltaColor(dPrev) }}>
         {fmtDelta(dPrev)}
         <span className="font-normal text-glass-text-tertiary"> vs {prevLabel}</span>
         {pctPrev && <span className="text-[9px] font-normal"> ({pctPrev})</span>}
       </p>
-      <p className="text-[11px] font-semibold leading-snug whitespace-nowrap" style={{ color: deltaColor(dYear) }}>
+      <p className={`font-semibold leading-snug ${isMoney ? "text-[10px]" : "text-[11px] whitespace-nowrap"}`}
+        style={{ color: deltaColor(dYear) }}>
         {fmtDelta(dYear)}
         <span className="font-normal text-glass-text-tertiary"> vs {yearLabel}</span>
         {pctYear && <span className="text-[9px] font-normal"> ({pctYear})</span>}
@@ -1232,7 +1236,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   : "rgb(248,113,113)";
           return (
             <div key={l.location}
-              className="snap-start shrink-0 w-[264px] rounded-xl border border-glass-border bg-glass-surface p-3.5">
+              className="snap-start shrink-0 w-[300px] rounded-xl border border-glass-border bg-glass-surface p-3.5">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={l.location}>
                   {l.location}
