@@ -1216,6 +1216,12 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
           const get = (kind: string, metric: PacingMetric) =>
             l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
           const locCurrency = l.seasons.find((s) => s.kind === "current")?.currency ?? "CAD";
+          // What a season's revenue works out to per athlete registered in it.
+          // Rounded to the dollar; cents are noise against a season total.
+          const perAthlete = (kind: string) => {
+            const a = get(kind, "athletes");
+            return a ? Math.round(get(kind, "revenue_native") / a) : 0;
+          };
           const curTeams = get("current", "captains");
           const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
           // >= 8.5 green, >= 7.5 yellow, below red.
@@ -1283,9 +1289,15 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
               {/* Below retention, and in the currency the venue actually
                   invoices in — a US venue's own card should not restate its
                   revenue as Canadian dollars. */}
-              <div className="mt-2.5 pt-2.5 border-t border-glass-border-light">
+              {/* Revenue beside what it works out to per athlete — the two
+                  move independently: a venue can hold its revenue up on fewer,
+                  better-paying players, or lose it on cheaper ones. */}
+              <div className="mt-2.5 pt-2.5 border-t border-glass-border-light grid grid-cols-2 gap-3">
                 <LocationMetric label={`Revenue (${locCurrency})`} money
                   cur={get("current", "revenue_native")} prev={get("prev_season", "revenue_native")} year={get("prev_year", "revenue_native")}
+                  prevLabel={prevLabel} yearLabel={yearLabel} />
+                <LocationMetric label="Per athlete" money
+                  cur={perAthlete("current")} prev={perAthlete("prev_season")} year={perAthlete("prev_year")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
               {/* Its own row, so it is not competing with the retention lines
