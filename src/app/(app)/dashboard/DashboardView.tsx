@@ -866,7 +866,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 
 // Registration pacing (teams + athletes at "day N of registration" for this
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
-type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; revenue?: number; revenue_native?: number; currency?: string };
+type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; revenue?: number; revenue_native?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null };
 type PacingMetric = "captains" | "athletes" | "full_roster" | "revenue" | "revenue_native";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
@@ -1258,6 +1258,42 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
+              {(() => {
+                const pick = (k: string, m: "returning_captains_pct" | "returning_athletes_pct") =>
+                  l.seasons.find((s) => s.kind === k)?.[m] ?? null;
+                const lines = ([
+                  ["captains", "returning_captains_pct"],
+                  ["athletes", "returning_athletes_pct"],
+                ] as const).map(([noun, m]) => ({
+                  noun,
+                  cur: pick("current", m),
+                  prev: pick("prev_season", m),
+                  year: pick("prev_year", m),
+                })).filter((x) => x.cur != null);
+                if (!lines.length) return null;
+                return (
+                  <div className="mt-2.5 pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-0.5">
+                      Played Brodie before
+                    </p>
+                    {lines.map((x) => (
+                      <span key={x.noun} className="block">
+                        <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
+                          {x.cur!.toFixed(1)}%
+                        </span>
+                        <span className="text-glass-text-tertiary"> of {x.noun}</span>
+                        {([[x.prev, prevLabel], [x.year, yearLabel]] as const).map(([base, lbl]) =>
+                          base == null ? null : (
+                            <span key={lbl} className="text-[9px] font-semibold"
+                              style={{ color: upColor(x.cur! - base) }}>
+                              {" "}({x.cur! - base > 0 ? "+" : ""}{(x.cur! - base).toFixed(1)} vs {lbl})
+                            </span>
+                          ))}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
               {/* Both lines ask the same question — what share of the prior
                   season's athletes came back — the second one a year earlier,
                   so the two can actually be compared. Each names the season
