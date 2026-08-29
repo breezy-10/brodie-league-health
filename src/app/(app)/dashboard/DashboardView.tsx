@@ -1600,7 +1600,10 @@ export default async function DashboardView({
                   showAvgPerTeam={!regOnWeek} />
               </div>
             ) : null}
-            {pacing.locations?.length ? (
+            {/* Registrations only. On the Dashboard and Weekly Review this
+                section is a summary, and a 26-row chart buries everything
+                under it. */}
+            {isReg && pacing.locations?.length ? (
               <AthletesVsRevenueChart
                 locations={pacing.locations}
                 prevLabel={shortSeason(pacingPrevSeason?.season ?? "")}
