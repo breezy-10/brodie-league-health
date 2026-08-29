@@ -868,7 +868,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
 type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number };
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string };
-type PacingLocation = { location: string; seasons: PacingSeason[]; retention?: Retention | null };
+type PacingLocation = { location: string; seasons: PacingSeason[]; retention?: Retention | null; retention_year?: Retention | null };
 type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[] };
 async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string): Promise<Pacing | null> {
   try {
@@ -1011,6 +1011,10 @@ function RegDeltaCard({ title, subtitle, delta, rosterDelta }: {
 const deltaColor = (d: number) =>
   d === 0 ? "var(--glass-text-secondary)" : d > 0 ? "rgb(74,222,128)" : "rgb(248,113,113)";
 const signed = (d: number) => `${d > 0 ? "+" : ""}${d.toLocaleString()}`;
+// Percent change against the comparison season. Null when that season had none
+// of whatever is being counted — there is no percentage against zero.
+const signedPct = (cur: number, base: number): string | null =>
+  base === 0 ? null : `${cur - base > 0 ? "+" : ""}${(((cur - base) / base) * 100).toFixed(1)}%`;
 
 // One metric column inside a location card: count + both same-day deltas.
 function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note }: {
@@ -1019,15 +1023,23 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note }: 
   note?: string;
 }) {
   const dPrev = cur - prev, dYear = cur - year;
+  const pctPrev = signedPct(cur, prev), pctYear = signedPct(cur, year);
   return (
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary">{label}</p>
       <p className="text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>{cur.toLocaleString()}</p>
-      <p className="text-[11px] font-semibold mt-1" style={{ color: deltaColor(dPrev) }}>
-        {signed(dPrev)} <span className="font-normal text-glass-text-tertiary">vs {prevLabel}</span>
+      {/* The count and the share it moved by, then what it is measured against.
+          Left to wrap rather than forced onto one line — the column is narrow
+          and a clipped percentage is worse than a second line. */}
+      <p className="text-[11px] font-semibold mt-1 leading-snug" style={{ color: deltaColor(dPrev) }}>
+        {signed(dPrev)}
+        {pctPrev && <span className="font-normal"> {pctPrev}</span>}
+        <span className="font-normal text-glass-text-tertiary"> vs {prevLabel}</span>
       </p>
-      <p className="text-[11px] font-semibold" style={{ color: deltaColor(dYear) }}>
-        {signed(dYear)} <span className="font-normal text-glass-text-tertiary">vs {yearLabel}</span>
+      <p className="text-[11px] font-semibold leading-snug" style={{ color: deltaColor(dYear) }}>
+        {signed(dYear)}
+        {pctYear && <span className="font-normal"> {pctYear}</span>}
+        <span className="font-normal text-glass-text-tertiary"> vs {yearLabel}</span>
       </p>
       {note && (
         // Set as a chip rather than another grey line: it competes with the
@@ -1071,7 +1083,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   : "rgb(248,113,113)";
           return (
             <div key={l.location}
-              className="snap-start shrink-0 w-[232px] rounded-xl border border-glass-border bg-glass-surface p-3.5">
+              className="snap-start shrink-0 w-[264px] rounded-xl border border-glass-border bg-glass-surface p-3.5">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={l.location}>
                   {l.location}
@@ -1094,10 +1106,21 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
               <div className="mt-3 flex items-end justify-between gap-2">
-                {l.retention ? (
-                  <span className="text-[11px] leading-tight" title={`${l.retention.retained} of ${l.retention.prev_athletes} ${prevLabel} athletes registered again this season`}>
-                    <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{l.retention.pct}%</span>
-                    <span className="text-glass-text-tertiary"> retained vs {prevLabel}</span>
+                {/* Retention against both comparison seasons, matching the two
+                    deltas above. One decimal, as the endpoint sends it. */}
+                {(l.retention || l.retention_year) ? (
+                  <span className="text-[11px] leading-snug">
+                    {([[l.retention, prevLabel], [l.retention_year, yearLabel]] as const)
+                      .filter(([r]) => !!r)
+                      .map(([r, lbl]) => (
+                        <span key={lbl} className="block"
+                          title={`${r!.retained} of ${r!.prev_athletes} ${lbl} athletes registered again this season`}>
+                          <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
+                            {r!.pct.toFixed(1)}%
+                          </span>
+                          <span className="text-glass-text-tertiary"> retained vs {lbl}</span>
+                        </span>
+                      ))}
                   </span>
                 ) : <span />}
                 <a href={`/registrations/location?loc=${encodeURIComponent(l.location)}&season=${encodeURIComponent(season)}`}
