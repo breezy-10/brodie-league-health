@@ -866,8 +866,8 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 
 // Registration pacing (teams + athletes at "day N of registration" for this
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
-type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; revenue?: number };
-type PacingMetric = "captains" | "athletes" | "full_roster" | "revenue";
+type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; revenue?: number; revenue_native?: number; currency?: string };
+type PacingMetric = "captains" | "athletes" | "full_roster" | "revenue" | "revenue_native";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
 const money = (n: number) => `${n < 0 ? "\u2212" : ""}$${Math.abs(Math.round(n)).toLocaleString()}`;
@@ -1101,6 +1101,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
         {locations.map((l) => {
           const get = (kind: string, metric: PacingMetric) =>
             l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
+          const locCurrency = l.seasons.find((s) => s.kind === "current")?.currency ?? "CAD";
           const curTeams = get("current", "captains");
           const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
           // >= 8.5 green, >= 7.5 yellow, below red.
@@ -1131,11 +1132,6 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   note={`${get("current", "full_roster").toLocaleString()} with 7+ players`} />
                 <LocationMetric label="Athletes"
                   cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
-                  prevLabel={prevLabel} yearLabel={yearLabel} />
-              </div>
-              <div className="mt-2.5 pt-2.5 border-t border-glass-border-light">
-                <LocationMetric label="Revenue (CAD)" money
-                  cur={get("current", "revenue")} prev={get("prev_season", "revenue")} year={get("prev_year", "revenue")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
               {/* Both lines ask the same question — what share of the prior
@@ -1170,6 +1166,14 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   })}
                 </div>
               )}
+              {/* Below retention, and in the currency the venue actually
+                  invoices in — a US venue's own card should not restate its
+                  revenue as Canadian dollars. */}
+              <div className="mt-2.5 pt-2.5 border-t border-glass-border-light">
+                <LocationMetric label={`Revenue (${locCurrency})`} money
+                  cur={get("current", "revenue_native")} prev={get("prev_season", "revenue_native")} year={get("prev_year", "revenue_native")}
+                  prevLabel={prevLabel} yearLabel={yearLabel} />
+              </div>
               {/* Its own row, so it is not competing with the retention lines
                   for the same baseline. */}
               <div className="mt-2 flex justify-end">
