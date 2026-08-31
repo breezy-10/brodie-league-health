@@ -866,8 +866,8 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 
 // Registration pacing (teams + athletes at "day N of registration" for this
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
-type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; revenue?: number; revenue_native?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null };
-type PacingMetric = "captains" | "athletes" | "full_roster" | "revenue" | "revenue_native";
+type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null };
+type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
 const money = (n: number) => `${n < 0 ? "\u2212" : ""}$${Math.abs(Math.round(n)).toLocaleString()}`;
@@ -1049,10 +1049,11 @@ const signedPct = (cur: number, base: number): string | null =>
   base === 0 ? null : `${cur - base > 0 ? "+" : ""}${(((cur - base) / base) * 100).toFixed(1)}%`;
 
 // One metric column inside a location card: count + both same-day deltas.
-function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note, money: isMoney }: {
+function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, money: isMoney }: {
   label: string; cur: number; prev: number; year: number; prevLabel: string; yearLabel: string;
-  // Reads under the deltas — how many of these teams can field a side.
-  note?: string;
+  // Read under the deltas — how many of these teams can field a side, and how
+  // many have barely started.
+  notes?: { text: string; tone?: "gold" | "bad" }[];
   // Revenue reads as dollars; the counts do not.
   money?: boolean;
 }) {
@@ -1081,13 +1082,19 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, note, mo
         <span className="font-normal text-glass-text-tertiary"> vs {yearLabel}</span>
         {pctYear && <span className="text-[9px] font-normal"> ({pctYear})</span>}
       </p>
-      {note && (
-        // Set as a chip rather than another grey line: it competes with the
-        // deltas above it and is the number worth reading twice.
-        <span className="inline-block mt-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
-          style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>
-          {note}
-        </span>
+      {/* Set as chips rather than more grey lines: they compete with the
+          deltas above them and are the numbers worth reading twice. */}
+      {!!notes?.length && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {notes.map((n) => (
+            <span key={n.text} className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+              style={n.tone === "bad"
+                ? { background: "rgba(239,68,68,0.14)", color: "rgb(248,113,113)" }
+                : { background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>
+              {n.text}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -1253,7 +1260,12 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                 <LocationMetric label="Teams"
                   cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
                   prevLabel={prevLabel} yearLabel={yearLabel}
-                  note={`${get("current", "full_roster").toLocaleString()} with 7+ players`} />
+                  notes={[
+                    { text: `${get("current", "full_roster").toLocaleString()} with 7+ players` },
+                    ...(get("current", "low_roster")
+                      ? [{ text: `${get("current", "low_roster").toLocaleString()} under 3`, tone: "bad" as const }]
+                      : []),
+                  ]} />
                 <LocationMetric label="Athletes"
                   cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
