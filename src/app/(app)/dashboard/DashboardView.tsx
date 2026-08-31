@@ -825,7 +825,7 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
   }
 }
 
-type VenueRegs = { venue: string; day?: string | null; teams_registered: number; full_roster?: number };
+type VenueRegs = { venue: string; day?: string | null; teams_registered: number; full_roster?: number; low_roster?: number };
 async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Tile[]; teamsRegistered: number; teamsFullRoster: number | null; byVenue: VenueRegs[] } | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
@@ -1263,7 +1263,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   notes={[
                     { text: `${get("current", "full_roster").toLocaleString()} with 7+ players` },
                     ...(get("current", "low_roster")
-                      ? [{ text: `${get("current", "low_roster").toLocaleString()} under 3`, tone: "bad" as const }]
+                      ? [{ text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`, tone: "bad" as const }]
                       : []),
                   ]} />
                 <LocationMetric label="Athletes"
@@ -1853,14 +1853,15 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
   const shortDay = (d: string | null) => (d ? SHORT_DAY[d.trim().toLowerCase()] ?? d.trim().slice(0, 3) : null);
   // Every night a venue has signups on, whether or not it has been booked.
   const regDaysFor = (loc: string) => {
-    const m = new Map<string, { teams: number; full: number }>();
+    const m = new Map<string, { teams: number; full: number; low: number }>();
     for (const v of venueRegs ?? []) {
       if (!sameLocation(v.venue, loc)) continue;
       const d = shortDay(v.day ?? null);
       if (!d) continue;
-      const cur = m.get(d) ?? { teams: 0, full: 0 };
+      const cur = m.get(d) ?? { teams: 0, full: 0, low: 0 };
       cur.teams += v.teams_registered;
       cur.full += v.full_roster ?? 0;
+      cur.low += v.low_roster ?? 0;
       m.set(d, cur);
     }
     return m;
@@ -2015,11 +2016,23 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                       <div className="font-bold" style={{ color: reg ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
                         {reg ? reg.teams.toLocaleString() : "—"}
                       </div>
-                      {!!reg?.full && (
-                        <span className="inline-block mt-1 text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                          style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
-                          {reg.full} with 7+ players
-                        </span>
+                      {/* How many of the night's teams can field a side, and
+                          how many have barely started. */}
+                      {(!!reg?.full || !!reg?.low) && (
+                        <div className="mt-1 flex flex-wrap gap-1 justify-end">
+                          {!!reg?.full && (
+                            <span className="inline-block text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                              style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
+                              {reg.full} with 7+ players
+                            </span>
+                          )}
+                          {!!reg?.low && (
+                            <span className="inline-block text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                              style={{ color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }}>
+                              {reg.low} with 3 or fewer players
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                     {/* The night's own capacity, whatever its status — a night the
