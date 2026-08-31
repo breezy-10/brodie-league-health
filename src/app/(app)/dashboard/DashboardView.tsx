@@ -970,18 +970,24 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number" }
         </div>
         <div className="text-right shrink-0">
           <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{fmtBig(current)}</span>
-          {/* Padded to a fixed two lines, so the bars start at the same
-              height on every card rather than one card's notes pushing them
-              down. */}
-          {[0, 1].map((i) => {
-            const n = notes?.[i];
-            return (
-              <span key={i} className="text-[11px] block whitespace-nowrap"
-                style={{ color: n?.tone === "bad" ? "rgb(248,113,113)" : "var(--glass-text-tertiary)" }}>
-                {n ? n.text : "\u00A0"}
-              </span>
-            );
-          })}
+          {/* Chips, as on the location cards. Always two slots, the empty one
+              held open, so the bars start at the same height on every card
+              rather than one card's notes pushing them down. */}
+          <div className="flex flex-col items-end gap-1 mt-0.5">
+            {[0, 1].map((i) => {
+              const n = notes?.[i];
+              return (
+                <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+                  style={n
+                    ? (n.tone === "bad"
+                      ? { background: "rgba(239,68,68,0.14)", color: "rgb(248,113,113)" }
+                      : { background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" })
+                    : { visibility: "hidden" }}>
+                  {n ? n.text : "\u00A0"}
+                </span>
+              );
+            })}
+          </div>
         </div>
       </div>
       {/* Bars: fixed-px track so heights are truly proportional to value. */}
