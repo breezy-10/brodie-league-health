@@ -950,11 +950,12 @@ async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoRevie
 const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "last year" };
 const REG_COLOR: Record<string, string> = { current: "var(--glass-gold)", prev_season: "#5B8AC4", prev_year: "#A874C9" };
 const TRACK_PX = 130;
-function RegBarCard({ title, subtitle, current, bars, note, format = "number" }: {
+function RegBarCard({ title, subtitle, current, bars, notes, format = "number" }: {
   title: string; subtitle: string; current: number;
   bars: { label: string; sub: string; value: number; color: string }[];
-  // A second reading of the headline — how many of those teams can field a side.
-  note?: string;
+  // Second readings of the headline — how many of those teams can field a
+  // side, and how many have barely started.
+  notes?: { text: string; tone?: "bad" }[];
   format?: "number" | "money";
 }) {
   const fmtBig = (n: number) => (format === "money" ? money(n) : n.toLocaleString());
@@ -969,11 +970,18 @@ function RegBarCard({ title, subtitle, current, bars, note, format = "number" }:
         </div>
         <div className="text-right shrink-0">
           <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{fmtBig(current)}</span>
-          {/* Reserved when absent, so the bars start at the same height on
-              every card rather than one card's note pushing them down. */}
-          {note
-            ? <span className="text-[11px] text-glass-text-tertiary">{note}</span>
-            : <span className="text-[11px] block" aria-hidden="true">&nbsp;</span>}
+          {/* Padded to a fixed two lines, so the bars start at the same
+              height on every card rather than one card's notes pushing them
+              down. */}
+          {[0, 1].map((i) => {
+            const n = notes?.[i];
+            return (
+              <span key={i} className="text-[11px] block whitespace-nowrap"
+                style={{ color: n?.tone === "bad" ? "rgb(248,113,113)" : "var(--glass-text-tertiary)" }}>
+                {n ? n.text : "\u00A0"}
+              </span>
+            );
+          })}
         </div>
       </div>
       {/* Bars: fixed-px track so heights are truly proportional to value. */}
@@ -1030,7 +1038,7 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
       {rosterDelta != null ? (
         <p className="text-[11px] font-semibold mt-1 tabular whitespace-nowrap" style={{ color: upColor(rosterDelta) }}>
           {`${rosterDelta > 0 ? "+" : ""}${rosterDelta.toLocaleString()}`}
-          <span className="font-normal text-glass-text-tertiary"> with 7+ players</span>
+          <span className="font-normal text-glass-text-tertiary"> with 7 or more players</span>
           {rosterPct && <span className="text-[9px] font-normal"> ({rosterPct})</span>}
         </p>
       ) : (
@@ -1261,7 +1269,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
                   prevLabel={prevLabel} yearLabel={yearLabel}
                   notes={[
-                    { text: `${get("current", "full_roster").toLocaleString()} with 7+ players` },
+                    { text: `${get("current", "full_roster").toLocaleString()} with 7 or more players` },
                     ...(get("current", "low_roster")
                       ? [{ text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`, tone: "bad" as const }]
                       : []),
@@ -1616,26 +1624,31 @@ export default async function DashboardView({
                 {
                   key: "captains" as const, format: "number" as const,
                   title: "Teams", barTitle: "Total teams", barSub: `registered teams · ${regBarWhen}`,
-                  note: pacingCurrent.full_roster != null ? `${pacingCurrent.full_roster.toLocaleString()} with 7+ players` : undefined,
+                  notes: [
+                    ...(pacingCurrent.full_roster != null
+                      ? [{ text: `${pacingCurrent.full_roster.toLocaleString()} with 7 or more players` }] : []),
+                    ...(pacingCurrent.low_roster
+                      ? [{ text: `${pacingCurrent.low_roster.toLocaleString()} with 3 or fewer players`, tone: "bad" as const }] : []),
+                  ],
                   roster: true,
                 },
                 {
                   key: "athletes" as const, format: "number" as const,
                   title: "Athletes", barTitle: "Total athletes", barSub: `athlete registrations · ${regBarWhen}`,
-                  note: undefined, roster: false,
+                  notes: undefined, roster: false,
                 },
                 // Accrued, and normalised to CAD by the feed — US venues invoice
                 // in USD, so a raw sum would mix two currencies.
                 {
                   key: "revenue" as const, format: "money" as const,
                   title: "Revenue", barTitle: "Total revenue", barSub: `accrued, CAD · ${regBarWhen}`,
-                  note: undefined, roster: false,
+                  notes: undefined, roster: false,
                 },
               ]).map((m) => (
                 <div key={m.key} className="h-full flex flex-col gap-4">
                   <div className="flex-1">
                     <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
-                      current={pacingCurrent[m.key] ?? 0} bars={regBars(m.key)} note={m.note} />
+                      current={pacingCurrent[m.key] ?? 0} bars={regBars(m.key)} notes={m.notes} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <RegDeltaCard
@@ -1913,7 +1926,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           value={(teamsRegistered ?? t?.teams_week_one ?? 0).toLocaleString()}
           tone="default"
           lines={teamsFullRoster != null
-            ? [{ text: `${teamsFullRoster.toLocaleString()} with 7+ players`, chip: true }]
+            ? [{ text: `${teamsFullRoster.toLocaleString()} with 7 or more players`, chip: true }]
             : undefined}
           corner={teamsRegistered != null
             ? {
@@ -2023,7 +2036,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                           {!!reg?.full && (
                             <span className="inline-block text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
                               style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
-                              {reg.full} with 7+ players
+                              {reg.full} with 7 or more players
                             </span>
                           )}
                           {!!reg?.low && (
