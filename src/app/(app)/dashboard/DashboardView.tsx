@@ -1034,12 +1034,12 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
     <div className="h-full rounded-2xl border border-glass-border bg-glass-surface p-4">
       <h3 className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
       <p className="text-[11px] mt-0.5 text-glass-text-tertiary">{subtitle}</p>
-      <p className="text-3xl font-bold tabular mt-2" style={{ color }}>
+      <p className="text-3xl font-bold tabular mt-2 whitespace-nowrap" style={{ color }}>
         {delta === null ? "—" : format === "money"
           ? `${delta > 0 ? "+" : ""}${money(delta)}`
           : `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`}
-        {pct && <span className="text-sm font-semibold"> ({pct})</span>}
       </p>
+      <p className="text-sm font-semibold tabular" style={{ color }}>{pct ?? "\u00A0"}</p>
       {/* The line is reserved even when a metric has no roster figure, so
           every delta card is the same height as the ones beside it. */}
       {rosterDelta != null ? (
@@ -1499,13 +1499,13 @@ export default async function DashboardView({
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
   const pacingPrevYear = pacing?.seasons.find((s) => s.kind === "prev_year");
   // Same-day difference: current season minus the comparison season at day N.
-  const regDelta = (metric: "captains" | "athletes" | "revenue", against: typeof pacingPrevSeason) =>
+  const regDelta = (metric: "captains" | "athletes" | "revenue" | "revenue_native", against: typeof pacingPrevSeason) =>
     pacingCurrent && against ? (pacingCurrent[metric] ?? 0) - (against[metric] ?? 0) : null;
   const rosterDelta = (against: typeof pacingPrevSeason) =>
     pacingCurrent?.full_roster != null && against?.full_roster != null
       ? pacingCurrent.full_roster - against.full_roster
       : null;
-  const regBars = (metric: "captains" | "athletes" | "revenue") =>
+  const regBars = (metric: "captains" | "athletes" | "revenue" | "revenue_native") =>
     (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric] ?? 0, color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
   // Checklist: two cards for the playing season, two for the next (prep) season.
   const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
@@ -1651,8 +1651,9 @@ export default async function DashboardView({
                 // Accrued, and normalised to CAD by the feed — US venues invoice
                 // in USD, so a raw sum would mix two currencies.
                 {
-                  key: "revenue" as const, format: "money" as const,
-                  title: "Revenue", barTitle: "Total revenue", barSub: `accrued, CAD · ${regBarWhen}`,
+                  key: "revenue_native" as const, format: "money" as const,
+                  title: "Revenue", barTitle: "Total revenue",
+                  barSub: `accrued, ${pacingCurrent.currency ?? "CAD"} · ${regBarWhen}`,
                   notes: undefined, roster: false,
                 },
               ]).map((m) => (
