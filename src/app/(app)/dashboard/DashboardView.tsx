@@ -884,7 +884,8 @@ async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: st
   try {
     const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", regSeason);
-    url.searchParams.set("breakdown", "location");
+    // Scoped to a single venue, the useful next cut is the nights it plays.
+    url.searchParams.set("breakdown", scope.locationNames?.length === 1 ? "day" : "location");
     if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
@@ -1223,11 +1224,13 @@ function AthletesVsRevenueChart({ locations, prevLabel, yearLabel }: {
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
-function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true }: {
+function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false }: {
   locations: PacingLocation[];
   prevLabel: string;
   yearLabel: string;
   season: string;
+  // Cards are nights at one venue rather than venues.
+  byNight?: boolean;
   // Athletes-per-team is a roster size, which only holds season-to-date. On a
   // week basis the two sides count different cohorts — athletes who joined a
   // team registered in an earlier week — so the ratio is left off.
@@ -1235,7 +1238,9 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
 }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary mb-2">By location</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary mb-2">
+        {byNight ? "By night" : "By location"}
+      </h3>
       <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
         {locations.map((l) => {
           const get = (kind: string, metric: PacingMetric) =>
@@ -1680,13 +1685,16 @@ export default async function DashboardView({
                   prevLabel={shortSeason(pacingPrevSeason?.season ?? "")}
                   yearLabel={shortSeason(pacingPrevYear?.season ?? "")}
                   season={pacingCurrent.season}
-                  showAvgPerTeam={!regOnWeek} />
+                  showAvgPerTeam={!regOnWeek}
+                  byNight={locationNames?.length === 1} />
               </div>
             ) : null}
             {/* Registrations only. On the Dashboard and Weekly Review this
                 section is a summary, and a 26-row chart buries everything
                 under it. */}
-            {isReg && pacing.locations?.length ? (
+            {/* The chart compares venues, so it has nothing to say when the
+                view is already down to one. */}
+            {isReg && locationNames?.length !== 1 && pacing.locations?.length ? (
               <AthletesVsRevenueChart
                 locations={pacing.locations}
                 prevLabel={shortSeason(pacingPrevSeason?.season ?? "")}
