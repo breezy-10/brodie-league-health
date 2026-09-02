@@ -20,7 +20,7 @@ const PROMO_LOCATIONS_FALLBACK = [
   "Calgary", "Chicago", "Edmonton", "Kitchener", "London", "Markham", "Milton",
   "Mississauga", "Montreal", "Niagara", "Oshawa", "Ottawa", "Scarborough",
   "Toronto (Downtown)", "Toronto (Uptown)", "Vaughan", "Winnipeg",
-  "Richmond", "Oakville", "Surrey",
+  "Richmond", "Oakville", "Surrey", "Burnaby",
 ];
 const PROMO_SEASONS_FALLBACK = ["Fall '26", "Summer '26"];
 

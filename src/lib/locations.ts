@@ -9,7 +9,7 @@ export const LOCATIONS_FALLBACK = [
   "Calgary", "Chicago", "Edmonton", "Kitchener", "London", "Markham", "Milton",
   "Mississauga", "Montreal", "Niagara", "Oshawa", "Ottawa", "Scarborough",
   "Toronto (Downtown)", "Toronto (Uptown)", "Vaughan", "Winnipeg",
-  "Richmond", "Oakville", "Surrey",
+  "Richmond", "Oakville", "Surrey", "Burnaby",
 ];
 
 export async function getAssignableLocations(): Promise<string[]> {
