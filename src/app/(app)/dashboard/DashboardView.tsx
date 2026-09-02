@@ -323,6 +323,20 @@ async function loadFeedbackTiles(season: string, scope: Scope): Promise<Tile[] |
     url.searchParams.set("season", season);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
+    // A location this app does not track is not a failed read — and must not
+    // fall through to the sample tiles, which would put invented numbers on a
+    // filtered dashboard. Empty tiles render an explicit note instead.
+    if (res.status === 404) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (body?.error === "location_not_found") return [];
+    }
+    // A location this app does not track is not a failed read — and must not
+    // fall through to the sample tiles, which would put invented numbers on a
+    // filtered dashboard. Empty tiles render an explicit note instead.
+    if (res.status === 404) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (body?.error === "location_not_found") return [];
+    }
     if (!res.ok) return null;
     const k = (await res.json()) as {
       responses: number; csat_pct: number | null; csat_tone: Tone; csat_satisfied: number; csat_total: number;
@@ -1712,8 +1726,10 @@ export default async function DashboardView({
             {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} titleSuffix={weekTag} />}
             {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} titleSuffix={weekTag} />}
             {trainingTiles && <Section title="Training" scopeTag={fullTag} href={APP_URL.training} tiles={trainingTiles} />}
-            <Section title="Stats Health" scopeTag={weekTag} href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles} />
-            <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles} />
+            <Section title="Stats Health" scopeTag={weekTag} href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles}
+              emptyNote="Not tracked for the selected locations." />
+            <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles}
+              emptyNote="Not tracked for the selected locations." />
             <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
             <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
             {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} teamsRegistered={promoTiles?.teamsRegistered} teamsFullRoster={promoTiles?.teamsFullRoster} venueRegs={promoTiles?.byVenue} scopeLocations={locationNames} />}
@@ -2261,6 +2277,7 @@ function Section({
   href,
   tiles,
   sample = false,
+  emptyNote,
   seasonTag,
   scopeTag,
   cols = 4,
@@ -2269,6 +2286,9 @@ function Section({
   href?: string;
   tiles: Tile[];
   sample?: boolean;
+  // Shown instead of the "coming soon" line when the section has no tiles
+  // because the source does not cover the selected locations.
+  emptyNote?: string;
   seasonTag?: string;
   // Scope note beside the heading ("(Weekly)"), set smaller and muted so it
   // reads as a label rather than part of the title.
@@ -2311,7 +2331,7 @@ function Section({
         </div>
       ) : (
         <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
-          Cards coming soon — open the app for the full view.
+          {emptyNote ?? "Cards coming soon — open the app for the full view."}
         </div>
       )}
     </section>
