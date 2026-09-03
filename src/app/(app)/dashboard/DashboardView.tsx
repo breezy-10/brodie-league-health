@@ -1660,7 +1660,11 @@ export default async function DashboardView({
                 {
                   key: "athletes" as const, format: "number" as const,
                   title: "Athletes", barTitle: "Total athletes", barSub: regBarWhen,
-                  notes: undefined, roster: false,
+                  // The roster size the season is actually running at.
+                  notes: pacingCurrent.captains
+                    ? [{ text: `${(pacingCurrent.athletes / pacingCurrent.captains).toFixed(1)} per team` }]
+                    : undefined,
+                  roster: false,
                 },
                 // Accrued, and normalised to CAD by the feed — US venues invoice
                 // in USD, so a raw sum would mix two currencies.
