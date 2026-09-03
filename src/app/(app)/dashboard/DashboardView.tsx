@@ -1648,7 +1648,7 @@ export default async function DashboardView({
               {([
                 {
                   key: "captains" as const, format: "number" as const,
-                  title: "Teams", barTitle: "Total teams", barSub: `registered teams · ${regBarWhen}`,
+                  title: "Teams", barTitle: "Total teams", barSub: regBarWhen,
                   notes: [
                     ...(pacingCurrent.full_roster != null
                       ? [{ text: `${pacingCurrent.full_roster.toLocaleString()} with 7 or more players` }] : []),
@@ -1659,7 +1659,7 @@ export default async function DashboardView({
                 },
                 {
                   key: "athletes" as const, format: "number" as const,
-                  title: "Athletes", barTitle: "Total athletes", barSub: `athlete registrations · ${regBarWhen}`,
+                  title: "Athletes", barTitle: "Total athletes", barSub: regBarWhen,
                   notes: undefined, roster: false,
                 },
                 // Accrued, and normalised to CAD by the feed — US venues invoice
