@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
+import { SectionSkeleton, TableSkeleton } from "./Skeletons";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 import { resolveLocationsForLM, resolveLocationIdsByName } from "@/lib/source-apps/cross-app-locations";
@@ -1235,6 +1237,56 @@ function AthletesVsRevenueChart({ locations, prevLabel, yearLabel }: {
   );
 }
 
+// Each of these owns a single source app. Rendered inside its own Suspense
+// boundary they start together and appear as they answer, so the page fills
+// top to bottom instead of waiting for the slowest one.
+async function OutreachCards({ scope, opts, when, weekTag }: {
+  scope: Scope; opts: Parameters<typeof loadTouchData>[1]; when: string; weekTag?: string;
+}) {
+  return <TouchesSection data={await loadTouchData(scope, opts)} when={when} titleSuffix={weekTag} />;
+}
+async function SiteVisitCards({ scope, weeks, weekTag }: { scope: Scope; weeks?: string; weekTag?: string }) {
+  const d = await loadSiteVisits(scope, weeks);
+  return d && d.weeks.length > 0 ? <SiteVisitsSection data={d} titleSuffix={weekTag} /> : null;
+}
+async function VideoReviewCards({ scope, weeks, weekTag }: { scope: Scope; weeks?: string; weekTag?: string }) {
+  const d = await loadVideoReviews(scope, weeks);
+  return d && d.weeks.length > 0 ? <VideoReviewsSection data={d} titleSuffix={weekTag} /> : null;
+}
+async function TrainingCards({ scope, fullTag }: { scope: Scope; fullTag?: string }) {
+  const tiles = await loadTrainingTiles(scope);
+  return tiles ? <Section title="Training" scopeTag={fullTag} href={APP_URL.training} tiles={tiles} /> : null;
+}
+async function StatsHealthCards({ season, scope, weeks, weekTag }: { season: string; scope: Scope; weeks?: string; weekTag?: string }) {
+  const tiles = await loadStatsTiles(season, scope, weeks);
+  return <Section title="Stats Health" scopeTag={weekTag} href={APP_URL.stats_health}
+    tiles={tiles ?? SAMPLE.stats_health} sample={!tiles} emptyNote="Not tracked for the selected locations." />;
+}
+async function ContentHealthCards({ season, scope, weeks, weekTag }: { season: string; scope: Scope; weeks?: string; weekTag?: string }) {
+  const tiles = await loadContentTiles(season, scope, weeks);
+  return <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health}
+    tiles={tiles ?? SAMPLE.content} sample={!tiles} emptyNote="Not tracked for the selected locations." />;
+}
+async function FeedbackCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
+  const tiles = await loadFeedbackTiles(season, scope);
+  return <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback}
+    tiles={tiles ?? SAMPLE.feedback} sample={!tiles} />;
+}
+async function OverdueCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
+  const tiles = await loadOverdueTiles(season, scope);
+  return <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue}
+    tiles={tiles ?? SAMPLE.overdue} sample={!tiles} />;
+}
+async function BookingCards({ season, scope, fullTag, promo, locationNames }: {
+  season: string; scope: Scope; fullTag?: string;
+  promo: Awaited<ReturnType<typeof loadPromoTiles>>; locationNames: string[] | null;
+}) {
+  const b = await loadBookings(season, scope);
+  return b ? <BookingsSection data={b} season={season} titleSuffix={fullTag}
+    teamsRegistered={promo?.teamsRegistered} teamsFullRoster={promo?.teamsFullRoster}
+    venueRegs={promo?.byVenue} scopeLocations={locationNames} /> : null;
+}
+
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
@@ -1494,20 +1546,15 @@ export default async function DashboardView({
   const weeksParam = activeWeeks.length ? activeWeeks.join(",") : undefined;
   // Registrations mode shows only the Registrations section, so skip the other
   // source loads entirely — just fetch pacing.
-  const [ckCurrent, ckNext, feedbackTiles, statsTiles, contentTiles, promoTiles, overdueTiles, pacing, touchData, trainingTiles, bookings, siteVisits, videoReviews] = await Promise.all([
+  // Only what the page header and the top two sections need is awaited here.
+  // Everything below streams in its own Suspense boundary, so the shell is not
+  // held behind the slowest source app. promoTiles stays because two sections
+  // share it and it should not be fetched twice.
+  const [ckCurrent, ckNext, promoTiles, pacing] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
-    isReg ? Promise.resolve(null) : loadFeedbackTiles(selectedSeason, scope),
-    isReg ? Promise.resolve(null) : loadStatsTiles(seasonsParam, scope, weeksParam),
-    isReg ? Promise.resolve(null) : loadContentTiles(seasonsParam, scope, weeksParam),
     isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
-    isReg ? Promise.resolve(null) : loadOverdueTiles(selectedSeason, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
-    isReg ? Promise.resolve(null) : loadTouchData(scope, { fromIso: touchFrom, toIso: touchTo, season: regSeason, weekLabel: activeWeeks.length ? `week of ${weekLabel}` : undefined }),
-    isReg ? Promise.resolve(null) : loadTrainingTiles(scope),
-    isReg ? Promise.resolve(null) : loadBookings(regSeason, scope),
-    isReg ? Promise.resolve(null) : loadSiteVisits(scope, weeksParam),
-    isReg ? Promise.resolve(null) : loadVideoReviews(scope, weeksParam),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
@@ -1726,17 +1773,34 @@ export default async function DashboardView({
         {!isReg && (
           <>
             <Section title="Registration Promo Tracker" scopeTag={fullTag} href={APP_URL.promo} tiles={promoTiles?.tiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
-            <TouchesSection data={touchData} when={touchWhen} titleSuffix={weekTag} />
-            {siteVisits && siteVisits.weeks.length > 0 && <SiteVisitsSection data={siteVisits} titleSuffix={weekTag} />}
-            {videoReviews && videoReviews.weeks.length > 0 && <VideoReviewsSection data={videoReviews} titleSuffix={weekTag} />}
-            {trainingTiles && <Section title="Training" scopeTag={fullTag} href={APP_URL.training} tiles={trainingTiles} />}
-            <Section title="Stats Health" scopeTag={weekTag} href={APP_URL.stats_health} tiles={statsTiles ?? SAMPLE.stats_health} sample={!statsTiles}
-              emptyNote="Not tracked for the selected locations." />
-            <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health} tiles={contentTiles ?? SAMPLE.content} sample={!contentTiles}
-              emptyNote="Not tracked for the selected locations." />
-            <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback} tiles={feedbackTiles ?? SAMPLE.feedback} sample={!feedbackTiles} />
-            <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue} tiles={overdueTiles ?? SAMPLE.overdue} sample={!overdueTiles} />
-            {bookings && <BookingsSection data={bookings} season={regSeason} titleSuffix={fullTag} teamsRegistered={promoTiles?.teamsRegistered} teamsFullRoster={promoTiles?.teamsFullRoster} venueRegs={promoTiles?.byVenue} scopeLocations={locationNames} />}
+            <Suspense fallback={<SectionSkeleton title="Outreach" cols={4} />}>
+              <OutreachCards scope={scope} when={touchWhen} weekTag={weekTag}
+                opts={{ fromIso: touchFrom, toIso: touchTo, season: regSeason, weekLabel: activeWeeks.length ? `week of ${weekLabel}` : undefined }} />
+            </Suspense>
+            <Suspense fallback={<TableSkeleton title="Site Visits" />}>
+              <SiteVisitCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
+            </Suspense>
+            <Suspense fallback={<TableSkeleton title="Video Reviews" />}>
+              <VideoReviewCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton title="Training" />}>
+              <TrainingCards scope={scope} fullTag={fullTag} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton title="Stats Health" />}>
+              <StatsHealthCards season={seasonsParam} scope={scope} weeks={weeksParam} weekTag={weekTag} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton title="Content Health" />}>
+              <ContentHealthCards season={seasonsParam} scope={scope} weeks={weeksParam} weekTag={weekTag} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton title="Feedback" />}>
+              <FeedbackCards season={selectedSeason} scope={scope} fullTag={fullTag} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton title="Overdue Payments" />}>
+              <OverdueCards season={selectedSeason} scope={scope} fullTag={fullTag} />
+            </Suspense>
+            <Suspense fallback={<TableSkeleton title="Facility Bookings" rows={6} />}>
+              <BookingCards season={regSeason} scope={scope} fullTag={fullTag} promo={promoTiles} locationNames={locationNames} />
+            </Suspense>
           </>
         )}
       </div>
