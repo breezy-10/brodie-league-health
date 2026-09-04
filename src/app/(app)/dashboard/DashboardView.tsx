@@ -2389,7 +2389,8 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                       {(!!reg?.full || !!reg?.low || !!reg?.teams) && (
                         <div className="mt-1 flex flex-col items-end gap-1">
                           {!!reg?.teams && (
-                            <span className="text-[10px] text-glass-text-tertiary whitespace-nowrap">
+                            <span className="inline-block text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                              style={{ color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" }}>
                               {(reg.players / reg.teams).toFixed(1)} avg players per team
                             </span>
                           )}
