@@ -1171,12 +1171,10 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
   const pct = (n: number) => (n / total) * 100;
   // A band holding someone is never shown as 0% — that reads as empty.
   const pctText = (n: number) => (pct(n) < 0.5 ? "<1" : pct(n).toFixed(0));
-  // The three bands the venue actually sits in. Ties break toward the younger
-  // band, which is the one carrying these venues.
-  const top = age.bands.map((b, i) => ({ ...b, i })).filter((b) => b.n > 0)
-    .sort((a, b) => b.n - a.n || a.i - b.i).slice(0, 3);
-  const detail = age.bands.filter((b) => b.n > 0)
-    .map((b) => `${b.label}: ${b.n.toLocaleString()} (${pctText(b.n)}%)`).join("\n");
+  // Bars run against the biggest band, not the total: scaled to the total, a
+  // venue's whole tail sits at one or two pixels and the rows stop saying
+  // anything about each other.
+  const max = Math.max(...age.bands.map((b) => b.n), 1);
   const drift = (other: AgeStats | null | undefined, label: string) =>
     !other ? null : (
       <span key={label} className="text-[9px] font-semibold whitespace-nowrap"
@@ -1203,23 +1201,31 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
         {drift(prev, prevLabel)}
         {drift(year, yearLabel)}
       </p>
-      {/* Gapped rather than butted together: two neighbouring bands can sit
-          close in hue, and the gap keeps them from reading as one block. */}
-      <div className="mt-1.5 flex gap-[1px] h-1.5 rounded-full overflow-hidden"
-        title={`Age at season start\n${detail}`}>
-        {age.bands.map((b, i) => b.n === 0 ? null : (
-          <span key={b.label} style={{ width: `${pct(b.n)}%`, background: AGE_COLORS[i] }} />
+      {/* Every band, in age order, whether or not anyone is in it: the rows
+          land in the same place on every card, so a strip of venues can be
+          read down as well as across. An empty band is a fact about the venue
+          — no over-30s at all is worth seeing — so it holds its row rather
+          than closing the gap. */}
+      <div className="mt-1.5 space-y-[2px]" title="Age at season start">
+        {age.bands.map((b, i) => (
+          <div key={b.label} className="flex items-center gap-1.5">
+            <span className="text-[10px] w-[52px] shrink-0 tabular whitespace-nowrap"
+              style={{ color: b.n ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
+              {b.label}
+            </span>
+            <span className="flex-1 min-w-0 flex items-center">
+              <span className="h-1 rounded-full" style={{ width: `${(b.n / max) * 100}%`, background: AGE_COLORS[i] }} />
+            </span>
+            <span className="text-[10px] tabular font-semibold w-[36px] text-right shrink-0"
+              style={{ color: b.n ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
+              {b.n.toLocaleString()}
+            </span>
+            <span className="text-[9px] tabular w-[24px] text-right shrink-0 text-glass-text-tertiary">
+              {b.n ? `${pctText(b.n)}%` : ""}
+            </span>
+          </div>
         ))}
       </div>
-      <p className="mt-1 text-[10px] leading-snug text-glass-text-tertiary">
-        {top.map((b, i) => (
-          <span key={b.label} className="whitespace-nowrap">
-            {i > 0 && <span className="text-glass-text-tertiary"> · </span>}
-            <span style={{ color: AGE_COLORS[b.i] }}>■</span>
-            {" "}{b.label} <span className="tabular font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{pctText(b.n)}%</span>
-          </span>
-        ))}
-      </p>
     </div>
   );
 }
