@@ -886,8 +886,11 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 // measured at the season's start. `n` is how many of them that was, so the
 // average is always read next to the share of the cohort it came from.
 type AgeStats = { avg: number; n: number; coverage_pct: number | null; bands: { label: string; n: number }[] };
-type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; revenue_cad?: number; revenue_usd?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null; age?: AgeStats | null };
-type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd";
+type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; revenue_cad?: number; revenue_usd?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null; age?: AgeStats | null;
+  // age.avg flattened onto the season by loadRegistrationPacing, so the age
+  // card can go through the same bar/delta machinery as every other metric.
+  age_avg?: number };
+type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd" | "age_avg";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
 const money = (n: number) => `${n < 0 ? "\u2212" : ""}$${Math.abs(Math.round(n)).toLocaleString()}`;
@@ -911,6 +914,10 @@ async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: st
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as Pacing;
+    // The feed reports age as an object; the cards chart plain numbers. Left
+    // undefined rather than zeroed when a season has no birth dates at all —
+    // a zero would draw as a real reading of "age 0".
+    for (const s of k.seasons ?? []) s.age_avg = s.age?.avg;
     return k.seasons?.length ? k : null;
   } catch {
     return null;
@@ -977,10 +984,10 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number" }
   // Second readings of the headline — how many of those teams can field a
   // side, and how many have barely started.
   notes?: { text: string; tone?: "bad" }[];
-  format?: "number" | "money";
+  format?: "number" | "money" | "age";
 }) {
-  const fmtBig = (n: number) => (format === "money" ? money(n) : n.toLocaleString());
-  const fmtBar = (n: number) => (format === "money" ? moneyShort(n) : n.toLocaleString());
+  const fmtBig = (n: number) => (format === "money" ? money(n) : format === "age" ? n.toFixed(1) : n.toLocaleString());
+  const fmtBar = (n: number) => (format === "money" ? moneyShort(n) : format === "age" ? n.toFixed(1) : n.toLocaleString());
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
     <div className="h-full flex flex-col rounded-2xl border border-glass-border bg-glass-surface p-5">
@@ -1043,34 +1050,54 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
   // very differently from the headline count.
   rosterDelta?: number | null;
   rosterBase?: number | null;
-  format?: "number" | "money";
+  format?: "number" | "money" | "age";
 }) {
-  const pct = delta != null && base ? signedPct(base + delta, base) : null;
+  const isAge = format === "age";
+  // A percentage change in an average age says nothing anyone can act on
+  // ("+5.2% older"), so the age cards spend the line on the two averages
+  // themselves — the figure you would otherwise go looking for.
+  const pct = isAge
+    ? (delta != null && base != null ? `${base.toFixed(1)} \u2192 ${(base + delta).toFixed(1)}` : null)
+    : (delta != null && base ? signedPct(base + delta, base) : null);
   const rosterPct = rosterDelta != null && rosterBase ? signedPct(rosterBase + rosterDelta, rosterBase) : null;
+  // Age has no good direction — a venue drifting older is who it serves, not
+  // a result — so it is left in the plain text colour rather than scored
+  // green or red like teams, athletes and revenue.
   const color =
-    delta === null || delta === 0 ? "var(--glass-text)" :
+    isAge || delta === null || delta === 0 ? "var(--glass-text)" :
     delta > 0 ? "rgb(74,222,128)" : "rgb(248,113,113)";
   return (
     <div className="h-full rounded-2xl border border-glass-border bg-glass-surface p-4">
-      <h3 className="text-sm font-semibold truncate" title={title}
+      {/* Sized to the narrowest these get — five columns, two cards to a
+          column — so "Athletes vs prev season" reads in full rather than
+          truncating to "Athletes vs prev ...". */}
+      <h3 className="text-[11px] font-semibold truncate" title={title}
         style={{ color: "var(--glass-text)" }}>{title}</h3>
-      <p className="text-[11px] mt-0.5 text-glass-text-tertiary truncate" title={subtitle}>{subtitle}</p>
-      <p className="text-3xl font-bold tabular mt-2 whitespace-nowrap" style={{ color }}>
+      <p className="text-[10px] mt-0.5 text-glass-text-tertiary truncate" title={subtitle}>{subtitle}</p>
+      {/* A size down from where this started: at five columns each card is
+          about a third narrower than it was at four, and a money delta runs
+          to nine characters before it clips. */}
+      <p className="text-2xl font-bold tabular mt-2 whitespace-nowrap" style={{ color }}>
         {delta === null ? "—" : format === "money"
           ? `${delta > 0 ? "+" : ""}${money(delta)}`
-          : `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`}
+          : isAge
+            ? `${delta > 0 ? "+" : ""}${delta.toFixed(1)}`
+            : `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`}
       </p>
-      <p className="text-sm font-semibold tabular" style={{ color }}>{pct ?? "\u00A0"}</p>
+      <p className="text-[13px] font-semibold tabular" style={{ color }}>{pct ?? "\u00A0"}</p>
       {/* The line is reserved even when a metric has no roster figure, so
           every delta card is the same height as the ones beside it. */}
       {rosterDelta != null ? (
-        <p className="text-[11px] font-semibold mt-1 tabular whitespace-nowrap" style={{ color: upColor(rosterDelta) }}>
+        // The count is the reading; its percentage no longer fits beside it at
+        // a third of a column, so it moves to the hover along with the full
+        // wording this line abbreviates.
+        <p className="text-[10px] font-semibold mt-1 tabular whitespace-nowrap" style={{ color: upColor(rosterDelta) }}
+          title={`${rosterDelta > 0 ? "+" : ""}${rosterDelta.toLocaleString()} with 7 or more players${rosterPct ? ` (${rosterPct})` : ""}`}>
           {`${rosterDelta > 0 ? "+" : ""}${rosterDelta.toLocaleString()}`}
-          <span className="font-normal text-glass-text-tertiary"> with 7 or more players</span>
-          {rosterPct && <span className="text-[9px] font-normal"> ({rosterPct})</span>}
+          <span className="font-normal text-glass-text-tertiary"> with 7+ players</span>
         </p>
       ) : (
-        <p className="text-[11px] mt-1" aria-hidden="true">&nbsp;</p>
+        <p className="text-[10px] mt-1" aria-hidden="true">&nbsp;</p>
       )}
     </div>
   );
@@ -1802,7 +1829,7 @@ export default async function DashboardView({
                   className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4">
               {/* One column per metric: its season bars, then the two same-day
                   comparisons underneath. The deltas used to run four-across on
                   their own row, so they lined up with nothing above them. */}
@@ -1843,6 +1870,21 @@ export default async function DashboardView({
                   barSub: `accrued · ${regBarWhen}`,
                   notes: undefined, roster: false,
                 },
+                // Only where the season has birth dates to average. The chip
+                // carries the share it is averaging over: roughly one athlete
+                // in ten has no birth date on file, and an average age is a
+                // different claim read off half a season than off all of it.
+                ...(pacingCurrent.age_avg != null
+                  ? [{
+                    key: "age_avg" as const, format: "age" as const,
+                    title: "Age", barTitle: "Average age",
+                    barSub: `at season start · ${regBarWhen}`,
+                    notes: pacingCurrent.age?.coverage_pct != null
+                      ? [{ text: `${pacingCurrent.age.coverage_pct}% have a birth date` }]
+                      : undefined,
+                    roster: false,
+                  }]
+                  : []),
               ]).map((m) => (
                 <div key={m.key} className="h-full flex flex-col gap-4">
                   <div className="flex-1">
@@ -1852,13 +1894,13 @@ export default async function DashboardView({
                   <div className="grid grid-cols-2 gap-4">
                     <RegDeltaCard
                       title={`${m.title} vs prev season`} format={m.format}
-                      subtitle={`${pacingCurrent.season} vs ${pacingPrevSeason?.season ?? "—"} · ${regDeltaWhen}`}
+                      subtitle={`${shortSeason(pacingCurrent.season)} vs ${pacingPrevSeason ? shortSeason(pacingPrevSeason.season) : "—"} · ${regDeltaWhen}`}
                       delta={regDelta(m.key, pacingPrevSeason)} base={pacingPrevSeason?.[m.key] ?? null}
                       rosterDelta={m.roster ? rosterDelta(pacingPrevSeason) : undefined}
                       rosterBase={m.roster ? pacingPrevSeason?.full_roster ?? null : undefined} />
                     <RegDeltaCard
                       title={`${m.title} vs prev year`} format={m.format}
-                      subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
+                      subtitle={`${shortSeason(pacingCurrent.season)} vs ${pacingPrevYear ? shortSeason(pacingPrevYear.season) : "—"} · ${regDeltaWhen}`}
                       delta={regDelta(m.key, pacingPrevYear)} base={pacingPrevYear?.[m.key] ?? null}
                       rosterDelta={m.roster ? rosterDelta(pacingPrevYear) : undefined}
                       rosterBase={m.roster ? pacingPrevYear?.full_roster ?? null : undefined} />
