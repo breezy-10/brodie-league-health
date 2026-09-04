@@ -964,7 +964,7 @@ async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoRevie
   }
 }
 
-const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "last year" };
+const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "prev year" };
 const REG_COLOR: Record<string, string> = { current: "var(--glass-gold)", prev_season: "#5B8AC4", prev_year: "#A874C9" };
 const TRACK_PX = 130;
 function RegBarCard({ title, subtitle, current, bars, notes, format = "number" }: {
@@ -1645,7 +1645,7 @@ export default async function DashboardView({
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>{isReg ? "Registration pacing" : isWeekly ? "Weekly review" : "League overview"}</h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
           {isReg
-            ? <>Teams &amp; athletes at day N of registration for {scopeLabel}, vs the previous season and last year.</>
+            ? <>Teams &amp; athletes at day N of registration for {scopeLabel}, vs the previous season and the previous year.</>
             : isWeekly
               ? <>Cross-app health for {scopeLabel}, scoped to the week of {weekLabel} (Sat–Fri). Registrations, Stats Health &amp; Content Health are week-scoped; other sections show the season to date.</>
               : <>Cross-app health for {scopeLabel}.{snapDate ? ` As of ${snapDate}.` : ""}</>}
@@ -1744,7 +1744,7 @@ export default async function DashboardView({
                       rosterDelta={m.roster ? rosterDelta(pacingPrevSeason) : undefined}
                       rosterBase={m.roster ? pacingPrevSeason?.full_roster ?? null : undefined} />
                     <RegDeltaCard
-                      title={`${m.title} vs last year`} format={m.format}
+                      title={`${m.title} vs prev year`} format={m.format}
                       subtitle={`${pacingCurrent.season} vs ${pacingPrevYear?.season ?? "—"} · ${regDeltaWhen}`}
                       delta={regDelta(m.key, pacingPrevYear)} base={pacingPrevYear?.[m.key] ?? null}
                       rosterDelta={m.roster ? rosterDelta(pacingPrevYear) : undefined}
