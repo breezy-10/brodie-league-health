@@ -1406,7 +1406,15 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
       <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary mb-2">
         {byNight ? "By night" : "By location"}
       </h3>
-      <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
+      {/* One grid across the whole strip rather than a row of independent
+          cards, so every section starts on the same line at every venue: a
+          card with no retention lines leaves the gap rather than pulling Age
+          and Revenue up to a different height from its neighbours. Each card
+          is a subgrid spanning all seven rows, so the row heights are shared.
+          Where subgrid is missing the cards simply fall back to sizing their
+          own rows — the old, unaligned behaviour, not a broken one. */}
+      <div className="grid grid-flow-col auto-cols-[300px] gap-x-3 overflow-x-auto pb-2 snap-x"
+        style={{ gridTemplateRows: "repeat(7, auto)" }}>
         {locations.map((l) => {
           const get = (kind: string, metric: PacingMetric) =>
             l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
@@ -1427,8 +1435,9 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   : "rgb(248,113,113)";
           return (
             <div key={l.location}
-              className="snap-start shrink-0 w-[300px] rounded-xl border border-glass-border bg-glass-surface p-3.5">
-              <div className="flex items-baseline justify-between gap-2">
+              className="snap-start grid row-span-full rounded-xl border border-glass-border bg-glass-surface"
+              style={{ gridTemplateRows: "subgrid" }}>
+              <div className="flex items-baseline justify-between gap-2 px-3.5 pt-3.5">
                 <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={l.location}>
                   {l.location}
                 </p>
@@ -1440,7 +1449,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3 mt-2.5">
+              <div className="grid grid-cols-2 gap-3 mt-2.5 px-3.5">
                 <LocationMetric label="Teams"
                   cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
                   prevLabel={prevLabel} yearLabel={yearLabel}
@@ -1454,7 +1463,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
-              {(() => {
+              <div className="px-3.5">{(() => {
                 const pick = (k: string, m: "returning_captains_pct" | "returning_athletes_pct") =>
                   l.seasons.find((s) => s.kind === k)?.[m] ?? null;
                 const lines = ([
@@ -1489,14 +1498,14 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                     ))}
                   </div>
                 );
-              })()}
+              })()}</div>
               {/* Both lines ask the same question — what share of the prior
                   season's athletes came back — the second one a year earlier,
                   so the two can actually be compared. Each names the season
                   people came FROM. The current line carries the movement
                   between them, in points: the difference of two percentages is
                   points, not a percentage of a percentage. */}
-              {(l.retention || l.retention_year) && (
+              <div className="px-3.5">{(l.retention || l.retention_year) && (
                 <div className="mt-3 text-[11px] leading-snug">
                   {[l.retention, l.retention_year].filter(Boolean).map((r, i) => {
                     const into = shortSeason(r!.into_season ?? season);
@@ -1521,20 +1530,20 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                     );
                   })}
                 </div>
-              )}
-              {(() => {
+              )}</div>
+              <div className="px-3.5">{(() => {
                 const at = (k: string) => l.seasons.find((s) => s.kind === k)?.age ?? null;
                 const cur = at("current");
                 return cur ? <LocationAge age={cur} prev={at("prev_season")} year={at("prev_year")}
                   prevLabel={prevLabel} yearLabel={yearLabel} /> : null;
-              })()}
+              })()}</div>
               {/* Below retention, and in the currency the venue actually
                   invoices in — a US venue's own card should not restate its
                   revenue as Canadian dollars. */}
               {/* Revenue beside what it works out to per athlete — the two
                   move independently: a venue can hold its revenue up on fewer,
                   better-paying players, or lose it on cheaper ones. */}
-              <div className="mt-2.5 pt-2.5 border-t border-glass-border-light grid grid-cols-2 gap-3">
+              <div className="mt-2.5 pt-2.5 border-t border-glass-border-light grid grid-cols-2 gap-3 px-3.5">
                 <LocationMetric label={`Revenue (${locCurrency})`} money
                   cur={get("current", "revenue_native")} prev={get("prev_season", "revenue_native")} year={get("prev_year", "revenue_native")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
@@ -1544,7 +1553,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
               </div>
               {/* Its own row, so it is not competing with the retention lines
                   for the same baseline. */}
-              <div className="mt-2 flex justify-end">
+              <div className="mt-2 flex justify-end px-3.5 pb-3.5">
                 <a href={`/registrations/location?loc=${encodeURIComponent(l.location)}&season=${encodeURIComponent(season)}`}
                   className="text-[11px] font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
                   More details →
