@@ -884,13 +884,22 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
 // How old a season's athletes are where their profile carries a birth date,
 // measured at the season's start. `n` is how many of them that was, so the
-// average is always read next to the share of the cohort it came from.
-type AgeStats = { avg: number; n: number; coverage_pct: number | null; bands: { label: string; n: number }[] };
+// figures are always read next to the share of the cohort they came from.
+//
+// The median leads, not the average: ages run with a long thin upper tail and
+// no lower one, so a mean sits above the typical athlete by however many
+// masters players a venue happens to carry — Ottawa means 25.8 against
+// Vaughan's 24.6 while both have a median of 23. The average is kept for the
+// hover, where it is a footnote rather than a ranking.
+type AgeStats = {
+  median: number | null; avg: number; under_24_pct: number;
+  n: number; coverage_pct: number | null; bands: { label: string; n: number }[];
+};
 type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; revenue_cad?: number; revenue_usd?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null; age?: AgeStats | null;
-  // age.avg flattened onto the season by loadRegistrationPacing, so the age
-  // card can go through the same bar/delta machinery as every other metric.
-  age_avg?: number };
-type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd" | "age_avg";
+  // age.median flattened onto the season by loadRegistrationPacing, so the age
+  // card can go through the same bar machinery as every other metric.
+  age_median?: number };
+type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd" | "age_median";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
 const money = (n: number) => `${n < 0 ? "\u2212" : ""}$${Math.abs(Math.round(n)).toLocaleString()}`;
@@ -917,7 +926,7 @@ async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: st
     // The feed reports age as an object; the cards chart plain numbers. Left
     // undefined rather than zeroed when a season has no birth dates at all —
     // a zero would draw as a real reading of "age 0".
-    for (const s of k.seasons ?? []) s.age_avg = s.age?.avg;
+    for (const s of k.seasons ?? []) s.age_median = s.age?.median ?? undefined;
     return k.seasons?.length ? k : null;
   } catch {
     return null;
@@ -986,8 +995,10 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number" }
   notes?: { text: string; tone?: "bad" }[];
   format?: "number" | "money" | "age";
 }) {
-  const fmtBig = (n: number) => (format === "money" ? money(n) : format === "age" ? n.toFixed(1) : n.toLocaleString());
-  const fmtBar = (n: number) => (format === "money" ? moneyShort(n) : format === "age" ? n.toFixed(1) : n.toLocaleString());
+  // A median age is a whole year — the age of a real athlete in the middle of
+  // the line — so it is not dressed up with a decimal it does not have.
+  const fmtBig = (n: number) => (format === "money" ? money(n) : format === "age" ? String(Math.round(n)) : n.toLocaleString());
+  const fmtBar = (n: number) => (format === "money" ? moneyShort(n) : format === "age" ? String(Math.round(n)) : n.toLocaleString());
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
     <div className="h-full flex flex-col rounded-2xl border border-glass-border bg-glass-surface p-5">
@@ -1050,21 +1061,20 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
   // very differently from the headline count.
   rosterDelta?: number | null;
   rosterBase?: number | null;
-  format?: "number" | "money" | "age";
+  format?: "number" | "money" | "points";
 }) {
-  const isAge = format === "age";
-  // A percentage change in an average age says nothing anyone can act on
-  // ("+5.2% older"), so the age cards spend the line on the two averages
-  // themselves — the figure you would otherwise go looking for.
-  const pct = isAge
-    ? (delta != null && base != null ? `${base.toFixed(1)} \u2192 ${(base + delta).toFixed(1)}` : null)
+  // A share compared against a share moves in points, and the line underneath
+  // carries the two shares themselves — a "+0.2" is unreadable without them.
+  const isPoints = format === "points";
+  const pct = isPoints
+    ? (delta != null && base != null ? `${base.toFixed(1)}% \u2192 ${(base + delta).toFixed(1)}%` : null)
     : (delta != null && base ? signedPct(base + delta, base) : null);
   const rosterPct = rosterDelta != null && rosterBase ? signedPct(rosterBase + rosterDelta, rosterBase) : null;
   // Age has no good direction — a venue drifting older is who it serves, not
   // a result — so it is left in the plain text colour rather than scored
   // green or red like teams, athletes and revenue.
   const color =
-    isAge || delta === null || delta === 0 ? "var(--glass-text)" :
+    isPoints || delta === null || delta === 0 ? "var(--glass-text)" :
     delta > 0 ? "rgb(74,222,128)" : "rgb(248,113,113)";
   return (
     <div className="h-full rounded-2xl border border-glass-border bg-glass-surface p-4">
@@ -1080,9 +1090,10 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
       <p className="text-2xl font-bold tabular mt-2 whitespace-nowrap" style={{ color }}>
         {delta === null ? "—" : format === "money"
           ? `${delta > 0 ? "+" : ""}${money(delta)}`
-          : isAge
+          : isPoints
             ? `${delta > 0 ? "+" : ""}${delta.toFixed(1)}`
             : `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`}
+        {isPoints && <span className="text-sm font-normal text-glass-text-tertiary"> pts</span>}
       </p>
       <p className="text-[13px] font-semibold tabular" style={{ color }}>{pct ?? "\u00A0"}</p>
       {/* The line is reserved even when a metric has no roster figure, so
@@ -1177,10 +1188,16 @@ const AGE_COLORS = [
   "#4E9AA8", // 45–49
   "#5D9E80", // 50+
 ];
-// How old this venue's athletes are: the average, how it moved, and the shape
-// behind it. The average alone hides the difference between a venue that is
-// evenly 25 and one that is half students and half thirty-somethings, so the
-// bands are drawn too.
+// How old this venue's athletes are: the typical one, how the intake moved,
+// and the shape behind both. A single number hides the difference between a
+// venue that is evenly 25 and one that is half students and half
+// thirty-somethings, so the bands are drawn too.
+//
+// The movement line is the share under 24 rather than the median itself. A
+// median is whole years, so it jumps a full year either way on a fractional
+// shift across the midpoint and sits still through everything else — Fall '25
+// to Fall '26 reads a year younger on the median while the under-24 share
+// moved two tenths of a point. The share moves when the intake moves.
 //
 // Deltas are deliberately not coloured green/red like the rest of the card.
 // Every other metric here has a direction — more teams good, less revenue bad —
@@ -1206,8 +1223,8 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
     !other ? null : (
       <span key={label} className="text-[9px] font-semibold whitespace-nowrap"
         style={{ color: "var(--glass-text-secondary)" }}>
-        {" "}{age.avg - other.avg > 0 ? "+" : age.avg - other.avg < 0 ? "−" : ""}
-        {Math.abs(age.avg - other.avg).toFixed(1)}
+        {" "}{age.under_24_pct - other.under_24_pct > 0 ? "+" : age.under_24_pct - other.under_24_pct < 0 ? "−" : ""}
+        {Math.abs(age.under_24_pct - other.under_24_pct).toFixed(1)}
         <span className="font-normal text-glass-text-tertiary"> vs {label}</span>
       </span>
     );
@@ -1222,9 +1239,19 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
           </p>
         )}
       </div>
-      <p className="mt-0.5 text-[11px] leading-snug">
-        <span className="text-sm font-bold tabular" style={{ color: "var(--glass-text)" }}>{age.avg.toFixed(1)}</span>
-        <span className="text-glass-text-tertiary"> avg</span>
+      <p className="mt-0.5 text-[11px] leading-snug" title={`Average ${age.avg.toFixed(1)}`}>
+        <span className="text-sm font-bold tabular" style={{ color: "var(--glass-text)" }}>
+          {age.median ?? "—"}
+        </span>
+        <span className="text-glass-text-tertiary"> median</span>
+      </p>
+      {/* The line that actually moves, and what moved it. Points, not percent:
+          the difference between two shares is points. */}
+      <p className="text-[11px] leading-snug">
+        <span className="font-semibold tabular" style={{ color: "var(--glass-text-secondary)" }}>
+          {age.under_24_pct.toFixed(1)}%
+        </span>
+        <span className="text-glass-text-tertiary"> under 24</span>
         {drift(prev, prevLabel)}
         {drift(year, yearLabel)}
       </p>
@@ -1707,6 +1734,25 @@ export default async function DashboardView({
     pacingCurrent?.full_roster != null && against?.full_roster != null
       ? pacingCurrent.full_roster - against.full_roster
       : null;
+  // A column of the Registrations row: the bar card's metric, and — where the
+  // headline is the wrong thing to compare — what its two delta cards read
+  // instead.
+  type RegMetric = {
+    key: PacingMetric; format: "number" | "money" | "age";
+    title: string; barTitle: string; barSub: string;
+    notes?: { text: string; tone?: "bad" }[]; roster: boolean;
+    // An age headline is never compared as years, so it always carries these;
+    // the fallback at the call site only exists to say so to the compiler.
+    deltaTitle?: string; deltaFormat?: "number" | "money" | "points";
+    deltaOf?: (s?: PacingSeason | null) => number | null;
+  };
+  const metricBase = (m: RegMetric, against: typeof pacingPrevSeason) =>
+    m.deltaOf ? m.deltaOf(against) : (against?.[m.key] ?? null);
+  const metricDelta = (m: RegMetric, against: typeof pacingPrevSeason) => {
+    if (!m.deltaOf) return regDelta(m.key, against);
+    const cur = m.deltaOf(pacingCurrent), was = m.deltaOf(against);
+    return cur != null && was != null ? Math.round((cur - was) * 10) / 10 : null;
+  };
   const regBars = (metric: PacingMetric) =>
     (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric] ?? 0, color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
   // Checklist: two cards for the playing season, two for the next (prep) season.
@@ -1829,11 +1875,14 @@ export default async function DashboardView({
                   className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 min-[1900px]:grid-cols-5 gap-4">
               {/* One column per metric: its season bars, then the two same-day
                   comparisons underneath. The deltas used to run four-across on
-                  their own row, so they lined up with nothing above them. */}
-              {([
+                  their own row, so they lined up with nothing above them.
+                  Five across only past 1900px: below that a delta card is
+                  narrower than the nine characters of a money delta, so the
+                  row wraps three and two rather than clipping. */}
+              {(([
                 {
                   key: "captains" as const, format: "number" as const,
                   title: "Teams", barTitle: "Total teams", barSub: regBarWhen,
@@ -1874,18 +1923,25 @@ export default async function DashboardView({
                 // carries the share it is averaging over: roughly one athlete
                 // in ten has no birth date on file, and an average age is a
                 // different claim read off half a season than off all of it.
-                ...(pacingCurrent.age_avg != null
+                ...(pacingCurrent.age_median != null
                   ? [{
-                    key: "age_avg" as const, format: "age" as const,
-                    title: "Age", barTitle: "Average age",
+                    key: "age_median" as const, format: "age" as const,
+                    title: "Age", barTitle: "Median age",
                     barSub: `at season start · ${regBarWhen}`,
                     notes: pacingCurrent.age?.coverage_pct != null
                       ? [{ text: `${pacingCurrent.age.coverage_pct}% have a birth date` }]
                       : undefined,
                     roster: false,
+                    // The median is the right headline and the wrong thing to
+                    // compare: whole years, so it jumps one either way on a
+                    // fractional shift across the midpoint and sits still
+                    // through everything else. The comparisons track the share
+                    // under 24, which moves when the intake moves.
+                    deltaTitle: "Under 24", deltaFormat: "points" as const,
+                    deltaOf: (x?: PacingSeason | null) => x?.age?.under_24_pct ?? null,
                   }]
                   : []),
-              ]).map((m) => (
+              ]) as RegMetric[]).map((m) => (
                 <div key={m.key} className="h-full flex flex-col gap-4">
                   <div className="flex-1">
                     <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
@@ -1893,15 +1949,15 @@ export default async function DashboardView({
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <RegDeltaCard
-                      title={`${m.title} vs prev season`} format={m.format}
+                      title={`${m.deltaTitle ?? m.title} vs prev season`} format={m.deltaFormat ?? (m.format === "age" ? "points" : m.format)}
                       subtitle={`${shortSeason(pacingCurrent.season)} vs ${pacingPrevSeason ? shortSeason(pacingPrevSeason.season) : "—"} · ${regDeltaWhen}`}
-                      delta={regDelta(m.key, pacingPrevSeason)} base={pacingPrevSeason?.[m.key] ?? null}
+                      delta={metricDelta(m, pacingPrevSeason)} base={metricBase(m, pacingPrevSeason)}
                       rosterDelta={m.roster ? rosterDelta(pacingPrevSeason) : undefined}
                       rosterBase={m.roster ? pacingPrevSeason?.full_roster ?? null : undefined} />
                     <RegDeltaCard
-                      title={`${m.title} vs prev year`} format={m.format}
+                      title={`${m.deltaTitle ?? m.title} vs prev year`} format={m.deltaFormat ?? (m.format === "age" ? "points" : m.format)}
                       subtitle={`${shortSeason(pacingCurrent.season)} vs ${pacingPrevYear ? shortSeason(pacingPrevYear.season) : "—"} · ${regDeltaWhen}`}
-                      delta={regDelta(m.key, pacingPrevYear)} base={pacingPrevYear?.[m.key] ?? null}
+                      delta={metricDelta(m, pacingPrevYear)} base={metricBase(m, pacingPrevYear)}
                       rosterDelta={m.roster ? rosterDelta(pacingPrevYear) : undefined}
                       rosterBase={m.roster ? pacingPrevYear?.full_roster ?? null : undefined} />
                   </div>
