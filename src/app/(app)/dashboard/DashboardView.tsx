@@ -882,8 +882,8 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 
 // Registration pacing (teams + athletes at "day N of registration" for this
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
-type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null };
-type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native";
+type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; revenue_cad?: number; revenue_usd?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null };
+type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
 const money = (n: number) => `${n < 0 ? "\u2212" : ""}$${Math.abs(Math.round(n)).toLocaleString()}`;
@@ -1560,13 +1560,13 @@ export default async function DashboardView({
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
   const pacingPrevYear = pacing?.seasons.find((s) => s.kind === "prev_year");
   // Same-day difference: current season minus the comparison season at day N.
-  const regDelta = (metric: "captains" | "athletes" | "revenue" | "revenue_native", against: typeof pacingPrevSeason) =>
+  const regDelta = (metric: PacingMetric, against: typeof pacingPrevSeason) =>
     pacingCurrent && against ? (pacingCurrent[metric] ?? 0) - (against[metric] ?? 0) : null;
   const rosterDelta = (against: typeof pacingPrevSeason) =>
     pacingCurrent?.full_roster != null && against?.full_roster != null
       ? pacingCurrent.full_roster - against.full_roster
       : null;
-  const regBars = (metric: "captains" | "athletes" | "revenue" | "revenue_native") =>
+  const regBars = (metric: PacingMetric) =>
     (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric] ?? 0, color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
   // Checklist: two cards for the playing season, two for the next (prep) season.
   const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
@@ -1688,7 +1688,7 @@ export default async function DashboardView({
                   className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               {/* One column per metric: its season bars, then the two same-day
                   comparisons underneath. The deltas used to run four-across on
                   their own row, so they lined up with nothing above them. */}
@@ -1715,10 +1715,18 @@ export default async function DashboardView({
                 },
                 // Accrued, and normalised to CAD by the feed — US venues invoice
                 // in USD, so a raw sum would mix two currencies.
+                // CAD and USD stay apart: they are different money, and a
+                // fixed conversion rate would bury a real change in either.
                 {
-                  key: "revenue_native" as const, format: "money" as const,
-                  title: "Revenue", barTitle: "Total revenue",
-                  barSub: `accrued, ${pacingCurrent.currency ?? "CAD"} · ${regBarWhen}`,
+                  key: "revenue_cad" as const, format: "money" as const,
+                  title: "CAD revenue", barTitle: "Revenue (CAD)",
+                  barSub: `accrued · ${regBarWhen}`,
+                  notes: undefined, roster: false,
+                },
+                {
+                  key: "revenue_usd" as const, format: "money" as const,
+                  title: "USD revenue", barTitle: "Revenue (USD)",
+                  barSub: `accrued · ${regBarWhen}`,
                   notes: undefined, roster: false,
                 },
               ]).map((m) => (
