@@ -211,3 +211,17 @@ nav.app-nav {
 @media (prefers-reduced-motion: reduce) {
   .route-progress > span { animation: none; width: 100%; opacity: 0.5; }
 }
+
+/* Loading placeholders: a low-contrast block that breathes, so an unfinished
+   section reads as pending rather than as an empty card. */
+.skeleton-pulse {
+  background: var(--glass-surface-hover, rgba(127,127,127,0.14));
+  animation: skeleton-breathe 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-breathe {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.85; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-pulse { animation: none; opacity: 0.6; }
+}
