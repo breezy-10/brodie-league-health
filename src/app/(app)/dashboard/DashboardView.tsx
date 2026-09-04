@@ -987,13 +987,18 @@ async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoRevie
 const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "prev year" };
 const REG_COLOR: Record<string, string> = { current: "var(--glass-gold)", prev_season: "#5B8AC4", prev_year: "#A874C9" };
 const TRACK_PX = 130;
-function RegBarCard({ title, subtitle, current, bars, notes, format = "number" }: {
+function RegBarCard({ title, subtitle, current, bars, notes, format = "number", bands }: {
   title: string; subtitle: string; current: number;
   bars: { label: string; sub: string; value: number; color: string }[];
   // Second readings of the headline — how many of those teams can field a
   // side, and how many have barely started.
   notes?: { text: string; tone?: "bad" }[];
   format?: "number" | "money" | "age";
+  // Given a distribution, the card draws that instead of the season bars.
+  // Three seasons of median age differ by a year at most, so as bars they
+  // read as three identical blocks; the shape behind the median is the part
+  // worth the space. The season comparison lives in the cards underneath.
+  bands?: { label: string; n: number }[];
 }) {
   // A median age is a whole year — the age of a real athlete in the middle of
   // the line — so it is not dressed up with a decimal it does not have.
@@ -1029,6 +1034,7 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number" }
           </div>
         </div>
       </div>
+      {bands ? <AgeBandRows bands={bands} roomy /> : (<>
       {/* Bars: fixed-px track so heights are truly proportional to value. */}
       <div className="flex items-end gap-6 mt-5" style={{ height: TRACK_PX + 22 }}>
         {bars.map((b, i) => (
@@ -1046,6 +1052,7 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number" }
           </div>
         ))}
       </div>
+      </>)}
     </div>
   );
 }
@@ -1178,6 +1185,54 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
 // the bar before any label does. Fixed hex rather than theme tokens: these have
 // to stay distinguishable from each other in both themes, which a ramp built
 // out of one accent colour does not.
+// Every band, in age order, whether or not anyone is in it: the rows land in
+// the same place on every card, so a strip of venues can be read down as well
+// as across. An empty band is a fact about the venue — no over-30s at all is
+// worth seeing — so it holds its row rather than closing the gap.
+//
+// Bars run against the biggest band, not the total: scaled to the total, a
+// venue's whole tail sits at one or two pixels and the rows stop saying
+// anything about each other.
+function AgeBandRows({ bands, roomy = false }: {
+  bands: { label: string; n: number }[];
+  // The Registrations card has a column to itself and can afford the larger
+  // type; the location cards are 300px wide and cannot.
+  roomy?: boolean;
+}) {
+  const total = bands.reduce((s, b) => s + b.n, 0);
+  const max = Math.max(...bands.map((b) => b.n), 1);
+  // A band holding someone is never shown as 0% — that reads as empty.
+  const pctText = (n: number) => {
+    const p = (n / total) * 100;
+    return p < 0.5 ? "<1" : p.toFixed(0);
+  };
+  return (
+    // On the Registrations card the rows spread to fill the height the bar
+    // charts beside them occupy, so the column does not end in dead space.
+    <div className={roomy ? "mt-4 flex-1 flex flex-col justify-between" : "mt-1.5 space-y-[2px]"}
+      title="Age at season start">
+      {bands.map((b, i) => (
+        <div key={b.label} className="flex items-center gap-1.5">
+          <span className={`${roomy ? "text-[11px] w-[58px]" : "text-[10px] w-[52px]"} shrink-0 tabular whitespace-nowrap`}
+            style={{ color: b.n ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
+            {b.label}
+          </span>
+          <span className="flex-1 min-w-0 flex items-center">
+            <span className={`${roomy ? "h-1.5" : "h-1"} rounded-full`}
+              style={{ width: `${(b.n / max) * 100}%`, background: AGE_COLORS[i] }} />
+          </span>
+          <span className={`${roomy ? "text-[11px] w-[42px]" : "text-[10px] w-[36px]"} tabular font-semibold text-right shrink-0`}
+            style={{ color: b.n ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
+            {b.n.toLocaleString()}
+          </span>
+          <span className={`${roomy ? "text-[10px] w-[28px]" : "text-[9px] w-[24px]"} tabular text-right shrink-0 text-glass-text-tertiary`}>
+            {b.n ? `${pctText(b.n)}%` : ""}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 const AGE_COLORS = [
   "#E8C468", // Under 18
   "#F0B429", // 18–23
@@ -1212,13 +1267,6 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
   // a new venue mid-launch would otherwise post an "average age" off three
   // people and have it sit at the same size as everyone else's.
   if (total < 5) return null;
-  const pct = (n: number) => (n / total) * 100;
-  // A band holding someone is never shown as 0% — that reads as empty.
-  const pctText = (n: number) => (pct(n) < 0.5 ? "<1" : pct(n).toFixed(0));
-  // Bars run against the biggest band, not the total: scaled to the total, a
-  // venue's whole tail sits at one or two pixels and the rows stop saying
-  // anything about each other.
-  const max = Math.max(...age.bands.map((b) => b.n), 1);
   const drift = (other: AgeStats | null | undefined, label: string) =>
     !other ? null : (
       <span key={label} className="text-[9px] font-semibold whitespace-nowrap"
@@ -1260,26 +1308,7 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
           read down as well as across. An empty band is a fact about the venue
           — no over-30s at all is worth seeing — so it holds its row rather
           than closing the gap. */}
-      <div className="mt-1.5 space-y-[2px]" title="Age at season start">
-        {age.bands.map((b, i) => (
-          <div key={b.label} className="flex items-center gap-1.5">
-            <span className="text-[10px] w-[52px] shrink-0 tabular whitespace-nowrap"
-              style={{ color: b.n ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
-              {b.label}
-            </span>
-            <span className="flex-1 min-w-0 flex items-center">
-              <span className="h-1 rounded-full" style={{ width: `${(b.n / max) * 100}%`, background: AGE_COLORS[i] }} />
-            </span>
-            <span className="text-[10px] tabular font-semibold w-[36px] text-right shrink-0"
-              style={{ color: b.n ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
-              {b.n.toLocaleString()}
-            </span>
-            <span className="text-[9px] tabular w-[24px] text-right shrink-0 text-glass-text-tertiary">
-              {b.n ? `${pctText(b.n)}%` : ""}
-            </span>
-          </div>
-        ))}
-      </div>
+      <AgeBandRows bands={age.bands} />
     </div>
   );
 }
@@ -1741,6 +1770,8 @@ export default async function DashboardView({
     key: PacingMetric; format: "number" | "money" | "age";
     title: string; barTitle: string; barSub: string;
     notes?: { text: string; tone?: "bad" }[]; roster: boolean;
+    // Drawn in place of the season bars where a distribution says more.
+    bands?: { label: string; n: number }[];
     // An age headline is never compared as years, so it always carries these;
     // the fallback at the call site only exists to say so to the compiler.
     deltaTitle?: string; deltaFormat?: "number" | "money" | "points";
@@ -1932,6 +1963,7 @@ export default async function DashboardView({
                       ? [{ text: `${pacingCurrent.age.coverage_pct}% have a birth date` }]
                       : undefined,
                     roster: false,
+                    bands: pacingCurrent.age?.bands,
                     // The median is the right headline and the wrong thing to
                     // compare: whole years, so it jumps one either way on a
                     // fractional shift across the midpoint and sits still
@@ -1945,7 +1977,8 @@ export default async function DashboardView({
                 <div key={m.key} className="h-full flex flex-col gap-4">
                   <div className="flex-1">
                     <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
-                      current={pacingCurrent[m.key] ?? 0} bars={regBars(m.key)} notes={m.notes} />
+                      current={pacingCurrent[m.key] ?? 0} bars={regBars(m.key)} notes={m.notes}
+                      bands={m.bands} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <RegDeltaCard
