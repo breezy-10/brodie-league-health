@@ -882,7 +882,11 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 
 // Registration pacing (teams + athletes at "day N of registration" for this
 // season vs the previous season vs a year ago) from the Promo Tracker feed.
-type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; revenue_cad?: number; revenue_usd?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null };
+// How old a season's athletes are where their profile carries a birth date,
+// measured at the season's start. `n` is how many of them that was, so the
+// average is always read next to the share of the cohort it came from.
+type AgeStats = { avg: number; n: number; coverage_pct: number | null; bands: { label: string; n: number }[] };
+type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; revenue_cad?: number; revenue_usd?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null; age?: AgeStats | null };
 type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
@@ -1128,6 +1132,94 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Warm for the young bands, cooling as they age, so a venue's skew reads off
+// the bar before any label does. Fixed hex rather than theme tokens: these have
+// to stay distinguishable from each other in both themes, which a ramp built
+// out of one accent colour does not.
+const AGE_COLORS = [
+  "#E8C468", // Under 18
+  "#F0B429", // 18–23
+  "#E08A4C", // 24–29
+  "#C4707E", // 30–34
+  "#9A73B5", // 35–39
+  "#6D82C4", // 40–44
+  "#4E9AA8", // 45–49
+  "#5D9E80", // 50+
+];
+// How old this venue's athletes are: the average, how it moved, and the shape
+// behind it. The average alone hides the difference between a venue that is
+// evenly 25 and one that is half students and half thirty-somethings, so the
+// bands are drawn too.
+//
+// Deltas are deliberately not coloured green/red like the rest of the card.
+// Every other metric here has a direction — more teams good, less revenue bad —
+// and age does not: a venue drifting older is a fact about who it serves, not
+// a fall in performance, and painting it red would assert otherwise.
+function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
+  age: AgeStats; prev?: AgeStats | null; year?: AgeStats | null;
+  prevLabel: string; yearLabel: string;
+}) {
+  const total = age.bands.reduce((s, b) => s + b.n, 0);
+  // A handful of birth dates is not a reading on a venue, it is an anecdote —
+  // a new venue mid-launch would otherwise post an "average age" off three
+  // people and have it sit at the same size as everyone else's.
+  if (total < 5) return null;
+  const pct = (n: number) => (n / total) * 100;
+  // A band holding someone is never shown as 0% — that reads as empty.
+  const pctText = (n: number) => (pct(n) < 0.5 ? "<1" : pct(n).toFixed(0));
+  // The three bands the venue actually sits in. Ties break toward the younger
+  // band, which is the one carrying these venues.
+  const top = age.bands.map((b, i) => ({ ...b, i })).filter((b) => b.n > 0)
+    .sort((a, b) => b.n - a.n || a.i - b.i).slice(0, 3);
+  const detail = age.bands.filter((b) => b.n > 0)
+    .map((b) => `${b.label}: ${b.n.toLocaleString()} (${pctText(b.n)}%)`).join("\n");
+  const drift = (other: AgeStats | null | undefined, label: string) =>
+    !other ? null : (
+      <span key={label} className="text-[9px] font-semibold whitespace-nowrap"
+        style={{ color: "var(--glass-text-secondary)" }}>
+        {" "}{age.avg - other.avg > 0 ? "+" : age.avg - other.avg < 0 ? "−" : ""}
+        {Math.abs(age.avg - other.avg).toFixed(1)}
+        <span className="font-normal text-glass-text-tertiary"> vs {label}</span>
+      </span>
+    );
+  return (
+    <div className="mt-2.5 pt-2.5 border-t border-glass-border-light">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary">Age</p>
+        {age.coverage_pct != null && (
+          <p className="text-[9px] text-glass-text-tertiary shrink-0"
+            title={`${age.n.toLocaleString()} of this season's athletes have a birth date on file`}>
+            {age.coverage_pct}% on file
+          </p>
+        )}
+      </div>
+      <p className="mt-0.5 text-[11px] leading-snug">
+        <span className="text-sm font-bold tabular" style={{ color: "var(--glass-text)" }}>{age.avg.toFixed(1)}</span>
+        <span className="text-glass-text-tertiary"> avg</span>
+        {drift(prev, prevLabel)}
+        {drift(year, yearLabel)}
+      </p>
+      {/* Gapped rather than butted together: two neighbouring bands can sit
+          close in hue, and the gap keeps them from reading as one block. */}
+      <div className="mt-1.5 flex gap-[1px] h-1.5 rounded-full overflow-hidden"
+        title={`Age at season start\n${detail}`}>
+        {age.bands.map((b, i) => b.n === 0 ? null : (
+          <span key={b.label} style={{ width: `${pct(b.n)}%`, background: AGE_COLORS[i] }} />
+        ))}
+      </div>
+      <p className="mt-1 text-[10px] leading-snug text-glass-text-tertiary">
+        {top.map((b, i) => (
+          <span key={b.label} className="whitespace-nowrap">
+            {i > 0 && <span className="text-glass-text-tertiary"> · </span>}
+            <span style={{ color: AGE_COLORS[b.i] }}>■</span>
+            {" "}{b.label} <span className="tabular font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{pctText(b.n)}%</span>
+          </span>
+        ))}
+      </p>
     </div>
   );
 }
@@ -1424,6 +1516,12 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   })}
                 </div>
               )}
+              {(() => {
+                const at = (k: string) => l.seasons.find((s) => s.kind === k)?.age ?? null;
+                const cur = at("current");
+                return cur ? <LocationAge age={cur} prev={at("prev_season")} year={at("prev_year")}
+                  prevLabel={prevLabel} yearLabel={yearLabel} /> : null;
+              })()}
               {/* Below retention, and in the currency the venue actually
                   invoices in — a US venue's own card should not restate its
                   revenue as Canadian dollars. */}
