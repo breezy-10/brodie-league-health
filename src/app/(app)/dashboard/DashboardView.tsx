@@ -841,7 +841,7 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
   }
 }
 
-type VenueRegs = { venue: string; day?: string | null; teams_registered: number; full_roster?: number; low_roster?: number };
+type VenueRegs = { venue: string; day?: string | null; teams_registered: number; full_roster?: number; low_roster?: number; players?: number };
 async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Tile[]; teamsRegistered: number; teamsFullRoster: number | null; byVenue: VenueRegs[] } | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
@@ -2218,15 +2218,16 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
   const shortDay = (d: string | null) => (d ? SHORT_DAY[d.trim().toLowerCase()] ?? d.trim().slice(0, 3) : null);
   // Every night a venue has signups on, whether or not it has been booked.
   const regDaysFor = (loc: string) => {
-    const m = new Map<string, { teams: number; full: number; low: number }>();
+    const m = new Map<string, { teams: number; full: number; low: number; players: number }>();
     for (const v of venueRegs ?? []) {
       if (!sameLocation(v.venue, loc)) continue;
       const d = shortDay(v.day ?? null);
       if (!d) continue;
-      const cur = m.get(d) ?? { teams: 0, full: 0, low: 0 };
+      const cur = m.get(d) ?? { teams: 0, full: 0, low: 0, players: 0 };
       cur.teams += v.teams_registered;
       cur.full += v.full_roster ?? 0;
       cur.low += v.low_roster ?? 0;
+      cur.players += v.players ?? 0;
       m.set(d, cur);
     }
     return m;
@@ -2321,7 +2322,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 { label: "Location", align: "" },
                 { label: "Night", align: "" },
                 { label: "Teams registered", align: "text-right" },
-                { label: "Team spots", align: "text-right" },
+                { label: "Teams booked", align: "text-right" },
                 { label: "Booking status", align: "" },
               ].map((h) => (
                 <th key={h.label}
@@ -2383,8 +2384,9 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                       </div>
                       {/* How many of the night's teams can field a side, and
                           how many have barely started. */}
-                      {(!!reg?.full || !!reg?.low) && (
-                        <div className="mt-1 flex flex-wrap gap-1 justify-end">
+                      {/* One per row, with the night's average roster under them. */}
+                      {(!!reg?.full || !!reg?.low || !!reg?.teams) && (
+                        <div className="mt-1 flex flex-col items-end gap-1">
                           {!!reg?.full && (
                             <span className="inline-block text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
                               style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
@@ -2395,6 +2397,11 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                             <span className="inline-block text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
                               style={{ color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }}>
                               {reg.low} with 3 or fewer players
+                            </span>
+                          )}
+                          {!!reg?.teams && (
+                            <span className="text-[10px] text-glass-text-tertiary whitespace-nowrap">
+                              {(reg.players / reg.teams).toFixed(1)} avg players per team
                             </span>
                           )}
                         </div>
