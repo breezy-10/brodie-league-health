@@ -1317,6 +1317,21 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
 // seasons. A scatter of the same numbers put every venue on the diagonal —
 // true, but it hides the values; paired bars let you read each one and see
 // where they part company.
+// Roster health, on the location cards and the per-night chips alike: 8.5+ is
+// a full side with cover, 7.5+ can field one, below that cannot.
+const ROSTER_OK = 8.5, ROSTER_WARN = 7.5;
+const rosterColor = (avg: number | null) =>
+  avg === null ? "var(--glass-text-secondary)"
+    : avg >= ROSTER_OK ? "rgb(74,222,128)"
+      : avg >= ROSTER_WARN ? "var(--glass-gold)"
+        : "rgb(248,113,113)";
+const rosterChipStyle = (avg: number) =>
+  avg >= ROSTER_OK
+    ? { color: "rgb(74,222,128)", borderColor: "rgba(74,222,128,0.35)", background: "rgba(74,222,128,0.10)" }
+    : avg >= ROSTER_WARN
+      ? { color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }
+      : { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" };
+
 const ATH_COLOR = "#5B8AC4";
 function AthletesVsRevenueChart({ locations, prevLabel, yearLabel }: {
   locations: PacingLocation[]; prevLabel: string; yearLabel: string;
@@ -1510,12 +1525,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
           };
           const curTeams = get("current", "captains");
           const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
-          // >= 8.5 green, >= 7.5 yellow, below red.
-          const avgColor =
-            avgPerTeam === null ? "var(--glass-text-secondary)"
-              : avgPerTeam >= 8.5 ? "rgb(74,222,128)"
-                : avgPerTeam >= 7.5 ? "var(--glass-gold)"
-                  : "rgb(248,113,113)";
+          const avgColor = rosterColor(avgPerTeam);
           return (
             <div key={l.location}
               className="snap-start grid row-span-full rounded-xl border border-glass-border bg-glass-surface"
@@ -2390,7 +2400,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                         <div className="mt-1 flex flex-col items-end gap-1">
                           {!!reg?.teams && (
                             <span className="inline-block text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                              style={{ color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" }}>
+                              style={rosterChipStyle(reg.players / reg.teams)}>
                               {(reg.players / reg.teams).toFixed(1)} avg players per team
                             </span>
                           )}
