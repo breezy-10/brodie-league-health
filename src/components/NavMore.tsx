@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { RouteProgressBar } from "@/components/RouteProgressBar";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -119,6 +120,7 @@ export function NavMore({ items, label = "More" }: { items: MoreItem[]; label?: 
                 }}
               >
                 {item.label}
+                <RouteProgressBar />
               </Link>
             );
           })}

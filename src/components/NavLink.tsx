@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { RouteProgressBar } from "@/components/RouteProgressBar";
 import { usePathname } from "next/navigation";
 
 export function NavLink({ href, label, exact = false }: { href: string; label: string; exact?: boolean }) {
@@ -26,6 +27,7 @@ export function NavLink({ href, label, exact = false }: { href: string; label: s
       }}
     >
       {label}
+      <RouteProgressBar />
       {active && (
         <span
           className="absolute bottom-0"

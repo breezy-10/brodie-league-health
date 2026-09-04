@@ -202,3 +202,12 @@ nav.app-nav {
    showing a scrollbar (otherwise the bar sits inside the 56px header). */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Nav loading bar: indeterminate sweep while a route is pending. */
+@keyframes route-progress-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .route-progress > span { animation: none; width: 100%; opacity: 0.5; }
+}
