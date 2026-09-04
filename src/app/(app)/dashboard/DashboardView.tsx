@@ -1048,8 +1048,9 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
     delta > 0 ? "rgb(74,222,128)" : "rgb(248,113,113)";
   return (
     <div className="h-full rounded-2xl border border-glass-border bg-glass-surface p-4">
-      <h3 className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
-      <p className="text-[11px] mt-0.5 text-glass-text-tertiary">{subtitle}</p>
+      <h3 className="text-sm font-semibold truncate" title={title}
+        style={{ color: "var(--glass-text)" }}>{title}</h3>
+      <p className="text-[11px] mt-0.5 text-glass-text-tertiary truncate" title={subtitle}>{subtitle}</p>
       <p className="text-3xl font-bold tabular mt-2 whitespace-nowrap" style={{ color }}>
         {delta === null ? "—" : format === "money"
           ? `${delta > 0 ? "+" : ""}${money(delta)}`
@@ -1719,13 +1720,13 @@ export default async function DashboardView({
                 // fixed conversion rate would bury a real change in either.
                 {
                   key: "revenue_cad" as const, format: "money" as const,
-                  title: "CAD revenue", barTitle: "Revenue (CAD)",
+                  title: "CAD rev", barTitle: "Revenue (CAD)",
                   barSub: `accrued · ${regBarWhen}`,
                   notes: undefined, roster: false,
                 },
                 {
                   key: "revenue_usd" as const, format: "money" as const,
-                  title: "USD revenue", barTitle: "Revenue (USD)",
+                  title: "USD rev", barTitle: "Revenue (USD)",
                   barSub: `accrued · ${regBarWhen}`,
                   notes: undefined, roster: false,
                 },
