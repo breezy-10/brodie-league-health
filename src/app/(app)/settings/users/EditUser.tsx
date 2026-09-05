@@ -159,7 +159,7 @@ export function EditUser({
                   className="rounded-lg text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
                   style={isArchived
                     ? { borderColor: "var(--glass-border)", color: "var(--glass-text)" }
-                    : { borderColor: "rgba(239,68,68,0.5)", color: "rgb(248,113,113)" }}>
+                    : { background: "var(--glass-red)", borderColor: "var(--glass-red)", color: "#fff" }}>
                   {archiving ? (isArchived ? "Reactivating…" : "Archiving…") : (isArchived ? "Reactivate user" : "Archive user")}
                 </button>
               )}
