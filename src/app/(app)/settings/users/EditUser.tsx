@@ -146,8 +146,8 @@ export function EditUser({
         </div>
 
         <div style={{ borderTop: "1px solid var(--glass-border-light)" }}>
-          {(isInvited || !isSelf) && (
-            <div className="flex flex-col items-start gap-2.5 px-6 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+            <div className="flex flex-wrap items-center gap-2.5">
               {isInvited && (
                 <button onClick={onResend} disabled={resendState === "sending"}
                   className="rounded-lg border border-glass-border bg-glass-surface text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 hover:bg-glass-surface-hover disabled:opacity-40 transition">
@@ -164,13 +164,13 @@ export function EditUser({
                 </button>
               )}
             </div>
-          )}
-          <div className="flex items-center justify-between gap-3 px-6 py-4">
-            <button onClick={onClose} className="rounded-lg border border-glass-border bg-glass-surface text-[11px] uppercase tracking-[0.14em] font-bold px-3.5 py-2 hover:bg-glass-surface-hover transition">Cancel</button>
-            <button onClick={save} disabled={pending || !dirty}
-              className="rounded-lg bg-glass-gold text-black font-semibold text-sm px-5 py-2 hover:brightness-110 disabled:opacity-40 transition">
-              {pending ? "Saving…" : dirty ? "Save changes" : "Saved"}
-            </button>
+            <div className="flex items-center gap-2.5">
+              <button onClick={onClose} className="rounded-lg border border-glass-border bg-glass-surface text-[11px] uppercase tracking-[0.14em] font-bold px-3.5 py-2 hover:bg-glass-surface-hover transition">Cancel</button>
+              <button onClick={save} disabled={pending || !dirty}
+                className="rounded-lg bg-glass-gold text-black font-semibold text-sm px-5 py-2 hover:brightness-110 disabled:opacity-40 transition">
+                {pending ? "Saving…" : dirty ? "Save changes" : "Saved"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
