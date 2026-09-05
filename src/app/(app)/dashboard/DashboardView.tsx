@@ -1794,6 +1794,13 @@ export default async function DashboardView({
     const cur = m.deltaOf(pacingCurrent), was = m.deltaOf(against);
     return cur != null && was != null ? Math.round((cur - was) * 10) / 10 : null;
   };
+  // A scope of only Canadian venues has no USD to report, and vice versa. Drop
+  // the empty currency's column rather than show a card of zeroes — but only
+  // when it is empty in every season, so a venue that simply has not invoiced
+  // yet this season keeps its comparison.
+  const hasCurrency = (k: "revenue_cad" | "revenue_usd") =>
+    (pacing?.seasons ?? []).some((s) => (s[k] ?? 0) !== 0);
+
   const regBars = (metric: PacingMetric) =>
     (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric] ?? 0, color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
   // Checklist: two cards for the playing season, two for the next (prep) season.
@@ -1983,7 +1990,11 @@ export default async function DashboardView({
                     deltaOf: (x?: PacingSeason | null) => x?.age?.under_24_pct ?? null,
                   }]
                   : []),
-              ]) as RegMetric[]).map((m) => (
+              ]) as RegMetric[])
+                .filter((m) => (m.key === "revenue_cad" || m.key === "revenue_usd")
+                  ? hasCurrency(m.key as "revenue_cad" | "revenue_usd")
+                  : true)
+                .map((m) => (
                 <div key={m.key} className="h-full flex flex-col gap-4">
                   <div className="flex-1">
                     <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
