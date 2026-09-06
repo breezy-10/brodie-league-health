@@ -316,6 +316,88 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   ];
 }
 
+// Game day checklists: one per venue per night, generated from the published
+// schedule. Health here is "did the night actually get worked", so it reads the
+// last seven nights rather than a season total — a season figure would be
+// dominated by nights that have not happened yet.
+//
+// Scoped to seasons.kind = 'lm_game_day'; the season/onboarding checklists are
+// counted by loadChecklistTiles above and must not be mixed in.
+async function loadGameDayTiles(scope: Scope): Promise<Tile[] | null> {
+  if (!sourceConfigured("checklist")) return null;
+  const sb = sourceClient("checklist")!;
+
+  const [locIds, { data: seasons }, { data: clLocs }] = await Promise.all([
+    sourceLocationIds("checklist", scope),
+    sb.from("seasons").select("id, location_id, opening_night").eq("kind", "lm_game_day"),
+    sb.from("locations").select("id, name"),
+  ]);
+  type Night = { id: string; location_id: string | null; opening_night: string };
+  const locSet = locIds ? new Set(locIds) : null;
+  const nameById = new Map(((clLocs ?? []) as { id: string; name: string }[]).map((l) => [l.id, l.name]));
+
+  const today = ymd(new Date());
+  const weekAgo = ymd(new Date(Date.now() - 6 * 86400000));
+  const nights = ((seasons ?? []) as Night[])
+    .filter((n) => !locSet || (n.location_id != null && locSet.has(n.location_id)));
+
+  const tonight = nights.filter((n) => n.opening_night === today);
+  const recent = nights.filter((n) => n.opening_night >= weekAgo && n.opening_night <= today);
+  const ids = [...new Set([...tonight, ...recent].map((n) => n.id))];
+
+  // Only the nights in play — a checklist per night per venue runs past the
+  // 1000-row read cap fast if every night is pulled.
+  const { data: taskRows } = ids.length
+    ? await sb.from("season_tasks").select("season_id, status").in("season_id", ids)
+    : { data: [] as { season_id: string; status: string }[] };
+  const tasks = (taskRows ?? []) as { season_id: string; status: string }[];
+
+  const doneOf = (list: Night[]) => {
+    const set = new Set(list.map((n) => n.id));
+    const rows = tasks.filter((t) => set.has(t.season_id));
+    const done = rows.filter((t) => t.status === "done" || t.status === "skipped").length;
+    return { done, total: rows.length, pct: rows.length ? Math.round((100 * done) / rows.length) : 0 };
+  };
+
+  const tonightStats = doneOf(tonight);
+  const weekStats = doneOf(recent);
+
+  // A night that finished with nothing ticked is the thing worth chasing.
+  const untouched = recent
+    .filter((n) => n.opening_night < today)
+    .filter((n) => !tasks.some((t) => t.season_id === n.id && t.status !== "not_started"))
+    .map((n) => `${nameById.get(n.location_id ?? "") ?? "Unknown"} · ${n.opening_night}`)
+    .sort();
+
+  return [
+    tonight.length === 0
+      ? { label: "Tonight", value: "—", sub: "no games scheduled", subInline: true, tone: "ok" }
+      : {
+          label: "Tonight",
+          value: `${tonightStats.pct}%`,
+          sub: `${tonightStats.done} / ${tonightStats.total} tasks · ${tonight.length} venue${tonight.length === 1 ? "" : "s"}`,
+          tone: tonightStats.pct >= 100 ? "ok" : tonightStats.pct > 0 ? "warn" : "bad",
+        },
+    {
+      label: "Last 7 nights",
+      value: recent.length ? `${weekStats.pct}%` : "—",
+      sub: recent.length
+        ? `${weekStats.done} / ${weekStats.total} tasks · ${recent.length} night${recent.length === 1 ? "" : "s"}`
+        : "no game nights in the last week",
+      tone: !recent.length ? "ok" : weekStats.pct >= 90 ? "ok" : weekStats.pct >= 50 ? "warn" : "bad",
+    },
+    {
+      label: "Nights not started",
+      value: untouched.length.toLocaleString(),
+      sub: "played, nothing ticked off",
+      subInline: true,
+      tone: untouched.length > 0 ? "bad" : "ok",
+      pills: untouched,
+      pillsEmpty: "every night was worked",
+    },
+  ];
+}
+
 // Feedback reads the feedback app's OWN KPI feed (response_summary RPC), so the
 // numbers match its site exactly — correct season (survey.intended_season_id)
 // and pagination included. Returns null on failure -> sample.
@@ -1450,6 +1532,13 @@ async function VideoReviewCards({ scope, weeks, weekTag }: { scope: Scope; weeks
   const d = await loadVideoReviews(scope, weeks);
   return d && d.weeks.length > 0 ? <VideoReviewsSection data={d} titleSuffix={weekTag} /> : null;
 }
+async function GameDayCards({ scope, fullTag }: { scope: Scope; fullTag?: string }) {
+  const tiles = await loadGameDayTiles(scope);
+  return tiles
+    ? <Section title="LM Game Day Checklist" scopeTag={fullTag}
+        href={`${APP_URL.checklist}/checklists?kind=lm_game_day`} tiles={tiles} />
+    : null;
+}
 async function TrainingCards({ scope, fullTag }: { scope: Scope; fullTag?: string }) {
   const tiles = await loadTrainingTiles(scope);
   return tiles ? <Section title="Training" scopeTag={fullTag} href={APP_URL.training} tiles={tiles} /> : null;
@@ -2056,6 +2145,9 @@ export default async function DashboardView({
             </Suspense>
             <Suspense fallback={<TableSkeleton title="Video Reviews" />}>
               <VideoReviewCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton title="LM Game Day Checklist" />}>
+              <GameDayCards scope={scope} fullTag={fullTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Training" />}>
               <TrainingCards scope={scope} fullTag={fullTag} />

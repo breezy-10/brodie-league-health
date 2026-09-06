@@ -19,6 +19,7 @@ export default function DashboardLoading() {
       <SectionSkeleton title="Registration Promo Tracker" />
       <SectionSkeleton title="Outreach" />
       <TableSkeleton title="Site Visits" />
+      <SectionSkeleton title="LM Game Day Checklist" />
       <SectionSkeleton title="Training" />
       <SectionSkeleton title="Stats Health" />
       <SectionSkeleton title="Content Health" />
