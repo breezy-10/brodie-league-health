@@ -992,7 +992,8 @@ const moneyShort = (n: number) => {
   return `${n < 0 ? "\u2212" : ""}$${s}`;
 };
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
-type PacingLocation = { location: string; seasons: PacingSeason[]; retention?: Retention | null; retention_year?: Retention | null };
+type PacingDivision = { name: string; teams: number; full_roster: number };
+type PacingLocation = { location: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
 type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[] };
 async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string): Promise<Pacing | null> {
   try {
@@ -1645,6 +1646,26 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
+              {/* Where the teams actually sit. A division whose teams are all
+                  at 7+ reads green, so the one that is not filling stands out
+                  without comparing two numbers in your head. */}
+              {!!l.divisions?.length && (
+                <div className="px-3.5 mt-2.5 pt-2.5 border-t border-glass-border-light">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
+                    Divisions
+                  </p>
+                  {l.divisions.map((d) => (
+                    <div key={d.name} className="flex items-baseline gap-2 text-[11px] leading-snug">
+                      <span className="truncate flex-1 min-w-0 text-glass-text-secondary" title={d.name}>{d.name}</span>
+                      <span className="tabular font-semibold shrink-0" style={{ color: "var(--glass-text)" }}>{d.teams}</span>
+                      <span className="tabular text-[10px] shrink-0 w-16 text-right"
+                        style={{ color: d.full_roster === d.teams ? "rgb(74,222,128)" : "var(--glass-text-tertiary)" }}>
+                        {d.full_roster} w/ 7+
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="px-3.5">{(() => {
                 const pick = (k: string, m: "returning_captains_pct" | "returning_athletes_pct") =>
                   l.seasons.find((s) => s.kind === k)?.[m] ?? null;
