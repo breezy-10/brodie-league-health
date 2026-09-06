@@ -15,6 +15,8 @@ type Cell = { teams: number; athletes: number };
 type DayRow = { day: string; current: Cell; prev_season: Cell; prev_year: Cell };
 type RosterSize = { roster_size: number; team_count: number };
 type RosterDay = { day: string; sizes: RosterSize[] };
+type Division = { name: string; teams: number; full_roster: number };
+type DivisionDay = { day: string; divisions: Division[] };
 type Breakdown = {
   location: string;
   day_n: number | null;
@@ -22,6 +24,7 @@ type Breakdown = {
   days: DayRow[];
   roster_sizes: RosterSize[];
   roster_by_day: RosterDay[];
+  divisions_by_day?: DivisionDay[];
 };
 
 // "Summer '26" -> "SU'26".
@@ -111,7 +114,9 @@ function RosterBars({ sizes, xMin, xMax, maxCount, barH = 14 }: {
 
 const sum = (sizes: RosterSize[]) => sizes.reduce((a, s) => a + s.team_count, 0);
 
-function RosterCharts({ totals, byDay, season }: { totals: RosterSize[]; byDay: RosterDay[]; season: string }) {
+function RosterCharts({ totals, byDay, season, divisionsByDay = [] }: {
+  totals: RosterSize[]; byDay: RosterDay[]; season: string; divisionsByDay?: DivisionDay[];
+}) {
   if (!totals.length) return null;
   const xMin = Math.min(...totals.map((s) => s.roster_size));
   const xMax = Math.max(...totals.map((s) => s.roster_size));
@@ -130,6 +135,48 @@ function RosterCharts({ totals, byDay, season }: { totals: RosterSize[]; byDay: 
           <RosterBars sizes={totals} xMin={xMin} xMax={xMax} maxCount={Math.max(...totals.map((s) => s.team_count))} barH={18} />
         </div>
       </section>
+
+      {/* The night cards on the Registrations page carry a venue's divisions
+          per night; the whole split lives here, where there is room for it. */}
+      {divisionsByDay.length ? (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Teams by division</h2>
+            <p className="text-sm text-glass-text-secondary">
+              Each night&rsquo;s divisions, and how many of their teams can field a side · {season}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {divisionsByDay.map((g) => (
+              <div key={g.day} className="rounded-2xl border border-glass-border bg-glass-surface p-4">
+                <div className="flex items-baseline justify-between mb-2">
+                  <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{g.day}</span>
+                  <span className="text-xs text-glass-text-tertiary">
+                    {g.divisions.reduce((n, d) => n + d.teams, 0).toLocaleString()} teams
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
+                  <span className="flex-1 min-w-0">Division</span>
+                  <span className="shrink-0 w-12 text-right">Teams</span>
+                  <span className="shrink-0 w-16 text-right">With 7+</span>
+                </div>
+                {g.divisions.map((d) => (
+                  <div key={d.name} className="flex items-baseline gap-2 text-xs leading-relaxed">
+                    <span className="truncate flex-1 min-w-0 text-glass-text-secondary" title={d.name}>{d.name}</span>
+                    <span className="tabular font-semibold shrink-0 w-12 text-right" style={{ color: "var(--glass-text)" }}>
+                      {d.teams}
+                    </span>
+                    <span className="tabular shrink-0 w-16 text-right"
+                      style={{ color: d.full_roster === d.teams ? "rgb(74,222,128)" : "var(--glass-text-tertiary)" }}>
+                      {d.full_roster}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {byDay.length ? (
         <section className="space-y-3">
@@ -256,7 +303,8 @@ export default async function LocationDetailPage({
       )}
 
       {data?.roster_sizes?.length ? (
-        <RosterCharts totals={data.roster_sizes} byDay={data.roster_by_day ?? []} season={season} />
+        <RosterCharts totals={data.roster_sizes} byDay={data.roster_by_day ?? []} season={season}
+          divisionsByDay={data.divisions_by_day ?? []} />
       ) : null}
     </main>
   );
