@@ -1651,16 +1651,20 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   without comparing two numbers in your head. */}
               {!!l.divisions?.length && (
                 <div className="px-3.5 mt-2.5 pt-2.5 border-t border-glass-border-light">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
-                    Divisions
-                  </p>
+                  {/* Column headings, so the two numbers say what they are
+                      rather than leaving the reader to infer them. */}
+                  <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
+                    <span className="flex-1 min-w-0">Divisions</span>
+                    <span className="shrink-0">Teams</span>
+                    <span className="shrink-0 w-16 text-right">With 7+</span>
+                  </div>
                   {l.divisions.map((d) => (
                     <div key={d.name} className="flex items-baseline gap-2 text-[11px] leading-snug">
                       <span className="truncate flex-1 min-w-0 text-glass-text-secondary" title={d.name}>{d.name}</span>
                       <span className="tabular font-semibold shrink-0" style={{ color: "var(--glass-text)" }}>{d.teams}</span>
                       <span className="tabular text-[10px] shrink-0 w-16 text-right"
                         style={{ color: d.full_roster === d.teams ? "rgb(74,222,128)" : "var(--glass-text-tertiary)" }}>
-                        {d.full_roster} w/ 7+
+                        {d.full_roster}
                       </span>
                     </div>
                   ))}
