@@ -1598,11 +1598,14 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
           cards, so every section starts on the same line at every venue: a
           card with no retention lines leaves the gap rather than pulling Age
           and Revenue up to a different height from its neighbours. Each card
-          is a subgrid spanning all seven rows, so the row heights are shared.
+          is a subgrid spanning all eight rows, so the row heights are shared.
+          The count has to match the card's direct children: add a section and
+          this number moves with it, or the last one spills into an implicit
+          row and lands beside its neighbour instead of under it.
           Where subgrid is missing the cards simply fall back to sizing their
           own rows — the old, unaligned behaviour, not a broken one. */}
       <div className="grid grid-flow-col auto-cols-[300px] gap-x-3 overflow-x-auto pb-2 snap-x"
-        style={{ gridTemplateRows: "repeat(7, auto)" }}>
+        style={{ gridTemplateRows: "repeat(8, auto)" }}>
         {locations.map((l) => {
           const get = (kind: string, metric: PacingMetric) =>
             l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
