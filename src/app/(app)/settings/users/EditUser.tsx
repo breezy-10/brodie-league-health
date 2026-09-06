@@ -97,7 +97,7 @@ export function EditUser({
       <div className="w-full max-w-[520px] rounded-2xl" style={{ background: "var(--glass-background)", border: "1px solid var(--glass-border-light)" }}>
         <div className="flex items-start justify-between px-6 pt-6">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>
+            <div className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>
               Edit user{isArchived ? " · Archived" : isInvited ? " · Invited" : ""}
             </div>
             <h2 className="text-2xl font-semibold" style={{ color: "var(--glass-text)" }}>{user.fullName}</h2>
@@ -109,7 +109,7 @@ export function EditUser({
         </div>
 
         <div className="px-6 pt-5 pb-5 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block">
               <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">First name</span>
               <input className={`${INPUT} mt-1`} value={firstName} onChange={(e) => setFirstName(e.target.value)} />

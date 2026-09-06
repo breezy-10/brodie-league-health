@@ -66,7 +66,7 @@ export function WelcomeTour({ profileId, tourCompletedAt }: { profileId: string;
       >
         <div className="flex items-center justify-between mb-4">
           <p
-            className="uppercase text-[10px] tracking-[0.08em] font-semibold"
+            className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold"
             style={{ color: "var(--accent)" }}
           >
             Step {step + 1} of {STEPS.length}

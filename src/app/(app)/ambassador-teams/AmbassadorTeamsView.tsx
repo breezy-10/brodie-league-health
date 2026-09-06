@@ -164,7 +164,7 @@ export default async function AmbassadorTeamsView({
             Ambassador teams
           </h2>
           <span
-            className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+            className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
             style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}
           >
             {selectedSeason}
@@ -201,7 +201,7 @@ export default async function AmbassadorTeamsView({
             {captainRows.length > 0 && (
               <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
                 <div className="px-4 pt-4 pb-3">
-                  <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-1">
+                  <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-1">
                     Ambassadors
                   </div>
                   <p className="text-xs text-glass-text-tertiary">
@@ -214,7 +214,7 @@ export default async function AmbassadorTeamsView({
                 <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
                   <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 420 }}>
                     <thead>
-                      <tr className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+                      <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
                         <th className="px-4 py-2.5 text-left font-bold sticky top-0 bg-glass-surface"
                           style={{ borderBottom: "1px solid var(--glass-border)" }}>Ambassador</th>
                         <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
@@ -413,7 +413,7 @@ function TeamChip({
             <span className="break-words">{row.captain}</span>
             {runs > 1 && (
               <span
-                className="font-mono text-[10px] font-bold px-1 rounded shrink-0"
+                className="font-mono text-[11px] sm:text-[10px] font-bold px-1 rounded shrink-0"
                 style={{ border: `1px solid ${GOLD}`, color: GOLD }}
                 title={`Runs ${runs} ambassador teams in this view`}
               >
@@ -469,8 +469,8 @@ function TeamChip({
             <span style={{ color: paid === roster.length ? "var(--glass-text-secondary)" : THIN }}>
               {paid} of {roster.length} paid
             </span>
-            <span className="font-mono text-[10px] text-glass-text-tertiary group-open:hidden">Show roster</span>
-            <span className="font-mono text-[10px] text-glass-text-tertiary hidden group-open:inline">Hide</span>
+            <span className="font-mono text-[11px] sm:text-[10px] text-glass-text-tertiary group-open:hidden">Show roster</span>
+            <span className="font-mono text-[11px] sm:text-[10px] text-glass-text-tertiary hidden group-open:inline">Hide</span>
           </div>
         </summary>
 
@@ -500,7 +500,7 @@ function TeamChip({
 function Flag({ color, children }: { color: string; children: React.ReactNode }) {
   return (
     <span
-      className="font-mono text-[9px] uppercase tracking-[0.06em] font-bold px-1.5 py-px rounded"
+      className="font-mono text-[10px] sm:text-[9px] uppercase tracking-[0.06em] font-bold px-1.5 py-px rounded"
       style={{ border: `1px solid ${color}`, color }}
     >
       {children}
@@ -511,7 +511,7 @@ function Flag({ color, children }: { color: string; children: React.ReactNode })
 function Tile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
     <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
-      <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
+      <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
       <div className="mt-1.5 text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>
         {value}
       </div>

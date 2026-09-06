@@ -26,7 +26,7 @@ export function BonusProjectionCard({ projection }: { projection: BonusProjectio
     >
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div>
-          <p className="uppercase text-[10px] tracking-[0.08em] font-semibold mb-1" style={{ color: "var(--accent)" }}>
+          <p className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold mb-1" style={{ color: "var(--accent)" }}>
             Projected commission · {unlock_label} pace
           </p>
           <p className="text-3xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>
@@ -42,7 +42,7 @@ export function BonusProjectionCard({ projection }: { projection: BonusProjectio
             className="rounded-xl p-3 text-right"
             style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}
           >
-            <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>
+            <p className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>
               Next tier
             </p>
             <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--text)" }}>
@@ -64,7 +64,7 @@ export function BonusProjectionCard({ projection }: { projection: BonusProjectio
           }}
         />
       </div>
-      <p className="text-[10px] mt-1.5" style={{ color: "var(--text-mute)" }}>
+      <p className="text-[11px] sm:text-[10px] mt-1.5" style={{ color: "var(--text-mute)" }}>
         30-day average: {Math.round(current_avg_pct)}%
       </p>
     </section>

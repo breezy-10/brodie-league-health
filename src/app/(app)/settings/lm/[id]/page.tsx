@@ -93,7 +93,7 @@ export default async function LMDrill({ params }: { params: Promise<{ id: string
         <h2 className="text-base font-semibold mb-3">Metrics — today</h2>
         <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[10px] tracking-wider">
+            <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[11px] sm:text-[10px] tracking-wider">
               <tr>
                 <th className="text-left p-3 font-semibold">Metric</th>
                 <th className="text-right p-3 font-semibold">Raw</th>
@@ -131,7 +131,7 @@ export default async function LMDrill({ params }: { params: Promise<{ id: string
                 <div className="flex-1">
                   <p className="text-sm">{item.title}</p>
                   {item.detail && <p className="text-xs text-glass-text-secondary mt-1">{item.detail}</p>}
-                  <p className="text-[10px] uppercase tracking-wider text-glass-text-tertiary mt-1 font-semibold">
+                  <p className="text-[11px] sm:text-[10px] uppercase tracking-wider text-glass-text-tertiary mt-1 font-semibold">
                     {item.apps?.name} · {item.severity}
                   </p>
                 </div>

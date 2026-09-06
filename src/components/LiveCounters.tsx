@@ -43,7 +43,7 @@ function CounterCard({
       }}
     >
       <p
-        className="uppercase text-[10px] tracking-[0.08em] font-semibold mb-1"
+        className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold mb-1"
         style={{ color: accent ? "var(--accent)" : "var(--text-mute)" }}
       >
         {label}

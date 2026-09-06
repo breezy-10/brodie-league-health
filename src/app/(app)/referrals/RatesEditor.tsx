@@ -128,7 +128,7 @@ export default function RatesEditor({
 
       {/* Cost of the season at the amounts currently in the boxes. */}
       <div className="mt-4 pt-3.5" style={{ borderTop: "1px solid var(--glass-border)" }}>
-        <p className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+        <p className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
           Cost at these terms
         </p>
         {!valid ? (
@@ -182,9 +182,9 @@ export default function RatesEditor({
 function Field({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{label}</span>
+      <span className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{label}</span>
       {children}
-      <span className="text-[10px] text-glass-text-tertiary">{hint}</span>
+      <span className="text-[11px] sm:text-[10px] text-glass-text-tertiary">{hint}</span>
     </label>
   );
 }

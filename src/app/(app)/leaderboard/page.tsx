@@ -220,7 +220,7 @@ export default async function Leaderboard({
 
       <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
-          <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[10px] tracking-wider">
+          <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[11px] sm:text-[10px] tracking-wider">
             <tr>
               <th className="text-left p-3 font-semibold w-12">Rank</th>
               <th className="text-left p-3 font-semibold">LM</th>

@@ -111,7 +111,7 @@ export default async function AuditLog({
                 <div className="flex items-baseline justify-between gap-3 flex-wrap">
                   <div className="flex items-baseline gap-2 min-w-0">
                     <span
-                      className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full"
+                      className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full"
                       style={{
                         background: "var(--bg-sunken)",
                         color: ACTION_COLORS[r.action] ?? "var(--text-mute)",

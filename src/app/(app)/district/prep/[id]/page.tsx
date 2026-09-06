@@ -94,7 +94,7 @@ export default async function OneOnOnePrep({ params }: { params: Promise<{ id: s
       <Link href="/district" className="text-xs" style={{ color: "var(--text-mute)" }}>&larr; Back to district</Link>
 
       <header>
-        <p className="uppercase text-[10px] tracking-[0.08em] font-semibold" style={{ color: "var(--accent)" }}>
+        <p className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold" style={{ color: "var(--accent)" }}>
           1:1 prep
         </p>
         <h1 className="text-3xl font-semibold tracking-tight mt-1">{lmRow.full_name}</h1>
@@ -153,7 +153,7 @@ export default async function OneOnOnePrep({ params }: { params: Promise<{ id: s
             {((openActions ?? []) as unknown as Array<{ title: string; severity: string; apps: { name: string } }>).map((a, i) => (
               <li key={i} className="flex items-center justify-between p-2 rounded-lg" style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}>
                 <span>{a.title}</span>
-                <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>{a.apps?.name}</span>
+                <span className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>{a.apps?.name}</span>
               </li>
             ))}
           </ul>
@@ -170,7 +170,7 @@ export default async function OneOnOnePrep({ params }: { params: Promise<{ id: s
 function Stat({ label, value, accent }: { label: string; value: string; accent?: "good" | "bad" }) {
   return (
     <div className="rounded-lg p-3" style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}>
-      <p className="uppercase text-[10px] tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>{label}</p>
+      <p className="uppercase text-[11px] sm:text-[10px] tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>{label}</p>
       <p
         className="text-lg font-semibold mt-0.5"
         style={{ color: accent === "good" ? "var(--ok)" : accent === "bad" ? "var(--error)" : "var(--text)" }}
