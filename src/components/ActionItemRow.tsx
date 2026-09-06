@@ -54,7 +54,7 @@ export function ActionItemRow({
       <div className="flex-1">
         <p className={`text-sm ${done ? "line-through text-glass-text-secondary" : ""}`}>{title}</p>
         {detail && <p className="text-xs text-glass-text-secondary mt-1">{detail}</p>}
-        <p className="text-[10px] uppercase tracking-wider text-glass-text-tertiary mt-1 font-semibold">
+        <p className="text-[11px] sm:text-[10px] uppercase tracking-wider text-glass-text-tertiary mt-1 font-semibold">
           {appName}
         </p>
       </div>

@@ -112,7 +112,7 @@ export default async function MonthlyPack({
 
       <header className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <p className="uppercase text-[10px] tracking-[0.08em] font-semibold" style={{ color: "var(--accent)" }}>
+          <p className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold" style={{ color: "var(--accent)" }}>
             Monthly review · {range.label}
           </p>
           <h1 className="text-3xl font-semibold tracking-tight mt-1">{lmRow.full_name}</h1>
@@ -151,7 +151,7 @@ export default async function MonthlyPack({
         <h2 className="text-base font-semibold mb-3">By app — month total</h2>
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
           <table className="w-full text-sm">
-            <thead className="uppercase text-[10px] tracking-wider" style={{ background: "var(--bg-hover)", color: "var(--text-mute)" }}>
+            <thead className="uppercase text-[11px] sm:text-[10px] tracking-wider" style={{ background: "var(--bg-hover)", color: "var(--text-mute)" }}>
               <tr>
                 <th className="text-left p-2 font-semibold">App</th>
                 <th className="text-right p-2 font-semibold">XP earned</th>
@@ -218,7 +218,7 @@ export default async function MonthlyPack({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg p-3" style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}>
-      <p className="uppercase text-[10px] tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>{label}</p>
+      <p className="uppercase text-[11px] sm:text-[10px] tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>{label}</p>
       <p className="text-lg font-semibold mt-0.5" style={{ color: "var(--text)" }}>{value}</p>
     </div>
   );

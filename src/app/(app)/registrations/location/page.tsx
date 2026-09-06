@@ -90,7 +90,7 @@ function RosterBars({ sizes, xMin, xMax, maxCount, barH = 14 }: {
   return (
     <div>
       {/* Column headings: left numbers = roster size, right numbers = teams. */}
-      <div className="flex items-center justify-between mb-2 text-[10px] uppercase tracking-[0.14em] font-bold text-glass-text-tertiary">
+      <div className="flex items-center justify-between mb-2 text-[11px] sm:text-[10px] uppercase tracking-[0.14em] font-bold text-glass-text-tertiary">
         <span>Players / team</span>
         <span>Teams</span>
       </div>
@@ -213,7 +213,7 @@ export default async function LocationDetailPage({
         <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+              <tr className="text-left text-[11px] sm:text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
                 <th className="px-5 py-3 font-bold">Day</th>
                 <th className="px-5 py-3 font-bold">Teams</th>
                 <th className="px-5 py-3 font-bold">Athletes</th>

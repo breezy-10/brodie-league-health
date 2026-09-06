@@ -114,7 +114,7 @@ export function AppCard({
     >
       {/* Top row: app name only — Lock-in moves to each action row */}
       <p
-        className="uppercase text-[10px] tracking-[0.08em] font-semibold leading-tight mb-2"
+        className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold leading-tight mb-2"
         style={{ color: "var(--text-mute)" }}
       >
         {appName}
@@ -131,7 +131,7 @@ export function AppCard({
         {metrics && Object.keys(metrics).length > 0 && (
           <button
             onClick={() => setWhyOpen((v) => !v)}
-            className="ml-auto text-[10px] font-semibold uppercase tracking-wider transition"
+            className="ml-auto text-[11px] sm:text-[10px] font-semibold uppercase tracking-wider transition"
             style={{ color: whyOpen ? "var(--accent)" : "var(--text-mute)" }}
             aria-label="Show metric breakdown"
           >
@@ -247,7 +247,7 @@ function ActionItemInline({ item, appLink }: { item: ActionItem; appLink: string
 
       {item.xpReward !== 0 && (
         <span
-          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap"
+          className="text-[11px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap"
           style={{
             background: item.xpReward > 0 ? "var(--accent-soft)" : "rgba(200, 16, 46, 0.12)",
             color: item.xpReward > 0 ? "var(--accent)" : "var(--error)",
@@ -316,7 +316,7 @@ function DisputeStatusChip({ info }: { info: DisputeInfo }) {
       <button
         onClick={() => hasDetail && setOpen((v) => !v)}
         disabled={!hasDetail}
-        className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+        className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
         style={{
           background: "var(--bg-sunken)",
           color,

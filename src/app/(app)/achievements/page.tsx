@@ -119,7 +119,7 @@ export default async function AchievementsPage({
               </p>
               {unlocked && when && (
                 <p
-                  className="text-[10px] uppercase tracking-wider font-semibold mt-3 px-2 py-1 rounded-full"
+                  className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold mt-3 px-2 py-1 rounded-full"
                   style={{
                     color: "var(--accent)",
                     background: "var(--bg-raised)",
@@ -131,7 +131,7 @@ export default async function AchievementsPage({
               )}
               {!unlocked && (
                 <p
-                  className="text-[10px] uppercase tracking-wider font-semibold mt-3 px-2 py-1 rounded-full"
+                  className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold mt-3 px-2 py-1 rounded-full"
                   style={{
                     color: "var(--text-mute)",
                     background: "var(--bg-sunken)",

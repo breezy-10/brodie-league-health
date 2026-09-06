@@ -225,3 +225,66 @@ nav.app-nav {
 @media (prefers-reduced-motion: reduce) {
   .skeleton-pulse { animation: none; opacity: 0.6; }
 }
+
+/* ============================================================
+   Phone layout.
+
+   District and league managers open this on site from a phone, so nothing here
+   may push the page sideways.
+
+   1. Any table that is not explicitly stacked keeps its columns but wraps inside
+      them, so a long cell can never widen the page. Tables that opt in with
+      .stack-on-mobile become one card per row instead.
+   2. Micro-labels step up one size; 10px mono at 0.12em reads at a desk and not
+      in one hand.
+============================================================ */
+@media (max-width: 639px) {
+  table {
+    max-width: 100%;
+  }
+  table th,
+  table td {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  table.stack-on-mobile,
+  table.stack-on-mobile tbody,
+  table.stack-on-mobile tr,
+  table.stack-on-mobile td {
+    display: block;
+    width: 100%;
+  }
+  table.stack-on-mobile thead { display: none; }
+  table.stack-on-mobile tr { padding: 8px 0 12px; }
+  table.stack-on-mobile td {
+    padding: 5px 16px;
+    text-align: left !important;
+  }
+  table.stack-on-mobile td[data-label]:not([data-label=""]) {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  table.stack-on-mobile td[data-label]:not([data-label=""])::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--glass-text-tertiary, #636366);
+  }
+  table.stack-on-mobile td:first-child {
+    padding-top: 10px;
+    font-size: 15px;
+  }
+
+  /* Tap targets clear 44px. */
+  .tap-44 {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}

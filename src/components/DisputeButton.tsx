@@ -61,7 +61,7 @@ export function DisputeButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-[10px] uppercase tracking-wider transition hover:underline"
+        className="text-[11px] sm:text-[10px] uppercase tracking-wider transition hover:underline"
         style={{ color: "var(--text-mute)" }}
         aria-label={`Dispute ${metricLabel}`}
       >
@@ -84,7 +84,7 @@ export function DisputeButton({
             onClick={(e) => e.stopPropagation()}
           >
             <p
-              className="uppercase text-[10px] tracking-[0.08em] font-semibold"
+              className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold"
               style={{ color: "var(--accent)" }}
             >
               Dispute metric

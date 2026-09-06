@@ -79,7 +79,7 @@ export default function UsersTable({
             <option value="all">All locations</option>
             {locations.map((l) => <option key={l} value={l}>{l}</option>)}
           </select>
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] font-bold shrink-0 text-glass-text-tertiary">
+          <span className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.18em] font-bold shrink-0 text-glass-text-tertiary">
             {filtered.length} of {rows.length}
           </span>
         </div>
@@ -120,7 +120,7 @@ export default function UsersTable({
                 <div className="rounded-2xl border border-glass-border bg-glass-surface">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+                      <tr className="text-left text-[11px] sm:text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
                         <StickyTh>Name</StickyTh>
                         <StickyTh>Role</StickyTh>
                         <StickyTh>Location</StickyTh>
@@ -134,7 +134,7 @@ export default function UsersTable({
                           <Fragment key={r.id}>
                             {showRoleHeader && (
                               <tr className="bg-glass-surface-hover border-t border-glass-border-light">
-                                <td colSpan={4} className="px-5 py-1.5 text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">
+                                <td colSpan={4} className="px-5 py-1.5 text-[11px] sm:text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">
                                   {ROLE_LABELS[r.role]}
                                 </td>
                               </tr>
@@ -162,7 +162,7 @@ export default function UsersTable({
                               <td className="px-5 py-3 text-right">
                                 <button
                                   onClick={() => setEditing(r)}
-                                  className="inline-flex items-center rounded-md border border-glass-gold px-3 py-1 text-[10px] uppercase tracking-[0.16em] font-bold text-glass-gold hover:bg-glass-gold hover:text-black transition-colors"
+                                  className="inline-flex items-center rounded-md border border-glass-gold px-3 py-1 text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-gold hover:bg-glass-gold hover:text-black transition-colors"
                                 >
                                   Edit
                                 </button>

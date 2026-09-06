@@ -143,7 +143,7 @@ export default async function DisputesQueue() {
                 <div className="flex items-baseline justify-between gap-2 flex-wrap">
                   <p style={{ color: "var(--text)" }}>
                     <span
-                      className="text-[10px] uppercase tracking-wider font-semibold mr-2 px-2 py-0.5 rounded-full"
+                      className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold mr-2 px-2 py-0.5 rounded-full"
                       style={{
                         background:
                           d.status === "approved"

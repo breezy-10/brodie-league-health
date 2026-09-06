@@ -23,7 +23,7 @@ export default async function District({
   return (
     <main className="space-y-6">
       <header>
-        <p className="text-[10px] uppercase tracking-[0.08em] font-semibold" style={{ color: "var(--text-mute)" }}>
+        <p className="text-[11px] sm:text-[10px] uppercase tracking-[0.08em] font-semibold" style={{ color: "var(--text-mute)" }}>
           District view
         </p>
         <h1 className="text-3xl font-semibold tracking-tight mt-1">
@@ -36,7 +36,7 @@ export default async function District({
 
       <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-raised)" }}>
         <table className="w-full text-sm">
-          <thead className="uppercase text-[10px] tracking-wider" style={{ background: "var(--bg-hover)", color: "var(--text-mute)" }}>
+          <thead className="uppercase text-[11px] sm:text-[10px] tracking-wider" style={{ background: "var(--bg-hover)", color: "var(--text-mute)" }}>
             <tr>
               <th className="text-left p-3 font-semibold">LM</th>
               <th className="text-left p-3 font-semibold">Location</th>

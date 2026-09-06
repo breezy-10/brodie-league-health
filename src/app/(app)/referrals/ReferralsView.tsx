@@ -146,7 +146,7 @@ export default async function ReferralsView({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Referrals</h2>
-            <span className="text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+            <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
               style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>{selectedSeason}</span>
           </div>
         </div>
@@ -180,7 +180,7 @@ export default async function ReferralsView({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860 }}>
                   <thead>
-                    <tr className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+                    <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
                       <Th align="left">League</Th>
                       <Th>New</Th>
                       <Th>Returning</Th>
@@ -279,7 +279,7 @@ function Tile({ label, value, values, sub, accent }: {
   const figures = values ?? (value === undefined ? [] : [value]);
   return (
     <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
-      <div className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
+      <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
       <div className="mt-1.5 space-y-0.5">
         {figures.map((f, i) => (
           <div key={i} className="text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>

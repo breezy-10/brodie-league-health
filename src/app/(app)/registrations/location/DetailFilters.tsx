@@ -28,13 +28,13 @@ export function DetailFilters({
   return (
     <div className="flex flex-wrap items-end gap-3" style={{ opacity: pending ? 0.6 : 1 }}>
       <label className="flex flex-col gap-1">
-        <span className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">Location</span>
+        <span className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">Location</span>
         <select className={SELECT} value={loc} disabled={pending} onChange={(e) => go(e.target.value, season)}>
           {locations.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">Season</span>
+        <span className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">Season</span>
         <select className={SELECT} value={season} disabled={pending} onChange={(e) => go(loc, e.target.value)}>
           {seasons.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>

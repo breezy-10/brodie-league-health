@@ -44,7 +44,7 @@ export function MyDayRefresh() {
       >
         {busy ? "Syncing..." : "↻ Refresh"}
       </button>
-      {msg && <span className="text-[10px]" style={{ color: "var(--text-mute)" }}>{msg}</span>}
+      {msg && <span className="text-[11px] sm:text-[10px]" style={{ color: "var(--text-mute)" }}>{msg}</span>}
     </div>
   );
 }
