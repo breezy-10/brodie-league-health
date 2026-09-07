@@ -994,7 +994,10 @@ const moneyShort = (n: number) => {
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
 type PacingDivision = { name: string; teams: number; full_roster: number };
 type PacingLocation = { location: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
-type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[]; retention?: Retention | null; retention_year?: Retention | null };
+type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[];
+  retention?: Retention | null; retention_year?: Retention | null;
+  // The team count’s own basis: captains who are captaining again.
+  retention_captains?: Retention | null; retention_captains_year?: Retention | null };
 async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string): Promise<Pacing | null> {
   try {
     const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
@@ -2057,18 +2060,21 @@ export default async function DashboardView({
         }],
       });
     }
-    // Retention is a fact about athletes — how many of last season's came back
-    // — so it hangs off that card and not the team count.
-    const pair = [pacing?.retention, pacing?.retention_year].filter((r): r is Retention => !!r);
-    if (noun === "athletes" && pair.length) {
-      const pts = pacing?.retention && pacing?.retention_year
-        ? Math.round((pacing.retention.pct - pacing.retention_year.pct) * 10) / 10
-        : null;
+    // How many of last season's came back, each card on its own population:
+    // a team does not return, its captain does, and only as a captain — one
+    // who comes back as another team's player brought no team with them. The
+    // two lines name their population, since the same sentence with a
+    // different number sits on the card next to it.
+    const cur1 = noun === "captains" ? pacing?.retention_captains : pacing?.retention;
+    const yr1 = noun === "captains" ? pacing?.retention_captains_year : pacing?.retention_year;
+    const pair = [cur1, yr1].filter((r): r is Retention => !!r);
+    if (pair.length) {
+      const pts = cur1 && yr1 ? Math.round((cur1.pct - yr1.pct) * 10) / 10 : null;
       groups.push({
         lines: pair.map((r, i) => ({
           pct: r.pct,
-          text: `of ${shortSeason(r.prev_season)} returned in ${shortSeason(r.into_season ?? pacingCurrent.season)}`,
-          title: `${r.retained} of ${r.prev_athletes} ${shortSeason(r.prev_season)} athletes registered again`,
+          text: `of ${shortSeason(r.prev_season)} ${noun} returned in ${shortSeason(r.into_season ?? pacingCurrent.season)}`,
+          title: `${r.retained} of ${r.prev_athletes} ${shortSeason(r.prev_season)} ${noun} registered again`,
           deltas: i === 0 && pts != null ? [{ value: pts, label: "pts" }] : [],
         })),
       });
