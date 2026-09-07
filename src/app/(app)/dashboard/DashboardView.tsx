@@ -994,7 +994,7 @@ const moneyShort = (n: number) => {
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
 type PacingDivision = { name: string; teams: number; full_roster: number };
 type PacingLocation = { location: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
-type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[] };
+type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[]; retention?: Retention | null; retention_year?: Retention | null };
 async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string): Promise<Pacing | null> {
   try {
     const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
@@ -1136,6 +1136,56 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
         ))}
       </div>
       </>)}
+    </div>
+  );
+}
+
+// A share, and the rows behind it. Both retention cards are percentages that
+// move a few points a season, which is exactly what bars cannot show — three
+// near-identical blocks — so they read as a headline with its lines underneath
+// instead. Same shell as the bar cards so the row sits level with them.
+function RegShareCard({ title, subtitle, headline, rows }: {
+  title: string; subtitle: string; headline: number | null;
+  rows: {
+    label: string;
+    pct: number;
+    // The counts the share is over, so a percentage off 90 athletes is not
+    // read as one off 3,000.
+    note?: string;
+    // Movement against another season, in points: the difference of two
+    // percentages is points, not a percentage of a percentage.
+    deltas?: { value: number; label: string }[];
+    title?: string;
+  }[];
+}) {
+  return (
+    <div className="h-full flex flex-col rounded-2xl border border-glass-border bg-glass-surface p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
+          <p className="text-xs mt-0.5 text-glass-text-tertiary">{subtitle}</p>
+        </div>
+        <span className="text-2xl font-bold tabular shrink-0" style={{ color: "var(--glass-gold)" }}>
+          {headline == null ? "\u2014" : `${headline.toFixed(1)}%`}
+        </span>
+      </div>
+      <div className="mt-3">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-baseline gap-2 py-2 border-t border-glass-border-light" title={r.title}>
+            <span className="text-xs flex-1 min-w-0 truncate text-glass-text-secondary">{r.label}</span>
+            {r.note && <span className="text-[11px] sm:text-[10px] tabular shrink-0 text-glass-text-tertiary">{r.note}</span>}
+            <span className="text-sm font-semibold tabular shrink-0 w-14 text-right" style={{ color: "var(--glass-text)" }}>
+              {r.pct.toFixed(1)}%
+            </span>
+            {(r.deltas ?? []).map((d) => (
+              <span key={d.label} className="text-[11px] sm:text-[10px] font-semibold tabular shrink-0 whitespace-nowrap"
+                style={{ color: upColor(d.value) }}>
+                ({d.value > 0 ? "+" : ""}{d.value.toFixed(1)} {d.label})
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -2135,6 +2185,57 @@ export default async function DashboardView({
                 </div>
               ))}
             </div>
+            {/* Two readings of retention, under the counts they qualify: who
+                registered this season having played before, and who came back
+                out of the athletes who were here to come back. Both are
+                measured at day N like everything else in the section, on the
+                week basis too — a share of the season to date is what they
+                are, and the subtitle says so rather than following the toggle. */}
+            {(() => {
+              const rows = ([
+                ["Captains", "returning_captains_pct"],
+                ["Athletes", "returning_athletes_pct"],
+              ] as const).map(([label, k]) => ({
+                label,
+                cur: pacingCurrent[k] ?? null,
+                prev: pacingPrevSeason?.[k] ?? null,
+                year: pacingPrevYear?.[k] ?? null,
+              })).filter((r) => r.cur != null);
+              const ret = pacing.retention, retYear = pacing.retention_year;
+              if (!rows.length && !ret && !retYear) return null;
+              const dayWhen = `day ${pacing.day_n ?? "?"} of registration`;
+              const pts = ret && retYear ? Math.round((ret.pct - retYear.pct) * 10) / 10 : null;
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
+                  {rows.length ? (
+                    <RegShareCard
+                      title="Played Brodie before"
+                      subtitle={`share of ${shortSeason(pacingCurrent.season)} registrations \u00b7 ${dayWhen}`}
+                      headline={rows.find((r) => r.label === "Athletes")?.cur ?? rows[0].cur}
+                      rows={rows.map((r) => ({
+                        label: r.label,
+                        pct: r.cur!,
+                        deltas: ([[r.prev, pacingPrevSeason], [r.year, pacingPrevYear]] as const)
+                          .filter(([base]) => base != null)
+                          .map(([base, s]) => ({ value: r.cur! - base!, label: `vs ${shortSeason(s!.season)}` })),
+                      }))} />
+                  ) : null}
+                  {(ret || retYear) ? (
+                    <RegShareCard
+                      title="Athletes who came back"
+                      subtitle={`share of the previous season\u2019s athletes \u00b7 ${dayWhen}`}
+                      headline={ret?.pct ?? null}
+                      rows={[ret, retYear].filter((r): r is Retention => !!r).map((r, i) => ({
+                        label: `${shortSeason(r.prev_season)} \u2192 ${shortSeason(r.into_season ?? pacingCurrent.season)}`,
+                        pct: r.pct,
+                        note: `${r.retained.toLocaleString()} of ${r.prev_athletes.toLocaleString()}`,
+                        title: `${r.retained} of ${r.prev_athletes} ${shortSeason(r.prev_season)} athletes registered again`,
+                        deltas: i === 0 && pts != null ? [{ value: pts, label: "pts" }] : [],
+                      }))} />
+                  ) : null}
+                </div>
+              );
+            })()}
             {pacing.locations?.length ? (
               <div className="pt-1">
                 <LocationStrip
