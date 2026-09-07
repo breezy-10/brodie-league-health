@@ -1070,9 +1070,13 @@ async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoRevie
 const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "prev year" };
 const REG_COLOR: Record<string, string> = { current: "var(--glass-gold)", prev_season: "#5B8AC4", prev_year: "#A874C9" };
 const TRACK_PX = 130;
-function RegBarCard({ title, subtitle, current, bars, notes, format = "number", bands }: {
+function RegBarCard({ title, subtitle, current, bars, notes, format = "number", bands, footer }: {
   title: string; subtitle: string; current: number;
   bars: { label: string; sub: string; value: number; color: string }[];
+  // Retention, under the count it qualifies. Pinned to the foot of the card so
+  // it lands in the same place on every card in the row, whatever height the
+  // tallest one sets.
+  footer?: ShareGroup[];
   // Second readings of the headline — how many of those teams can field a
   // side, and how many have barely started.
   notes?: { text: string; tone?: "bad" }[];
@@ -1136,56 +1140,50 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
         ))}
       </div>
       </>)}
+      {footer?.length ? <RegShareLines groups={footer} /> : null}
     </div>
   );
 }
 
-// A share, and the rows behind it. Both retention cards are percentages that
-// move a few points a season, which is exactly what bars cannot show — three
-// near-identical blocks — so they read as a headline with its lines underneath
-// instead. Same shell as the bar cards so the row sits level with them.
-function RegShareCard({ title, subtitle, headline, rows }: {
-  title: string; subtitle: string; headline: number | null;
-  rows: {
-    label: string;
-    pct: number;
-    // The counts the share is over, so a percentage off 90 athletes is not
-    // read as one off 3,000.
-    note?: string;
-    // Movement against another season, in points: the difference of two
-    // percentages is points, not a percentage of a percentage.
-    deltas?: { value: number; label: string }[];
-    title?: string;
-  }[];
-}) {
+// The retention lines at the foot of a count card: what share of the people
+// behind the number have been here before. Grouped rather than run together,
+// because the two questions are asked of different populations — who
+// registered this season, and who was here last season to come back — and four
+// lines in a row read as one list of four shares. Same lines the location
+// cards carry, so the two read the same way.
+type ShareLine = {
+  pct: number;
+  // Reads after the percentage: "of captains", "of SU'26 returned in F'26".
+  text: string;
+  // Movement against another season, in points — the difference of two
+  // percentages is points, not a percentage of a percentage.
+  deltas?: { value: number; label: string }[];
+  title?: string;
+};
+type ShareGroup = { label?: string; lines: ShareLine[] };
+function RegShareLines({ groups }: { groups: ShareGroup[] }) {
   return (
-    <div className="h-full flex flex-col rounded-2xl border border-glass-border bg-glass-surface p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
-          <p className="text-xs mt-0.5 text-glass-text-tertiary">{subtitle}</p>
+    <div className="mt-auto pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
+      {groups.map((g, gi) => (
+        <div key={gi} className={gi ? "mt-2" : ""}>
+          {g.label && (
+            <p className="text-[11px] sm:text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-0.5">
+              {g.label}
+            </p>
+          )}
+          {g.lines.map((l) => (
+            <p key={l.text} title={l.title}>
+              <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{l.pct.toFixed(1)}%</span>
+              <span className="text-glass-text-tertiary"> {l.text}</span>
+              {(l.deltas ?? []).map((d) => (
+                <span key={d.label} className="text-[11px] sm:text-[10px] font-semibold" style={{ color: upColor(d.value) }}>
+                  {" "}({d.value > 0 ? "+" : ""}{d.value.toFixed(1)} {d.label})
+                </span>
+              ))}
+            </p>
+          ))}
         </div>
-        <span className="text-2xl font-bold tabular shrink-0" style={{ color: "var(--glass-gold)" }}>
-          {headline == null ? "\u2014" : `${headline.toFixed(1)}%`}
-        </span>
-      </div>
-      <div className="mt-3">
-        {rows.map((r) => (
-          <div key={r.label} className="flex items-baseline gap-2 py-2 border-t border-glass-border-light" title={r.title}>
-            <span className="text-xs flex-1 min-w-0 truncate text-glass-text-secondary">{r.label}</span>
-            {r.note && <span className="text-[11px] sm:text-[10px] tabular shrink-0 text-glass-text-tertiary">{r.note}</span>}
-            <span className="text-sm font-semibold tabular shrink-0 w-14 text-right" style={{ color: "var(--glass-text)" }}>
-              {r.pct.toFixed(1)}%
-            </span>
-            {(r.deltas ?? []).map((d) => (
-              <span key={d.label} className="text-[11px] sm:text-[10px] font-semibold tabular shrink-0 whitespace-nowrap"
-                style={{ color: upColor(d.value) }}>
-                ({d.value > 0 ? "+" : ""}{d.value.toFixed(1)} {d.label})
-              </span>
-            ))}
-          </div>
-        ))}
-      </div>
+      ))}
     </div>
   );
 }
@@ -1947,6 +1945,8 @@ export default async function DashboardView({
     key: PacingMetric; format: "number" | "money" | "age";
     title: string; barTitle: string; barSub: string;
     notes?: { text: string; tone?: "bad" }[]; roster: boolean;
+    // Retention lines under the bars. Only the two count cards have any.
+    footer?: ShareGroup[];
     // Drawn in place of the season bars where a distribution says more.
     bands?: { label: string; n: number }[];
     // An age headline is never compared as years, so it always carries these;
@@ -2036,6 +2036,46 @@ export default async function DashboardView({
   const fullTag = isWeekly ? "(Full Season)" : "";
   const weekTag = isWeekly ? "(Weekly)" : "";
 
+  // What the count card says about the people behind its number. Both shares
+  // are measured at day N whatever the weekly toggle says — they are seasons
+  // to date, and a week's worth of registrations is too few to read a share
+  // off — so they carry no week wording.
+  const shareGroups = (noun: "captains" | "athletes"): ShareGroup[] => {
+    if (!pacingCurrent) return [];
+    const k = noun === "captains" ? "returning_captains_pct" as const : "returning_athletes_pct" as const;
+    const cur = pacingCurrent[k];
+    const groups: ShareGroup[] = [];
+    if (cur != null) {
+      groups.push({
+        label: "Played Brodie before",
+        lines: [{
+          pct: cur,
+          text: `of ${noun}`,
+          deltas: ([pacingPrevSeason, pacingPrevYear] as const)
+            .filter((s): s is PacingSeason => s?.[k] != null)
+            .map((s) => ({ value: cur - s[k]!, label: `vs ${shortSeason(s.season)}` })),
+        }],
+      });
+    }
+    // Retention is a fact about athletes — how many of last season's came back
+    // — so it hangs off that card and not the team count.
+    const pair = [pacing?.retention, pacing?.retention_year].filter((r): r is Retention => !!r);
+    if (noun === "athletes" && pair.length) {
+      const pts = pacing?.retention && pacing?.retention_year
+        ? Math.round((pacing.retention.pct - pacing.retention_year.pct) * 10) / 10
+        : null;
+      groups.push({
+        lines: pair.map((r, i) => ({
+          pct: r.pct,
+          text: `of ${shortSeason(r.prev_season)} returned in ${shortSeason(r.into_season ?? pacingCurrent.season)}`,
+          title: `${r.retained} of ${r.prev_athletes} ${shortSeason(r.prev_season)} athletes registered again`,
+          deltas: i === 0 && pts != null ? [{ value: pts, label: "pts" }] : [],
+        })),
+      });
+    }
+    return groups;
+  };
+
   const regBarWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"} of registration`;
   const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"}`;
 
@@ -2108,6 +2148,7 @@ export default async function DashboardView({
                       ? [{ text: `${pacingCurrent.low_roster.toLocaleString()} with 3 or fewer players`, tone: "bad" as const }] : []),
                   ],
                   roster: true,
+                  footer: shareGroups("captains"),
                 },
                 {
                   key: "athletes" as const, format: "number" as const,
@@ -2117,6 +2158,7 @@ export default async function DashboardView({
                     ? [{ text: `${(pacingCurrent.athletes / pacingCurrent.captains).toFixed(1)} per team` }]
                     : undefined,
                   roster: false,
+                  footer: shareGroups("athletes"),
                 },
                 // Accrued, and normalised to CAD by the feed — US venues invoice
                 // in USD, so a raw sum would mix two currencies.
@@ -2166,7 +2208,7 @@ export default async function DashboardView({
                   <div className="flex-1">
                     <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
                       current={pacingCurrent[m.key] ?? 0} bars={regBars(m.key)} notes={m.notes}
-                      bands={m.bands} />
+                      bands={m.bands} footer={m.footer} />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <RegDeltaCard
@@ -2185,57 +2227,6 @@ export default async function DashboardView({
                 </div>
               ))}
             </div>
-            {/* Two readings of retention, under the counts they qualify: who
-                registered this season having played before, and who came back
-                out of the athletes who were here to come back. Both are
-                measured at day N like everything else in the section, on the
-                week basis too — a share of the season to date is what they
-                are, and the subtitle says so rather than following the toggle. */}
-            {(() => {
-              const rows = ([
-                ["Captains", "returning_captains_pct"],
-                ["Athletes", "returning_athletes_pct"],
-              ] as const).map(([label, k]) => ({
-                label,
-                cur: pacingCurrent[k] ?? null,
-                prev: pacingPrevSeason?.[k] ?? null,
-                year: pacingPrevYear?.[k] ?? null,
-              })).filter((r) => r.cur != null);
-              const ret = pacing.retention, retYear = pacing.retention_year;
-              if (!rows.length && !ret && !retYear) return null;
-              const dayWhen = `day ${pacing.day_n ?? "?"} of registration`;
-              const pts = ret && retYear ? Math.round((ret.pct - retYear.pct) * 10) / 10 : null;
-              return (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-1">
-                  {rows.length ? (
-                    <RegShareCard
-                      title="Played Brodie before"
-                      subtitle={`share of ${shortSeason(pacingCurrent.season)} registrations \u00b7 ${dayWhen}`}
-                      headline={rows.find((r) => r.label === "Athletes")?.cur ?? rows[0].cur}
-                      rows={rows.map((r) => ({
-                        label: r.label,
-                        pct: r.cur!,
-                        deltas: ([[r.prev, pacingPrevSeason], [r.year, pacingPrevYear]] as const)
-                          .filter(([base]) => base != null)
-                          .map(([base, s]) => ({ value: r.cur! - base!, label: `vs ${shortSeason(s!.season)}` })),
-                      }))} />
-                  ) : null}
-                  {(ret || retYear) ? (
-                    <RegShareCard
-                      title="Athletes who came back"
-                      subtitle={`share of the previous season\u2019s athletes \u00b7 ${dayWhen}`}
-                      headline={ret?.pct ?? null}
-                      rows={[ret, retYear].filter((r): r is Retention => !!r).map((r, i) => ({
-                        label: `${shortSeason(r.prev_season)} \u2192 ${shortSeason(r.into_season ?? pacingCurrent.season)}`,
-                        pct: r.pct,
-                        note: `${r.retained.toLocaleString()} of ${r.prev_athletes.toLocaleString()}`,
-                        title: `${r.retained} of ${r.prev_athletes} ${shortSeason(r.prev_season)} athletes registered again`,
-                        deltas: i === 0 && pts != null ? [{ value: pts, label: "pts" }] : [],
-                      }))} />
-                  ) : null}
-                </div>
-              );
-            })()}
             {pacing.locations?.length ? (
               <div className="pt-1">
                 <LocationStrip
