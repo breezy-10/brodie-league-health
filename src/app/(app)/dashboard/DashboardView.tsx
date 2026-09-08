@@ -942,7 +942,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
     }
     if (!res.ok) return null;
     const k = (await res.json()) as {
-      teams_registered: number; teams_full_roster?: number | null; stories_posted: number; highlights_posted: number;
+      teams_registered: number; teams_tracked?: number; teams_full_roster?: number | null; stories_posted: number; highlights_posted: number;
       story_pct: number; highlight_pct: number; story_tone?: Tone; highlight_tone?: Tone; avg_time_to_post_ms: number | null;
       avg_time_to_post_sample: number; locations: number; by_venue_day?: VenueRegs[];
     };
@@ -950,10 +950,15 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
       const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
       return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${mm}m` : `${mm}m`;
     };
+    // Posts are counted against the tracker's own list of teams, which is not
+    // quite the registered-team count above it — that one is the ops DB. The
+    // share has to be shown over the list it was measured on, or the fraction
+    // and the percentage beside it disagree.
+    const tracked = k.teams_tracked ?? k.teams_registered;
     const tiles: Tile[] = [
       { label: "Teams registered", value: k.teams_registered.toLocaleString(), sub: `across ${k.locations} locations` },
-      { label: "Stories posted", value: `${k.stories_posted}`, unit: `/ ${k.teams_registered}`, sub: `${k.story_pct}%`, tone: k.story_tone ?? pctTone(k.story_pct) },
-      { label: "Highlights posted", value: `${k.highlights_posted}`, unit: `/ ${k.teams_registered}`, sub: `${k.highlight_pct}%`, tone: k.highlight_tone ?? pctTone(k.highlight_pct) },
+      { label: "Stories posted", value: `${k.stories_posted}`, unit: `/ ${tracked}`, sub: `${k.story_pct}%`, tone: k.story_tone ?? pctTone(k.story_pct) },
+      { label: "Highlights posted", value: `${k.highlights_posted}`, unit: `/ ${tracked}`, sub: `${k.highlight_pct}%`, tone: k.highlight_tone ?? pctTone(k.highlight_pct) },
       { label: "Avg time to post", value: k.avg_time_to_post_ms != null ? fmt(k.avg_time_to_post_ms) : "—", sub: `${k.avg_time_to_post_sample} posts`, tone: "warn" },
     ];
     return { tiles, teamsRegistered: k.teams_registered, teamsFullRoster: k.teams_full_roster ?? null, byVenue: k.by_venue_day ?? [] };
