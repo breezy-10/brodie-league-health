@@ -2166,7 +2166,7 @@ export default async function DashboardView({
                   title: "Athletes", barTitle: "Total athletes", barSub: regBarWhen,
                   // The roster size the season is actually running at.
                   notes: pacingCurrent.captains
-                    ? [{ text: `${(pacingCurrent.athletes / pacingCurrent.captains).toFixed(1)} per team` }]
+                    ? [{ text: `${(pacingCurrent.athletes / pacingCurrent.captains).toFixed(2)} per team` }]
                     : undefined,
                   roster: false,
                   footer: shareGroups("athletes"),
