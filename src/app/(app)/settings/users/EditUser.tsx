@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { updateUser, resendInvite, setUserArchived } from "./actions";
+import { updateUser, resendInvite, setUserArchived, setUserActive } from "./actions";
 import { LocationMultiSelect } from "./LocationMultiSelect";
 import { ROLE_LABELS, ROLE_ORDER, type UserRole, type UserStatus } from "./roles";
 import type { UserListRow } from "./UsersTable";
@@ -39,6 +39,8 @@ export function EditUser({
   const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
   const isArchived = user.status === "inactive";
   const isInvited = user.status === "invited";
+  // Signed in and waiting on an access decision.
+  const isRequested = user.status === "requested";
   const locsDirty = JSON.stringify([...locations].sort()) !== JSON.stringify([...user.locations].sort());
   const dirty = fullName !== user.fullName || role !== user.role || locsDirty;
 
@@ -60,6 +62,17 @@ export function EditUser({
       });
       if ("error" in res) { setError(res.error); return; }
       onClose();
+    });
+  }
+
+  function onApprove() {
+    if (isSelf) return;
+    if (!confirm(`Approve ${user.fullName} (${user.email})? They'll get access straight away.`)) return;
+    setError(null);
+    startArchive(async () => {
+      const res = await setUserActive(user.id, true);
+      if ("error" in res) setError(res.error);
+      else onClose();
     });
   }
 
@@ -98,7 +111,7 @@ export function EditUser({
         <div className="flex items-start justify-between px-6 pt-6">
           <div>
             <div className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>
-              Edit user{isArchived ? " · Archived" : isInvited ? " · Invited" : ""}
+              Edit user{isArchived ? " · Archived" : isRequested ? " · Requested access" : isInvited ? " · Invited" : ""}
             </div>
             <h2 className="text-2xl font-semibold" style={{ color: "var(--glass-text)" }}>{user.fullName}</h2>
             <p className="text-xs mt-0.5 text-glass-text-tertiary">{user.email}</p>
@@ -152,6 +165,13 @@ export function EditUser({
                 <button onClick={onResend} disabled={resendState === "sending"}
                   className="rounded-lg border border-glass-border bg-glass-surface text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 hover:bg-glass-surface-hover disabled:opacity-40 transition">
                   {resendState === "sending" ? "Sending…" : "Resend invite"}
+                </button>
+              )}
+              {!isSelf && isRequested && (
+                <button onClick={onApprove} disabled={archiving}
+                  className="rounded-lg text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
+                  style={{ background: "var(--glass-green)", borderColor: "var(--glass-green)", color: "#000" }}>
+                  {archiving ? "Working…" : "Approve user"}
                 </button>
               )}
               {!isSelf && (

@@ -11,4 +11,4 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 // Display order for role groups (most senior first).
 export const ROLE_ORDER: UserRole[] = ["super_admin", "dm", "operations_manager", "lm"];
 
-export type UserStatus = "active" | "invited" | "inactive";
+export type UserStatus = "active" | "invited" | "inactive" | "requested";

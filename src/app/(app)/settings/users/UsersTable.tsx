@@ -25,6 +25,8 @@ const BTN_SECONDARY =
   "rounded-lg border border-glass-border bg-glass-surface text-sm px-3.5 py-2 hover:bg-glass-surface-hover transition";
 
 const STATUS_GROUPS: { key: UserStatus; label: string; dot: string }[] = [
+  // First: the only group that needs an admin to do something.
+  { key: "requested", label: "Requested access", dot: "var(--glass-gold)" },
   { key: "active", label: "Active", dot: "rgb(74,222,128)" },
   { key: "invited", label: "Invited", dot: "var(--glass-gold)" },
   { key: "inactive", label: "Archived", dot: "var(--glass-text-tertiary)" },
