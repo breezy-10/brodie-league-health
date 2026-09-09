@@ -28,9 +28,17 @@ export async function getCurrentUser() {
   return { user, profile: profile as Profile | null };
 }
 
+// Users who are not yet approved land on the Ops Hub's shared access-denied
+// page, which renders a Request Access button that pings Amy + Sohaib in
+// Slack. Matches how the other gated Brodie apps handle it.
+const HUB_ACCESS_DENIED_URL =
+  "https://brodie-ops-hub.vercel.app/access-denied?app=league-health";
+
 export async function requireUser() {
   const ctx = await getCurrentUser();
   if (!ctx?.user) redirect("/login");
+  // No profile yet, or not approved: send them somewhere they can ask.
+  if (!ctx.profile || ctx.profile.active === false) redirect(HUB_ACCESS_DENIED_URL);
   return ctx;
 }
 
@@ -51,4 +59,6 @@ export type Profile = {
   opt_in_leaderboard: boolean;
   tour_completed_at: string | null;
   personal_goal_pct: number | null;
+  active: boolean;
+  requested_at: string | null;
 };

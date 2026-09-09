@@ -15,7 +15,7 @@ export default async function AdminUsersPage() {
   const admin = createAdminClient();
 
   const [{ data: profiles }, authList, { data: managers }, { data: userLocs }, assignableLocations] = await Promise.all([
-    admin.from("profiles").select("id, email, full_name, role").order("full_name"),
+    admin.from("profiles").select("id, email, full_name, role, active, requested_at").order("full_name"),
     admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     admin.from("league_managers").select("email, location_name"),
     admin.from("user_locations").select("user_id, location_name"),
@@ -41,12 +41,21 @@ export default async function AdminUsersPage() {
   );
 
   const now = Date.now();
-  const rows: UserListRow[] = ((profiles ?? []) as Array<{ id: string; email: string; full_name: string | null; role: UserRole }>)
+  const rows: UserListRow[] = ((profiles ?? []) as Array<{ id: string; email: string; full_name: string | null; role: UserRole; active: boolean | null; requested_at: string | null }>)
     .map((p) => {
       const au = authById.get(p.id);
       const banned = au?.banned_until ? new Date(au.banned_until).getTime() > now : false;
       const neverSignedIn = !au?.last_sign_in_at;
-      const status: UserStatus = banned ? "inactive" : neverSignedIn ? "invited" : "active";
+      // A self-signup waiting on a decision outranks the auth-derived signals:
+      // they have signed in, so they would otherwise read as "active".
+      const awaitingDecision = p.active === false && !!p.requested_at;
+      const status: UserStatus = banned
+        ? "inactive"
+        : awaitingDecision
+          ? "requested"
+          : neverSignedIn
+            ? "invited"
+            : "active";
       return {
         id: p.id,
         email: p.email,

@@ -99,7 +99,9 @@ export async function inviteUser(input: {
   // role + name on it. This is independent of the CRM roster entirely.
   if (data.user) {
     await admin.from("profiles")
-      .update({ role: input.role, full_name: fullName, updated_at: new Date().toISOString() })
+      // active: an admin invited them, so they are pre-approved and must not
+      // land in the Requested queue behind the gate.
+      .update({ role: input.role, full_name: fullName, active: true, requested_at: null, updated_at: new Date().toISOString() })
       .eq("id", data.user.id);
     if (input.locations?.length) await replaceUserLocations(admin, data.user.id, input.locations);
   }
@@ -142,6 +144,23 @@ export async function setUserArchived(userId: string, archived: boolean): Promis
     const { error } = await admin.auth.admin.updateUserById(userId, {
       ban_duration: archived ? "876000h" : "none",
     });
+    if (error) return { error: error.message };
+    revalidatePath("/settings/users");
+    return { ok: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
+/** Approve (or un-approve) someone waiting on an access decision. */
+export async function setUserActive(userId: string, active: boolean): Promise<{ ok: true } | { error: string }> {
+  try {
+    await requireRole(["dm", "operations_manager", "super_admin"]);
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("profiles")
+      .update({ active, updated_at: new Date().toISOString() })
+      .eq("id", userId);
     if (error) return { error: error.message };
     revalidatePath("/settings/users");
     return { ok: true };
