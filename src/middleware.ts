@@ -28,8 +28,12 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     const url = req.nextUrl.clone();
+    // Keep the query string: a pathname-only "next" drops things like
+    // ?kind=lm_game_day and lands people on the wrong view.
+    const intended = `${path}${req.nextUrl.search}`;
     url.pathname = "/login";
-    url.searchParams.set("next", path);
+    url.search = "";
+    url.searchParams.set("next", intended);
     return NextResponse.redirect(url);
   }
   if (!isAllowedEmail(user.email)) {

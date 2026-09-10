@@ -10,7 +10,11 @@ const ALLOWED_DOMAIN = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? "brodiere
 
 function LoginInner() {
   const params = useSearchParams();
-  const next = params.get("next") ?? "/";
+  // Relative paths only: a full URL would be an open redirect, and
+  // "//evil.com" parses as protocol-relative.
+  const rawNext = params.get("next");
+  const next =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
   const [loading, setLoading] = useState(false);
 
   async function signIn() {

@@ -288,3 +288,22 @@ nav.app-nav {
     align-items: center;
   }
 }
+
+/* Indeterminate navigation bar under the nav (components/NavProgress.tsx).
+   A travelling segment rather than a percentage: there is no real progress to
+   report, only "the server is still thinking". */
+@keyframes nav-progress {
+  0%   { left: -40%; width: 40%; }
+  50%  { left: 25%;  width: 55%; }
+  100% { left: 100%; width: 40%; }
+}
+.nav-progress-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--nav-progress-color, var(--glass-gold, #FFB800));
+  animation: nav-progress 1.1s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress-bar { animation-duration: 2.4s; }
+}
