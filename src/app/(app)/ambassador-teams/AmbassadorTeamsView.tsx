@@ -50,7 +50,7 @@ type AmbassadorFeed = {
   captain_players?: Record<string, number>;
   // Keyed by ops player id. Covers every captain, not just repeat ones.
   captains?: Record<string,
-    { name: string; teams: number; players: number; teammates?: number; paid_teammates?: number }>;
+    { name: string; teams: number; full_roster?: number; players: number; teammates?: number; paid_teammates?: number }>;
   by_day: { day: string; teams: number; players: number }[];
   locations: LocationRow[];
 };
@@ -117,7 +117,8 @@ export default async function AmbassadorTeamsView({
   // to the name-keyed maps and simply doesn't link through.
   const captainRows = (feed?.captains
     ? Object.entries(feed.captains).map(([id, c]) => ({
-        id, name: c.name, teams: c.teams, teammates: c.teammates ?? null,
+        id, name: c.name, teams: c.teams, fullRoster: c.full_roster ?? null,
+        teammates: c.teammates ?? null,
         // Teammates per team, so the column is the two beside it divided.
         // players/teams counted the ambassador themselves on every roster,
         // which is what made this read high next to the teammate count.
@@ -126,7 +127,8 @@ export default async function AmbassadorTeamsView({
         avgPaid: c.teams && c.paid_teammates != null ? c.paid_teammates / c.teams : null,
       }))
     : Object.entries(captainTeams).map(([name, teams]) => ({
-        id: null as string | null, name, teams, teammates: null as number | null,
+        id: null as string | null, name, teams, fullRoster: null as number | null,
+        teammates: null as number | null,
         avg: teams ? (captainPlayers?.[name] ?? 0) / teams : null,
         paid: null as number | null, avgPaid: null as number | null,
       }))
@@ -135,6 +137,7 @@ export default async function AmbassadorTeamsView({
   ).sort((a, b) =>
     (b.teammates ?? 0) - (a.teammates ?? 0) || b.teams - a.teams || a.name.localeCompare(b.name));
   const hasTeammates = captainRows.some((c) => c.teammates !== null);
+  const hasFullRoster = captainRows.some((c) => c.fullRoster !== null);
   const hasPaid = captainRows.some((c) => c.paid !== null);
   const multiTeam = captainRows.filter((c) => c.teams > 1).length;
 
@@ -207,7 +210,8 @@ export default async function AmbassadorTeamsView({
                   <p className="text-xs text-glass-text-tertiary">
                     Every captain of an ambassador team in the current filter — {multiTeam} of{" "}
                     {captainRows.length} run more than one. Ordered by teammates — every roster spot they have
-                    filled, counting a player on each team they are on. Paid teammates are the ones who have paid
+                    filled, counting a player on each team they are on. Teams with 7+ counts the ones that can
+                    field a side, the captain included. Paid teammates are the ones who have paid
                     any amount toward their registration this season (on any team). Select a name for their teams.
                   </p>
                 </div>
@@ -219,6 +223,10 @@ export default async function AmbassadorTeamsView({
                           style={{ borderBottom: "1px solid var(--glass-border)" }}>Ambassador</th>
                         <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
                           style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams</th>
+                        {hasFullRoster && (
+                          <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+                            style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams with 7+</th>
+                        )}
                         {hasTeammates && (
                           <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
                             style={{ borderBottom: "1px solid var(--glass-border)" }}>Teammates</th>
@@ -254,6 +262,16 @@ export default async function AmbassadorTeamsView({
                           <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
                             {c.teams}
                           </td>
+                          {hasFullRoster && (
+                            /* Green once every one of their teams can field a
+                               side, so a finished ambassador reads at a glance
+                               instead of by comparing the two columns. */
+                            <td className="px-4 py-2.5 text-right tabular"
+                              style={{ color: c.fullRoster != null && c.fullRoster === c.teams
+                                ? "rgb(74,222,128)" : "var(--glass-text-secondary)" }}>
+                              {c.fullRoster ?? "\u2014"}
+                            </td>
+                          )}
                           {hasTeammates && (
                             <td className="px-4 py-2.5 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>
                               {c.teammates ?? "—"}
