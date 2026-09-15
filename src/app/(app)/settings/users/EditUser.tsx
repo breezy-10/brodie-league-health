@@ -67,9 +67,23 @@ export function EditUser({
 
   function onApprove() {
     if (isSelf) return;
+    if (!fullName.trim()) { setError("First name is required."); return; }
     if (!confirm(`Approve ${user.fullName} (${user.email})? They'll get access straight away.`)) return;
     setError(null);
     startArchive(async () => {
+      // Commit what is on the form first. Picking their locations and pressing
+      // Approve is how you approve someone FOR those locations, and approving
+      // used to close the dialog and drop them: Kareem was approved for
+      // Oakville and Burlington and landed with none.
+      if (dirty) {
+        const saved = await updateUser({
+          userId: user.id,
+          fullName: fullName !== user.fullName ? fullName : undefined,
+          role: role !== user.role ? role : undefined,
+          locations: locsDirty ? locations : undefined,
+        });
+        if ("error" in saved) { setError(saved.error); return; }
+      }
       const res = await setUserActive(user.id, true);
       if ("error" in res) setError(res.error);
       else onClose();

@@ -11,16 +11,23 @@ import type { UserRole } from "./roles";
 // it. requireRole is the real gate.
 
 // Replace a user's location assignments with exactly `locations` (deduped).
+// Returns an error message, or null. Both writes used to be fire-and-forget,
+// so a failed insert left the user with no locations and the admin with a
+// dialog that closed as if it had worked.
 async function replaceUserLocations(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
   locations: string[],
-) {
+): Promise<string | null> {
   const clean = [...new Set(locations.map((l) => l.trim()).filter(Boolean))];
-  await admin.from("user_locations").delete().eq("user_id", userId);
+  const del = await admin.from("user_locations").delete().eq("user_id", userId);
+  if (del.error) return del.error.message;
   if (clean.length) {
-    await admin.from("user_locations").insert(clean.map((location_name) => ({ user_id: userId, location_name })));
+    const ins = await admin.from("user_locations")
+      .insert(clean.map((location_name) => ({ user_id: userId, location_name })));
+    if (ins.error) return ins.error.message;
   }
+  return null;
 }
 
 export async function updateUser(input: {
@@ -61,7 +68,10 @@ export async function updateUser(input: {
     }
   }
 
-  if (input.locations !== undefined) await replaceUserLocations(admin, input.userId, input.locations);
+  if (input.locations !== undefined) {
+    const locErr = await replaceUserLocations(admin, input.userId, input.locations);
+    if (locErr) return { error: locErr };
+  }
 
   revalidatePath("/settings/users");
   return { ok: true };
@@ -103,7 +113,10 @@ export async function inviteUser(input: {
       // land in the Requested queue behind the gate.
       .update({ role: input.role, full_name: fullName, active: true, requested_at: null, updated_at: new Date().toISOString() })
       .eq("id", data.user.id);
-    if (input.locations?.length) await replaceUserLocations(admin, data.user.id, input.locations);
+    if (input.locations?.length) {
+      const locErr = await replaceUserLocations(admin, data.user.id, input.locations);
+      if (locErr) return { error: locErr };
+    }
   }
 
   revalidatePath("/settings/users");
