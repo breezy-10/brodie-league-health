@@ -781,16 +781,20 @@ async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | nul
       : k.teams;
     const byLoc = new Map<string, number>();
     for (const t of teams) byLoc.set(t.location, (byLoc.get(t.location) ?? 0) + 1);
-    // The venue carrying the most of them, which is where the phone calls go.
-    const worst = [...byLoc.entries()].sort((a, b) => b[1] - a[1])[0];
     return {
       label: "Teams at forfeit risk", value: teams.length.toLocaleString(),
       tone: teams.length > 0 ? "bad" : "ok",
       lines: [
         { text: `across ${byLoc.size} location${byLoc.size === 1 ? "" : "s"}`, strong: true },
         { text: "6 or fewer fully paid players" },
-        ...(worst && byLoc.size > 1 ? [{ text: `most at ${worst[0]} (${worst[1]})` }] : []),
       ],
+      // Every venue carrying any, worst first, so the list ranks itself and
+      // the phone calls have an order. One tone, because there is no good
+      // number here — a venue is on this list or it is not.
+      pills: [...byLoc.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([location, n]) => ({ text: `${location} (${n})`, tone: "bad" as const })),
+      pillsEmpty: "no teams at risk",
       link: { href: "https://brodie-overdue-payments.vercel.app/teams", label: "More details →" },
     };
   } catch {
