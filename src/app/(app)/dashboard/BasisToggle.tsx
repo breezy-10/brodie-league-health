@@ -26,7 +26,10 @@ export function BasisToggle({
     if (next === options[0].value) q.delete(param);
     else q.set(param, next);
     const qs = q.toString();
-    startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname));
+    // scroll: false — this is a filter for one section, not a new page. The
+    // default push throws you back to the top, which on a long dashboard means
+    // losing the section you were reading to change what it says.
+    startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
   }
 
   return (
@@ -55,6 +58,17 @@ export function BasisToggle({
           </button>
         );
       })}
+      {/* The section it drives is streamed in behind a Suspense boundary, so
+          without this the only sign a click landed is the card contents
+          changing some time later. */}
+      {pending && (
+        <span
+          role="status"
+          aria-label="Loading"
+          className="mx-1.5 inline-block h-3 w-3 shrink-0 animate-spin rounded-full"
+          style={{ border: "2px solid var(--glass-border)", borderTopColor: "var(--glass-gold)" }}
+        />
+      )}
     </div>
   );
 }

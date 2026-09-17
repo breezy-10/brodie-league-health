@@ -22,7 +22,7 @@ export function DetailFilters({
 
   function go(nextLoc: string, nextSeason: string) {
     const qs = new URLSearchParams({ loc: nextLoc, season: nextSeason }).toString();
-    startTransition(() => router.push(`/registrations/location?${qs}`));
+    startTransition(() => router.push(`/registrations/location?${qs}`, { scroll: false }));
   }
 
   return (
