@@ -9,10 +9,16 @@ export function BasisToggle({
   param,
   value,
   options,
+  defaultValue,
 }: {
   param: string;
   value: string;
   options: { value: string; label: string }[];
+  // The value that stays out of the URL. Defaults to the first option, which is
+  // usually also the default state — but not always: Facility Bookings reads
+  // the season being booked FOR, while its toggle keeps the seasons in the same
+  // left-to-right order as every other one.
+  defaultValue?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -22,8 +28,8 @@ export function BasisToggle({
   function pick(next: string) {
     if (next === value) return;
     const q = new URLSearchParams(search.toString());
-    // The first option is the default, so it stays out of the URL.
-    if (next === options[0].value) q.delete(param);
+    // The default stays out of the URL.
+    if (next === (defaultValue ?? options[0].value)) q.delete(param);
     else q.set(param, next);
     const qs = q.toString();
     // scroll: false — this is a filter for one section, not a new page. The
