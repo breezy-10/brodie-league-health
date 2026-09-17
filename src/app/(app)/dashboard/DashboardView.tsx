@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { requireUser } from "@/lib/auth";
 import { SectionSkeleton, TableSkeleton } from "./Skeletons";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -1674,18 +1674,29 @@ async function FeedbackCards({ season, scope, fullTag }: { season: string; scope
   return <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback}
     tiles={tiles ?? SAMPLE.feedback} sample={!tiles} />;
 }
-async function OverdueCards({ season, scope, fullTag, weekly = false }: {
+async function OverdueCards({ season, scope, fullTag, weekly = false, nextSeason, onNext = false }: {
   season: string; scope: Scope; fullTag?: string; weekly?: boolean;
+  // The season being registered for. Debt builds there before it is anyone's
+  // job to chase it, so the section can be read either way round.
+  nextSeason?: string; onNext?: boolean;
 }) {
+  const shown = onNext && nextSeason ? nextSeason : season;
   const [tiles, forfeit] = await Promise.all([
-    loadOverdueTiles(season, scope, weekly),
-    loadForfeitTile(season, scope),
+    loadOverdueTiles(shown, scope, weekly),
+    loadForfeitTile(shown, scope),
   ]);
   // Only alongside the real figures — hung off the sample set it would read as
   // one live number among three invented ones.
   const all = tiles && forfeit ? [...tiles, forfeit] : tiles;
   return <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue}
-    tiles={all ?? SAMPLE.overdue} sample={!tiles} />;
+    tiles={all ?? SAMPLE.overdue} sample={!tiles}
+    headerExtra={nextSeason && nextSeason !== season ? (
+      <BasisToggle
+        param="overdueSeason"
+        value={onNext ? "next" : "current"}
+        options={[{ value: "current", label: season }, { value: "next", label: nextSeason }]}
+      />
+    ) : undefined} />;
 }
 async function BookingCards({ season, scope, fullTag, promo, locationNames }: {
   season: string; scope: Scope; fullTag?: string;
@@ -1923,13 +1934,13 @@ export default async function DashboardView({
   searchParams,
   mode = "full",
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; overdueSeason?: string }>;
   mode?: "full" | "registrations" | "weekly";
 }) {
   await requireUser();
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
-  const { season: seasonParam, location: locationParam, week: weekParam, regBasis } = await searchParams;
+  const { season: seasonParam, location: locationParam, week: weekParam, regBasis, overdueSeason } = await searchParams;
   // Every filter accepts a comma-separated list, so several seasons, weeks,
   // locations and league managers can be selected at once.
   const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
@@ -2360,7 +2371,8 @@ export default async function DashboardView({
               <FeedbackCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Overdue Payments" />}>
-              <OverdueCards season={selectedSeason} scope={scope} fullTag={fullTag} weekly={isWeekly} />
+              <OverdueCards season={selectedSeason} scope={scope} fullTag={fullTag} weekly={isWeekly}
+                nextSeason={regSeason} onNext={overdueSeason === "next"} />
             </Suspense>
             <Suspense fallback={<TableSkeleton title="Facility Bookings" rows={6} />}>
               <BookingCards season={regSeason} scope={scope} fullTag={fullTag} promo={promoTiles} locationNames={locationNames} />
@@ -2921,11 +2933,15 @@ function Section({
   emptyNote,
   seasonTag,
   scopeTag,
+  headerExtra,
   cols = 4,
 }: {
   title: string;
   href?: string;
   tiles: Tile[];
+  // Sits beside the heading — a control that belongs to this section alone,
+  // rather than to the filter bar every section shares.
+  headerExtra?: ReactNode;
   sample?: boolean;
   // Shown instead of the "coming soon" line when the section has no tiles
   // because the source does not cover the selected locations.
@@ -2956,6 +2972,7 @@ function Section({
               sample
             </span>
           )}
+          {headerExtra}
         </div>
         {href && (
           <a href={href} target="_blank" rel="noopener noreferrer"
