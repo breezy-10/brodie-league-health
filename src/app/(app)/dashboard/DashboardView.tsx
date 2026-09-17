@@ -665,7 +665,11 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
 // game that season). Amount-first currency labels; a location selected shows
 // only that location's currency (the other has no players).
 type CurTotals = { total_players: number; total_balance: number; active_players: number; active_balance: number; bad_debt: number };
-async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | null> {
+// weekly: the week-over-week lines belong to Weekly Review. Every other section
+// gets that for free — their feeds only return a previous week when asked for
+// one — but the overdue app always sends its last snapshot, so this one has to
+// decline it.
+async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): Promise<Tile[] | null> {
   try {
     const url = new URL("/api/checkin-stats", "https://brodie-overdue-payments.vercel.app");
     url.searchParams.set("season", season);
@@ -736,7 +740,7 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
         lines: [
           { text: `${ov.active_players.toLocaleString()} of ${ov.total_players.toLocaleString()} active`, strong: true },
           { text: `across ${ov.locations} location${ov.locations === 1 ? "" : "s"}` },
-          ...wowCount(ov.total_players, k.prev?.total_players, when),
+          ...(weekly ? wowCount(ov.total_players, k.prev?.total_players, when) : []),
         ],
       },
     ];
@@ -747,7 +751,7 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
           { text: `${c.total_players} player${c.total_players === 1 ? "" : "s"}`, strong: true },
           { text: `${money(c.active_balance, cur)} from active players` },
           { text: `${c.active_players} of ${c.total_players} players active` },
-          ...wowActive(c, cur, prev, when),
+          ...(weekly ? wowActive(c, cur, prev, when) : []),
         ],
       };
     const cad = card(k.currency_totals.cad, "CAD", "Overdue Balance - Canadian Locations", k.prev?.cad);
@@ -1670,9 +1674,11 @@ async function FeedbackCards({ season, scope, fullTag }: { season: string; scope
   return <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback}
     tiles={tiles ?? SAMPLE.feedback} sample={!tiles} />;
 }
-async function OverdueCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
+async function OverdueCards({ season, scope, fullTag, weekly = false }: {
+  season: string; scope: Scope; fullTag?: string; weekly?: boolean;
+}) {
   const [tiles, forfeit] = await Promise.all([
-    loadOverdueTiles(season, scope),
+    loadOverdueTiles(season, scope, weekly),
     loadForfeitTile(season, scope),
   ]);
   // Only alongside the real figures — hung off the sample set it would read as
@@ -2354,7 +2360,7 @@ export default async function DashboardView({
               <FeedbackCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Overdue Payments" />}>
-              <OverdueCards season={selectedSeason} scope={scope} fullTag={fullTag} />
+              <OverdueCards season={selectedSeason} scope={scope} fullTag={fullTag} weekly={isWeekly} />
             </Suspense>
             <Suspense fallback={<TableSkeleton title="Facility Bookings" rows={6} />}>
               <BookingCards season={regSeason} scope={scope} fullTag={fullTag} promo={promoTiles} locationNames={locationNames} />
