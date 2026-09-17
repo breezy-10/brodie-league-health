@@ -1698,14 +1698,21 @@ async function OverdueCards({ season, scope, fullTag, weekly = false, nextSeason
       />
     ) : undefined} />;
 }
-async function BookingCards({ season, scope, fullTag, promo, locationNames }: {
+async function BookingCards({ season, scope, fullTag, promo, promoSeason, locationNames, headerExtra }: {
   season: string; scope: Scope; fullTag?: string;
-  promo: Awaited<ReturnType<typeof loadPromoTiles>>; locationNames: string[] | null;
+  // The Promo Tracker section's figures, and the season they were fetched for.
+  // The two sections toggle independently, so this one refetches rather than
+  // counting one season's teams against another season's bookings.
+  promo: Awaited<ReturnType<typeof loadPromoTiles>>; promoSeason: string;
+  locationNames: string[] | null; headerExtra?: ReactNode;
 }) {
-  const b = await loadBookings(season, scope);
+  const [b, p] = await Promise.all([
+    loadBookings(season, scope),
+    season === promoSeason ? Promise.resolve(promo) : loadPromoTiles(season, scope),
+  ]);
   return b ? <BookingsSection data={b} season={season} titleSuffix={fullTag}
-    teamsRegistered={promo?.teamsRegistered} teamsFullRoster={promo?.teamsFullRoster}
-    venueRegs={promo?.byVenue} scopeLocations={locationNames} /> : null;
+    teamsRegistered={p?.teamsRegistered} teamsFullRoster={p?.teamsFullRoster}
+    venueRegs={p?.byVenue} scopeLocations={locationNames} headerExtra={headerExtra} /> : null;
 }
 
 // Horizontally scrolling strip of per-location cards. Each card carries both
@@ -1934,13 +1941,15 @@ export default async function DashboardView({
   searchParams,
   mode = "full",
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; overdueSeason?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string;
+    overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string }>;
   mode?: "full" | "registrations" | "weekly";
 }) {
   await requireUser();
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
-  const { season: seasonParam, location: locationParam, week: weekParam, regBasis, overdueSeason } = await searchParams;
+  const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
+    overdueSeason, regsSeason, promoSeason, bookingSeason } = await searchParams;
   // Every filter accepts a comma-separated list, so several seasons, weeks,
   // locations and league managers can be selected at once.
   const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
@@ -1986,7 +1995,23 @@ export default async function DashboardView({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: isReg ? "registration" : "playing" },
   );
-  const pacingSeason = isReg ? selectedSeason : regSeason;
+  // Registration work runs a season ahead of the games, so Registrations, the
+  // Promo Tracker and Facility Bookings default to the season being sold and
+  // can be read back on the one being played. On the Registrations tab the
+  // filter already picks the season outright, so there is nothing to toggle.
+  const prepSeason = (p?: string) => (p === "current" ? selectedSeason : regSeason);
+  const seasonToggle = (param: string, p?: string) =>
+    !isReg && regSeason !== selectedSeason ? (
+      <BasisToggle
+        param={param}
+        value={p === "current" ? "current" : "next"}
+        defaultValue="next"
+        options={[{ value: "current", label: selectedSeason }, { value: "next", label: regSeason }]}
+      />
+    ) : undefined;
+  const promoSeasonName = isReg ? selectedSeason : prepSeason(promoSeason);
+  const bookingSeasonName = isReg ? selectedSeason : prepSeason(bookingSeason);
+  const pacingSeason = isReg ? selectedSeason : prepSeason(regsSeason);
 
   // Live, season + location/LM scoped section cards (fall back to sample if unwired).
   const scope: Scope = { locationNames };
@@ -2011,7 +2036,7 @@ export default async function DashboardView({
   const [ckCurrent, ckNext, promoTiles, pacing] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
-    isReg ? Promise.resolve(null) : loadPromoTiles(regSeason, scope),
+    isReg ? Promise.resolve(null) : loadPromoTiles(promoSeasonName, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
@@ -2201,8 +2226,12 @@ export default async function DashboardView({
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Registrations</h2>
-                <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
+                {/* The toggle names the season itself, so the chip only shows
+                    where there is nothing to switch between. */}
+                {seasonToggle("regsSeason", regsSeason) ?? (
+                  <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
+                )}
                 {isWeekly && (
                   <BasisToggle
                     param="regBasis"
@@ -2344,7 +2373,10 @@ export default async function DashboardView({
         )}
         {!isReg && (
           <>
-            <Section title="Registration Promo Tracker" scopeTag={fullTag} href={APP_URL.promo} tiles={promoTiles?.tiles ?? SAMPLE.promo} sample={!promoTiles} seasonTag={regSeason} />
+            <Section title="Registration Promo Tracker" scopeTag={fullTag} href={APP_URL.promo}
+              tiles={promoTiles?.tiles ?? SAMPLE.promo} sample={!promoTiles}
+              seasonTag={seasonToggle("promoSeason", promoSeason) ? undefined : promoSeasonName}
+              headerExtra={seasonToggle("promoSeason", promoSeason)} />
             <Suspense fallback={<SectionSkeleton title="Outreach" cols={4} />}>
               <OutreachCards scope={scope} when={touchWhen} weekTag={weekTag}
                 opts={{ fromIso: touchFrom, toIso: touchTo, season: regSeason, weekLabel: activeWeeks.length ? `week of ${weekLabel}` : undefined }} />
@@ -2375,7 +2407,9 @@ export default async function DashboardView({
                 nextSeason={regSeason} onNext={overdueSeason === "next"} />
             </Suspense>
             <Suspense fallback={<TableSkeleton title="Facility Bookings" rows={6} />}>
-              <BookingCards season={regSeason} scope={scope} fullTag={fullTag} promo={promoTiles} locationNames={locationNames} />
+              <BookingCards season={bookingSeasonName} scope={scope} fullTag={fullTag}
+                promo={promoTiles} promoSeason={promoSeasonName} locationNames={locationNames}
+                headerExtra={seasonToggle("bookingSeason", bookingSeason)} />
             </Suspense>
           </>
         )}
@@ -2384,8 +2418,9 @@ export default async function DashboardView({
       {!isReg && (
         <p className="text-xs text-glass-text-tertiary">
           Feedback, Stats Health, and Content Health read live from each source, scoped to the selected Season, Location,
-          and League manager (locations reconciled across apps by fuzzy match). Registration + Promo run one season ahead
-          (the prep season, tagged in gold), and the Checklist shows both. The Promo Tracker card reads live from the Promo
+          and League manager (locations reconciled across apps by fuzzy match). Registrations, the Promo Tracker and Facility
+          Bookings run one season ahead — the season being sold — and each carries a toggle beside its heading to read it on
+          the season being played instead; the Checklist shows both. The Promo Tracker card reads live from the Promo
           Tracker&apos;s own KPI feed, so its numbers match that site exactly.
         </p>
       )}
@@ -2530,7 +2565,7 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
   }
 }
 
-function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster, venueRegs, scopeLocations }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null; venueRegs?: VenueRegs[]; scopeLocations?: string[] | null }) {
+function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, teamsFullRoster, venueRegs, scopeLocations, headerExtra }: { data: BookingData; season: string; titleSuffix?: string; teamsRegistered?: number; teamsFullRoster?: number | null; venueRegs?: VenueRegs[]; scopeLocations?: string[] | null; headerExtra?: ReactNode }) {
   // Registrations arrive keyed by the ops league's venue name, which spells a
   // market slightly differently from the facilities calendar, and name their
   // night in full where the calendar abbreviates it.
@@ -2587,8 +2622,10 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
         <div className="flex items-center gap-2.5">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility Bookings</h2>
           {titleSuffix && <span className="text-xs font-normal text-glass-text-tertiary">{titleSuffix}</span>}
-          <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-            style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{season}</span>
+          {headerExtra ?? (
+            <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+              style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{season}</span>
+          )}
         </div>
         <a href={APP_URL.facilities} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
