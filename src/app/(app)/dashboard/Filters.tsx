@@ -57,7 +57,7 @@ export default function Filters({
     if (hasWeeks && weeks.length) next.set("week", weeks.join(","));
     if (locations.length) next.set("location", locations.join(","));
     const qs = next.toString();
-    startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname));
+    startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
   }
 
   return (
