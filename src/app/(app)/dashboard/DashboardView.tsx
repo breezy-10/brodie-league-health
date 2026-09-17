@@ -685,11 +685,28 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
     const ov = k.overall;
     const money = (n: number, cur: string) =>
       `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
+    // The comparison is against the last snapshot the overdue app took, which
+    // is not reliably a week back — Fall '26's was 26 days old — so the lines
+    // name its date instead of calling it "prev week".
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const asOf = (iso?: string) => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
+      // Parsed by hand: `new Date("2026-09-12")` is UTC midnight and formats as
+      // the 11th anywhere west of Greenwich.
+      return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}` : "the last snapshot";
+    };
     // Owing less is an improvement, so these deltas run the other way.
-    const wowCount = (cur: number, prev?: number) =>
+    const wowCount = (cur: number, prev: number | undefined, when: string) =>
       prev == null ? [] : [
-        { text: `prev week ${prev.toLocaleString()}` },
-        { text: `${cur - prev > 0 ? "+" : ""}${(cur - prev).toLocaleString()}`, color: upColor(-(cur - prev)) },
+        { text: `${prev.toLocaleString()} on ${when}` },
+        // Said as a change, not as a figure: an unlabelled "0" under a line of
+        // counts reads as "nothing is active" rather than "nothing moved".
+        {
+          text: cur === prev
+            ? `no change since ${when}`
+            : `${cur - prev > 0 ? "+" : "−"}${Math.abs(cur - prev).toLocaleString()} since ${when}`,
+          color: upColor(-(cur - prev)),
+        },
       ];
     // Compare what is still collectable — active players and their balance —
     // rather than the headline total, which includes people who have stopped
@@ -697,25 +714,29 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
     const wowActive = (
       c: CurTotals, cur: string,
       prev: { active_players: number; active_balance: number; total_players: number } | undefined,
+      when: string,
     ) => {
       if (!prev) return [];
       const dBal = Math.round((c.active_balance - prev.active_balance) * 100) / 100;
       const dAct = c.active_players - prev.active_players;
       return [
-        { text: `prev week ${prev.active_players} of ${prev.total_players} active · ${money(prev.active_balance, cur)}` },
+        { text: `${prev.active_players} of ${prev.total_players} active · ${money(prev.active_balance, cur)} on ${when}` },
         {
-          text: `${dAct > 0 ? "+" : ""}${dAct} active · ${dBal > 0 ? "+" : dBal < 0 ? "−" : ""}${money(Math.abs(dBal), cur)}`,
+          text: dAct === 0 && dBal === 0
+            ? `no change since ${when}`
+            : `${dAct > 0 ? "+" : dAct < 0 ? "−" : ""}${Math.abs(dAct)} active · ${dBal > 0 ? "+" : dBal < 0 ? "−" : ""}${money(Math.abs(dBal), cur)} since ${when}`,
           color: upColor(-dBal),
         },
       ];
     };
+    const when = asOf(k.prev?.as_of);
     const tiles: Tile[] = [
       {
         label: "Total overdue players", value: ov.total_players.toLocaleString(), tone: ov.total_players > 0 ? "bad" : "ok",
         lines: [
           { text: `${ov.active_players.toLocaleString()} of ${ov.total_players.toLocaleString()} active`, strong: true },
           { text: `across ${ov.locations} location${ov.locations === 1 ? "" : "s"}` },
-          ...wowCount(ov.total_players, k.prev?.total_players),
+          ...wowCount(ov.total_players, k.prev?.total_players, when),
         ],
       },
     ];
@@ -726,7 +747,7 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
           { text: `${c.total_players} player${c.total_players === 1 ? "" : "s"}`, strong: true },
           { text: `${money(c.active_balance, cur)} from active players` },
           { text: `${c.active_players} of ${c.total_players} players active` },
-          ...wowActive(c, cur, prev),
+          ...wowActive(c, cur, prev, when),
         ],
       };
     const cad = card(k.currency_totals.cad, "CAD", "Overdue Balance - Canadian Locations", k.prev?.cad);
@@ -734,6 +755,40 @@ async function loadOverdueTiles(season: string, scope: Scope): Promise<Tile[] | 
     if (cad) tiles.push(cad);
     if (usd) tiles.push(usd);
     return tiles;
+  } catch {
+    return null;
+  }
+}
+
+// Teams one no-show from forfeiting: 6 or fewer fully paid players. Same feed
+// and same rule as the overdue app's own Teams board, so the count on the card
+// is the count on that page. The feed is org-wide, so the location filter is
+// applied here rather than asked for.
+async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | null> {
+  try {
+    const url = new URL("/api/all-forfeit-risk", "https://brodie-overdue-payments.vercel.app");
+    url.searchParams.set("season", season);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as { teams?: { location: string }[] };
+    if (!k.teams) return null;
+    const teams = scope.locationNames?.length
+      ? k.teams.filter((t) => scope.locationNames!.some((n) => sameLocation(t.location, n)))
+      : k.teams;
+    const byLoc = new Map<string, number>();
+    for (const t of teams) byLoc.set(t.location, (byLoc.get(t.location) ?? 0) + 1);
+    // The venue carrying the most of them, which is where the phone calls go.
+    const worst = [...byLoc.entries()].sort((a, b) => b[1] - a[1])[0];
+    return {
+      label: "Teams at forfeit risk", value: teams.length.toLocaleString(),
+      tone: teams.length > 0 ? "bad" : "ok",
+      lines: [
+        { text: `across ${byLoc.size} location${byLoc.size === 1 ? "" : "s"}`, strong: true },
+        { text: "6 or fewer fully paid players" },
+        ...(worst && byLoc.size > 1 ? [{ text: `most at ${worst[0]} (${worst[1]})` }] : []),
+      ],
+      link: { href: "https://brodie-overdue-payments.vercel.app/teams", label: "More details →" },
+    };
   } catch {
     return null;
   }
@@ -1616,9 +1671,15 @@ async function FeedbackCards({ season, scope, fullTag }: { season: string; scope
     tiles={tiles ?? SAMPLE.feedback} sample={!tiles} />;
 }
 async function OverdueCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
-  const tiles = await loadOverdueTiles(season, scope);
+  const [tiles, forfeit] = await Promise.all([
+    loadOverdueTiles(season, scope),
+    loadForfeitTile(season, scope),
+  ]);
+  // Only alongside the real figures — hung off the sample set it would read as
+  // one live number among three invented ones.
+  const all = tiles && forfeit ? [...tiles, forfeit] : tiles;
   return <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue}
-    tiles={tiles ?? SAMPLE.overdue} sample={!tiles} />;
+    tiles={all ?? SAMPLE.overdue} sample={!tiles} />;
 }
 async function BookingCards({ season, scope, fullTag, promo, locationNames }: {
   season: string; scope: Scope; fullTag?: string;
