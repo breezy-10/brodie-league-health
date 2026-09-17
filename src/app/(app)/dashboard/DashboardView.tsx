@@ -768,6 +768,12 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
 // and same rule as the overdue app's own Teams board, so the count on the card
 // is the count on that page. The feed is org-wide, so the location filter is
 // applied here rather than asked for.
+const teamsHref = (season: string, location: string | null) => {
+  const u = new URL("/teams", "https://brodie-overdue-payments.vercel.app");
+  u.searchParams.set("season", season);
+  if (location) u.searchParams.set("location", location);
+  return u.toString();
+};
 async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | null> {
   try {
     const url = new URL("/api/all-forfeit-risk", "https://brodie-overdue-payments.vercel.app");
@@ -795,7 +801,11 @@ async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | nul
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .map(([location, n]) => ({ text: `${location} (${n})`, tone: "bad" as const })),
       pillsEmpty: "no teams at risk",
-      link: { href: "https://brodie-overdue-payments.vercel.app/teams", label: "More details →" },
+      // The board opens on what the card is showing: the same season, and the
+      // same venue where the filter has come down to exactly one of them. It
+      // matches by exact name and has no multi-venue view, so a filter
+      // spanning several (Brooklyn, Calgary) opens the cross-location board.
+      link: { href: teamsHref(season, byLoc.size === 1 ? [...byLoc.keys()][0] : null), label: "More details →" },
     };
   } catch {
     return null;
