@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { updateUser, resendInvite, setUserArchived, setUserActive } from "./actions";
+import { updateUser, resendInvite, setUserArchived, setUserActive, denyUser } from "./actions";
 import { LocationMultiSelect } from "./LocationMultiSelect";
 import { ROLE_LABELS, ROLE_ORDER, type UserRole, type UserStatus } from "./roles";
 import type { UserListRow } from "./UsersTable";
@@ -85,6 +85,17 @@ export function EditUser({
         if ("error" in saved) { setError(saved.error); return; }
       }
       const res = await setUserActive(user.id, true);
+      if ("error" in res) setError(res.error);
+      else onClose();
+    });
+  }
+
+  function onDeny() {
+    if (isSelf) return;
+    if (!confirm(`Deny ${user.fullName} (${user.email})?\n\nThey'll be archived rather than left waiting, and nothing about them is deleted. They can ask again.`)) return;
+    setError(null);
+    startArchive(async () => {
+      const res = await denyUser(user.id);
       if ("error" in res) setError(res.error);
       else onClose();
     });
@@ -181,14 +192,26 @@ export function EditUser({
                   {resendState === "sending" ? "Sending…" : "Resend invite"}
                 </button>
               )}
+              {/* A pending row answers the question it is asking: Deny left,
+                  Approve right, in the slot Archive normally occupies. Archive
+                  is the wrong verb for someone who has never had access, and
+                  leaving only Approve meant a request could be granted or
+                  ignored, never turned down. */}
               {!isSelf && isRequested && (
-                <button onClick={onApprove} disabled={archiving}
-                  className="rounded-lg text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
-                  style={{ background: "var(--glass-green)", borderColor: "var(--glass-green)", color: "#000" }}>
-                  {archiving ? "Working…" : "Approve user"}
-                </button>
+                <>
+                  <button onClick={onDeny} disabled={archiving}
+                    className="rounded-lg text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
+                    style={{ background: "var(--glass-red)", borderColor: "var(--glass-red)", color: "#fff" }}>
+                    {archiving ? "Working…" : "Deny"}
+                  </button>
+                  <button onClick={onApprove} disabled={archiving}
+                    className="rounded-lg text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
+                    style={{ background: "var(--glass-green)", borderColor: "var(--glass-green)", color: "#000" }}>
+                    {archiving ? "Working…" : "Approve"}
+                  </button>
+                </>
               )}
-              {!isSelf && (
+              {!isSelf && !isRequested && (
                 <button onClick={onArchive} disabled={archiving}
                   className="rounded-lg text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
                   style={isArchived

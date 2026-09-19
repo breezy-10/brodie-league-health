@@ -165,6 +165,39 @@ export async function setUserArchived(userId: string, archived: boolean): Promis
   }
 }
 
+/**
+ * Turn down someone waiting on an access decision. The request marker is
+ * cleared and they are archived, so they leave the queue rather than sitting in
+ * it unanswered, and nothing about them is deleted — the house rule across the
+ * Brodie apps. They can ask again, which puts them back in the queue.
+ */
+export async function denyUser(userId: string): Promise<{ ok: true } | { error: string }> {
+  try {
+    const { user, profile } = await requireRole(["dm", "operations_manager", "super_admin"]);
+    if (userId === user.id) return { error: "You can't deny yourself." };
+    const admin = createAdminClient();
+    if (profile?.role !== "super_admin") {
+      const { data: target } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+      if ((target as { role?: string } | null)?.role === "super_admin") {
+        return { error: "Only an admin can deny an Admin." };
+      }
+    }
+    const { error } = await admin
+      .from("profiles")
+      .update({ active: false, requested_at: null, updated_at: new Date().toISOString() })
+      .eq("id", userId);
+    if (error) return { error: error.message };
+    // Archived is the enforcement: active=false alone only redirects them to
+    // the request page, where they would ask again immediately.
+    const { error: banErr } = await admin.auth.admin.updateUserById(userId, { ban_duration: "876000h" });
+    if (banErr) return { error: banErr.message };
+    revalidatePath("/settings/users");
+    return { ok: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
 /** Approve (or un-approve) someone waiting on an access decision. */
 export async function setUserActive(userId: string, active: boolean): Promise<{ ok: true } | { error: string }> {
   try {
