@@ -362,6 +362,21 @@ async function loadGameDayTiles(scope: Scope): Promise<Tile[] | null> {
   const tonightStats = doneOf(tonight);
   const weekStats = doneOf(recent);
 
+  // Blocked over the same window as the card beside it, so the two read off one
+  // denominator. Named where it is blocked, not just how much: a blocked task
+  // is someone stuck waiting on something, and the venue and night are what
+  // make that chaseable.
+  const recentIds = new Set(recent.map((n) => n.id));
+  const blockedRows = tasks.filter((t) => recentIds.has(t.season_id) && t.status === "blocked");
+  const blockedPct = weekStats.total ? Math.round((1000 * blockedRows.length) / weekStats.total) / 10 : 0;
+  const blockedByNight = new Map<string, number>();
+  for (const t of blockedRows) {
+    const n = recent.find((x) => x.id === t.season_id);
+    if (!n) continue;
+    const key = `${nameById.get(n.location_id ?? "") ?? "Unknown"} · ${n.opening_night}`;
+    blockedByNight.set(key, (blockedByNight.get(key) ?? 0) + 1);
+  }
+
   // A night that finished with nothing ticked is the thing worth chasing.
   const untouched = recent
     .filter((n) => n.opening_night < today)
@@ -385,6 +400,21 @@ async function loadGameDayTiles(scope: Scope): Promise<Tile[] | null> {
         ? `${weekStats.done} / ${weekStats.total} tasks · ${recent.length} night${recent.length === 1 ? "" : "s"}`
         : "no game nights in the last week",
       tone: !recent.length ? "ok" : weekStats.pct >= 90 ? "ok" : weekStats.pct >= 50 ? "warn" : "bad",
+    },
+    {
+      label: "% blocked",
+      // One decimal: a handful of blocked tasks in a thousand rounds to zero as
+      // a whole percent, and zero is exactly what this card must not say while
+      // anything is stuck.
+      value: recent.length ? `${blockedPct.toFixed(1)}%` : "—",
+      sub: recent.length
+        ? `${blockedRows.length} / ${weekStats.total} tasks · ${recent.length} night${recent.length === 1 ? "" : "s"}`
+        : "no game nights in the last week",
+      tone: !recent.length || !blockedRows.length ? "ok" : blockedPct >= 5 ? "bad" : "warn",
+      pills: [...blockedByNight.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([night, n]) => ({ text: `${night} (${n})`, tone: "bad" as const })),
+      pillsEmpty: "nothing blocked",
     },
     {
       label: "Nights not started",
