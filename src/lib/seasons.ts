@@ -4,6 +4,7 @@
 // the Referrals tab, the same filter bar silently produces numbers that don't
 // line up, which reads as a data bug rather than a UI one.
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCanonicalLocations } from "@/lib/districts-locations";
 import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 import { ymd } from "@/lib/source-apps/util";
 
@@ -15,13 +16,6 @@ import { ymd } from "@/lib/source-apps/util";
 // everywhere downstream. "Toronto (Hoopdome)" was one: the market is named
 // "Toronto (Uptown)" everywhere else, so selecting it matched no registrations,
 // no promo rows and no bookings.
-const PROMO_LOCATIONS_FALLBACK = [
-  "Boston", "Brampton", "Burlington", "Brooklyn - Bushwick", "Brooklyn - Greenpoint",
-  "Calgary", "Chicago", "Edmonton", "Kitchener", "London", "Markham", "Milton",
-  "Mississauga", "Montreal", "Niagara", "Oshawa", "Ottawa", "Scarborough",
-  "Toronto (Downtown)", "Toronto (Uptown)", "Vaughan", "Winnipeg",
-  "Richmond", "Oakville", "Surrey", "Burnaby",
-];
 const PROMO_SEASONS_FALLBACK = ["Fall '26", "Summer '26"];
 
 // Normalize a season label to term+2-digit-year: "Fall '26" / "Fall 2026" -> "fall26".
@@ -147,20 +141,19 @@ export async function resolveScope(
 ): Promise<Scope> {
   const { season: seasonParam, location = "all" } = params;
 
-  // Locations + seasons from the Registration Promo Tracker — live when the
-  // PROMO_SUPABASE_* connection is wired, otherwise the copied fallbacks.
-  let promoLocations = PROMO_LOCATIONS_FALLBACK;
+  // Locations come from brodie-districts, which publishes the canonical list
+  // every ops app is meant to read — including the venue splits (three Boston
+  // venues, three Calgary) and the ops DB's own spelling. The Promo Tracker's
+  // table, which this used to read, is a shorter list under different names.
+  // Seasons still come from the Promo Tracker: registration is its subject.
+  let promoLocations = await getCanonicalLocations();
   let promoSeasons = PROMO_SEASONS_FALLBACK;
   let currentSeason: string | undefined;
   if (sourceConfigured("promo")) {
     const promo = sourceClient("promo")!;
-    const [locRes, seaRes] = await Promise.all([
-      promo.from("locations").select("name, sort_order").order("sort_order"),
-      promo.from("seasons").select("name, is_current").order("is_current", { ascending: false }),
-    ]);
-    const locNames = ((locRes.data ?? []) as { name: string | null }[]).map((l) => l.name).filter((n): n is string => !!n);
-    if (locNames.length) promoLocations = locNames;
-    const seaRows = (seaRes.data ?? []) as { name: string | null; is_current: boolean | null }[];
+    const { data: seaData } = await promo
+      .from("seasons").select("name, is_current").order("is_current", { ascending: false });
+    const seaRows = (seaData ?? []) as { name: string | null; is_current: boolean | null }[];
     const seaNames = seaRows.map((s) => s.name).filter((n): n is string => !!n);
     if (seaNames.length) promoSeasons = seaNames;
     currentSeason = seaRows.find((s) => s.is_current)?.name ?? undefined;
