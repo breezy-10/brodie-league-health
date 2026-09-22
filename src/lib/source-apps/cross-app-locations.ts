@@ -32,10 +32,16 @@ function normalize(s: string): Norm {
   return s
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
+    // Punctuation is a separator, not a character: the same market is spelled
+    // "Brooklyn (Greenpoint)" in most apps and "Brooklyn - Greenpoint" in
+    // others, and comparing those literally matched nothing — the checklist,
+    // training and health sections all read empty for both Brooklyn venues.
+    .replace(/[()[\]{}\-\u2013\u2014/,.]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
+
 function stripParen(s: string): Norm {
   return normalize(s.replace(/\s*\([^)]*\)\s*/g, " ").trim());
 }
@@ -43,10 +49,21 @@ function stripParen(s: string): Norm {
 function fuzzyMatch(crmNames: string[], candidate: string): boolean {
   const n = normalize(candidate);
   const ns = stripParen(candidate);
+  // A name that names a venue within a city — "Toronto (Uptown)" — as opposed
+  // to one that names the city alone.
+  const nq = ns !== n;
   for (const cn of crmNames) {
     const a = normalize(cn);
     const ai = stripParen(cn);
-    if (a === n || ai === n || a === ns || ai === ns) return true;
+    const aq = ai !== a;
+    if (a === n) return true;
+    // A bare city matches every venue in it: an app that only knows "Chicago"
+    // should still resolve "Chicago (Homer Glen)". Both sides naming a venue
+    // must agree on the venue, though — falling back to the city there made
+    // Toronto (Uptown) match Toronto (Downtown), and each Boston venue match
+    // the other two, so a filtered view quietly answered for its neighbours.
+    if (!aq && a === ns) return true;
+    if (!nq && n === ai) return true;
     // word-contains: at least one side contains the other and shares the
     // first word — guards against "Brooklyn" matching "Brookline" etc.
     if (a.includes(n) || n.includes(a)) {
