@@ -262,12 +262,12 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   const operatingPromise = loadOperatingLocations(season, expectedLocations);
   const [locIds, { data: seasons }, { data: clLocs }] = await Promise.all([
     sourceLocationIds("checklist", scope),
-    sb.from("seasons").select("id, name, location_id"),
+    sb.from("seasons").select("id, name, kind, location_id"),
     sb.from("locations").select("id, name"),
   ]);
   const locSet = locIds ? new Set(locIds) : null;
   const want = seasonKey(season);
-  const seasonRows = ((seasons ?? []) as { id: string; name: string | null; location_id: string | null }[])
+  const seasonRows = ((seasons ?? []) as { id: string; name: string | null; kind: string | null; location_id: string | null }[])
     .filter((s) => s.name && seasonKey(s.name) === want);
   const ids = seasonRows
     .filter((s) => !locSet || (s.location_id != null && locSet.has(s.location_id)))
@@ -291,14 +291,30 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
       .sort((a, b) => a.localeCompare(b));
   }
   const { data } = ids.length
-    ? await sb.from("season_tasks").select("status, due_date").in("season_id", ids)
-    : { data: [] as { status: string; due_date: string | null }[] };
-  const list = (data ?? []) as { status: string; due_date: string | null }[];
+    ? await sb.from("season_tasks").select("season_id, status, due_date").in("season_id", ids)
+    : { data: [] as { season_id: string; status: string; due_date: string | null }[] };
+  const list = (data ?? []) as { season_id: string; status: string; due_date: string | null }[];
   const total = list.length;
   const done = list.filter((t) => t.status === "done").length;
   const today = ymd(new Date());
-  const overdue = list.filter((t) => t.due_date && t.due_date < today && t.status === "not_started").length;
+  const overdueRows = list.filter((t) => t.due_date && t.due_date < today && t.status === "not_started");
+  const overdue = overdueRows.length;
   const pct = total ? Math.round((100 * done) / total) : 0;
+  // Which locations the overdue work is at, the way the card beside it names
+  // the ones with no checklist. A single number over twenty markets says how
+  // much is late and nothing about whose week it is.
+  const clName = new Map(((clLocs ?? []) as { id: string; name: string }[]).map((l) => [l.id, l.name]));
+  // The Operations checklist is a real checklist with no venue behind it, so it
+  // is named for what it is rather than lumped in as unknown.
+  const seasonLoc = new Map(seasonRows.map((s) => [
+    s.id,
+    (s.location_id ? clName.get(s.location_id) : null) ?? (s.kind === "operations" ? "Operations" : "No location"),
+  ]));
+  const overdueByLoc = new Map<string, number>();
+  for (const t of overdueRows) {
+    const name = seasonLoc.get(t.season_id) ?? "No location";
+    overdueByLoc.set(name, (overdueByLoc.get(name) ?? 0) + 1);
+  }
   // Setup comes before progress: a location with no checklist isn't counted in
   // the percentages beside it, so it reads first.
   return [
@@ -312,7 +328,14 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
       pillsEmpty: "every location set up",
     },
     { label: `Tasks complete · ${season}`, value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pct >= 100 ? "ok" : pct > 0 ? "warn" : "bad" },
-    { label: `Overdue tasks · ${season}`, value: overdue.toLocaleString(), sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok" },
+    {
+      label: `Overdue tasks · ${season}`, value: overdue.toLocaleString(),
+      sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok",
+      pills: [...overdueByLoc.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([name, n]) => ({ text: `${name} (${n})`, tone: "bad" as const })),
+      pillsEmpty: "nothing past due",
+    },
   ];
 }
 
