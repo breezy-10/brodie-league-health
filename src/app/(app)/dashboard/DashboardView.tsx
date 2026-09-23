@@ -562,14 +562,55 @@ async function loadFeedbackTiles(season: string, scope: Scope): Promise<Tile[] |
       nps: number | null; nps_tone: Tone; promoters: number; detractors: number; nps_total: number;
       promoter_pct: number | null; detractor_pct: number | null;
       retention_pct: number | null; retention_yes: number; retention_thinking: number; retention_no: number;
+      by_location?: {
+        location: string; responses: number;
+        csat_pct: number | null; csat_satisfied: number; csat_total: number;
+        nps: number | null; nps_total: number;
+        retention_pct: number | null; retention_yes: number; retention_n: number;
+      }[];
     };
     // Tones come from the feedback site's own colour functions (csatColor/npsColor);
     // Returning intent is left uncoloured, matching that site.
+    //
+    // Each card also names the venues behind its number. The bands are the
+    // feedback site's own: CSAT green from 80 and amber from 60, NPS green from
+    // 50 and amber from 0 — so a venue reads the same colour in both places.
+    // Returning intent stays uncoloured here too, because that site does not
+    // claim a good number for it.
+    const by = k.by_location;
+    const pills = <T,>(f: (r: NonNullable<typeof by>[number]) => T | null) =>
+      by ? { pills: by.map(f).filter((x): x is T => x !== null) as Tile["pills"], pillsEmpty: "no responses yet" } : {};
     return [
-      { label: "Responses", value: k.responses.toLocaleString() },
-      { label: "CSAT", value: k.csat_pct == null ? "—" : `${k.csat_pct}%`, sub: k.csat_pct == null ? "no CSAT question" : `${k.csat_satisfied} of ${k.csat_total} rated 8 or higher`, tone: k.csat_tone ?? "default" },
-      { label: "NPS", value: k.nps == null ? "—" : `${k.nps}`, sub: k.nps == null ? "no NPS scored" : `${k.promoter_pct}% promoters (${k.promoters}) · ${k.detractor_pct}% detractors (${k.detractors}) of ${k.nps_total} scored`, tone: k.nps_tone ?? "default" },
-      { label: "Returning intent", value: k.retention_pct == null ? "—" : `${k.retention_pct}%`, sub: k.retention_pct == null ? "no retention question" : `${k.retention_yes} yes · ${k.retention_thinking} thinking · ${k.retention_no} no` },
+      {
+        label: "Responses", value: k.responses.toLocaleString(),
+        ...pills((r) => ({ text: `${r.location} (${r.responses})`, tone: "default" as const })),
+      },
+      {
+        label: "CSAT", value: k.csat_pct == null ? "—" : `${k.csat_pct}%`,
+        sub: k.csat_pct == null ? "no CSAT question" : `${k.csat_satisfied} of ${k.csat_total} rated 8 or higher`,
+        tone: k.csat_tone ?? "default",
+        ...pills((r) => r.csat_pct == null ? null : ({
+          text: `${r.location} ${r.csat_satisfied}/${r.csat_total} (${r.csat_pct}%)`,
+          tone: (r.csat_pct >= 80 ? "ok" : r.csat_pct >= 60 ? "warn" : "bad") as Tone,
+        })),
+      },
+      {
+        label: "NPS", value: k.nps == null ? "—" : `${k.nps}`,
+        sub: k.nps == null ? "no NPS scored" : `${k.promoter_pct}% promoters (${k.promoters}) · ${k.detractor_pct}% detractors (${k.detractors}) of ${k.nps_total} scored`,
+        tone: k.nps_tone ?? "default",
+        ...pills((r) => r.nps == null ? null : ({
+          text: `${r.location} ${r.nps} (${r.nps_total})`,
+          tone: (r.nps >= 50 ? "ok" : r.nps >= 0 ? "warn" : "bad") as Tone,
+        })),
+      },
+      {
+        label: "Returning intent", value: k.retention_pct == null ? "—" : `${k.retention_pct}%`,
+        sub: k.retention_pct == null ? "no retention question" : `${k.retention_yes} yes · ${k.retention_thinking} thinking · ${k.retention_no} no`,
+        ...pills((r) => r.retention_pct == null ? null : ({
+          text: `${r.location} ${r.retention_yes}/${r.retention_n} (${r.retention_pct}%)`,
+          tone: "default" as const,
+        })),
+      },
     ];
   } catch {
     return null;
