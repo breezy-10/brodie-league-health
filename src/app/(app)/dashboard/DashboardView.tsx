@@ -2568,8 +2568,7 @@ export default async function DashboardView({
                   source app. The Registrations tab is the detail view, so
                   sending people out to the Promo Tracker from it is a dead end. */}
               {!isReg && (
-                <a href={APP_URL.promo} target="_blank" rel="noopener noreferrer"
-                  className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+                <MoreDetails href={APP_URL.promo} />
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 min-[1900px]:grid-cols-5 gap-4">
@@ -2770,6 +2769,18 @@ function ScopeTag({ label }: { label: string }) {
   );
 }
 
+// Every section's way out to the app behind it. A button rather than a line of
+// gold text: it is the one thing on a heading row you can click, and it was
+// reading as a caption next to the tag beside it.
+function MoreDetails({ href, label = "More details →" }: { href: string; label?: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      className="inline-flex items-center shrink-0 rounded-md border border-glass-gold px-2.5 py-1 text-[11px] sm:text-[10px] uppercase tracking-[0.14em] font-bold text-glass-gold hover:bg-glass-gold hover:text-black transition-colors">
+      {label}
+    </a>
+  );
+}
+
 const TONE_COLOR: Record<string, string> = {
   ok: "rgb(74,222,128)", warn: "var(--glass-gold)", bad: "rgb(248,113,113)", default: "var(--glass-text-secondary)",
 };
@@ -2831,8 +2842,7 @@ function TouchesSection({ data, when, titleSuffix = "" }: { data: (TouchData & {
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Outreach</h2>
           {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
-        <a href={APP_URL.crm} target="_blank" rel="noopener noreferrer"
-          className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+        <MoreDetails href={APP_URL.crm} />
       </div>
       <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
         {card("Touches", data?.touches ?? 0, (r) => r.touches)}
@@ -2969,8 +2979,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
               style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{season}</span>
           )}
         </div>
-        <a href={APP_URL.facilities} target="_blank" rel="noopener noreferrer"
-          className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+        <MoreDetails href={APP_URL.facilities} />
       </div>
 
       <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
@@ -3151,8 +3160,7 @@ function SiteVisitsSection({ data, titleSuffix = "" }: { data: SiteVisitsData; t
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site Visits</h2>
           {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
-        <a href={`${APP_URL.feedback}/site-visits`} target="_blank" rel="noopener noreferrer"
-          className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+        <MoreDetails href={`${APP_URL.feedback}/site-visits`} />
       </div>
       <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
         <table className="w-full text-sm">
@@ -3222,8 +3230,7 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video Reviews</h2>
           {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
-        <a href={`${APP_URL.feedback}/video-review`} target="_blank" rel="noopener noreferrer"
-          className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
+        <MoreDetails href={`${APP_URL.feedback}/video-review`} />
       </div>
       <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
         <table className="w-full text-sm">
@@ -3355,10 +3362,7 @@ function Section({
           {headerExtra}
         </div>
         {href && (
-          <a href={href} target="_blank" rel="noopener noreferrer"
-            className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
-            More details →
-          </a>
+          <MoreDetails href={href} />
         )}
       </div>
       {tiles.length ? (
