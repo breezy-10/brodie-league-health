@@ -982,8 +982,13 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
           { text: `across ${ov.locations} location${ov.locations === 1 ? "" : "s"}` },
           ...(weekly ? wowCount(ov.total_players, k.prev?.total_players, when) : []),
         ],
+        // Active out of overdue, per venue. A bare count of who owes does not
+        // separate a venue chasing people who have stopped coming from one
+        // whose debtors are on the court every week — red says somebody played
+        // while owing, amber says the money is owed by people no longer
+        // turning up.
         pills: byLoc.map((l) => ({
-          text: `${l.location} (${l.players})`,
+          text: `${l.location} ${l.checked_players}/${l.players} (${l.players ? Math.round((100 * l.checked_players) / l.players) : 0}%)`,
           tone: (l.checked_players > 0 ? "bad" : "warn") as Tone,
           sortValue: l.players,
         })),
