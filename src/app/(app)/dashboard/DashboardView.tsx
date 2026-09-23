@@ -344,34 +344,59 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   ];
 }
 
+// When the selected season started, per the stats app — the same table
+// resolveScope reads to decide which season is being played.
+async function seasonStartDate(season: string): Promise<string | null> {
+  if (!sourceConfigured("stats_health")) return null;
+  try {
+    const st = sourceClient("stats_health")!;
+    const { data } = await st.from("seasons").select("name, start_date");
+    const want = seasonKey(season);
+    const row = ((data ?? []) as { name: string | null; start_date: string | null }[])
+      .find((r) => r.name && seasonKey(r.name) === want);
+    return row?.start_date ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Game day checklists: one per venue per night, generated from the published
-// schedule. Health here is "did the night actually get worked", so it reads the
-// last seven nights rather than a season total — a season figure would be
-// dominated by nights that have not happened yet.
+// schedule. Health here is "did the night actually get worked", so it only ever
+// reads nights that have happened — a window running to today, never past it,
+// or the figures drown in nights nobody could have worked yet.
+//
+// The window follows the tab: the selected Saturday-Friday week on Weekly
+// review, the season so far on Season review.
 //
 // Scoped to seasons.kind = 'lm_game_day'; the season/onboarding checklists are
 // counted by loadChecklistTiles above and must not be mixed in.
-async function loadGameDayTiles(scope: Scope): Promise<Tile[] | null> {
+async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): Promise<Tile[] | null> {
   if (!sourceConfigured("checklist")) return null;
   const sb = sourceClient("checklist")!;
 
-  const [locIds, { data: seasons }, { data: clLocs }] = await Promise.all([
+  const today = ymd(new Date());
+  const wks = [...weeks].sort();
+  // A week runs Saturday to Friday; the season runs from its own start date,
+  // which the stats app holds. Either way the window stops at today.
+  const lastDay = wks.length ? addDaysIso(wks[wks.length - 1], 6) : today;
+  const [locIds, { data: seasons }, { data: clLocs }, seasonStart] = await Promise.all([
     sourceLocationIds("checklist", scope),
     sb.from("seasons").select("id, location_id, opening_night").eq("kind", "lm_game_day"),
     sb.from("locations").select("id, name"),
+    wks.length ? Promise.resolve(null) : seasonStartDate(season),
   ]);
   type Night = { id: string; location_id: string | null; opening_night: string };
   const locSet = locIds ? new Set(locIds) : null;
   const nameById = new Map(((clLocs ?? []) as { id: string; name: string }[]).map((l) => [l.id, l.name]));
 
-  const today = ymd(new Date());
-  const weekAgo = ymd(new Date(Date.now() - 6 * 86400000));
+  const from = wks.length ? wks[0] : seasonStart ?? "0000-01-01";
+  const to = lastDay < today ? lastDay : today;
   const nights = ((seasons ?? []) as Night[])
-    .filter((n) => !locSet || (n.location_id != null && locSet.has(n.location_id)));
+    .filter((n) => !locSet || (n.location_id != null && locSet.has(n.location_id)))
+    .filter((n) => n.opening_night >= from && n.opening_night <= to);
 
-  const tonight = nights.filter((n) => n.opening_night === today);
-  const recent = nights.filter((n) => n.opening_night >= weekAgo && n.opening_night <= today);
-  const ids = [...new Set([...tonight, ...recent].map((n) => n.id))];
+  const recent = nights;
+  const ids = [...new Set(recent.map((n) => n.id))];
 
   // Only the nights in play — a checklist per night per venue runs past the
   // 1000-row read cap fast if every night is pulled.
@@ -387,7 +412,6 @@ async function loadGameDayTiles(scope: Scope): Promise<Tile[] | null> {
     return { done, total: rows.length, pct: rows.length ? Math.round((100 * done) / rows.length) : 0 };
   };
 
-  const tonightStats = doneOf(tonight);
   const weekStats = doneOf(recent);
 
   // Blocked over the same window as the card beside it, so the two read off one
@@ -405,6 +429,19 @@ async function loadGameDayTiles(scope: Scope): Promise<Tile[] | null> {
     blockedByNight.set(key, (blockedByNight.get(key) ?? 0) + 1);
   }
 
+  // Completion venue by venue, since a single percentage over twenty markets
+  // is an average of work nobody is accountable for together. Coloured on the
+  // card's own thresholds, so a venue that is behind reads as behind.
+  const byLoc = new Map<string, { done: number; total: number }>();
+  for (const n of recent) {
+    const name = nameById.get(n.location_id ?? "") ?? "Unknown";
+    const rows = tasks.filter((t) => t.season_id === n.id);
+    const cur = byLoc.get(name) ?? { done: 0, total: 0 };
+    cur.done += rows.filter((t) => t.status === "done" || t.status === "skipped").length;
+    cur.total += rows.length;
+    byLoc.set(name, cur);
+  }
+
   // A night that finished with nothing ticked is the thing worth chasing.
   const untouched = recent
     .filter((n) => n.opening_night < today)
@@ -412,22 +449,24 @@ async function loadGameDayTiles(scope: Scope): Promise<Tile[] | null> {
     .map((n) => `${nameById.get(n.location_id ?? "") ?? "Unknown"} · ${n.opening_night}`)
     .sort();
 
+  const none = wks.length ? "no game nights in the selected week" : "no game nights yet this season";
+  const nightsSub = `${recent.length} night${recent.length === 1 ? "" : "s"}`;
   return [
-    tonight.length === 0
-      ? { label: "Tonight", value: "—", sub: "no games scheduled", subInline: true, tone: "ok" }
-      : {
-          label: "Tonight",
-          value: `${tonightStats.pct}%`,
-          sub: `${tonightStats.done} / ${tonightStats.total} tasks · ${tonight.length} venue${tonight.length === 1 ? "" : "s"}`,
-          tone: tonightStats.pct >= 100 ? "ok" : tonightStats.pct > 0 ? "warn" : "bad",
-        },
     {
-      label: "Last 7 nights",
+      label: "Tasks complete",
       value: recent.length ? `${weekStats.pct}%` : "—",
-      sub: recent.length
-        ? `${weekStats.done} / ${weekStats.total} tasks · ${recent.length} night${recent.length === 1 ? "" : "s"}`
-        : "no game nights in the last week",
+      sub: recent.length ? `${weekStats.done} / ${weekStats.total} tasks · ${nightsSub}` : none,
       tone: !recent.length ? "ok" : weekStats.pct >= 90 ? "ok" : weekStats.pct >= 50 ? "warn" : "bad",
+      pills: [...byLoc.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([name, v]) => {
+          const pct = v.total ? Math.round((100 * v.done) / v.total) : 0;
+          return {
+            text: `${name} ${v.done}/${v.total} (${pct}%)`,
+            tone: (pct >= 90 ? "ok" : pct >= 50 ? "warn" : "bad") as Tone,
+          };
+        }),
+      pillsEmpty: none,
     },
     {
       label: "% blocked",
@@ -435,9 +474,7 @@ async function loadGameDayTiles(scope: Scope): Promise<Tile[] | null> {
       // a whole percent, and zero is exactly what this card must not say while
       // anything is stuck.
       value: recent.length ? `${blockedPct.toFixed(1)}%` : "—",
-      sub: recent.length
-        ? `${blockedRows.length} / ${weekStats.total} tasks · ${recent.length} night${recent.length === 1 ? "" : "s"}`
-        : "no game nights in the last week",
+      sub: recent.length ? `${blockedRows.length} / ${weekStats.total} tasks · ${nightsSub}` : none,
       tone: !recent.length || !blockedRows.length ? "ok" : blockedPct >= 5 ? "bad" : "warn",
       pills: [...blockedByNight.entries()]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -1730,11 +1767,13 @@ async function VideoReviewCards({ scope, weeks, weekTag }: { scope: Scope; weeks
   const d = await loadVideoReviews(scope, weeks);
   return d && d.weeks.length > 0 ? <VideoReviewsSection data={d} titleSuffix={weekTag} /> : null;
 }
-async function GameDayCards({ scope, fullTag }: { scope: Scope; fullTag?: string }) {
-  const tiles = await loadGameDayTiles(scope);
+async function GameDayCards({ scope, season, weeks, tag }: {
+  scope: Scope; season: string; weeks: string[]; tag?: string;
+}) {
+  const tiles = await loadGameDayTiles(scope, season, weeks);
   return tiles
-    ? <Section title="LM Game Day Checklist" scopeTag={fullTag}
-        href={`${APP_URL.checklist}/checklists?kind=lm_game_day`} tiles={tiles} />
+    ? <Section title="LM Game Day Checklist" scopeTag={tag}
+        href={`${APP_URL.checklist}/checklists?kind=lm_game_day`} tiles={tiles} cols={3} />
     : null;
 }
 async function TrainingCards({ scope, fullTag }: { scope: Scope; fullTag?: string }) {
@@ -2490,7 +2529,8 @@ export default async function DashboardView({
               <VideoReviewCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="LM Game Day Checklist" />}>
-              <GameDayCards scope={scope} fullTag={fullTag} />
+              <GameDayCards scope={scope} season={selectedSeason} weeks={activeWeeks}
+                tag={isWeekly ? weekTag : fullTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Training" />}>
               <TrainingCards scope={scope} fullTag={fullTag} />
@@ -3089,9 +3129,10 @@ function Section({
   // Scope note beside the heading ("(Weekly)"), set smaller and muted so it
   // reads as a label rather than part of the title.
   scopeTag?: string;
-  // Sections with more than four tiles can ask for a wider grid so the row
-  // doesn't wrap. Class names are spelled out because Tailwind scans literals.
-  cols?: 4 | 6;
+  // Sections with more or fewer than four tiles can ask for a different grid so
+  // the row neither wraps nor leaves a hole. Class names are spelled out
+  // because Tailwind scans literals.
+  cols?: 3 | 4 | 6;
 }) {
   return (
     <section className="space-y-3">
@@ -3123,7 +3164,9 @@ function Section({
       {tiles.length ? (
         <div className={cols === 6
           ? "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6"
-          : "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}>
+          : cols === 3
+            ? "grid gap-3 grid-cols-1 md:grid-cols-3"
+            : "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}>
           {tiles.map((t, i) => <StatTile key={i} {...t} />)}
         </div>
       ) : (
