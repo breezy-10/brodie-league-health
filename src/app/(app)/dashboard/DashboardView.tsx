@@ -9,7 +9,7 @@ import { ymd } from "@/lib/source-apps/util";
 import { canonicalLocation, loadActiveLMs, locParam, resolveScope, seasonKey, shortSeason } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "./Filters";
 import { BasisToggle } from "./BasisToggle";
-import PillList from "./PillList";
+import StatTile, { type Tile, type Tone } from "./StatTile";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -31,32 +31,6 @@ const APP_URL: Record<string, string> = {
   overdue: "https://brodie-overdue-payments.vercel.app",
 };
 
-type Tone = "default" | "ok" | "warn" | "bad";
-type Tile = {
-  label: string;
-  value: string;
-  unit?: string;
-  sub?: string;
-  // Render `sub` beside the value instead of on its own line below it.
-  subInline?: boolean;
-  // Sits just after the unit, in the value's own colour — a ratio read as a share.
-  valueSuffix?: string;
-  lines?: { text: string; strong?: boolean; chip?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
-  tone?: Tone;
-  link?: { href: string; label: string };
-  // A second headline number on the right of the same card, set at the same
-  // size as the main value, with its own small label and follow-up lines.
-  corner?: { label: string; value: string; color?: string; lines?: { text: string; color?: string }[] };
-  // Named items behind the number — rendered as wrapped chips, tinted by tone.
-  // sortValue is what "largest first" means for that chip — a count, a share,
-  // a balance, an elapsed time. Without it a chip can only be ordered A-Z,
-  // since the number is inside its text.
-  pills?: (string | { text: string; tone?: Tone; sortValue?: number })[];
-  pillsEmpty?: string;
-  // Defaults to the card's tone; set when the chips mean something different
-  // from the headline (an amber card listing red gaps).
-  pillTone?: Tone;
-};
 
 type SnapRow = {
   raw_value: number | null;
@@ -750,7 +724,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       spare_appearances: number; spare_games: number;
       stat_delivery_ms: number | null; stat_delivery_n: number;
       forfeits?: number; pending_review?: number; prev_forfeits?: number | null;
-      forfeits_by_location?: { location: string; forfeits: number }[];
+      forfeits_by_location?: { location: string; day?: string; forfeits: number }[];
       prev_stats_completion_pct?: number | null;
       prev_full_recording_pct?: number | null;
       prev_stat_delivery_ms?: number | null;
@@ -824,24 +798,23 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         } : {}),
       },
       {
-        // A forfeited night is a night that did not happen: no stats to
-        // collect, nothing recorded, and a venue full of people who turned up
-        // for nothing. It was a figure in the corner of the card next door,
-        // which is not where you look for the worst thing on the row.
-        label: "Forfeits", value: k.forfeits == null ? "—" : n(k.forfeits),
-        tone: k.forfeits ? "bad" : "ok",
+        label: "Stat delivery time", value: k.stat_delivery_ms == null ? "—" : fmtElapsed(k.stat_delivery_ms),
+        tone: "default",
         lines: [
-          // Fewer forfeits is better, so the delta's colours invert.
-          ...(k.prev_forfeits != null ? [{ text: `prev week ${n(k.prev_forfeits)}` }] : []),
-          ...(fDelta != null ? [{ text: `${fDelta > 0 ? "+" : ""}${fDelta}`, color: upColor(-fDelta) }] : []),
+          ...wowElapsed(k.stat_delivery_ms, k.prev_stat_delivery_ms),
+          { text: `${n(k.stat_delivery_n)} games processed` },
         ],
-        ...(k.forfeits_by_location ? {
-          pills: k.forfeits_by_location.map((r) => ({
-            text: `${r.location} (${r.forfeits})`,
-            tone: "bad" as const,
-            sortValue: r.forfeits,
+        // Against the league average rather than a fixed target: what counts as
+        // slow here depends on the season everyone is having.
+        ...(k.delivery_by_location ? {
+          pills: k.delivery_by_location.map((r) => ({
+            text: `${r.location} ${fmtElapsed(r.ms)} (${r.games})`,
+            sortValue: r.ms,
+            tone: (k.stat_delivery_ms == null ? "default"
+              : r.ms <= k.stat_delivery_ms ? "ok"
+                : r.ms <= k.stat_delivery_ms * 1.5 ? "warn" : "bad") as Tone,
           })),
-          pillsEmpty: "no forfeits",
+          pillsEmpty: "nothing submitted yet",
         } : {}),
       },
       {
@@ -867,23 +840,27 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         link: { href: "https://brodie-stats-health.vercel.app", label: "See games with spares →" },
       },
       {
-        label: "Stat delivery time", value: k.stat_delivery_ms == null ? "—" : fmtElapsed(k.stat_delivery_ms),
-        tone: "default",
+        // A forfeited night is a night that did not happen: no stats to
+        // collect, nothing recorded, and a venue full of people who turned up
+        // for nothing. It was a figure in the corner of the card next door,
+        // which is not where you look for the worst thing on the row.
+        label: "Forfeits", value: k.forfeits == null ? "—" : n(k.forfeits),
+        tone: k.forfeits ? "bad" : "ok",
         lines: [
-          ...wowElapsed(k.stat_delivery_ms, k.prev_stat_delivery_ms),
-          { text: `${n(k.stat_delivery_n)} games processed` },
+          // Fewer forfeits is better, so the delta's colours invert.
+          ...(k.prev_forfeits != null ? [{ text: `prev week ${n(k.prev_forfeits)}` }] : []),
+          ...(fDelta != null ? [{ text: `${fDelta > 0 ? "+" : ""}${fDelta}`, color: upColor(-fDelta) }] : []),
         ],
-        // Against the league average rather than a fixed target: what counts as
-        // slow here depends on the season everyone is having.
-        ...(k.delivery_by_location ? {
-          pills: k.delivery_by_location.map((r) => ({
-            text: `${r.location} ${fmtElapsed(r.ms)} (${r.games})`,
-            sortValue: r.ms,
-            tone: (k.stat_delivery_ms == null ? "default"
-              : r.ms <= k.stat_delivery_ms ? "ok"
-                : r.ms <= k.stat_delivery_ms * 1.5 ? "warn" : "bad") as Tone,
+        ...(k.forfeits_by_location ? {
+          // Venue and night, because a venue is not one job: four forfeits at
+          // Brooklyn (Bushwick) could be one night falling over four times or
+          // four nights falling over once.
+          pills: k.forfeits_by_location.map((r) => ({
+            text: `${r.location}${r.day ? ` ${r.day}` : ""} (${r.forfeits})`,
+            tone: "bad" as const,
+            sortValue: r.forfeits,
           })),
-          pillsEmpty: "nothing submitted yet",
+          pillsEmpty: "no forfeits",
         } : {}),
       },
     ];
@@ -3470,94 +3447,3 @@ function Section({
   );
 }
 
-function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, corner }: Tile) {
-  const color =
-    tone === "ok" ? "rgb(74,222,128)" :
-    tone === "warn" ? "var(--glass-gold)" :
-    tone === "bad" ? "rgb(248,113,113)" : "var(--glass-text)";
-  return (
-    // h-full + column, so a card carrying a button can push it to the floor
-    // rather than leaving it wherever the content above happened to end.
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0 h-full flex flex-col">
-      {/* The corner shares the card's rows rather than stacking beside them:
-          its label sits on the label row, its value on the value row, and its
-          follow-up lines on the first lines below. */}
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
-        {corner && (
-          <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary shrink-0">{corner.label}</div>
-        )}
-      </div>
-      <div className="mt-1.5 flex items-baseline justify-between gap-3">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-2xl font-bold tabular" style={{ color }}>{value}</span>
-          {unit && <span className="text-sm text-glass-text-tertiary">{unit}</span>}
-          {valueSuffix && <span className="text-base font-bold tabular" style={{ color }}>{valueSuffix}</span>}
-          {sub && subInline && <span className="text-[11px] text-glass-text-tertiary leading-snug">{sub}</span>}
-        </div>
-        {corner && (
-          <span className="text-2xl font-bold tabular shrink-0" style={{ color: corner.color ?? "var(--glass-text)" }}>{corner.value}</span>
-        )}
-      </div>
-      {sub && !subInline && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
-      {((lines?.length ?? 0) > 0 || (corner?.lines?.length ?? 0) > 0) && (
-        <div className="mt-2 space-y-0.5 tabular">
-          {Array.from({ length: Math.max(lines?.length ?? 0, corner?.lines?.length ?? 0) }).map((_, i) => {
-            const l = lines?.[i];
-            const c = corner?.lines?.[i];
-            return (
-            // One size for every row, on both sides of a card and across the
-            // row of cards — a card with a corner used to shrink its paired rows.
-            <div key={i} className="text-xs leading-snug flex items-baseline gap-2">
-            <div
-              className="flex items-center gap-1.5 flex-wrap min-w-0"
-              style={{ color: l?.color ?? (l?.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)"), fontWeight: l?.strong ? 600 : 400 }}
-            >
-              {l && (l.chip
-                ? <span className="text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                    style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
-                    {l.text}
-                  </span>
-                : <span>{l.text}</span>)}
-              {l?.pill && (
-                <span
-                  className="text-[11px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                  style={{
-                    color: l.pill.ok ? "rgb(74,222,128)" : "rgb(248,113,113)",
-                    background: l.pill.ok ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)",
-                  }}
-                >
-                  {l.pill.text}
-                </span>
-              )}
-              {l?.after && (
-                <span className="font-normal" style={{ color: l.afterColor ?? "var(--glass-text-tertiary)" }}>{l.after}</span>
-              )}
-            </div>
-            {c && (
-              <span className="ml-auto text-xs tabular whitespace-nowrap shrink-0"
-                style={{ color: c.color ?? "var(--glass-text-tertiary)" }}>{c.text}</span>
-            )}
-            </div>
-            );
-          })}
-        </div>
-      )}
-      {pills && (
-        <PillList
-          pills={pills.map((p) => (typeof p === "string" ? { text: p } : p))}
-          fallbackTone={pillTone ?? tone}
-          empty={pillsEmpty}
-        />
-      )}
-      {link && (
-        <div className="mt-auto pt-3 flex justify-end">
-          <a href={link.href} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center rounded-md border border-glass-gold px-2.5 py-1 text-[11px] sm:text-[10px] uppercase tracking-[0.14em] font-bold text-glass-gold hover:bg-glass-gold hover:text-black transition-colors">
-            {link.label}
-          </a>
-        </div>
-      )}
-    </div>
-  );
-}
