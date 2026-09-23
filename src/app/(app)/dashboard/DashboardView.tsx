@@ -360,6 +360,8 @@ async function seasonStartDate(season: string): Promise<string | null> {
   }
 }
 
+const WEEK_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
 // Game day checklists: one per venue per night, generated from the published
 // schedule. Health here is "did the night actually get worked", so it only ever
 // reads nights that have happened — a window running to today, never past it,
@@ -429,17 +431,28 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
     blockedByNight.set(key, (blockedByNight.get(key) ?? 0) + 1);
   }
 
-  // Completion venue by venue, since a single percentage over twenty markets
-  // is an average of work nobody is accountable for together. Coloured on the
-  // card's own thresholds, so a venue that is behind reads as behind.
-  const byLoc = new Map<string, { done: number; total: number }>();
+  // Completion venue by venue AND night by night. A venue is not one job: a
+  // manager works Monday's checklist and Wednesday's separately, and rolling
+  // them together hid Burlington's Mondays at 48 of 55 behind its Wednesdays at
+  // 24 of 55. Coloured on the card's own thresholds, so a night that is behind
+  // reads as behind.
+  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const dayOf = (iso: string) => {
+    // The date is a plain YYYY-MM-DD; read it as UTC so the weekday does not
+    // shift west of Greenwich.
+    const d = new Date(`${iso}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? "" : DAY_NAMES[d.getUTCDay()];
+  };
+  const byNight = new Map<string, { loc: string; day: string; done: number; total: number }>();
   for (const n of recent) {
-    const name = nameById.get(n.location_id ?? "") ?? "Unknown";
+    const loc = nameById.get(n.location_id ?? "") ?? "Unknown";
+    const day = dayOf(n.opening_night);
+    const key = `${loc} ${day}`;
     const rows = tasks.filter((t) => t.season_id === n.id);
-    const cur = byLoc.get(name) ?? { done: 0, total: 0 };
+    const cur = byNight.get(key) ?? { loc, day, done: 0, total: 0 };
     cur.done += rows.filter((t) => t.status === "done" || t.status === "skipped").length;
     cur.total += rows.length;
-    byLoc.set(name, cur);
+    byNight.set(key, cur);
   }
 
   // A night that finished with nothing ticked is the thing worth chasing.
@@ -457,16 +470,20 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
       value: recent.length ? `${weekStats.pct}%` : "—",
       sub: recent.length ? `${weekStats.done} / ${weekStats.total} tasks · ${nightsSub}` : none,
       tone: !recent.length ? "ok" : weekStats.pct >= 90 ? "ok" : weekStats.pct >= 50 ? "warn" : "bad",
-      pills: [...byLoc.entries()]
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([name, v]) => {
+      // A night with nothing ticked belongs on the card that exists to name
+      // those, not as a row of noughts here.
+      pills: [...byNight.values()]
+        .filter((v) => v.done > 0)
+        .sort((a, b) =>
+          a.loc.localeCompare(b.loc) || WEEK_ORDER.indexOf(a.day) - WEEK_ORDER.indexOf(b.day))
+        .map((v) => {
           const pct = v.total ? Math.round((100 * v.done) / v.total) : 0;
           return {
-            text: `${name} ${v.done}/${v.total} (${pct}%)`,
+            text: `${v.loc} ${v.day} ${v.done}/${v.total} (${pct}%)`,
             tone: (pct >= 90 ? "ok" : pct >= 50 ? "warn" : "bad") as Tone,
           };
         }),
-      pillsEmpty: none,
+      pillsEmpty: recent.length ? "nothing started yet" : none,
     },
     {
       label: "% blocked",
