@@ -331,8 +331,13 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
     {
       label: `Overdue tasks · ${season}`, value: overdue.toLocaleString(),
       sub: "not started, past due", tone: overdue > 0 ? "bad" : "ok",
+      // A-Z, so a venue is found where you expect it rather than wherever its
+      // count put it this week. The two that are not venues sort to the end.
       pills: [...overdueByLoc.entries()]
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .sort((a, b) => {
+          const rank = (n: string) => (n === "Operations" || n === "No location" ? 1 : 0);
+          return rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]);
+        })
         .map(([name, n]) => ({ text: `${name} (${n})`, tone: "bad" as const })),
       pillsEmpty: "nothing past due",
     },
