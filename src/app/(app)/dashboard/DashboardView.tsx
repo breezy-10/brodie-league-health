@@ -903,6 +903,7 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
     const k = (await res.json()) as {
       currency_totals?: { cad: CurTotals; usd: CurTotals };
       overall?: { total_players: number; active_players: number; locations: number };
+      locations?: { location: string; currency: string; players: number; total: number; checked_players: number }[];
       prev?: {
         as_of: string; total_players: number;
         cad: { total_players: number; total_balance: number; active_players: number; active_balance: number };
@@ -958,6 +959,9 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
       ];
     };
     const when = asOf(k.prev?.as_of);
+    // Which venues the debt is at. The feed already breaks itself down this
+    // way; the cards were only ever showing the sum.
+    const byLoc = [...(k.locations ?? [])].sort((a, b) => a.location.localeCompare(b.location));
     const tiles: Tile[] = [
       {
         label: "Total overdue players", value: ov.total_players.toLocaleString(), tone: ov.total_players > 0 ? "bad" : "ok",
@@ -966,6 +970,11 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
           { text: `across ${ov.locations} location${ov.locations === 1 ? "" : "s"}` },
           ...(weekly ? wowCount(ov.total_players, k.prev?.total_players, when) : []),
         ],
+        pills: byLoc.map((l) => ({
+          text: `${l.location} (${l.players})`,
+          tone: (l.checked_players > 0 ? "bad" : "warn") as Tone,
+        })),
+        pillsEmpty: "nobody overdue",
       },
     ];
     const card = (c: CurTotals, cur: string, label: string, prev?: { total_players: number; total_balance: number; active_players: number; active_balance: number }): Tile | null =>
