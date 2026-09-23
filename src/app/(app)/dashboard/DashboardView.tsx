@@ -703,6 +703,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       prev_stats_completion_pct?: number | null;
       prev_full_recording_pct?: number | null;
       prev_stat_delivery_ms?: number | null;
+      completion_by_location?: { location: string; done: number; reported: number; pct: number }[];
       spares_by_location?: { location: string; spares: number; games: number }[];
       delivery_by_location?: { location: string; ms: number; games: number }[];
       recording_by_location?: { location: string; full: number; total: number; pct: number }[];
@@ -761,6 +762,17 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         // The rate's own week-over-week rows lead, so they sit level with the
         // forfeit comparison on the right of the same card.
         lines: [...wowPct(k.stats_completion_pct, k.prev_stats_completion_pct), ...completionLines],
+        // Under the source breakdown: which venues are actually getting stats
+        // in. 96% across the league can still hide a venue at half that.
+        // Banded on the card's own tones — 95 and 85, the thresholds Stats
+        // Health itself uses.
+        ...(k.completion_by_location ? {
+          pills: k.completion_by_location.map((r) => ({
+            text: `${r.location} ${r.done}/${r.reported} (${r.pct}%)`,
+            tone: (r.pct >= 95 ? "ok" : r.pct >= 85 ? "warn" : "bad") as Tone,
+          })),
+          pillsEmpty: "nothing reviewed yet",
+        } : {}),
       },
       {
         label: "Full recording %", value: k.full_recording_pct == null ? "—" : `${k.full_recording_pct}%`,
