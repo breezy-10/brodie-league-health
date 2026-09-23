@@ -750,6 +750,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       spare_appearances: number; spare_games: number;
       stat_delivery_ms: number | null; stat_delivery_n: number;
       forfeits?: number; pending_review?: number; prev_forfeits?: number | null;
+      forfeits_by_location?: { location: string; forfeits: number }[];
       prev_stats_completion_pct?: number | null;
       prev_full_recording_pct?: number | null;
       prev_stat_delivery_ms?: number | null;
@@ -793,24 +794,11 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
     // correctly outside the rate; a pending game just hasn't been reviewed yet,
     // and would otherwise vanish from the card entirely.
     if (k.pending_review) completionLines.push({ text: `${n(k.pending_review)} — not yet reviewed`, color: "var(--glass-gold)" });
-    // Forfeits move to the card's right-hand headline, so they aren't a line.
     const fDelta = k.forfeits != null && k.prev_forfeits != null ? k.forfeits - k.prev_forfeits : null;
-    const forfeitCorner = k.forfeits == null ? undefined : {
-      label: "Forfeits",
-      value: n(k.forfeits),
-      // Fewer forfeits is better, so the delta's colours invert.
-      lines: [
-        ...(k.prev_forfeits != null ? [{ text: `prev week ${n(k.prev_forfeits)}` }] : []),
-        ...(fDelta != null ? [{ text: `${fDelta > 0 ? "+" : ""}${fDelta}`, color: upColor(-fDelta) }] : []),
-      ],
-    };
     return [
       {
         label: "Stats completion rate", value: k.stats_completion_pct == null ? "—" : `${k.stats_completion_pct}%`,
         tone: k.stats_completion_tone ?? (k.stats_completion_pct == null ? "default" : pctTone(k.stats_completion_pct)),
-        corner: forfeitCorner,
-        // The rate's own week-over-week rows lead, so they sit level with the
-        // forfeit comparison on the right of the same card.
         lines: [...wowPct(k.stats_completion_pct, k.prev_stats_completion_pct), ...completionLines],
         // Under the source breakdown: which venues are actually getting stats
         // in. 96% across the league can still hide a venue at half that.
@@ -826,25 +814,24 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         } : {}),
       },
       {
-        label: "Full recording %", value: k.full_recording_pct == null ? "—" : `${k.full_recording_pct}%`,
-        tone: k.full_recording_tone ?? (k.full_recording_pct == null ? "default" : pctTone(k.full_recording_pct)),
-        // Week-over-week leads, as on the completion-rate card, so the same
-        // comparison sits in the same place on every card in the row.
+        // A forfeited night is a night that did not happen: no stats to
+        // collect, nothing recorded, and a venue full of people who turned up
+        // for nothing. It was a figure in the corner of the card next door,
+        // which is not where you look for the worst thing on the row.
+        label: "Forfeits", value: k.forfeits == null ? "—" : n(k.forfeits),
+        tone: k.forfeits ? "bad" : "ok",
         lines: [
-          ...wowPct(k.full_recording_pct, k.prev_full_recording_pct),
-          { text: `${n(k.full)} — full` },
-          { text: `${n(k.incomplete)} — incomplete` },
-          { text: `${n(k.recording_total)} — total` },
+          // Fewer forfeits is better, so the delta's colours invert.
+          ...(k.prev_forfeits != null ? [{ text: `prev week ${n(k.prev_forfeits)}` }] : []),
+          ...(fDelta != null ? [{ text: `${fDelta > 0 ? "+" : ""}${fDelta}`, color: upColor(-fDelta) }] : []),
         ],
-        // Venue by venue on the card's own thresholds, so the one dragging the
-        // average reads as the one dragging it.
-        ...(k.recording_by_location ? {
-          pills: k.recording_by_location.map((r) => ({
-            text: `${r.location} ${r.full}/${r.total} (${r.pct}%)`,
-            tone: (r.pct >= 90 ? "ok" : r.pct >= 60 ? "warn" : "bad") as Tone,
-            sortValue: r.pct,
+        ...(k.forfeits_by_location ? {
+          pills: k.forfeits_by_location.map((r) => ({
+            text: `${r.location} (${r.forfeits})`,
+            tone: "bad" as const,
+            sortValue: r.forfeits,
           })),
-          pillsEmpty: "no recordings yet",
+          pillsEmpty: "no forfeits",
         } : {}),
       },
       {
