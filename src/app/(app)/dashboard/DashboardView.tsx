@@ -3384,7 +3384,9 @@ function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone
     tone === "warn" ? "var(--glass-gold)" :
     tone === "bad" ? "rgb(248,113,113)" : "var(--glass-text)";
   return (
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
+    // h-full + column, so a card carrying a button can push it to the floor
+    // rather than leaving it wherever the content above happened to end.
+    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0 h-full flex flex-col">
       {/* The corner shares the card's rows rather than stacking beside them:
           its label sits on the label row, its value on the value row, and its
           follow-up lines on the first lines below. */}
@@ -3478,11 +3480,16 @@ function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone
           </div>
         )
       )}
+      {/* A way out of the card, so it reads as one: bottom right, where a
+          dialog puts its confirm, in the same outline the Users table uses.
+          mt-auto floors it whatever height the row settles at. */}
       {link && (
-        <a href={link.href} target="_blank" rel="noopener noreferrer"
-          className="inline-block mt-2.5 text-xs font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
-          {link.label}
-        </a>
+        <div className="mt-auto pt-3 flex justify-end">
+          <a href={link.href} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center rounded-md border border-glass-gold px-2.5 py-1 text-[11px] sm:text-[10px] uppercase tracking-[0.14em] font-bold text-glass-gold hover:bg-glass-gold hover:text-black transition-colors">
+            {link.label}
+          </a>
+        </div>
       )}
     </div>
   );
