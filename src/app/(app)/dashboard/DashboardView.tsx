@@ -9,6 +9,7 @@ import { ymd } from "@/lib/source-apps/util";
 import { canonicalLocation, loadActiveLMs, locParam, resolveScope, seasonKey, shortSeason } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "./Filters";
 import { BasisToggle } from "./BasisToggle";
+import PillList from "./PillList";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -2038,41 +2039,36 @@ async function VideoReviewCards({ scope, weeks, weekTag }: { scope: Scope; weeks
   const d = await loadVideoReviews(scope, weeks);
   return d && d.weeks.length > 0 ? <VideoReviewsSection data={d} titleSuffix={weekTag} /> : null;
 }
-async function GameDayCards({ scope, season, weeks, tag, sort }: {
-  scope: Scope; season: string; weeks: string[]; tag?: string; sort?: string;
+async function GameDayCards({ scope, season, weeks, tag }: {
+  scope: Scope; season: string; weeks: string[]; tag?: string;
 }) {
   const tiles = await loadGameDayTiles(scope, season, weeks);
   return tiles
     ? <Section title="LM Game Day Checklist" scopeTag={tag}
-        href={`${APP_URL.checklist}/checklists?kind=lm_game_day`} tiles={tiles} cols={3}
-        sortParam="sortGameday" sortValue={sort} />
+        href={`${APP_URL.checklist}/checklists?kind=lm_game_day`} tiles={tiles} cols={3} />
     : null;
 }
-async function TrainingCards({ scope, fullTag, sort }: { scope: Scope; fullTag?: string; sort?: string }) {
+async function TrainingCards({ scope, fullTag }: { scope: Scope; fullTag?: string }) {
   const tiles = await loadTrainingTiles(scope);
-  return tiles ? <Section title="Training" scopeTag={fullTag} href={APP_URL.training} tiles={tiles}
-    sortParam="sortTraining" sortValue={sort} /> : null;
+  return tiles ? <Section title="Training" scopeTag={fullTag} href={APP_URL.training} tiles={tiles} /> : null;
 }
-async function StatsHealthCards({ season, scope, weeks, weekTag, sort }: { season: string; scope: Scope; weeks?: string; weekTag?: string; sort?: string }) {
+async function StatsHealthCards({ season, scope, weeks, weekTag }: { season: string; scope: Scope; weeks?: string; weekTag?: string }) {
   const tiles = await loadStatsTiles(season, scope, weeks);
   return <Section title="Stats Health" scopeTag={weekTag} href={APP_URL.stats_health}
-    sortParam="sortStats" sortValue={sort}
     tiles={tiles ?? SAMPLE.stats_health} sample={!tiles} emptyNote="Not tracked for the selected locations." />;
 }
-async function ContentHealthCards({ season, scope, weeks, weekTag, sort }: { season: string; scope: Scope; weeks?: string; weekTag?: string; sort?: string }) {
+async function ContentHealthCards({ season, scope, weeks, weekTag }: { season: string; scope: Scope; weeks?: string; weekTag?: string }) {
   const tiles = await loadContentTiles(season, scope, weeks);
   return <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health}
-    sortParam="sortContent" sortValue={sort}
     tiles={tiles ?? SAMPLE.content} sample={!tiles} emptyNote="Not tracked for the selected locations." />;
 }
-async function FeedbackCards({ season, scope, fullTag, sort }: { season: string; scope: Scope; fullTag?: string; sort?: string }) {
+async function FeedbackCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
   const tiles = await loadFeedbackTiles(season, scope);
   return <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback}
-    sortParam="sortFeedback" sortValue={sort}
     tiles={tiles ?? SAMPLE.feedback} sample={!tiles} />;
 }
-async function OverdueCards({ season, scope, fullTag, weekly = false, nextSeason, onNext = false, sort }: {
-  season: string; scope: Scope; fullTag?: string; weekly?: boolean; sort?: string;
+async function OverdueCards({ season, scope, fullTag, weekly = false, nextSeason, onNext = false }: {
+  season: string; scope: Scope; fullTag?: string; weekly?: boolean;
   // The season being registered for. Debt builds there before it is anyone's
   // job to chase it, so the section can be read either way round.
   nextSeason?: string; onNext?: boolean;
@@ -2086,7 +2082,6 @@ async function OverdueCards({ season, scope, fullTag, weekly = false, nextSeason
   // one live number among three invented ones.
   const all = tiles && forfeit ? [...tiles, forfeit] : tiles;
   return <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue}
-    sortParam="sortOverdue" sortValue={sort}
     tiles={all ?? SAMPLE.overdue} sample={!tiles}
     headerExtra={nextSeason && nextSeason !== season ? (
       <BasisToggle
@@ -2345,8 +2340,7 @@ export default async function DashboardView({
 }: {
   searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string;
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string;
-    sortChecklist?: string; sortGameday?: string; sortStats?: string; sortContent?: string;
-    sortFeedback?: string; sortOverdue?: string; sortTraining?: string }>;
+    }>;
   mode?: "full" | "registrations" | "weekly";
   showViewTabs?: boolean;
 }) {
@@ -2354,8 +2348,7 @@ export default async function DashboardView({
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
   const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
-    overdueSeason, regsSeason, promoSeason, bookingSeason,
-    sortChecklist, sortGameday, sortStats, sortContent, sortFeedback, sortOverdue, sortTraining } = await searchParams;
+    overdueSeason, regsSeason, promoSeason, bookingSeason } = await searchParams;
   // Every filter accepts a comma-separated list, so several seasons, weeks,
   // locations and league managers can be selected at once.
   const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
@@ -2643,8 +2636,7 @@ export default async function DashboardView({
 
       <div className="space-y-8">
         {!isReg && (
-          <Section title="Season Success Checklist" scopeTag={fullTag} href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} cols={6}
-            sortParam="sortChecklist" sortValue={sortChecklist} />
+          <Section title="Season Success Checklist" scopeTag={fullTag} href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} cols={6} />
         )}
         {pacing && pacingCurrent ? (
           <section className="space-y-3">
@@ -2813,23 +2805,23 @@ export default async function DashboardView({
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="LM Game Day Checklist" />}>
               <GameDayCards scope={scope} season={selectedSeason} weeks={activeWeeks}
-                tag={isWeekly ? weekTag : fullTag} sort={sortGameday} />
+                tag={isWeekly ? weekTag : fullTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Training" />}>
-              <TrainingCards scope={scope} fullTag={fullTag} sort={sortTraining} />
+              <TrainingCards scope={scope} fullTag={fullTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Stats Health" />}>
-              <StatsHealthCards season={seasonsParam} scope={scope} weeks={weeksParam} weekTag={weekTag} sort={sortStats} />
+              <StatsHealthCards season={seasonsParam} scope={scope} weeks={weeksParam} weekTag={weekTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Content Health" />}>
-              <ContentHealthCards season={seasonsParam} scope={scope} weeks={weeksParam} weekTag={weekTag} sort={sortContent} />
+              <ContentHealthCards season={seasonsParam} scope={scope} weeks={weeksParam} weekTag={weekTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Feedback" />}>
-              <FeedbackCards season={selectedSeason} scope={scope} fullTag={fullTag} sort={sortFeedback} />
+              <FeedbackCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Overdue Payments" />}>
               <OverdueCards season={selectedSeason} scope={scope} fullTag={fullTag} weekly={isWeekly}
-                nextSeason={regSeason} onNext={overdueSeason === "next"} sort={sortOverdue} />
+                nextSeason={regSeason} onNext={overdueSeason === "next"} />
             </Suspense>
             <Suspense fallback={<TableSkeleton title="Facility Bookings" rows={6} />}>
               <BookingCards season={bookingSeasonName} scope={scope} fullTag={fullTag}
@@ -3421,8 +3413,6 @@ function Section({
   seasonTag,
   scopeTag,
   headerExtra,
-  sortParam,
-  sortValue,
   cols = 4,
 }: {
   title: string;
@@ -3431,11 +3421,6 @@ function Section({
   // Sits beside the heading — a control that belongs to this section alone,
   // rather than to the filter bar every section shares.
   headerExtra?: ReactNode;
-  // Orders every chip list in the section: A-Z, or largest first. Per section
-  // rather than per card, so one click reorders what you are reading instead
-  // of putting a control on every card.
-  sortParam?: string;
-  sortValue?: string;
   sample?: boolean;
   // Shown instead of the "coming soon" line when the section has no tiles
   // because the source does not cover the selected locations.
@@ -3469,16 +3454,7 @@ function Section({
           )}
           {headerExtra}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {sortParam && (
-            <BasisToggle
-              param={sortParam}
-              value={sortValue === "size" ? "size" : "az"}
-              options={[{ value: "az", label: "A–Z" }, { value: "size", label: "Largest" }]}
-            />
-          )}
-          {href && <MoreDetails href={href} />}
-        </div>
+        {href && <MoreDetails href={href} />}
       </div>
       {tiles.length ? (
         <div className={cols === 6
@@ -3486,7 +3462,7 @@ function Section({
           : cols === 3
             ? "grid gap-3 grid-cols-1 md:grid-cols-3"
             : "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}>
-          {tiles.map((t, i) => <StatTile key={i} {...t} pillOrder={sortValue === "size" ? "size" : "az"} />)}
+          {tiles.map((t, i) => <StatTile key={i} {...t} />)}
         </div>
       ) : (
         <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
@@ -3497,7 +3473,7 @@ function Section({
   );
 }
 
-function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, corner, pillOrder = "az" }: Tile & { pillOrder?: "az" | "size" }) {
+function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, corner }: Tile) {
   const color =
     tone === "ok" ? "rgb(74,222,128)" :
     tone === "warn" ? "var(--glass-gold)" :
@@ -3571,43 +3547,12 @@ function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone
         </div>
       )}
       {pills && (
-        pills.length === 0 ? (
-          pillsEmpty ? <div className="mt-2 text-[11px] italic text-glass-text-tertiary">{pillsEmpty}</div> : null
-        ) : (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {[...pills].sort((a, b) => {
-              if (pillOrder !== "size") return 0;   // already built A-Z
-              const v = (x: typeof a) => (typeof x === "string" ? null : x.sortValue ?? null);
-              const av = v(a), bv = v(b);
-              if (av == null || bv == null) return 0;
-              return bv - av;
-            }).map((p) => {
-              const text = typeof p === "string" ? p : p.text;
-              const chipTone = (typeof p === "string" ? undefined : p.tone) ?? pillTone ?? tone;
-              const style =
-                chipTone === "bad"
-                  ? { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }
-                  : chipTone === "warn"
-                    ? { color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }
-                    : chipTone === "ok"
-                      ? { color: "rgb(74,222,128)", borderColor: "rgba(74,222,128,0.35)", background: "rgba(74,222,128,0.10)" }
-                      : { color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" };
-              return (
-                // max-w-full, and no nowrap: a chip naming three venues and two
-                // people is wider than a quarter-width card, and it used to run
-                // off the edge with the end of the list unreadable. Short chips
-                // still sit on one line — they fit.
-                <span key={text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full" style={style}>
-                  {text}
-                </span>
-              );
-            })}
-          </div>
-        )
+        <PillList
+          pills={pills.map((p) => (typeof p === "string" ? { text: p } : p))}
+          fallbackTone={pillTone ?? tone}
+          empty={pillsEmpty}
+        />
       )}
-      {/* A way out of the card, so it reads as one: bottom right, where a
-          dialog puts its confirm, in the same outline the Users table uses.
-          mt-auto floors it whatever height the row settles at. */}
       {link && (
         <div className="mt-auto pt-3 flex justify-end">
           <a href={link.href} target="_blank" rel="noopener noreferrer"
