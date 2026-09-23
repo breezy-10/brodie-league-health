@@ -1183,15 +1183,20 @@ async function loadTrainingOutstanding(scope: Scope): Promise<Map<string, { loc:
       for (const u of userRows) {
         if (!assigned.has(u.id) || done.has(u.id)) continue;
         const names = locsOf(u);
-        // Somebody covering several venues is outstanding at each of them, and
-        // says so in brackets, so the same name in two cards reads as one
-        // person rather than two.
+        // One row per person, filed under the first venue they cover, with the
+        // rest in brackets. Listing them under each venue said the same thing
+        // three times over and read as three people with the same name.
         const label = (u.full_name || u.email || "Unknown")
           + (names.length > 1 ? ` (${names.join(", ")})` : "");
-        for (const n of names.length ? names : ["No location"]) {
-          if (!byLoc.has(n)) byLoc.set(n, []);
-          byLoc.get(n)!.push(label);
-        }
+        // Under a location filter, the first venue they cover THAT THE VIEW
+        // ASKED FOR — otherwise someone covering Burnaby and Surrey would file
+        // under Burnaby in a view scoped to Surrey alone.
+        const visible = scope.locationNames?.length
+          ? names.filter((n) => scope.locationNames!.some((w) => sameLocation(w, n)))
+          : names;
+        const home = (visible.length ? visible : names)[0] ?? "No location";
+        if (!byLoc.has(home)) byLoc.set(home, []);
+        byLoc.get(home)!.push(label);
       }
       out.set(m.title.toLowerCase(), [...byLoc.entries()]
         .sort((a, b) => (a[0] === "No location" ? 1 : 0) - (b[0] === "No location" ? 1 : 0) || a[0].localeCompare(b[0]))
@@ -3425,7 +3430,11 @@ function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone
                       ? { color: "rgb(74,222,128)", borderColor: "rgba(74,222,128,0.35)", background: "rgba(74,222,128,0.10)" }
                       : { color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" };
               return (
-                <span key={text} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap" style={style}>
+                // max-w-full, and no nowrap: a chip naming three venues and two
+                // people is wider than a quarter-width card, and it used to run
+                // off the edge with the end of the list unreadable. Short chips
+                // still sit on one line — they fit.
+                <span key={text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full" style={style}>
                   {text}
                 </span>
               );
