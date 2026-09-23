@@ -775,21 +775,33 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         ],
         // Venue by venue on the card's own thresholds, so the one dragging the
         // average reads as the one dragging it.
-        pills: (k.recording_by_location ?? []).map((r) => ({
-          text: `${r.location} ${r.full}/${r.total} (${r.pct}%)`,
-          tone: (r.pct >= 90 ? "ok" : r.pct >= 60 ? "warn" : "bad") as Tone,
-        })),
-        pillsEmpty: "no recordings yet",
+        ...(k.recording_by_location ? {
+          pills: k.recording_by_location.map((r) => ({
+            text: `${r.location} ${r.full}/${r.total} (${r.pct}%)`,
+            tone: (r.pct >= 90 ? "ok" : r.pct >= 60 ? "warn" : "bad") as Tone,
+          })),
+          pillsEmpty: "no recordings yet",
+        } : {}),
       },
       {
         label: "Spare players", value: n(k.spare_appearances), tone: k.spare_appearances > 0 ? "warn" : "default",
         // The two totals restated the headline and the count of games behind
         // it; where the spares keep being needed is the part anyone can act on.
-        pills: (k.spares_by_location ?? []).map((r) => ({
-          text: `${r.location} (${r.spares})`,
-          tone: "warn" as const,
-        })),
-        pillsEmpty: "no spares used",
+        // Only where the feed actually carries the breakdown, though — an
+        // older one would have this card saying "no spares used" under a
+        // headline of 106.
+        ...(k.spares_by_location ? {
+          pills: k.spares_by_location.map((r) => ({
+            text: `${r.location} (${r.spares})`,
+            tone: "warn" as const,
+          })),
+          pillsEmpty: "no spares used",
+        } : {
+          lines: [
+            { text: `${n(k.spare_games)} — games with spares` },
+            { text: `${n(k.spare_appearances)} — spare appearances` },
+          ],
+        }),
         link: { href: "https://brodie-stats-health.vercel.app", label: "See games with spares →" },
       },
       {
@@ -801,13 +813,15 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         ],
         // Against the league average rather than a fixed target: what counts as
         // slow here depends on the season everyone is having.
-        pills: (k.delivery_by_location ?? []).map((r) => ({
-          text: `${r.location} ${fmtElapsed(r.ms)} (${r.games})`,
-          tone: (k.stat_delivery_ms == null ? "default"
-            : r.ms <= k.stat_delivery_ms ? "ok"
-              : r.ms <= k.stat_delivery_ms * 1.5 ? "warn" : "bad") as Tone,
-        })),
-        pillsEmpty: "nothing submitted yet",
+        ...(k.delivery_by_location ? {
+          pills: k.delivery_by_location.map((r) => ({
+            text: `${r.location} ${fmtElapsed(r.ms)} (${r.games})`,
+            tone: (k.stat_delivery_ms == null ? "default"
+              : r.ms <= k.stat_delivery_ms ? "ok"
+                : r.ms <= k.stat_delivery_ms * 1.5 ? "warn" : "bad") as Tone,
+          })),
+          pillsEmpty: "nothing submitted yet",
+        } : {}),
       },
     ];
   } catch {
