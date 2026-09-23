@@ -290,10 +290,8 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
       .filter((n) => !rows.some((l) => sameLocation(n, l.name) && withChecklist.has(l.id)))
       .sort((a, b) => a.localeCompare(b));
   }
-  const { data } = ids.length
-    ? await sb.from("season_tasks").select("season_id, status, due_date").in("season_id", ids)
-    : { data: [] as { season_id: string; status: string; due_date: string | null }[] };
-  const list = (data ?? []) as { season_id: string; status: string; due_date: string | null }[];
+  const list = await readSeasonTasks<{ season_id: string; status: string; due_date: string | null }>(
+    sb, "season_id, status, due_date", ids);
   const total = list.length;
   const done = list.filter((t) => t.status === "done").length;
   const today = ymd(new Date());
@@ -360,6 +358,31 @@ async function seasonStartDate(season: string): Promise<string | null> {
   }
 }
 
+// Supabase returns at most 1,000 rows from a select and says nothing about it,
+// so both checklist cards were reporting a slice of their own season: the game
+// day card read 607 of 1,871 tasks across 37 of 69 nights, and the season
+// checklist 491 of 1,533 — each landing on a suspiciously round 1,000 total.
+// Every figure downstream (the percentage, the per-night chips, blocked,
+// nights not started) was computed off whichever thousand rows came back.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+async function readSeasonTasks<T>(sb: any, cols: string, ids: string[]): Promise<T[]> {
+  const out: T[] = [];
+  // The id list is chunked too: a season's worth of nights makes an .in() long
+  // enough to strain the query string.
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    for (let from = 0; from < 100_000; from += 1000) {
+      const { data, error } = await sb.from("season_tasks").select(cols)
+        .in("season_id", chunk).order("id").range(from, from + 999);
+      if (error || !data) break;
+      out.push(...(data as T[]));
+      if (data.length < 1000) break;
+    }
+  }
+  return out;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 const WEEK_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 // Game day checklists: one per venue per night, generated from the published
@@ -400,12 +423,9 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
   const recent = nights;
   const ids = [...new Set(recent.map((n) => n.id))];
 
-  // Only the nights in play — a checklist per night per venue runs past the
-  // 1000-row read cap fast if every night is pulled.
-  const { data: taskRows } = ids.length
-    ? await sb.from("season_tasks").select("season_id, status").in("season_id", ids)
-    : { data: [] as { season_id: string; status: string }[] };
-  const tasks = (taskRows ?? []) as { season_id: string; status: string }[];
+  // Only the nights in play, and read in pages: a checklist per night per venue
+  // runs past the 1,000-row cap several times over in a season.
+  const tasks = await readSeasonTasks<{ season_id: string; status: string }>(sb, "season_id, status", ids);
 
   const doneOf = (list: Night[]) => {
     const set = new Set(list.map((n) => n.id));
@@ -423,13 +443,6 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
   const recentIds = new Set(recent.map((n) => n.id));
   const blockedRows = tasks.filter((t) => recentIds.has(t.season_id) && t.status === "blocked");
   const blockedPct = weekStats.total ? Math.round((1000 * blockedRows.length) / weekStats.total) / 10 : 0;
-  const blockedByNight = new Map<string, number>();
-  for (const t of blockedRows) {
-    const n = recent.find((x) => x.id === t.season_id);
-    if (!n) continue;
-    const key = `${nameById.get(n.location_id ?? "") ?? "Unknown"} · ${n.opening_night}`;
-    blockedByNight.set(key, (blockedByNight.get(key) ?? 0) + 1);
-  }
 
   // Completion venue by venue AND night by night. A venue is not one job: a
   // manager works Monday's checklist and Wednesday's separately, and rolling
@@ -443,17 +456,24 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
     const d = new Date(`${iso}T00:00:00Z`);
     return Number.isNaN(d.getTime()) ? "" : DAY_NAMES[d.getUTCDay()];
   };
-  const byNight = new Map<string, { loc: string; day: string; done: number; total: number }>();
+  const byNight = new Map<string, { loc: string; day: string; done: number; blocked: number; total: number }>();
   for (const n of recent) {
     const loc = nameById.get(n.location_id ?? "") ?? "Unknown";
     const day = dayOf(n.opening_night);
     const key = `${loc} ${day}`;
     const rows = tasks.filter((t) => t.season_id === n.id);
-    const cur = byNight.get(key) ?? { loc, day, done: 0, total: 0 };
+    const cur = byNight.get(key) ?? { loc, day, done: 0, blocked: 0, total: 0 };
     cur.done += rows.filter((t) => t.status === "done" || t.status === "skipped").length;
+    cur.blocked += rows.filter((t) => t.status === "blocked").length;
     cur.total += rows.length;
     byNight.set(key, cur);
   }
+  // Venue and night, worst first by share — the same grouping the completion
+  // chips use, so the two cards describe the same things. A date named one
+  // occurrence of a night that repeats every week; the weekday names the night
+  // itself, which is what gets worked.
+  const nightOrder = (a: { loc: string; day: string }, b: { loc: string; day: string }) =>
+    a.loc.localeCompare(b.loc) || WEEK_ORDER.indexOf(a.day) - WEEK_ORDER.indexOf(b.day);
 
   // A night that finished with nothing ticked is the thing worth chasing.
   const untouched = recent
@@ -462,8 +482,8 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
     .map((n) => `${nameById.get(n.location_id ?? "") ?? "Unknown"} · ${n.opening_night}`)
     .sort();
 
-  const none = wks.length ? "no game nights in the selected week" : "no game nights yet this season";
-  const nightsSub = `${recent.length} night${recent.length === 1 ? "" : "s"}`;
+  const none = wks.length ? "no game days in the selected week" : "no game days yet this season";
+  const nightsSub = `${recent.length} game day${recent.length === 1 ? "" : "s"}`;
   return [
     {
       label: "Tasks complete",
@@ -474,8 +494,7 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
       // those, not as a row of noughts here.
       pills: [...byNight.values()]
         .filter((v) => v.done > 0)
-        .sort((a, b) =>
-          a.loc.localeCompare(b.loc) || WEEK_ORDER.indexOf(a.day) - WEEK_ORDER.indexOf(b.day))
+        .sort(nightOrder)
         .map((v) => {
           const pct = v.total ? Math.round((100 * v.done) / v.total) : 0;
           return {
@@ -493,9 +512,13 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
       value: recent.length ? `${blockedPct.toFixed(1)}%` : "—",
       sub: recent.length ? `${blockedRows.length} / ${weekStats.total} tasks · ${nightsSub}` : none,
       tone: !recent.length || !blockedRows.length ? "ok" : blockedPct >= 5 ? "bad" : "warn",
-      pills: [...blockedByNight.entries()]
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([night, n]) => ({ text: `${night} (${n})`, tone: "bad" as const })),
+      pills: [...byNight.values()]
+        .filter((v) => v.blocked > 0)
+        .sort(nightOrder)
+        .map((v) => ({
+          text: `${v.loc} ${v.day} ${v.blocked}/${v.total} (${v.total ? Math.round((100 * v.blocked) / v.total) : 0}%)`,
+          tone: "bad" as const,
+        })),
       pillsEmpty: "nothing blocked",
     },
     {
