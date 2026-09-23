@@ -1984,10 +1984,15 @@ function weekOptions(count = 16): { value: string; label: string }[] {
 export default async function DashboardView({
   searchParams,
   mode = "full",
+  // The dashboard route hosts both views and names them in tabs, so it keeps
+  // its own heading across the pair. The standalone /weekly-review route is
+  // still its own page with its own title.
+  showViewTabs = false,
 }: {
   searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string;
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string }>;
   mode?: "full" | "registrations" | "weekly";
+  showViewTabs?: boolean;
 }) {
   await requireUser();
   const isReg = mode === "registrations";
@@ -2240,8 +2245,12 @@ export default async function DashboardView({
   return (
     <main className="brodie-fade-in space-y-8">
       <header>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>{isReg ? "Registrations" : isWeekly ? "Weekly review" : "Dashboard"}</p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>{isReg ? "Registration pacing" : isWeekly ? "Weekly review" : "League overview"}</h1>
+        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>
+          {isReg ? "Registrations" : isWeekly && !showViewTabs ? "Weekly review" : "Dashboard"}
+        </p>
+        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
+          {isReg ? "Registration pacing" : isWeekly && !showViewTabs ? "Weekly review" : "League overview"}
+        </h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
           {isReg
             ? <>Teams &amp; athletes at day N of registration for {scopeLabel}, vs the previous season and the previous year.</>
@@ -2249,6 +2258,17 @@ export default async function DashboardView({
               ? <>Cross-app health for {scopeLabel}, scoped to the week of {weekLabel} (Sat–Fri). Registrations, Stats Health &amp; Content Health are week-scoped; other sections show the season to date.</>
               : <>Cross-app health for {scopeLabel}.{snapDate ? ` As of ${snapDate}.` : ""}</>}
         </p>
+        {/* The same control the sections use for their own either/or, so the
+            page reads as one dashboard with two views rather than two pages. */}
+        {showViewTabs && (
+          <div className="mt-3">
+            <BasisToggle
+              param="view"
+              value={isWeekly ? "weekly" : "season"}
+              options={[{ value: "season", label: "Season review" }, { value: "weekly", label: "Weekly review" }]}
+            />
+          </div>
+        )}
       </header>
 
       <Filters
