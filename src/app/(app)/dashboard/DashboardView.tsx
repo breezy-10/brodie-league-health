@@ -754,7 +754,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       prev_stats_completion_pct?: number | null;
       prev_full_recording_pct?: number | null;
       prev_stat_delivery_ms?: number | null;
-      completion_by_location?: { location: string; done: number; reported: number; pct: number }[];
+      completion_by_location?: { location: string; done: number; reported: number; pct: number; livebarn?: number; scoresheet?: number }[];
       spares_by_location?: { location: string; spares: number; games: number }[];
       delivery_by_location?: { location: string; ms: number; games: number }[];
       recording_by_location?: { location: string; full: number; total: number; pct: number }[];
@@ -805,11 +805,21 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
         // Banded on the card's own tones — 95 and 85, the thresholds Stats
         // Health itself uses.
         ...(k.completion_by_location ? {
-          pills: k.completion_by_location.map((r) => ({
-            text: `${r.location} ${r.done}/${r.reported} (${r.pct}%)`,
-            tone: (r.pct >= 95 ? "ok" : r.pct >= 85 ? "warn" : "bad") as Tone,
-            sortValue: r.pct,
-          })),
+          pills: k.completion_by_location.map((r) => {
+            // Where the stream did not do the job. Completion counts a stat as
+            // a stat, so a venue that got its numbers off a scoresheet reads
+            // 100% exactly like one where BallerTV worked — and it is BallerTV
+            // that players actually watch. Only shown where it happened.
+            const fell = [
+              ...(r.livebarn ? [`${r.livebarn} LiveBarn`] : []),
+              ...(r.scoresheet ? [`${r.scoresheet} in-venue`] : []),
+            ];
+            return {
+              text: `${r.location} ${r.done}/${r.reported} (${r.pct}%)${fell.length ? ` · ${fell.join(" · ")}` : ""}`,
+              tone: (r.pct >= 95 ? "ok" : r.pct >= 85 ? "warn" : "bad") as Tone,
+              sortValue: r.pct,
+            };
+          }),
           pillsEmpty: "nothing reviewed yet",
         } : {}),
       },
