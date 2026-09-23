@@ -609,6 +609,7 @@ type ContentCard = {
   post_ms: number | null; post_on_time: boolean | null;
   // Same figures for the previous week; only present in Weekly Review.
   prev?: { rate: number | null; drive_ms: number | null; post_ms: number | null } | null;
+  by_location?: { location: string; delivered: number; hours: number; rate: number | null }[];
 };
 // "0m", "9h 14m", "1d 4h" — matches Content Health's formatElapsedShort.
 function fmtElapsed(ms: number): string {
@@ -623,6 +624,12 @@ function timingLine(label: string, ms: number | null, onTime: boolean | null): {
   if (ms == null) return { text: label, strong: true, after: "—" };
   return { text: label, strong: true, pill: { text: onTime ? "On time" : "Late", ok: !!onTime }, after: fmtElapsed(ms) };
 }
+// Green at or above target, amber within a quarter of it, red below — the
+// card's own target rather than a number invented here, so a venue reads
+// against the bar its work is actually set.
+const rateTone = (rate: number, target: number): Tone =>
+  rate >= target ? "ok" : rate >= target * 0.75 ? "warn" : "bad";
+
 function contentTile(label: string, c: ContentCard): Tile {
   const p = c.prev;
   const lines: NonNullable<Tile["lines"]> = [
@@ -651,6 +658,15 @@ function contentTile(label: string, c: ContentCard): Tile {
     sub: `target ${c.target}/hr`,
     tone: c.rate == null ? "default" : c.rate >= c.target ? "ok" : "bad",
     lines,
+    // Rate per venue, against the card's own target. The delivered count rides
+    // along because a rate off two hours is not the same claim as one off
+    // twenty.
+    pills: (c.by_location ?? []).map((r) => ({
+      text: `${r.location} ${r.rate}/hr (${r.delivered})`,
+      tone: rateTone(r.rate ?? 0, c.target),
+      sortValue: r.rate ?? 0,
+    })),
+    pillsEmpty: "no hours logged",
   };
 }
 async function loadContentTiles(season: string, scope: Scope, week?: string): Promise<Tile[] | null> {
@@ -677,12 +693,18 @@ async function loadContentTiles(season: string, scope: Scope, week?: string): Pr
 type RosterCard = {
   done: number; total: number; pct: number; this_season: number; past_season: number;
   current_team: number; previous_team: number;
+  by_location?: { location: string; done: number; total: number; pct: number }[];
   week?: { count: number; prev_count: number; delta: number } | null;
 };
 // In Weekly Review the headline becomes the week's own count (how many athletes
 // were tagged / had a profile set that week), with the previous week and the
 // delta beneath it; season-to-date completion moves to a supporting line.
 function rosterTile(label: string, c: RosterCard, split: string, noun: string): Tile {
+  const pills = (c.by_location ?? []).map((r) => ({
+    text: `${r.location} ${r.done}/${r.total} (${r.pct}%)`,
+    tone: (r.pct >= 95 ? "ok" : r.pct >= 80 ? "warn" : "bad") as Tone,
+    sortValue: r.pct,
+  }));
   const w = c.week;
   if (w) {
     return {
@@ -693,12 +715,17 @@ function rosterTile(label: string, c: RosterCard, split: string, noun: string): 
         { text: `prev week ${w.prev_count.toLocaleString()}` },
         { text: signedN(w.delta), color: upColor(w.delta) },
       ],
+      // Season-to-date per venue either way: a week's tagging is too few
+      // athletes per venue to read as a rate, and the backlog is what the
+      // chasing is against.
+      pills, pillsEmpty: "no roster yet",
     };
   }
   return {
     label, value: c.done.toLocaleString(), unit: `/ ${c.total.toLocaleString()}`,
     sub: `${c.pct}% complete`, tone: c.total === 0 ? "default" : pctTone(c.pct),
     lines: [{ text: split }],
+    pills, pillsEmpty: "no roster yet",
   };
 }
 
