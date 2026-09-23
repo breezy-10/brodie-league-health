@@ -950,12 +950,22 @@ async function loadTouchData(
     // A note is LM insight, not machine chatter — the same exclusions the CRM's
     // own notes feed applies (p1_reconcile reconciliation rows and [STAGE]
     // kanban audit entries were ~1,700 of the total).
+    //
+    // Plus the one the CRM's feed never needed: it reads 200 rows at a time, so
+    // nobody there notices that the old Google Sheet was imported into this
+    // table as notes. 23,753 of them — every ticked cadence checkbox
+    // ("[Master CRM > Brampton] week 1: Player1") and every notes-column cell
+    // — against the 229 anyone has actually typed into the CRM. They are
+    // credited to nobody because nobody wrote them here, which is the tell:
+    // every note written in the app carries its author, and none of the
+    // imported ones does.
     const noteRows = noteRowsRaw.filter((r) => {
       const body = (r.body ?? "").trim();
       if (!body) return false;
       if ((r.source ?? "") === "p1_reconcile") return false;
       if (body.startsWith("Name reconciled from Player One")) return false;
       if (body.startsWith("[STAGE]")) return false;
+      if (!(r.actor_manager_id ?? r.manager_id)) return false;
       return true;
     });
 
