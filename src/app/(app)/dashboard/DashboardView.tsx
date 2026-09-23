@@ -2270,8 +2270,11 @@ export default async function DashboardView({
   // registration otherwise.
   // Weekly Review mixes week-scoped and season-to-date sections, so each
   // heading says which it is. Blank everywhere else.
-  const fullTag = isWeekly ? "(Full Season)" : "";
-  const weekTag = isWeekly ? "(Weekly)" : "";
+  // Only on Weekly review, where the two bases sit side by side and a section
+  // has to say which one it is on. On Season review everything reads the season
+  // and a badge on every heading would say nothing twelve times.
+  const fullTag = isWeekly ? "Season" : "";
+  const weekTag = isWeekly ? "Week" : "";
 
   // What the count card says about the people behind its number. Both shares
   // are measured at day N whatever the weekly toggle says — they are seasons
@@ -2570,6 +2573,23 @@ export default async function DashboardView({
   );
 }
 
+// Which basis a section is reading on, worn as the selected half of a toggle
+// without the other half: on Weekly review most sections are week-scoped and a
+// few still read the season, and "(Full Season)" in grey next to a heading was
+// easy to slide past. There is nothing to choose here — the tabs at the top of
+// the page already made the choice — so it is a badge, not a control.
+function ScopeTag({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center rounded-lg border p-0.5 shrink-0 align-middle"
+      style={{ borderColor: "var(--glass-border)" }}>
+      <span className="px-2.5 py-1 rounded-md"
+        style={{ fontSize: 11, fontWeight: 600, background: "var(--glass-gold)", color: "#000" }}>
+        {label}
+      </span>
+    </span>
+  );
+}
+
 const TONE_COLOR: Record<string, string> = {
   ok: "rgb(74,222,128)", warn: "var(--glass-gold)", bad: "rgb(248,113,113)", default: "var(--glass-text-secondary)",
 };
@@ -2629,7 +2649,7 @@ function TouchesSection({ data, when, titleSuffix = "" }: { data: (TouchData & {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Outreach</h2>
-          {titleSuffix && <span className="text-xs font-normal text-glass-text-tertiary">{titleSuffix}</span>}
+          {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
         <a href={APP_URL.crm} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
@@ -2763,7 +2783,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility Bookings</h2>
-          {titleSuffix && <span className="text-xs font-normal text-glass-text-tertiary">{titleSuffix}</span>}
+          {titleSuffix && <ScopeTag label={titleSuffix} />}
           {headerExtra ?? (
             <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
               style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{season}</span>
@@ -2949,7 +2969,7 @@ function SiteVisitsSection({ data, titleSuffix = "" }: { data: SiteVisitsData; t
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site Visits</h2>
-          {titleSuffix && <span className="text-xs font-normal text-glass-text-tertiary">{titleSuffix}</span>}
+          {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
         <a href={`${APP_URL.feedback}/site-visits`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
@@ -3020,7 +3040,7 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video Reviews</h2>
-          {titleSuffix && <span className="text-xs font-normal text-glass-text-tertiary">{titleSuffix}</span>}
+          {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
         <a href={`${APP_URL.feedback}/video-review`} target="_blank" rel="noopener noreferrer"
           className="text-xs font-semibold shrink-0 hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>More details →</a>
@@ -3139,7 +3159,7 @@ function Section({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h2>
-          {scopeTag && <span className="text-xs font-normal text-glass-text-tertiary">{scopeTag}</span>}
+          {scopeTag && <ScopeTag label={scopeTag} />}
           {seasonTag && (
             <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
               style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>
