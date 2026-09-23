@@ -1087,6 +1087,99 @@ const TRAINING_MODULES = [
   "AHS Playbook",
   "Scorekeeper Playbook",
 ];
+// Who is outstanding, by location. The training app's KPI feed is public and
+// deliberately carries counts only — "no names, emails or per-person rows" —
+// so the names are read straight from its database with the service-role
+// connection this app already holds, and never leave a signed-in page.
+//
+// The assignment rule is the feed's, restated: a module is assigned by role or
+// by an explicit assignment, minus anyone excused, and someone is outstanding
+// when they have no completion row for it at all. Keeping the two in step is
+// the price of naming names; the counts on the cards still come from the feed.
+async function loadTrainingOutstanding(scope: Scope): Promise<Map<string, { loc: string; people: string[] }[]> | null> {
+  if (!sourceConfigured("training")) return null;
+  try {
+    const sb = sourceClient("training")!;
+    const [mods, roleLinks, explicitLinks, comps, exclusions, users, locs, userLocs] = await Promise.all([
+      sb.from("modules").select("id, title, status").eq("status", "published"),
+      sb.from("module_roles").select("module_id, role:roles!inner ( slug )"),
+      sb.from("module_assignments").select("user_id, module_id"),
+      sb.from("completions").select("user_id, module_id"),
+      sb.from("module_exclusions").select("user_id, module_id"),
+      sb.from("users").select("id, full_name, email, location_id, primary_role:roles!users_primary_role_id_fkey ( slug )").eq("status", "active"),
+      sb.from("locations").select("id, name"),
+      sb.from("user_locations").select("user_id, location_id"),
+    ]);
+    type U = { id: string; full_name: string | null; email: string | null; location_id: string | null;
+      primary_role: { slug: string } | { slug: string }[] | null };
+    const locName = new Map(((locs.data ?? []) as { id: string; name: string }[]).map((l) => [l.id, l.name]));
+    // Every location someone covers, not just the primary one on their row.
+    const covered = new Map<string, Set<string>>();
+    for (const r of (userLocs.data ?? []) as { user_id: string; location_id: string }[]) {
+      if (!covered.has(r.user_id)) covered.set(r.user_id, new Set());
+      covered.get(r.user_id)!.add(r.location_id);
+    }
+    let userRows = (users.data ?? []) as U[];
+    const locsOf = (u: U) => {
+      const ids = [...(covered.get(u.id) ?? (u.location_id ? [u.location_id] : []))];
+      return ids.map((id) => locName.get(id)).filter((n): n is string => !!n).sort();
+    };
+    if (scope.locationNames?.length) {
+      userRows = userRows.filter((u) =>
+        locsOf(u).some((n) => scope.locationNames!.some((w) => sameLocation(w, n))));
+    }
+    const roleOf = (u: U) => (Array.isArray(u.primary_role) ? u.primary_role[0] : u.primary_role)?.slug ?? null;
+    const activeIds = new Set(userRows.map((u) => u.id));
+    const rolesByModule = new Map<string, Set<string>>();
+    for (const rl of (roleLinks.data ?? []) as { module_id: string; role: { slug: string } | { slug: string }[] | null }[]) {
+      const r = (Array.isArray(rl.role) ? rl.role[0] : rl.role) ?? null;
+      if (!r) continue;
+      if (!rolesByModule.has(rl.module_id)) rolesByModule.set(rl.module_id, new Set());
+      rolesByModule.get(rl.module_id)!.add(r.slug);
+    }
+    const excludedByModule = new Map<string, Set<string>>();
+    for (const e of (exclusions.data ?? []) as { user_id: string; module_id: string }[]) {
+      if (!excludedByModule.has(e.module_id)) excludedByModule.set(e.module_id, new Set());
+      excludedByModule.get(e.module_id)!.add(e.user_id);
+    }
+    const out = new Map<string, { loc: string; people: string[] }[]>();
+    for (const m of (mods.data ?? []) as { id: string; title: string }[]) {
+      const slugs = rolesByModule.get(m.id) ?? new Set<string>();
+      const excused = excludedByModule.get(m.id) ?? new Set<string>();
+      const assigned = new Set(
+        userRows.filter((u) => { const r = roleOf(u); return !!r && slugs.has(r) && !excused.has(u.id); }).map((u) => u.id),
+      );
+      for (const e of (explicitLinks.data ?? []) as { user_id: string; module_id: string }[]) {
+        if (e.module_id === m.id && activeIds.has(e.user_id)) assigned.add(e.user_id);
+      }
+      const done = new Set(
+        ((comps.data ?? []) as { user_id: string; module_id: string }[])
+          .filter((c) => c.module_id === m.id).map((c) => c.user_id),
+      );
+      const byLoc = new Map<string, string[]>();
+      for (const u of userRows) {
+        if (!assigned.has(u.id) || done.has(u.id)) continue;
+        const names = locsOf(u);
+        // Somebody covering several venues is outstanding at each of them, and
+        // says so in brackets, so the same name in two cards reads as one
+        // person rather than two.
+        const label = (u.full_name || u.email || "Unknown")
+          + (names.length > 1 ? ` (${names.join(", ")})` : "");
+        for (const n of names.length ? names : ["No location"]) {
+          if (!byLoc.has(n)) byLoc.set(n, []);
+          byLoc.get(n)!.push(label);
+        }
+      }
+      out.set(m.title.toLowerCase(), [...byLoc.entries()]
+        .sort((a, b) => (a[0] === "No location" ? 1 : 0) - (b[0] === "No location" ? 1 : 0) || a[0].localeCompare(b[0]))
+        .map(([loc, people]) => ({ loc, people: people.sort((x, y) => x.localeCompare(y)) })));
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://brodie-training.vercel.app");
@@ -1095,6 +1188,7 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
     if (!res.ok) return null;
     const k = (await res.json()) as { modules?: ModuleRollup[] };
     const byTitle = new Map((k.modules ?? []).map((m) => [m.title.toLowerCase(), m]));
+    const outstanding = await loadTrainingOutstanding(scope);
     const tiles: Tile[] = [];
     for (const title of TRAINING_MODULES) {
       const m = byTitle.get(title.toLowerCase());
@@ -1110,6 +1204,11 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
           ...(m.expired ? [{ text: `${m.expired} — expired` }] : []),
           ...(m.overdue ? [{ text: `${m.overdue} — overdue`, color: "rgb(248,113,113)" }] : []),
         ],
+        ...(outstanding ? {
+          pills: (outstanding.get(title.toLowerCase()) ?? [])
+            .map((g) => ({ text: `${g.loc} — ${g.people.join(", ")}`, tone: "warn" as const })),
+          pillsEmpty: "everyone certified",
+        } : {}),
       });
     }
     return tiles.length ? tiles : null;
