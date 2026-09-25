@@ -56,6 +56,14 @@ async function loadPlayers(season: string, locationNames: string[] | null, freeO
 }
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Discount names are written with the season in front — "Coldest Winter 2027
+// Returning Player Discount" — which is the half you already know from the
+// season filter, and the half that pushes the part you don't off the end of the
+// column. The full name stays on hover.
+const SEASON_PREFIX =
+  /^(?:the\s+)?(?:coldest\s+winter|brodie\s+summer|bracket\s+season|slasher\s+season|winter|summer|spring|fall)\s*'?\d{0,4}\s+/i;
+const shortDiscount = (name: string) =>
+  name.split(", ").map((n) => n.replace(SEASON_PREFIX, "").trim() || n).join(", ");
 const TYPE_LABEL: Record<string, string> = { captain: "Captain", join_team: "Join team", free_agent: "Free agent" };
 const day = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" }) : "—";
@@ -187,7 +195,7 @@ export default async function DiscountPlayersPage({
                     </td>
                     <td className="px-4 py-2.5 max-w-[240px] truncate" style={{ color: "var(--glass-text-secondary)" }}
                       title={r.discount_names ?? ""}>
-                      {r.discount_names || "—"}
+                      {r.discount_names ? shortDiscount(r.discount_names) : "—"}
                     </td>
                     <Td>{money(r.list_price)}</Td>
                     {/* The share of list price says what a discount actually
