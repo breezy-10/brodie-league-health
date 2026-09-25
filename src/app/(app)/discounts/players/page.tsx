@@ -142,7 +142,15 @@ export default async function DiscountPlayersPage({
                       {r.codes}
                     </td>
                     <Td>{money(r.list_price)}</Td>
-                    <Td strong color={GOLD}>−{money(r.discount)}</Td>
+                    {/* The share of list price says what a discount actually
+                        was — $66 is a fifth off in Canada and a quarter in the
+                        US, and the dollar figure alone hides that. */}
+                    <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
+                      <div style={{ color: GOLD, fontWeight: 700 }}>−{money(r.discount)}</div>
+                      <div className="text-[11px] text-glass-text-tertiary leading-snug">
+                        {r.list_price ? `${Math.round((100 * r.discount) / r.list_price)}%` : "—"}
+                      </div>
+                    </td>
                     <Td>{money(r.total_paid)}</Td>
                     <Td>{day(r.registered_on)}</Td>
                   </tr>
