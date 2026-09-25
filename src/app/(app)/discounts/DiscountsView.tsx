@@ -125,9 +125,10 @@ export default async function DiscountsView({
                 </span>
               </div>
 
-              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
                 <Tile label="List price" value={money(w("list_price"))} accent={LIST} sub="before discount" />
                 <Tile label="Discount" value={`−${money(w("discount"))}`} sub="averaged over everyone" />
+                <Tile label="After discount" value={money(w("after_discount"))} sub="before fees" />
                 <Tile label="Fees" value={`+${money(w("fees"))}`} />
                 <Tile label="Collected" value={money(w("total_paid"))} accent={GOLD} sub="after discount, with fees" />
                 <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
