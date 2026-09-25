@@ -1,7 +1,8 @@
 import type { DiscountRow } from "./DiscountsView";
 
-// Season trend: what a registration is advertised at against what is actually
-// collected, with the gap between them shaded — that gap is the discount.
+// Season trend: what a registration is advertised at against its total price
+// after discount and fees, with the gap between them shaded — that gap is the
+// discount.
 // Plain SVG, no chart library, same as ScoreHistoryChart.
 //
 // Rows arrive newest-first from the feed; they are reversed here so the season
@@ -24,7 +25,7 @@ export default function PriceTrend({ rows, currency }: { rows: DiscountRow[]; cu
 
   const line = (k: "list_price" | "total_paid") =>
     pts.map((p, i) => `${X(i).toFixed(1)},${Y(p[k]).toFixed(1)}`).join(" ");
-  // The shaded gap: list price across, then collected back again.
+  // The shaded gap: list price across, then total price back again.
   const band = [
     ...pts.map((p, i) => `${X(i).toFixed(1)},${Y(p.list_price).toFixed(1)}`),
     ...[...pts].reverse().map((p, i) => `${X(pts.length - 1 - i).toFixed(1)},${Y(p.total_paid).toFixed(1)}`),
@@ -49,7 +50,7 @@ export default function PriceTrend({ rows, currency }: { rows: DiscountRow[]; cu
         </span>
         <span className="flex items-center gap-1.5">
           <i style={{ width: 14, height: 3, borderRadius: 2, background: "var(--glass-gold)", display: "inline-block" }} />
-          Collected
+          Total price
         </span>
         <span className="flex items-center gap-1.5">
           <i style={{ width: 10, height: 10, borderRadius: 2, background: "var(--glass-gold)", opacity: 0.16, display: "inline-block" }} />
@@ -57,7 +58,7 @@ export default function PriceTrend({ rows, currency }: { rows: DiscountRow[]; cu
         </span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" role="img"
-        aria-label={`Average list price and collected price per registration by season, ${currency}`}>
+        aria-label={`Average list price and total price per registration by season, ${currency}`}>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={ML} y1={Y(t)} x2={W - MR} y2={Y(t)} stroke="var(--glass-border)" strokeWidth={1} />
@@ -76,7 +77,7 @@ export default function PriceTrend({ rows, currency }: { rows: DiscountRow[]; cu
               <title>{p.season} — list {money(p.list_price)}, {p.regs.toLocaleString()} registrations</title>
             </circle>
             <circle cx={X(i)} cy={Y(p.total_paid)} r={3.5} fill="var(--glass-gold)">
-              <title>{p.season} — collected {money(p.total_paid)}, discount {money(p.discount)}</title>
+              <title>{p.season} — total price {money(p.total_paid)}, discount {money(p.discount)}</title>
             </circle>
             <text x={X(i)} y={H - MB + 20} textAnchor="middle" fontSize={10}
               fill="var(--glass-text-tertiary)">{short(p.season)}</text>
