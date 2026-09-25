@@ -130,7 +130,7 @@ export default async function DiscountsView({
                 <Tile label="Discount" value={`−${money(w("discount"))}`} sub="averaged over everyone" />
                 <Tile label="After discount" value={money(w("after_discount"))} sub="before fees" />
                 <Tile label="Fees" value={`+${money(w("fees"))}`} />
-                <Tile label="Collected" value={money(w("total_paid"))} accent={GOLD} sub="after discount, with fees" />
+                <Tile label="Total price" value={money(w("total_paid"))} accent={GOLD} sub="after discount, with fees" />
                 <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
                   sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()} · ${free.toLocaleString()} free`} />
               </div>
@@ -148,7 +148,7 @@ export default async function DiscountsView({
                         <Th>Discount</Th>
                         <Th>After discount</Th>
                         <Th>Fees</Th>
-                        <Th>Collected</Th>
+                        <Th>Total price</Th>
                         <Th>Discounted</Th>
                       </tr>
                     </thead>
@@ -159,11 +159,11 @@ export default async function DiscountsView({
                             <div className="font-semibold truncate" style={{ color: "var(--glass-text)" }} title={r.location}>
                               {r.location}
                             </div>
-                            {/* Bar length = collected against the best-collecting
-                                venue, so price realised reads at a glance. */}
+                            {/* Bar length = total price against the highest venue,
+                                so price realised reads at a glance. */}
                             <div className="mt-1.5 h-1.5 rounded-full overflow-hidden flex"
                               style={{ width: `${Math.max((r.total_paid / maxPaid) * 100, 2)}%`, minWidth: 8 }}
-                              title={`${money(r.total_paid)} collected per registration`}>
+                              title={`${money(r.total_paid)} total price per registration`}>
                               <span style={{ width: "100%", background: GOLD }} />
                             </div>
                           </td>
@@ -197,7 +197,7 @@ export default async function DiscountsView({
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
         Counts only registrations that went through (completed, not cancelled, paid or paying) — the same filter the
-        Registrations and Referrals tabs use. List price is the invoice subtotal before any discount; collected is the
+        Registrations and Referrals tabs use. List price is the invoice subtotal before any discount; total price is the
         invoice total minus sales tax, which is the figure the dashboard&apos;s per-athlete revenue uses. Two kinds of
         row are excluded because neither is an individual price: invoices above $500, which are a captain paying for a
         whole roster at once, and the teammates covered by such an invoice — their own registration records a 100%
