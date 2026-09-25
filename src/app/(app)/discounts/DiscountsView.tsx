@@ -139,15 +139,17 @@ export default async function DiscountsView({
                 </span>
               </div>
 
-              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
                 <Tile label="List price" value={money(w("list_price"))} accent={LIST} sub="before discount" />
                 <Tile label="Discount" value={`−${money(w("discount"))}`} sub="averaged over everyone" />
                 <Tile label="After discount" value={money(w("after_discount"))} sub="before fees" />
                 <Tile label="Fees" value={`+${money(w("fees"))}`} />
                 <Tile label="Total price" value={money(w("total_paid"))} accent={GOLD} sub="after discount, with fees" />
                 <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
-                  sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()} · ${regs ? Math.round((100 * free) / regs) : 0}% free (${free.toLocaleString()})`}
+                  sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()}`}
                   href={playersHref(selectedSeason, locationNames?.join(","))} hrefLabel="View discounts" />
+                <Tile label="Free" value={regs ? `${Math.round((100 * free) / regs)}%` : "—"}
+                  sub={`${free.toLocaleString()} of ${regs.toLocaleString()} paid nothing`} />
               </div>
 
               <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
