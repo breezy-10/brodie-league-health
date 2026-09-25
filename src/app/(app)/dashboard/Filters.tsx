@@ -30,8 +30,12 @@ const sameSet = (a: string[], b: string[]) =>
 export default function Filters({
   options,
   current,
+  keep,
 }: {
   options: FilterOptions;
+  /** Params this bar doesn't own but must not drop — it rebuilds the query
+      string from scratch, so anything not listed here is lost on apply. */
+  keep?: Record<string, string>;
   // Each filter is a list: [] means "all locations", and for season/week means
   // "the default" (the resolved season / current week).
   current: { seasons: string[]; locations: string[]; weeks?: string[] };
@@ -53,6 +57,7 @@ export default function Filters({
   function apply() {
     if (!dirty) return;
     const next = new URLSearchParams();
+    for (const [k, v] of Object.entries(keep ?? {})) next.set(k, v);
     if (seasons.length) next.set("season", seasons.join(","));
     if (hasWeeks && weeks.length) next.set("week", weeks.join(","));
     if (locations.length) next.set("location", locations.join(","));

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
+import Filters, { type FilterOptions } from "../../dashboard/Filters";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -68,7 +69,7 @@ export default async function DiscountPlayersPage({
   const freeOnly = freeParam === "1";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
-  const { selectedSeason, locationNames } = await resolveScope(
+  const { promoLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
@@ -83,6 +84,11 @@ export default async function DiscountPlayersPage({
   for (const r of rows) totalByCurrency.set(r.currency, (totalByCurrency.get(r.currency) ?? 0) + r.discount);
 
   // Carry the filters back to the tab that linked here.
+  const options: FilterOptions = {
+    seasons: promoSeasons.map((s) => ({ value: s, label: s })),
+    locations: promoLocations,
+  };
+
   const back = new URLSearchParams();
   if (seasonParam) back.set("season", seasonParam);
   if (locationParam) back.set("location", locationParam);
@@ -99,11 +105,18 @@ export default async function DiscountPlayersPage({
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
           {freeOnly ? "Every free registration" : "Every discounted registration"}
         </h1>
-        <p className="text-sm mt-1.5 text-glass-text-tertiary max-w-[70ch]">
-          {selectedSeason}
-          {selectedLocations.length ? ` · ${selectedLocations.join(", ")}` : ""}
-        </p>
       </header>
+
+      <Filters
+        key={`${selectedSeasons.join(",")}|${selectedLocations.join(",")}`}
+        options={options}
+        current={{
+          seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
+          locations: selectedLocations,
+        }}
+        // Changing a filter must not quietly widen a free-only list back out.
+        keep={freeOnly ? { free: "1" } : undefined}
+      />
 
       {rows.length > 0 && (
         <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
@@ -113,7 +126,7 @@ export default async function DiscountPlayersPage({
             sub={totalRegs ? `${Math.round((100 * rows.length) / totalRegs)}% of all registrations` : undefined} />
           {!freeOnly && (
             <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
-              sub={rows.length ? `${Math.round((100 * free) / rows.length)}% of them paid nothing` : undefined} />
+              sub={totalRegs ? `${Math.round((100 * free) / totalRegs)}% of all registrations` : undefined} />
           )}
           {/* Never summed across currencies — each is its own figure. */}
           <Tile label="Given up"
