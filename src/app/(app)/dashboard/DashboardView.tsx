@@ -3076,6 +3076,29 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     .filter((venue) => !scopeLocations?.length || scopeLocations.some((n) => sameLocation(venue, n)))
     .map((venue) => ({ location: venue, nights: 0, teams: 0, by_status: {}, off: 0, by_day: [] }));
   const locations = [...data.locations, ...regOnly].sort((a, b) => a.location.localeCompare(b.location));
+  // Footed by walking the same nights the rows are built from, rather than by
+  // reading a separate total — a footer that disagrees with the column above it
+  // is worse than no footer. Registered teams come from the nights that have
+  // them, capacity from every night, and the status pills count nights.
+  const totals = locations.reduce(
+    (acc, l) => {
+      const regDays = regDaysFor(l.location);
+      for (const n of l.by_day ?? []) {
+        acc.booked += n.teams_capacity ?? n.teams;
+        const firm = BOOKING_STATUS_ORDER.find((s) => (n.by_status[s] ?? 0) > 0) ?? "need_to_book";
+        acc.byStatus[firm] = (acc.byStatus[firm] ?? 0) + 1;
+        acc.nights += 1;
+      }
+      for (const r of regDays.values()) {
+        acc.registered += r.teams;
+        acc.full += r.full;
+        acc.low += r.low;
+        acc.players += r.players;
+      }
+      return acc;
+    },
+    { registered: 0, booked: 0, full: 0, low: 0, players: 0, nights: 0, byStatus: {} as Record<string, number> },
+  );
   const secured = locations.filter((l) => locTone(l) === "ok" || locTone(l) === "warn").length;
   const statusPill = (s: string, n?: number) => (
     <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
@@ -3263,6 +3286,50 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 );
               });
             })}
+            {locations.length > 1 && (
+              <tr className="align-top" style={{ borderTop: "2px solid var(--glass-border)" }}>
+                <td className="px-5 py-3 whitespace-nowrap font-bold" style={{ color: "var(--glass-text)" }}>Total</td>
+                <td className="px-5 py-3 whitespace-nowrap text-glass-text-tertiary">
+                  {totals.nights} night{totals.nights === 1 ? "" : "s"} · {locations.length} locations
+                </td>
+                <td className="px-5 py-3 text-right tabular align-top">
+                  <div className="font-bold" style={{ color: totals.registered ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
+                    {totals.registered ? totals.registered.toLocaleString() : "—"}
+                  </div>
+                  {!!totals.registered && (
+                    <div className="mt-1 flex flex-col items-end gap-1">
+                      <span className="inline-block text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                        style={rosterChipStyle(totals.players / totals.registered)}>
+                        {(totals.players / totals.registered).toFixed(1)} avg players per team
+                      </span>
+                      {!!totals.full && (
+                        <span className="inline-block text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                          style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
+                          {totals.full} with 7 or more players
+                        </span>
+                      )}
+                      {!!totals.low && (
+                        <span className="inline-block text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                          style={{ color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }}>
+                          {totals.low} with 3 or fewer players
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-right tabular align-top font-bold"
+                  style={{ color: totals.booked ? "var(--glass-gold)" : "var(--glass-text-tertiary)" }}>
+                  {totals.booked.toLocaleString()}
+                </td>
+                {/* Nights by their firmest status, which is what the column
+                    above shows one night at a time. */}
+                <td className="px-5 py-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {BOOKING_STATUS_ORDER.filter((st) => totals.byStatus[st]).map((st) => statusPill(st, totals.byStatus[st]))}
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
