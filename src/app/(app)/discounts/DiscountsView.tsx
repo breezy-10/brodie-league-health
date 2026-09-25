@@ -41,14 +41,25 @@ async function loadDiscounts(season: string, locationNames: string[] | null): Pr
 }
 
 const GOLD = "var(--glass-gold)";
-// Two thresholds, because the two rates mean different things. A quarter of
-// registrations carrying any code is heavy; a tenth paying nothing at all is
-// heavier still, and the second is a subset of the first.
-const DISCOUNT_ALERT_PCT = 25;
-const FREE_ALERT_PCT = 10;
+// Both rates read on the same three-band scale: none given away, some, too
+// much. The red line differs because the rates mean different things — a
+// quarter of registrations carrying any code is heavy, a tenth paying nothing
+// at all is heavier, and the free figure is a subset of the discounted one.
+// Red at or above these, yellow from 1 up to them, green only at a clean zero.
+const DISCOUNT_RED_AT_PCT = 25;
+const FREE_RED_AT_PCT = 10;
 const DANGER = "var(--glass-danger-text, rgb(248,113,113))";
-const freeTone = (pct: number) => (pct > FREE_ALERT_PCT ? DANGER : undefined);
-const discountTone = (pct: number) => (pct > DISCOUNT_ALERT_PCT ? DANGER : undefined);
+const WARNING = "var(--glass-warning-text, var(--glass-gold))";
+const SUCCESS = "var(--glass-success-text, rgb(74,222,128))";
+// Rounded before banding so what the eye reads and what the colour says agree:
+// 24.6% prints as 25% and must colour like 25%, not like 24%.
+const tone = (pct: number, redAt: number) => {
+  const p = Math.round(pct);
+  if (p === 0) return SUCCESS;
+  return p >= redAt ? DANGER : WARNING;
+};
+const freeTone = (pct: number) => tone(pct, FREE_RED_AT_PCT);
+const discountTone = (pct: number) => tone(pct, DISCOUNT_RED_AT_PCT);
 const LIST = "#5B8AC4"; // the same blue the registration bars use for the prior season
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
