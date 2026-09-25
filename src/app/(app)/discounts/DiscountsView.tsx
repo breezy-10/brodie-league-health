@@ -112,7 +112,11 @@ export default async function DiscountsView({
         </div>
       ) : (
         currencies.map((cur) => {
-          const locs = feed.locations.filter((r) => r.currency === cur);
+          // Alphabetical: a venue is looked up by name here, not ranked —
+          // sorting by price made a location move between seasons.
+          const locs = feed.locations
+            .filter((r) => r.currency === cur)
+            .sort((a, b) => a.location.localeCompare(b.location));
           const regs = locs.reduce((s, r) => s + r.regs, 0);
           // Weighted by registrations — a 13-registration venue must not pull
           // the average as hard as a 543-registration one.
