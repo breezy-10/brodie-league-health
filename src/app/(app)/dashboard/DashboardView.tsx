@@ -10,6 +10,7 @@ import { canonicalLocation, loadActiveLMs, locParam, resolveScope, seasonKey, sh
 import Filters, { type FilterOptions } from "./Filters";
 import { BasisToggle } from "./BasisToggle";
 import StatTile, { type Tile, type Tone } from "./StatTile";
+import DeadlineBanner, { type DeadlineWeek } from "./DeadlineBanner";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -1073,6 +1074,20 @@ async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | nul
     };
   } catch {
     return null;
+  }
+}
+
+// The deadline the Promo Tracker is counting down to. Read rather than
+// recomputed: the calendar of seasons, weeks and price tiers lives over there,
+// and a second copy here would be a second copy to keep in step.
+async function loadDeadlines(): Promise<DeadlineWeek[]> {
+  try {
+    const res = await fetch("https://registration-promo-tracker.vercel.app/api/next-deadline", { cache: "no-store" });
+    if (!res.ok) return [];
+    const k = (await res.json()) as { weeks?: DeadlineWeek[] };
+    return k.weeks ?? [];
+  } catch {
+    return [];
   }
 }
 
@@ -2433,11 +2448,12 @@ export default async function DashboardView({
   // Everything below streams in its own Suspense boundary, so the shell is not
   // held behind the slowest source app. promoTiles stays because two sections
   // share it and it should not be fetched twice.
-  const [ckCurrent, ckNext, promoTiles, pacing] = await Promise.all([
+  const [ckCurrent, ckNext, promoTiles, pacing, deadlines] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadPromoTiles(promoSeasonName, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
+    isReg ? Promise.resolve([] as DeadlineWeek[]) : loadDeadlines(),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
@@ -2636,6 +2652,7 @@ export default async function DashboardView({
       />
 
       <div className="space-y-8">
+        {!isReg && deadlines.length > 0 && <DeadlineBanner weeks={deadlines} />}
         {!isReg && (
           <Section title="Season Success Checklist" scopeTag={fullTag} href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} cols={6} />
         )}
