@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../../dashboard/Filters";
+import { discountTone, freeTone } from "../rates";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -123,10 +124,10 @@ export default async function DiscountPlayersPage({
           <Tile label="Total registrations" value={totalRegs === null ? "—" : totalRegs.toLocaleString()} />
           <Tile label={freeOnly ? "Free registrations" : "Discounted registrations"}
             value={rows.length.toLocaleString()} accent={freeOnly ? GOLD : undefined}
-            sub={totalRegs ? `${Math.round((100 * rows.length) / totalRegs)}% of all registrations` : undefined} />
+            sub={totalRegs ? <Pct n={rows.length} of={totalRegs} tone={freeOnly ? freeTone : discountTone} /> : undefined} />
           {!freeOnly && (
             <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
-              sub={totalRegs ? `${Math.round((100 * free) / totalRegs)}% of all registrations` : undefined} />
+              sub={totalRegs ? <Pct n={free} of={totalRegs} tone={freeTone} /> : undefined} />
           )}
           {/* Never summed across currencies — each is its own figure. */}
           <Tile label="Given up"
@@ -212,8 +213,19 @@ function Th({ children, align = "right" }: { children: React.ReactNode; align?: 
   return <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold`}>{children}</th>;
 }
 
+// A rate with its band colour, for a card's sub-label.
+function Pct({ n, of, tone }: { n: number; of: number; tone: (pct: number) => string }) {
+  const pct = of ? (100 * n) / of : 0;
+  return (
+    <>
+      <span style={{ color: tone(pct), fontWeight: 600 }}>{Math.round(pct)}%</span>
+      {" of all registrations"}
+    </>
+  );
+}
+
 function Tile({ label, value, values, sub, accent }: {
-  label: string; value?: string; values?: string[]; sub?: string; accent?: string;
+  label: string; value?: string; values?: string[]; sub?: React.ReactNode; accent?: string;
 }) {
   const figures = values ?? (value === undefined ? [] : [value]);
   return (
