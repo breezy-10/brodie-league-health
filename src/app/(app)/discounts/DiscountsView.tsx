@@ -148,8 +148,11 @@ export default async function DiscountsView({
                 <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
                   sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()}`}
                   href={playersHref(selectedSeason, locationNames?.join(","))} hrefLabel="View discounts" />
+                {/* A free registration is a discount of 100%, so it is already
+                    inside "got a discount" — the sub-label says so, because two
+                    tiles side by side otherwise read as separate groups. */}
                 <Tile label="Free" value={regs ? `${Math.round((100 * free) / regs)}%` : "—"}
-                  sub={`${free.toLocaleString()} of ${regs.toLocaleString()} paid nothing`} />
+                  sub={`${free.toLocaleString()} of ${regs.toLocaleString()} · included above`} />
               </div>
 
               <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
@@ -227,7 +230,9 @@ export default async function DiscountsView({
         row are excluded because neither is an individual price: invoices above $500, which are a captain paying for a
         whole roster at once, and the teammates covered by such an invoice — their own registration records a 100%
         discount because the captain already paid. Averages are weighted by registrations, so a small venue does not
-        pull them as hard as a large one. Currencies are never mixed or summed.
+        pull them as hard as a large one. Currencies are never mixed or summed. A free registration is a
+        100% discount, so every free one is also counted as discounted — the Free figures are a subset of
+        the Discounted ones, not a separate group.
       </p>
     </main>
   );
