@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import { requireUser } from "@/lib/auth";
@@ -41,6 +42,17 @@ const GOLD = "var(--glass-gold)";
 const LIST = "#5B8AC4"; // the same blue the registration bars use for the prior season
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// Drill-down to the per-player list, carrying the current season and either the
+// row's own location or whatever the filter is already scoped to.
+function playersHref(season: string, location?: string) {
+  const p = new URLSearchParams({ season });
+  if (location) p.set("location", location);
+  return `/discounts/players?${p}`;
+}
+const VIEW_BTN =
+  "inline-flex items-center gap-1 rounded-md border border-glass-border px-2 py-1 text-[11px] font-semibold "
+  + "text-glass-text-tertiary hover:text-glass-text hover:border-glass-gold hover:bg-glass-surface-hover transition whitespace-nowrap";
 
 export default async function DiscountsView({
   searchParams,
@@ -130,7 +142,8 @@ export default async function DiscountsView({
                 <Tile label="Fees" value={`+${money(w("fees"))}`} />
                 <Tile label="Total price" value={money(w("total_paid"))} accent={GOLD} sub="after discount, with fees" />
                 <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
-                  sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()} · ${free.toLocaleString()} free`} />
+                  sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()} · ${regs ? Math.round((100 * free) / regs) : 0}% free (${free.toLocaleString()})`}
+                  href={playersHref(selectedSeason, locationNames?.join(","))} hrefLabel="View discounts" />
               </div>
 
               <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
@@ -146,6 +159,8 @@ export default async function DiscountsView({
                         <Th>Fees</Th>
                         <Th>Total price</Th>
                         <Th>Discounted</Th>
+                        <Th>Free</Th>
+                        <Th align="left"> </Th>
                       </tr>
                     </thead>
                     <tbody>
@@ -170,6 +185,10 @@ export default async function DiscountsView({
                           <Td>+{money(r.fees)}</Td>
                           <Td strong color={GOLD}>{money(r.total_paid)}</Td>
                           <Td>{r.regs ? `${Math.round((100 * r.discounted) / r.regs)}%` : "—"}</Td>
+                          <Td>{r.regs ? `${Math.round((100 * r.free) / r.regs)}%` : "—"}</Td>
+                          <td className="px-4 py-2.5 whitespace-nowrap">
+                            <Link href={playersHref(selectedSeason, r.location)} className={VIEW_BTN}>View discounts</Link>
+                          </td>
                         </tr>
                       ))}
                       <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
@@ -181,6 +200,10 @@ export default async function DiscountsView({
                         <Td strong>+{money(w("fees"))}</Td>
                         <Td strong color={GOLD}>{money(w("total_paid"))}</Td>
                         <Td strong>{regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}</Td>
+                        <Td strong>{regs ? `${Math.round((100 * free) / regs)}%` : "—"}</Td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <Link href={playersHref(selectedSeason, locationNames?.join(","))} className={VIEW_BTN}>View discounts</Link>
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -217,14 +240,21 @@ function Td({ children, strong = false, color }: { children: React.ReactNode; st
   );
 }
 
-function Tile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
+function Tile({ label, value, sub, accent, href, hrefLabel }: {
+  label: string; value: string; sub?: string; accent?: string; href?: string; hrefLabel?: string;
+}) {
   return (
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
+    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0 flex flex-col">
       <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
       <div className="mt-1.5 text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>
         {value}
       </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
+      {href && (
+        <div className="mt-2 flex justify-end">
+          <Link href={href} className={VIEW_BTN}>{hrefLabel ?? "View"}</Link>
+        </div>
+      )}
     </div>
   );
 }
