@@ -18,6 +18,24 @@ type DiscountPlayer = {
   codes: string; registered_on: string | null;
 };
 type Feed = { season: string; players: DiscountPlayer[]; truncated: boolean };
+type TotalsFeed = { locations: { currency: string; regs: number }[] };
+
+// Total registrations in scope — the denominator the players feed can't supply,
+// since it only returns rows that carried a discount.
+async function loadTotalRegs(season: string, locationNames: string[] | null): Promise<number | null> {
+  try {
+    const url = new URL("/api/discounts", PROMO_APP_URL);
+    url.searchParams.set("season", season);
+    const lp = locParam(locationNames);
+    if (lp) url.searchParams.set("location", lp);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as TotalsFeed;
+    return (k.locations ?? []).reduce((n, r) => n + (r.regs ?? 0), 0);
+  } catch {
+    return null;
+  }
+}
 
 async function loadPlayers(season: string, locationNames: string[] | null, freeOnly: boolean): Promise<Feed | null> {
   try {
@@ -54,7 +72,10 @@ export default async function DiscountPlayersPage({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
-  const feed = await loadPlayers(selectedSeason, locationNames, freeOnly);
+  const [feed, totalRegs] = await Promise.all([
+    loadPlayers(selectedSeason, locationNames, freeOnly),
+    loadTotalRegs(selectedSeason, locationNames),
+  ]);
   const rows = feed?.players ?? [];
   const free = rows.filter((r) => r.free).length;
   // Currencies are never summed; the total is reported once per currency.
@@ -85,9 +106,11 @@ export default async function DiscountPlayersPage({
       </header>
 
       {rows.length > 0 && (
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+          <Tile label="Total registrations" value={totalRegs === null ? "—" : totalRegs.toLocaleString()} />
           <Tile label={freeOnly ? "Free registrations" : "Discounted registrations"}
-            value={rows.length.toLocaleString()} accent={freeOnly ? GOLD : undefined} />
+            value={rows.length.toLocaleString()} accent={freeOnly ? GOLD : undefined}
+            sub={totalRegs ? `${Math.round((100 * rows.length) / totalRegs)}% of all registrations` : undefined} />
           {!freeOnly && (
             <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
               sub={rows.length ? `${Math.round((100 * free) / rows.length)}% of them paid nothing` : undefined} />
