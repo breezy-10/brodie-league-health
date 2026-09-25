@@ -20,6 +20,8 @@ export type DiscountRow = {
   total_paid: number;
   discounted: number;
   free: number;
+  discount_total: number;
+  free_value: number;
 };
 type DiscountFeed = { season: string; seasons: string[]; trend: DiscountRow[]; locations: DiscountRow[] };
 
@@ -39,6 +41,14 @@ async function loadDiscounts(season: string, locationNames: string[] | null): Pr
 }
 
 const GOLD = "var(--glass-gold)";
+// Two thresholds, because the two rates mean different things. A quarter of
+// registrations carrying any code is heavy; a tenth paying nothing at all is
+// heavier still, and the second is a subset of the first.
+const DISCOUNT_ALERT_PCT = 25;
+const FREE_ALERT_PCT = 10;
+const DANGER = "var(--glass-danger-text, rgb(248,113,113))";
+const freeTone = (pct: number) => (pct > FREE_ALERT_PCT ? DANGER : undefined);
+const discountTone = (pct: number) => (pct > DISCOUNT_ALERT_PCT ? DANGER : undefined);
 const LIST = "#5B8AC4"; // the same blue the registration bars use for the prior season
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -125,6 +135,9 @@ export default async function DiscountsView({
             regs ? locs.reduce((s, r) => s + (r[k] as number) * r.regs, 0) / regs : 0;
           const discounted = locs.reduce((s, r) => s + r.discounted, 0);
           const free = locs.reduce((s, r) => s + r.free, 0);
+          // Totals, not averages: what the season actually gave up.
+          const discountTotal = locs.reduce((s, r) => s + (r.discount_total ?? 0), 0);
+          const freeValue = locs.reduce((s, r) => s + (r.free_value ?? 0), 0);
           const maxPaid = Math.max(...locs.map((r) => r.total_paid), 1);
 
           return (
@@ -147,13 +160,15 @@ export default async function DiscountsView({
                 <Tile label="Fees" value={`+${money(w("fees"))}`} />
                 <Tile label="Total price" value={money(w("total_paid"))} accent={GOLD} sub="after discount, with fees" />
                 <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
-                  sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()}`}
+                  accent={regs ? discountTone((100 * discounted) / regs) : undefined}
+                  sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()} · ${money(discountTotal)} given up`}
                   href={playersHref(selectedSeason, locationNames?.join(","))} hrefLabel="View discounts" />
                 {/* A free registration is a discount of 100%, so it is already
                     inside "got a discount" — the sub-label says so, because two
                     tiles side by side otherwise read as separate groups. */}
                 <Tile label="Free" value={regs ? `${Math.round((100 * free) / regs)}%` : "—"}
-                  sub={`${free.toLocaleString()} of ${regs.toLocaleString()} · included above`}
+                  accent={regs ? freeTone((100 * free) / regs) : undefined}
+                  sub={`${free.toLocaleString()} of ${regs.toLocaleString()} · ${money(freeValue)} given up`}
                   href={playersHref(selectedSeason, locationNames?.join(","), true)} hrefLabel="View free" />
               </div>
 
@@ -195,8 +210,12 @@ export default async function DiscountsView({
                           <Td>{money(r.after_discount)}</Td>
                           <Td>+{money(r.fees)}</Td>
                           <Td strong color={GOLD}>{money(r.total_paid)}</Td>
-                          <Td>{r.regs ? `${Math.round((100 * r.discounted) / r.regs)}%` : "—"}</Td>
-                          <Td>{r.regs ? `${Math.round((100 * r.free) / r.regs)}%` : "—"}</Td>
+                          <Td color={r.regs ? discountTone((100 * r.discounted) / r.regs) : undefined}>
+                            {r.regs ? `${Math.round((100 * r.discounted) / r.regs)}%` : "—"}
+                          </Td>
+                          <Td color={r.regs ? freeTone((100 * r.free) / r.regs) : undefined}>
+                            {r.regs ? `${Math.round((100 * r.free) / r.regs)}%` : "—"}
+                          </Td>
                           <td className="px-4 py-2.5 whitespace-nowrap">
                             <Link href={playersHref(selectedSeason, r.location)} className={VIEW_BTN}>View discounts</Link>
                           </td>
@@ -210,8 +229,12 @@ export default async function DiscountsView({
                         <Td strong>{money(w("after_discount"))}</Td>
                         <Td strong>+{money(w("fees"))}</Td>
                         <Td strong color={GOLD}>{money(w("total_paid"))}</Td>
-                        <Td strong>{regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}</Td>
-                        <Td strong>{regs ? `${Math.round((100 * free) / regs)}%` : "—"}</Td>
+                        <Td strong color={regs ? discountTone((100 * discounted) / regs) : undefined}>
+                          {regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
+                        </Td>
+                        <Td strong color={regs ? freeTone((100 * free) / regs) : undefined}>
+                          {regs ? `${Math.round((100 * free) / regs)}%` : "—"}
+                        </Td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <Link href={playersHref(selectedSeason, locationNames?.join(","))} className={VIEW_BTN}>View discounts</Link>
                         </td>
