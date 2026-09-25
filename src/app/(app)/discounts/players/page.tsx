@@ -79,12 +79,19 @@ export default async function DiscountPlayersPage({
         <p className="text-sm mt-1.5 text-glass-text-tertiary max-w-[70ch]">
           {selectedSeason}
           {selectedLocations.length ? ` · ${selectedLocations.join(", ")}` : ""}
-          {rows.length ? ` · ${rows.length.toLocaleString()} registrations, ${free.toLocaleString()} of them free` : ""}
-          {totalByCurrency.size
-            ? ` · ${[...totalByCurrency.entries()].sort().map(([c, v]) => `${money(v)} ${c}`).join(" · ")} given up`
-            : ""}
         </p>
       </header>
+
+      {rows.length > 0 && (
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
+          <Tile label="Discounted registrations" value={rows.length.toLocaleString()} />
+          <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
+            sub={rows.length ? `${Math.round((100 * free) / rows.length)}% of them paid nothing` : undefined} />
+          {/* Never summed across currencies — each is its own figure. */}
+          <Tile label="Given up"
+            values={[...totalByCurrency.entries()].sort().map(([c, v]) => `${money(v)} ${c}`)} />
+        </div>
+      )}
 
       {!feed ? (
         <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
@@ -154,6 +161,25 @@ export default async function DiscountPlayersPage({
 
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold`}>{children}</th>;
+}
+
+function Tile({ label, value, values, sub, accent }: {
+  label: string; value?: string; values?: string[]; sub?: string; accent?: string;
+}) {
+  const figures = values ?? (value === undefined ? [] : [value]);
+  return (
+    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
+      <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
+      <div className="mt-1.5 space-y-0.5">
+        {(figures.length ? figures : ["—"]).map((f, i) => (
+          <div key={i} className="text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>
+            {f}
+          </div>
+        ))}
+      </div>
+      {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
+    </div>
+  );
 }
 
 function Td({ children, strong = false, color }: { children: React.ReactNode; strong?: boolean; color?: string }) {
