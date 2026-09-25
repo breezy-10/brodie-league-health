@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
+import AmbassadorTable, { type CaptainTeam } from "./AmbassadorTable";
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the ambassador
 // roster comes from its feed rather than being re-derived here — same pattern
@@ -23,6 +23,9 @@ type TeamRow = {
   team: string;
   roster?: RosterEntry[];
   captain: string | null;
+  // Ops player id. Two captains can share a name, so this is what groups a
+  // person's teams under their row on the board.
+  captain_id?: string | null;
   day: string | null;
   division: string | null;
   players: number;
@@ -117,7 +120,7 @@ export default async function AmbassadorTeamsView({
   // to the name-keyed maps and simply doesn't link through.
   const captainRows = (feed?.captains
     ? Object.entries(feed.captains).map(([id, c]) => ({
-        id, name: c.name, teams: c.teams, fullRoster: c.full_roster ?? null,
+        key: id, id, name: c.name, teams: c.teams, fullRoster: c.full_roster ?? null,
         teammates: c.teammates ?? null,
         // Teammates per team, so the column is the two beside it divided.
         // players/teams counted the ambassador themselves on every roster,
@@ -127,7 +130,7 @@ export default async function AmbassadorTeamsView({
         avgPaid: c.teams && c.paid_teammates != null ? c.paid_teammates / c.teams : null,
       }))
     : Object.entries(captainTeams).map(([name, teams]) => ({
-        id: null as string | null, name, teams, fullRoster: null as number | null,
+        key: name, id: null as string | null, name, teams, fullRoster: null as number | null,
         teammates: null as number | null,
         avg: teams ? (captainPlayers?.[name] ?? 0) / teams : null,
         paid: null as number | null, avgPaid: null as number | null,
@@ -140,6 +143,26 @@ export default async function AmbassadorTeamsView({
   const hasFullRoster = captainRows.some((c) => c.fullRoster !== null);
   const hasPaid = captainRows.some((c) => c.paid !== null);
   const multiTeam = captainRows.filter((c) => c.teams > 1).length;
+  // Each ambassador's own teams, for the expander under their name. Keyed the
+  // same way the rows are (ops player id, falling back to the name on an older
+  // feed) so the two line up. Built from the already-scoped feed, so expanding
+  // a row shows the teams inside the current location filter and nothing else.
+  const teamsByKey: Record<string, CaptainTeam[]> = {};
+  for (const loc of locations) {
+    for (const r of loc.rows) {
+      const key = r.captain_id ?? r.captain;
+      if (!key) continue;
+      (teamsByKey[key] ??= []).push({
+        team: r.team,
+        location: loc.location,
+        day: r.day,
+        division: r.division,
+        players: r.players,
+        roster: r.roster ?? [],
+      });
+    }
+  }
+
 
   return (
     <main className="brodie-fade-in space-y-8">
@@ -212,89 +235,18 @@ export default async function AmbassadorTeamsView({
                     {captainRows.length} run more than one. Ordered by teammates — every roster spot they have
                     filled, counting a player on each team they are on. Teams with 7+ counts the ones that can
                     field a side, the captain included. Paid teammates are the ones who have paid
-                    any amount toward their registration this season (on any team). Select a name for their teams.
+                    any amount toward their registration this season (on any team). Open the arrow beside a name for their
+                    teams and who has paid on each; select the name for their full page.
                   </p>
                 </div>
-                <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
-                  <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 420 }}>
-                    <thead>
-                      <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
-                        <th className="px-4 py-2.5 text-left font-bold sticky top-0 bg-glass-surface"
-                          style={{ borderBottom: "1px solid var(--glass-border)" }}>Ambassador</th>
-                        <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
-                          style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams</th>
-                        {hasFullRoster && (
-                          <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
-                            style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams with 7+</th>
-                        )}
-                        {hasTeammates && (
-                          <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
-                            style={{ borderBottom: "1px solid var(--glass-border)" }}>Teammates</th>
-                        )}
-                        <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
-                          style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg teammates per team</th>
-                        {hasPaid && (
-                          <>
-                            <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
-                              style={{ borderBottom: "1px solid var(--glass-border)" }}>Paid teammates</th>
-                            <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
-                              style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg paid per team</th>
-                          </>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {captainRows.map((c) => (
-                        <tr key={c.id ?? c.name} style={{ borderTop: "1px solid var(--glass-border)" }}>
-                          <td className="px-4 py-2.5">
-                            {c.id ? (
-                              <Link
-                                href={`/ambassador-teams/captain/${encodeURIComponent(c.id)}?season=${encodeURIComponent(selectedSeason)}`}
-                                className="font-medium hover:underline"
-                                style={{ color: "var(--glass-text)" }}
-                              >
-                                {c.name}
-                              </Link>
-                            ) : (
-                              <span className="font-medium" style={{ color: "var(--glass-text)" }}>{c.name}</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
-                            {c.teams}
-                          </td>
-                          {hasFullRoster && (
-                            /* Green once every one of their teams can field a
-                               side, so a finished ambassador reads at a glance
-                               instead of by comparing the two columns. */
-                            <td className="px-4 py-2.5 text-right tabular"
-                              style={{ color: c.fullRoster != null && c.fullRoster === c.teams
-                                ? "rgb(74,222,128)" : "var(--glass-text-secondary)" }}>
-                              {c.fullRoster ?? "\u2014"}
-                            </td>
-                          )}
-                          {hasTeammates && (
-                            <td className="px-4 py-2.5 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>
-                              {c.teammates ?? "—"}
-                            </td>
-                          )}
-                          <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
-                            {c.avg == null ? "—" : c.avg.toFixed(1)}
-                          </td>
-                          {hasPaid && (
-                            <>
-                              <td className="px-4 py-2.5 text-right tabular font-bold" style={{ color: "var(--glass-text)" }}>
-                                {c.paid ?? "—"}
-                              </td>
-                              <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
-                                {c.avgPaid == null ? "—" : c.avgPaid.toFixed(1)}
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <AmbassadorTable
+                  rows={captainRows}
+                  teamsByKey={teamsByKey}
+                  season={selectedSeason}
+                  hasFullRoster={hasFullRoster}
+                  hasTeammates={hasTeammates}
+                  hasPaid={hasPaid}
+                />
               </div>
             )}
 
