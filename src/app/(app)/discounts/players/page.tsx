@@ -151,7 +151,9 @@ export default async function DiscountPlayersPage({
                 <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
                   <Th align="left">Player</Th>
                   <Th align="left">Location</Th>
-                  <Th align="left">Type</Th>
+                  {/* Captain or player — the kind of registration, not the
+                      kind of discount, which the Code column beside it names. */}
+                  <Th align="left">Reg type</Th>
                   <Th align="left">Team</Th>
                   <Th align="left">Code</Th>
                   <Th>List price</Th>
