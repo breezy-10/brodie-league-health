@@ -221,12 +221,10 @@ export default async function DiscountsView({
                           <Td>{money(r.after_discount)}</Td>
                           <Td>+{money(r.fees)}</Td>
                           <Td strong color={GOLD}>{money(r.total_paid)}</Td>
-                          <Td color={r.regs ? discountTone((100 * r.discounted) / r.regs) : undefined}>
-                            {r.regs ? `${Math.round((100 * r.discounted) / r.regs)}%` : "—"}
-                          </Td>
-                          <Td color={r.regs ? freeTone((100 * r.free) / r.regs) : undefined}>
-                            {r.regs ? `${Math.round((100 * r.free) / r.regs)}%` : "—"}
-                          </Td>
+                          <RateTd count={r.discounted} total={r.regs}
+                            color={r.regs ? discountTone((100 * r.discounted) / r.regs) : undefined} />
+                          <RateTd count={r.free} total={r.regs}
+                            color={r.regs ? freeTone((100 * r.free) / r.regs) : undefined} />
                           <td className="px-4 py-2.5 whitespace-nowrap">
                             <Link href={playersHref(selectedSeason, r.location)} className={VIEW_BTN}>View discounts</Link>
                           </td>
@@ -240,12 +238,10 @@ export default async function DiscountsView({
                         <Td strong>{money(w("after_discount"))}</Td>
                         <Td strong>+{money(w("fees"))}</Td>
                         <Td strong color={GOLD}>{money(w("total_paid"))}</Td>
-                        <Td strong color={regs ? discountTone((100 * discounted) / regs) : undefined}>
-                          {regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
-                        </Td>
-                        <Td strong color={regs ? freeTone((100 * free) / regs) : undefined}>
-                          {regs ? `${Math.round((100 * free) / regs)}%` : "—"}
-                        </Td>
+                        <RateTd strong count={discounted} total={regs}
+                          color={regs ? discountTone((100 * discounted) / regs) : undefined} />
+                        <RateTd strong count={free} total={regs}
+                          color={regs ? freeTone((100 * free) / regs) : undefined} />
                         <td className="px-4 py-3 whitespace-nowrap">
                           <Link href={playersHref(selectedSeason, locationNames?.join(","))} className={VIEW_BTN}>View discounts</Link>
                         </td>
@@ -276,6 +272,23 @@ export default async function DiscountsView({
 
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold`}>{children}</th>;
+}
+
+// A rate reads very differently at 1 of 1 than at 340 of 3,400, so the cell
+// carries the fraction the percentage came from.
+function RateTd({ count, total, color, strong = false }: {
+  count: number; total: number; color?: string; strong?: boolean;
+}) {
+  return (
+    <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
+      <div style={{ color: color ?? "var(--glass-text)", fontWeight: strong ? 700 : 500 }}>
+        {total ? `${Math.round((100 * count) / total)}%` : "—"}
+      </div>
+      <div className="text-[11px] text-glass-text-tertiary leading-snug">
+        {count.toLocaleString()} of {total.toLocaleString()}
+      </div>
+    </td>
+  );
 }
 
 function Td({ children, strong = false, color }: { children: React.ReactNode; strong?: boolean; color?: string }) {
