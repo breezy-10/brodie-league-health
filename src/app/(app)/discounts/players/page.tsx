@@ -17,7 +17,7 @@ const GOLD = "var(--glass-gold)";
 type DiscountPlayer = {
   player: string; location: string; currency: string; type: string; team: string | null;
   list_price: number; discount: number; total_paid: number; free: boolean;
-  codes: string; registered_on: string | null;
+  codes: string; discount_names?: string; registered_on: string | null;
 };
 type Feed = { season: string; players: DiscountPlayer[]; truncated: boolean };
 type TotalsFeed = { locations: { currency: string; regs: number }[] };
@@ -146,7 +146,7 @@ export default async function DiscountPlayersPage({
       ) : (
         <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 960 }}>
+            <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1120 }}>
               <thead>
                 <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
                   <Th align="left">Player</Th>
@@ -156,6 +156,11 @@ export default async function DiscountPlayersPage({
                   <Th align="left">Reg type</Th>
                   <Th align="left">Team</Th>
                   <Th align="left">Code</Th>
+                  {/* What the code is for. The ops DB's own discount "type" is
+                      'coupon' on all but a handful of rows system-wide, so the
+                      discount's name is the field that actually separates an
+                      ambassador comp from a referral from a returning player. */}
+                  <Th align="left">Discount type</Th>
                   <Th>List price</Th>
                   <Th>Discount</Th>
                   <Th>Total price</Th>
@@ -179,6 +184,10 @@ export default async function DiscountPlayersPage({
                     </td>
                     <td className="px-4 py-2.5 font-mono text-[12px] whitespace-nowrap text-glass-text-tertiary" title={r.codes}>
                       {r.codes}
+                    </td>
+                    <td className="px-4 py-2.5 max-w-[240px] truncate" style={{ color: "var(--glass-text-secondary)" }}
+                      title={r.discount_names ?? ""}>
+                      {r.discount_names || "—"}
                     </td>
                     <Td>{money(r.list_price)}</Td>
                     {/* The share of list price says what a discount actually
