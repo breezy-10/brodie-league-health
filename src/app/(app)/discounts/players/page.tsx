@@ -19,10 +19,11 @@ type DiscountPlayer = {
 };
 type Feed = { season: string; players: DiscountPlayer[]; truncated: boolean };
 
-async function loadPlayers(season: string, locationNames: string[] | null): Promise<Feed | null> {
+async function loadPlayers(season: string, locationNames: string[] | null, freeOnly: boolean): Promise<Feed | null> {
   try {
     const url = new URL("/api/discounts/players", PROMO_APP_URL);
     url.searchParams.set("season", season);
+    if (freeOnly) url.searchParams.set("free", "1");
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
@@ -42,17 +43,18 @@ const day = (iso: string | null) =>
 export default async function DiscountPlayersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; free?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, free: freeParam } = await searchParams;
+  const freeOnly = freeParam === "1";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
   const { selectedSeason, locationNames } = await resolveScope(
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
-  const feed = await loadPlayers(selectedSeason, locationNames);
+  const feed = await loadPlayers(selectedSeason, locationNames, freeOnly);
   const rows = feed?.players ?? [];
   const free = rows.filter((r) => r.free).length;
   // Currencies are never summed; the total is reported once per currency.
@@ -74,7 +76,7 @@ export default async function DiscountPlayersPage({
       <header>
         <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: GOLD }}>Discounts</p>
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
-          Every discounted registration
+          {freeOnly ? "Every free registration" : "Every discounted registration"}
         </h1>
         <p className="text-sm mt-1.5 text-glass-text-tertiary max-w-[70ch]">
           {selectedSeason}
@@ -84,9 +86,12 @@ export default async function DiscountPlayersPage({
 
       {rows.length > 0 && (
         <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
-          <Tile label="Discounted registrations" value={rows.length.toLocaleString()} />
-          <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
-            sub={rows.length ? `${Math.round((100 * free) / rows.length)}% of them paid nothing` : undefined} />
+          <Tile label={freeOnly ? "Free registrations" : "Discounted registrations"}
+            value={rows.length.toLocaleString()} accent={freeOnly ? GOLD : undefined} />
+          {!freeOnly && (
+            <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
+              sub={rows.length ? `${Math.round((100 * free) / rows.length)}% of them paid nothing` : undefined} />
+          )}
           {/* Never summed across currencies — each is its own figure. */}
           <Tile label="Given up"
             values={[...totalByCurrency.entries()].sort().map(([c, v]) => `${money(v)} ${c}`)} />
@@ -99,7 +104,7 @@ export default async function DiscountPlayersPage({
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
-          No discounted registrations for {selectedSeason} in this scope.
+          No {freeOnly ? "free" : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
         <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
@@ -149,7 +154,7 @@ export default async function DiscountPlayersPage({
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
-        Every registration in {selectedSeason} that carried a discount, largest first — the same scope as the
+        Every registration in {selectedSeason} that {freeOnly ? "paid nothing" : "carried a discount"}, largest first — the same scope as the
         Discounts tab, so the count here matches the &ldquo;got a discount&rdquo; tile. A code that has since been
         deleted takes its usage records with it, so a registration can carry a discount with nothing left to name it;
         those show as <span className="font-mono">(code removed)</span> rather than being dropped, because the money

@@ -45,9 +45,10 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 
 // Drill-down to the per-player list, carrying the current season and either the
 // row's own location or whatever the filter is already scoped to.
-function playersHref(season: string, location?: string) {
+function playersHref(season: string, location?: string, freeOnly = false) {
   const p = new URLSearchParams({ season });
   if (location) p.set("location", location);
+  if (freeOnly) p.set("free", "1");
   return `/discounts/players?${p}`;
 }
 const VIEW_BTN =
@@ -152,7 +153,8 @@ export default async function DiscountsView({
                     inside "got a discount" — the sub-label says so, because two
                     tiles side by side otherwise read as separate groups. */}
                 <Tile label="Free" value={regs ? `${Math.round((100 * free) / regs)}%` : "—"}
-                  sub={`${free.toLocaleString()} of ${regs.toLocaleString()} · included above`} />
+                  sub={`${free.toLocaleString()} of ${regs.toLocaleString()} · included above`}
+                  href={playersHref(selectedSeason, locationNames?.join(","), true)} hrefLabel="View free" />
               </div>
 
               <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
