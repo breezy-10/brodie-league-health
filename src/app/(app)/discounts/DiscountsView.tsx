@@ -1,7 +1,6 @@
 import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import { requireUser } from "@/lib/auth";
-import PriceTrend from "./PriceTrend";
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the price
 // figures come from its feed rather than being re-derived here — same pattern
@@ -102,7 +101,6 @@ export default async function DiscountsView({
       ) : (
         currencies.map((cur) => {
           const locs = feed.locations.filter((r) => r.currency === cur);
-          const trend = feed.trend.filter((r) => r.currency === cur);
           const regs = locs.reduce((s, r) => s + r.regs, 0);
           // Weighted by registrations — a 13-registration venue must not pull
           // the average as hard as a 543-registration one.
@@ -134,8 +132,6 @@ export default async function DiscountsView({
                 <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
                   sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()} · ${free.toLocaleString()} free`} />
               </div>
-
-              {trend.length > 1 && <PriceTrend rows={trend} currency={cur} />}
 
               <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
                 <div className="overflow-x-auto">
