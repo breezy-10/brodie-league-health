@@ -1465,7 +1465,7 @@ const moneyShort = (n: number) => {
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
 type PacingDivision = { name: string; teams: number; full_roster: number };
 type PacingLocation = { location: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
-type Pacing = { day_n: number | null; seasons: PacingSeason[]; locations?: PacingLocation[];
+type Pacing = { day_n: number | null; elapsed_hours?: number | null; seasons: PacingSeason[]; locations?: PacingLocation[];
   retention?: Retention | null; retention_year?: Retention | null;
   // The team count’s own basis: captains who are captaining again.
   retention_captains?: Retention | null; retention_captains_year?: Retention | null };
@@ -2609,8 +2609,16 @@ export default async function DashboardView({
     return groups;
   };
 
-  const regBarWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"} of registration`;
-  const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : `day ${pacing?.day_n ?? "?"}`;
+  // "day 1" starts at the first minute of a season, so on opening day it reads
+  // as a full day against a full day of last season's — the comparison is
+  // eleven hours against eleven hours. Under a day, say the hours.
+  const eh = pacing?.elapsed_hours ?? null;
+  const regWindow = eh != null && eh < 24
+    ? `${eh}h into registration`
+    : `day ${pacing?.day_n ?? "?"} of registration`;
+  const regWindowShort = eh != null && eh < 24 ? `${eh}h in` : `day ${pacing?.day_n ?? "?"}`;
+  const regBarWhen = regOnWeek ? `week of ${weekLabel}` : regWindow;
+  const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : regWindowShort;
 
   return (
     <main className="brodie-fade-in space-y-8">
