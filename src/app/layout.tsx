@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import { ThemeScript } from "@/components/ThemeScript";
 
 const inter = Inter({
@@ -21,9 +22,14 @@ export const metadata: Metadata = {
   description: "Daily ops scoreboard for league managers.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Rendered by the server from the cookie ThemeScript/ThemeToggle keep, so the
+  // theme is part of React's own tree and survives a full re-render of the
+  // document. Dark is the default, same as ThemeScript.
+  const saved = (await cookies()).get("blh-theme")?.value;
+  const theme = saved === "light" ? "light" : "dark";
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme={theme} suppressHydrationWarning>
       <head>
         <ThemeScript />
       </head>
