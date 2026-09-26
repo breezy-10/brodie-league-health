@@ -2,6 +2,9 @@ import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import AmbassadorTable, { type CaptainTeam } from "./AmbassadorTable";
+import { StaffBadge } from "@/components/TeamRosterBlock";
+import { loadStaff } from "@/lib/staff";
+import { normName } from "@/lib/names";
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the ambassador
 // roster comes from its feed rather than being re-derived here — same pattern
@@ -98,7 +101,7 @@ export default async function AmbassadorTeamsView({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
-  const feed = await loadAmbassadorTeams(selectedSeason, locationNames);
+  const [feed, staff] = await Promise.all([loadAmbassadorTeams(selectedSeason, locationNames), loadStaff()]);
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
@@ -241,6 +244,7 @@ export default async function AmbassadorTeamsView({
                 </div>
                 <AmbassadorTable
                   rows={captainRows}
+                  staff={staff}
                   teamsByKey={teamsByKey}
                   season={selectedSeason}
                   hasFullRoster={hasFullRoster}
@@ -252,7 +256,7 @@ export default async function AmbassadorTeamsView({
 
             <div className="space-y-3">
               {locations.map((loc) => (
-                <LocationCard key={loc.location} loc={loc} slots={slots} captainTeams={captainTeams} />
+                <LocationCard key={loc.location} loc={loc} slots={slots} captainTeams={captainTeams} staff={staff} />
               ))}
             </div>
           </>
@@ -276,10 +280,12 @@ function LocationCard({
   loc,
   slots,
   captainTeams,
+  staff,
 }: {
   loc: LocationRow;
   slots: number;
   captainTeams: Record<string, number>;
+  staff: Record<string, string> | null;
 }) {
   // Only the nights this location actually plays get a column, so a one-night
   // venue doesn't render six empty ones.
@@ -325,7 +331,7 @@ function LocationCard({
               </div>
               <ul className="space-y-2">
                 {teams.map((r, i) => (
-                  <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} />
+                  <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} staff={staff} />
                 ))}
               </ul>
             </div>
@@ -340,11 +346,14 @@ function TeamChip({
   row,
   slots,
   captainTeams,
+  staff,
 }: {
   row: TeamRow;
   slots: number;
   captainTeams: Record<string, number>;
+  staff: Record<string, string> | null;
 }) {
+  const staffOf = (name: string | null) => (name ? staff?.[normName(name)] : undefined);
   const runs = row.captain ? captainTeams[row.captain] ?? 1 : 1;
   // The left edge carries roster state, so a thin roster reads before the
   // number does.
@@ -381,6 +390,7 @@ function TeamChip({
         {row.captain ? (
           <>
             <span className="break-words">{row.captain}</span>
+            {staffOf(row.captain) && <StaffBadge label={staffOf(row.captain)!} />}
             {runs > 1 && (
               <span
                 className="font-mono text-[11px] sm:text-[10px] font-bold px-1 rounded shrink-0"
@@ -451,6 +461,7 @@ function TeamChip({
                 title={r.player}>
                 {r.player}
                 {r.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
+                {staffOf(r.player) && <StaffBadge label={staffOf(r.player)!} />}
               </span>
               <span
                 className="tabular font-mono shrink-0"
