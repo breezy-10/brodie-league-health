@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import TeamRosterBlock, { type RosterLine, type RosterTeam } from "@/components/TeamRosterBlock";
+import TeamRosterBlock, { StaffBadge, type RosterLine, type RosterTeam } from "@/components/TeamRosterBlock";
+import { normName } from "@/lib/names";
 
 const GOLD = "var(--glass-gold)";
 
@@ -31,6 +32,7 @@ export default function AmbassadorTable({
   rows,
   teamsByKey,
   season,
+  staff,
   hasFullRoster,
   hasTeammates,
   hasPaid,
@@ -38,6 +40,8 @@ export default function AmbassadorTable({
   rows: CaptainRow[];
   teamsByKey: Record<string, CaptainTeam[]>;
   season: string;
+  // Normalised name -> role label (training roster + League Health users).
+  staff: Record<string, string> | null;
   hasFullRoster: boolean;
   hasTeammates: boolean;
   hasPaid: boolean;
@@ -84,7 +88,7 @@ export default function AmbassadorTable({
             );
             const isOpen = !!open[c.key];
             return (
-              <Row key={c.key} c={c} teams={teams} isOpen={isOpen} colCount={colCount} season={season}
+              <Row key={c.key} c={c} teams={teams} isOpen={isOpen} colCount={colCount} season={season} staff={staff}
                 hasFullRoster={hasFullRoster} hasTeammates={hasTeammates} hasPaid={hasPaid}
                 toggle={() => setOpen((o) => ({ ...o, [c.key]: !o[c.key] }))} />
             );
@@ -96,13 +100,14 @@ export default function AmbassadorTable({
 }
 
 function Row({
-  c, teams, isOpen, colCount, season, hasFullRoster, hasTeammates, hasPaid, toggle,
+  c, teams, isOpen, colCount, season, staff, hasFullRoster, hasTeammates, hasPaid, toggle,
 }: {
   c: CaptainRow;
   teams: CaptainTeam[];
   isOpen: boolean;
   colCount: number;
   season: string;
+  staff: Record<string, string> | null;
   hasFullRoster: boolean;
   hasTeammates: boolean;
   hasPaid: boolean;
@@ -143,6 +148,7 @@ function Row({
             ) : (
               <span className="font-medium" style={{ color: "var(--glass-text)" }}>{c.name}</span>
             )}
+            {staff?.[normName(c.name)] && <StaffBadge label={staff[normName(c.name)]} />}
           </span>
         </td>
         <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
@@ -181,7 +187,7 @@ function Row({
           <td colSpan={colCount} className="px-4 py-3">
             <div className="space-y-3">
               {teams.map((t, ti) => (
-                <TeamRosterBlock key={`${t.location}-${t.team}-${ti}`} team={t} />
+                <TeamRosterBlock key={`${t.location}-${t.team}-${ti}`} team={t} staff={staff ?? undefined} />
               ))}
             </div>
           </td>

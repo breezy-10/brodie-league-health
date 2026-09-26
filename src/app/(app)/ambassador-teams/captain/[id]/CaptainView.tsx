@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { resolveScope } from "@/lib/seasons";
+import { StaffBadge } from "@/components/TeamRosterBlock";
+import { loadStaff } from "@/lib/staff";
+import { normName } from "@/lib/names";
 
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
@@ -86,7 +89,7 @@ export default async function CaptainView({
     { defaultSeason: "registration" },
   );
 
-  const feed = await loadPlayer(selectedSeason, id);
+  const [feed, staff] = await Promise.all([loadPlayer(selectedSeason, id), loadStaff()]);
   const boardHref = `/ambassador-teams?season=${encodeURIComponent(selectedSeason)}`;
 
   if (!feed) {
@@ -124,6 +127,9 @@ export default async function CaptainView({
           </p>
           <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
             {name}
+            {staff?.[normName(name)] && (
+              <span className="align-middle text-base"><StaffBadge label={staff[normName(name)]} /></span>
+            )}
           </h1>
         </header>
       </div>
@@ -148,6 +154,7 @@ export default async function CaptainView({
         }
         rows={ambassador}
         showRole={captained.length !== ambassador.length}
+        staff={staff}
       />
 
       {other.length > 0 && (
@@ -157,6 +164,7 @@ export default async function CaptainView({
           rows={other}
           showRole
           showType
+          staff={staff}
         />
       )}
 
@@ -171,9 +179,10 @@ export default async function CaptainView({
 }
 
 function TeamTable({
-  title, note, rows, showRole = false, showType = false,
+  title, note, rows, showRole = false, showType = false, staff,
 }: {
   title: string; note: string; rows: PlayerTeam[]; showRole?: boolean; showType?: boolean;
+  staff: Record<string, string> | null;
 }) {
   // Laid out as a grid rather than a <table> so each team can be a native
   // disclosure — a <details> cannot wrap table rows.
@@ -212,6 +221,7 @@ function TeamTable({
               template={template}
               showRole={showRole}
               showType={showType}
+              staff={staff}
             />
           ))}
         </div>
@@ -221,9 +231,10 @@ function TeamTable({
 }
 
 function TeamRowItem({
-  row, template, showRole, showType,
+  row, template, showRole, showType, staff,
 }: {
   row: PlayerTeam; template: string; showRole: boolean; showType: boolean;
+  staff: Record<string, string> | null;
 }) {
   const roster = row.roster ?? [];
   const paid = roster.filter((x) => x.paid_ok).length;
@@ -297,6 +308,7 @@ function TeamRowItem({
             <span className="truncate flex-1" style={{ color: owes(x) ? "var(--glass-text)" : "var(--glass-text-secondary)" }}>
               {x.player}
               {x.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
+              {staff?.[normName(x.player)] && <StaffBadge label={staff[normName(x.player)]} />}
             </span>
             <span
               className="tabular font-mono shrink-0 w-[128px] text-right"
