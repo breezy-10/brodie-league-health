@@ -162,7 +162,7 @@ export default async function DiscountsView({
                 <Tile label="Total price" value={money(w("total_paid"))} accent={GOLD} sub="after discount, with fees" />
                 <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
                   accent={regs ? discountTone((100 * discounted) / regs) : undefined}
-                  sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()} · ${money(discountTotal)} given up`}
+                  sub={<CountCost n={discounted} of={regs} cost={discountTotal} />}
                   href={playersHref(selectedSeason, locationNames?.join(","))} hrefLabel="View discounts" />
                 {/* The discounting that isn't one of the two flat $20
                     programmes — ambassador, staff and district-manager codes,
@@ -173,8 +173,7 @@ export default async function DiscountsView({
                     sub={
                       <>
                         <span className="block">Not returning player or referral</span>
-                        <span className="block whitespace-nowrap">{other.toLocaleString()} of {regs.toLocaleString()}</span>
-                        <span className="block whitespace-nowrap">{money(otherTotal)} given up</span>
+                        <CountCost n={other} of={regs} cost={otherTotal} />
                       </>
                     } />
                 )}
@@ -183,7 +182,7 @@ export default async function DiscountsView({
                     tiles side by side otherwise read as separate groups. */}
                 <Tile label="Free" value={regs ? `${Math.round((100 * free) / regs)}%` : "—"}
                   accent={regs ? freeTone((100 * free) / regs) : undefined}
-                  sub={`${free.toLocaleString()} of ${regs.toLocaleString()} · ${money(freeValue)} given up`}
+                  sub={<CountCost n={free} of={regs} cost={freeValue} />}
                   href={playersHref(selectedSeason, locationNames?.join(","), true)} hrefLabel="View free" />
               </div>
 
@@ -301,6 +300,17 @@ function Td({ children, strong = false, color }: { children: React.ReactNode; st
       style={{ color: color ?? "var(--glass-text)", fontWeight: strong ? 700 : 500 }}>
       {children}
     </td>
+  );
+}
+
+// "33 of 75" on one line and what it cost on the next, so neither breaks
+// mid-figure when a card is narrow.
+function CountCost({ n, of, cost }: { n: number; of: number; cost: number }) {
+  return (
+    <>
+      <span className="block whitespace-nowrap">{n.toLocaleString()} of {of.toLocaleString()}</span>
+      <span className="block whitespace-nowrap">{money(cost)} given up</span>
+    </>
   );
 }
 
