@@ -88,6 +88,13 @@ export default async function DiscountPlayersPage({
   ]);
   const rows = feed?.players ?? [];
   const free = rows.filter((r) => r.free).length;
+  // Same test the feed sorts by, so the cards and the blocks in the table
+  // agree on which programme a row belongs to. Returning player wins a tie:
+  // a registration carrying both codes is counted once, on the first.
+  const isReturning = (r: DiscountPlayer) => /returning player/i.test(r.discount_names ?? "");
+  const isReferral = (r: DiscountPlayer) => !isReturning(r) && /referral/i.test(r.discount_names ?? "");
+  const returning = rows.filter(isReturning).length;
+  const referral = rows.filter(isReferral).length;
   // Currencies are never summed; the total is reported once per currency.
   const totalByCurrency = new Map<string, number>();
   for (const r of rows) totalByCurrency.set(r.currency, (totalByCurrency.get(r.currency) ?? 0) + r.discount);
@@ -128,7 +135,7 @@ export default async function DiscountPlayersPage({
       />
 
       {rows.length > 0 && (
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+        <div className={`grid gap-3 grid-cols-2 md:grid-cols-3${freeOnly ? "" : " lg:grid-cols-6"}`}>
           <Tile label="Total registrations" value={totalRegs === null ? "—" : totalRegs.toLocaleString()} />
           <Tile label={freeOnly ? "Free registrations" : "Discounted registrations"}
             value={rows.length.toLocaleString()} accent={freeOnly ? GOLD : undefined}
@@ -136,6 +143,14 @@ export default async function DiscountPlayersPage({
           {!freeOnly && (
             <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
               sub={totalRegs ? <Pct n={free} of={totalRegs} tone={freeTone} /> : undefined} />
+          )}
+          {!freeOnly && (
+            <>
+              <Tile label="Returning player" value={returning.toLocaleString()}
+                sub={totalRegs ? <Pct n={returning} of={totalRegs} tone={discountTone} /> : undefined} />
+              <Tile label="Referral" value={referral.toLocaleString()}
+                sub={totalRegs ? <Pct n={referral} of={totalRegs} tone={discountTone} /> : undefined} />
+            </>
           )}
           {/* Never summed across currencies — each is its own figure. */}
           <Tile label="Given up"
