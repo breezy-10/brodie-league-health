@@ -53,10 +53,11 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 
 // Drill-down to the per-player list, carrying the current season and either the
 // row's own location or whatever the filter is already scoped to.
-function playersHref(season: string, location?: string, freeOnly = false) {
+function playersHref(season: string, location?: string, freeOnly = false, kind?: "other") {
   const p = new URLSearchParams({ season });
   if (location) p.set("location", location);
   if (freeOnly) p.set("free", "1");
+  if (kind) p.set("kind", kind);
   return `/discounts/players?${p}`;
 }
 const VIEW_BTN =
@@ -175,7 +176,8 @@ export default async function DiscountsView({
                         <span className="block">Not returning player or referral</span>
                         <CountCost n={other} of={regs} cost={otherTotal} />
                       </>
-                    } />
+                    }
+                    href={playersHref(selectedSeason, locationNames?.join(","), false, "other")} hrefLabel="View discounts" />
                 )}
                 {/* A free registration is a discount of 100%, so it is already
                     inside "got a discount" — the sub-label says so, because two
