@@ -29,8 +29,15 @@ const SEASON_PREFIX =
 const shortDiscount = (name: string) =>
   name.split(", ").map((n) => n.replace(SEASON_PREFIX, "").trim() || n).join(", ");
 const TYPE_LABEL: Record<string, string> = { captain: "Captain", join_team: "Join team", free_agent: "Free agent" };
+// Pinned to Eastern time. This renders on the server (UTC) and again in the
+// browser, and without a fixed zone the two disagree for anything registered
+// after 8pm Eastern — a hydration mismatch, which makes React rebuild the page
+// and wipes the theme off <html>. fin_invoices.date is timestamptz, so the
+// instant is exact and only the display zone needs choosing.
 const day = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" }) : "—";
+  iso
+    ? new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric", timeZone: "America/Toronto" })
+    : "—";
 
 // The table body of the discount drill-down. Each registration with a team can
 // open that team's roster and who has paid what; rosters are fetched when a row

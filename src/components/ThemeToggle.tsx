@@ -18,6 +18,8 @@ export function ThemeToggle() {
     setTheme(next);
     document.documentElement.setAttribute("data-theme", next);
     try { localStorage.setItem(STORAGE_KEY, next); } catch {}
+    // Read by the root layout, so the server renders the chosen theme.
+    document.cookie = `${STORAGE_KEY}=${next}; path=/; max-age=31536000; samesite=lax`;
   }
 
   const isDark = theme === "dark";
