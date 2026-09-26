@@ -170,7 +170,13 @@ export default async function DiscountsView({
                 {hasOther && (
                   <Tile label="Other discounts" value={regs ? `${Math.round((100 * other) / regs)}%` : "—"}
                     accent={regs ? discountTone((100 * other) / regs) : undefined}
-                    sub={`Not returning player or referral · ${other.toLocaleString()} of ${regs.toLocaleString()} · ${money(otherTotal)} given up`} />
+                    sub={
+                      <>
+                        <span className="block">Not returning player or referral</span>
+                        <span className="block whitespace-nowrap">{other.toLocaleString()} of {regs.toLocaleString()}</span>
+                        <span className="block whitespace-nowrap">{money(otherTotal)} given up</span>
+                      </>
+                    } />
                 )}
                 {/* A free registration is a discount of 100%, so it is already
                     inside "got a discount" — the sub-label says so, because two
@@ -299,7 +305,7 @@ function Td({ children, strong = false, color }: { children: React.ReactNode; st
 }
 
 function Tile({ label, value, sub, accent, href, hrefLabel }: {
-  label: string; value: string; sub?: string; accent?: string; href?: string; hrefLabel?: string;
+  label: string; value: string; sub?: React.ReactNode; accent?: string; href?: string; hrefLabel?: string;
 }) {
   return (
     <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0 flex flex-col">
