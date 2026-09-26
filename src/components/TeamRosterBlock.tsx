@@ -1,6 +1,9 @@
 // One team's roster with what each player has paid — the block the Ambassadors
 // expander and the discount drill-down both open, so the two read identically.
 
+import { normName } from "@/lib/names";
+import { shortDiscount } from "@/lib/discount-names";
+
 const GOLD = "var(--glass-gold)";
 const THIN = "var(--glass-yellow)";
 
@@ -12,6 +15,10 @@ export type RosterLine = {
   currency: string | null;
   paid_ok: boolean;
   no_registration: boolean;
+  // The discount on their registration and what it was for. Optional so an
+  // older feed without them still renders.
+  discount?: number;
+  discount_names?: string | null;
 };
 
 export type RosterTeam = {
@@ -33,7 +40,28 @@ function money(x: RosterLine) {
   return `$${Math.round(x.paid)} / $${Math.round(x.total)}${cur}`;
 }
 
-export default function TeamRosterBlock({ team: t, note }: { team: RosterTeam; note?: string }) {
+// Marks someone on the training site's staff roster; the hover says their role
+// and home venue so a same-name player can be told apart.
+export function StaffBadge({ label }: { label: string }) {
+  return (
+    <span
+      className="ml-1.5 text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded align-middle cursor-help"
+      style={{ background: "var(--ok-soft)", color: "var(--ok-on)" }}
+      title={label}
+    >
+      Staff
+    </span>
+  );
+}
+
+export default function TeamRosterBlock({
+  team: t, note, staff,
+}: {
+  team: RosterTeam;
+  note?: string;
+  // Normalised name -> role label, from the training roster. Omit to show no tags.
+  staff?: Record<string, string>;
+}) {
   // Captain first, then whoever has paid least, so the chase list is on top.
   const ordered = [...t.roster].sort(
     (a, b) =>
@@ -42,6 +70,10 @@ export default function TeamRosterBlock({ team: t, note }: { team: RosterTeam; n
       a.player.localeCompare(b.player),
   );
   const paid = t.roster.filter((x) => x.paid_ok).length;
+  // Only a team where somebody took a discount gets the extra column, and the
+  // lines widen by exactly that much so name and amount stay under the header.
+  const hasDiscounts = t.roster.some((x) => (x.discount ?? 0) > 0);
+  const lineWidth = hasDiscounts ? "calc(42rem + 292px)" : "42rem";
   return (
     <div>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 max-w-2xl">
@@ -67,11 +99,12 @@ export default function TeamRosterBlock({ team: t, note }: { team: RosterTeam; n
       ) : (
         <ul className="mt-1 space-y-0.5">
           {ordered.map((x, i) => (
-            <li key={`${x.player}-${i}`} className="flex items-baseline gap-3 text-[12px] max-w-2xl">
+            <li key={`${x.player}-${i}`} className="flex items-baseline gap-3 text-[12px]" style={{ maxWidth: lineWidth }}>
               <span className="truncate flex-1"
                 style={{ color: owes(x) ? "var(--glass-text)" : "var(--glass-text-secondary)" }}>
                 {x.player}
                 {x.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
+                {staff?.[normName(x.player)] && <StaffBadge label={staff[normName(x.player)]} />}
               </span>
               <span
                 className="tabular font-mono shrink-0 w-[128px] text-right"
@@ -80,6 +113,21 @@ export default function TeamRosterBlock({ team: t, note }: { team: RosterTeam; n
               >
                 {money(x)}
               </span>
+              {hasDiscounts && (
+                <span className="shrink-0 w-[280px] truncate"
+                  title={x.discount_names ?? undefined}>
+                  {(x.discount ?? 0) > 0 && (
+                    <>
+                      <span className="tabular font-mono font-bold" style={{ color: GOLD }}>
+                        {"\u2212"}${Math.round(x.discount!)}
+                      </span>
+                      <span style={{ color: "var(--glass-text-secondary)" }}>
+                        {" \u00b7 "}{x.discount_names ? shortDiscount(x.discount_names) : "code removed"}
+                      </span>
+                    </>
+                  )}
+                </span>
+              )}
             </li>
           ))}
         </ul>
