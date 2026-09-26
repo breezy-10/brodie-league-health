@@ -23,6 +23,10 @@ export type DiscountRow = {
   free: number;
   discount_total: number;
   free_value: number;
+  // Discounts that were neither the returning-player discount nor a referral.
+  // Optional so an older feed without them just hides the tile.
+  other_discounted?: number;
+  other_discount_total?: number;
 };
 type DiscountFeed = { season: string; seasons: string[]; trend: DiscountRow[]; locations: DiscountRow[] };
 
@@ -132,6 +136,9 @@ export default async function DiscountsView({
           // Totals, not averages: what the season actually gave up.
           const discountTotal = locs.reduce((s, r) => s + (r.discount_total ?? 0), 0);
           const freeValue = locs.reduce((s, r) => s + (r.free_value ?? 0), 0);
+          const hasOther = locs.some((r) => r.other_discounted != null);
+          const other = locs.reduce((s, r) => s + (r.other_discounted ?? 0), 0);
+          const otherTotal = locs.reduce((s, r) => s + (r.other_discount_total ?? 0), 0);
           const maxPaid = Math.max(...locs.map((r) => r.total_paid), 1);
 
           return (
@@ -147,7 +154,7 @@ export default async function DiscountsView({
                 </span>
               </div>
 
-              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+              <div className={`grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ${hasOther ? "2xl:grid-cols-8" : "xl:grid-cols-7"}`}>
                 <Tile label="List price" value={money(w("list_price"))} accent={LIST} sub="before discount" />
                 <Tile label="Discount" value={`−${money(w("discount"))}`} sub="averaged over everyone" />
                 <Tile label="After discount" value={money(w("after_discount"))} sub="before fees" />
@@ -157,6 +164,14 @@ export default async function DiscountsView({
                   accent={regs ? discountTone((100 * discounted) / regs) : undefined}
                   sub={`${discounted.toLocaleString()} of ${regs.toLocaleString()} · ${money(discountTotal)} given up`}
                   href={playersHref(selectedSeason, locationNames?.join(","))} hrefLabel="View discounts" />
+                {/* The discounting that isn't one of the two flat $20
+                    programmes — ambassador, staff and district-manager codes,
+                    which is where the free registrations come from. */}
+                {hasOther && (
+                  <Tile label="Other discounts" value={regs ? `${Math.round((100 * other) / regs)}%` : "—"}
+                    accent={regs ? discountTone((100 * other) / regs) : undefined}
+                    sub={`Not returning player or referral · ${other.toLocaleString()} of ${regs.toLocaleString()} · ${money(otherTotal)} given up`} />
+                )}
                 {/* A free registration is a discount of 100%, so it is already
                     inside "got a discount" — the sub-label says so, because two
                     tiles side by side otherwise read as separate groups. */}
