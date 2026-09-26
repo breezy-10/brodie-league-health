@@ -61,6 +61,10 @@ async function loadPlayer(season: string, playerId: string): Promise<PlayerFeed 
 
 const GOLD = "var(--glass-gold)";
 const THIN = "var(--glass-yellow)";
+
+// Someone with a price to pay reads bright, their amount in gold; anyone on a
+// free registration (or with no registration on file) owes nothing and recedes.
+const owes = (x: { total: number; no_registration: boolean }) => !x.no_registration && x.total > 0;
 const EMPTY = "var(--glass-red)";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -290,13 +294,13 @@ function TeamRowItem({
         </li>
         {ordered.map((x, i) => (
           <li key={`${x.player}-${i}`} className="flex items-baseline gap-3 text-[12px] max-w-2xl">
-            <span className="truncate flex-1" style={{ color: x.paid_ok ? "var(--glass-text-secondary)" : "var(--glass-text)" }}>
+            <span className="truncate flex-1" style={{ color: owes(x) ? "var(--glass-text)" : "var(--glass-text-secondary)" }}>
               {x.player}
               {x.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
             </span>
             <span
               className="tabular font-mono shrink-0 w-[128px] text-right"
-              style={{ color: x.paid_ok ? "var(--glass-text-secondary)" : THIN }}
+              style={{ color: owes(x) ? GOLD : "var(--glass-text-secondary)" }}
               title={x.no_registration ? "No registration on file" : undefined}
             >
               {x.no_registration
