@@ -26,7 +26,8 @@ export async function saveReferralRates(input: {
 }): Promise<{ ok: true } | { error: string }> {
   const ctx = await getCurrentUser();
   const role = ctx?.profile?.role;
-  if (!role || !EDITOR_ROLES.includes(role)) {
+  // active: an unapproved profile keeps its role column, so check approval too.
+  if (!role || !EDITOR_ROLES.includes(role) || ctx?.profile?.active === false) {
     return { error: "Only a district manager or super admin can change the referral terms." };
   }
   const season = input.season.trim();

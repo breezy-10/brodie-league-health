@@ -201,8 +201,16 @@ export async function denyUser(userId: string): Promise<{ ok: true } | { error: 
 /** Approve (or un-approve) someone waiting on an access decision. */
 export async function setUserActive(userId: string, active: boolean): Promise<{ ok: true } | { error: string }> {
   try {
-    await requireRole(["dm", "operations_manager", "super_admin"]);
+    const { user, profile } = await requireRole(["dm", "operations_manager", "super_admin"]);
+    if (userId === user.id) return { error: "You can't change your own access." };
     const admin = createAdminClient();
+    // Same rule as archive/deny: only a super admin can change an Admin.
+    if (profile?.role !== "super_admin") {
+      const { data: target } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+      if ((target as { role?: string } | null)?.role === "super_admin") {
+        return { error: "Only an admin can change an Admin's access." };
+      }
+    }
     const { error } = await admin
       .from("profiles")
       .update({ active, updated_at: new Date().toISOString() })
