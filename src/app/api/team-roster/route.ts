@@ -22,3 +22,25 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Promo Tracker unavailable" }, { status: 502 });
   }
 }
+
+// "Expand all": up to 80 teams per call, same contract as the Promo Tracker's.
+export async function POST(req: Request) {
+  await requireUser();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON body required" }, { status: 400 });
+  }
+  try {
+    const res = await fetch(new URL("/api/team-roster", PROMO_APP_URL).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    return NextResponse.json(await res.json(), { status: res.status, headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return NextResponse.json({ error: "Promo Tracker unavailable" }, { status: 502 });
+  }
+}

@@ -3,7 +3,8 @@ import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../../dashboard/Filters";
 import { discountTone, freeTone } from "../rates";
-import DiscountRows from "./DiscountRows";
+import DiscountTable from "./DiscountTable";
+import { loadStaff } from "@/lib/staff";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -76,9 +77,10 @@ export default async function DiscountPlayersPage({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
-  const [feed, totalRegs] = await Promise.all([
+  const [feed, totalRegs, staff] = await Promise.all([
     loadPlayers(selectedSeason, locationNames, freeOnly),
     loadTotalRegs(selectedSeason, locationNames),
+    loadStaff(),
   ]);
   // Same test the feed sorts by, so the cards and the blocks in the table
   // agree on which programme a row belongs to. Returning player wins a tie:
@@ -179,33 +181,7 @@ export default async function DiscountPlayersPage({
           No {freeOnly ? "free" : otherOnly ? "other discounted" : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
-        <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1120 }}>
-              <thead>
-                <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
-                  <Th align="left">Player</Th>
-                  <Th align="left">Location</Th>
-                  {/* Captain or player — the kind of registration, not the
-                      kind of discount, which the Code column beside it names. */}
-                  <Th align="left">Reg type</Th>
-                  <Th align="left">Team</Th>
-                  <Th align="left">Code</Th>
-                  {/* What the code is for. The ops DB's own discount "type" is
-                      'coupon' on all but a handful of rows system-wide, so the
-                      discount's name is the field that actually separates an
-                      ambassador comp from a referral from a returning player. */}
-                  <Th align="left">Discount type</Th>
-                  <Th>List price</Th>
-                  <Th>Discount</Th>
-                  <Th>Total price</Th>
-                  <Th>Registered</Th>
-                </tr>
-              </thead>
-              <DiscountRows rows={rows} season={selectedSeason} />
-            </table>
-          </div>
-        </div>
+        <DiscountTable rows={rows} season={selectedSeason} staff={staff} />
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
@@ -221,10 +197,6 @@ export default async function DiscountPlayersPage({
       </p>
     </main>
   );
-}
-
-function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
-  return <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold`}>{children}</th>;
 }
 
 // A rate with its band colour, for a card's sub-label.
