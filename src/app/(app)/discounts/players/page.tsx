@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../../dashboard/Filters";
 import { discountTone, freeTone } from "../rates";
+import DiscountRows from "./DiscountRows";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -18,6 +19,7 @@ type DiscountPlayer = {
   player: string; location: string; currency: string; type: string; team: string | null;
   list_price: number; discount: number; total_paid: number; free: boolean;
   codes: string; discount_names?: string; registered_on: string | null;
+  season_team_id?: string | null; player_id?: string | null;
 };
 type Feed = { season: string; players: DiscountPlayer[]; truncated: boolean };
 type TotalsFeed = { locations: { currency: string; regs: number }[] };
@@ -56,17 +58,6 @@ async function loadPlayers(season: string, locationNames: string[] | null, freeO
 }
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-// Discount names are written with the season in front — "Coldest Winter 2027
-// Returning Player Discount" — which is the half you already know from the
-// season filter, and the half that pushes the part you don't off the end of the
-// column. The full name stays on hover.
-const SEASON_PREFIX =
-  /^(?:the\s+)?(?:coldest\s+winter|brodie\s+summer|bracket\s+season|slasher\s+season|winter|summer|spring|fall)\s*'?\d{0,4}\s+/i;
-const shortDiscount = (name: string) =>
-  name.split(", ").map((n) => n.replace(SEASON_PREFIX, "").trim() || n).join(", ");
-const TYPE_LABEL: Record<string, string> = { captain: "Captain", join_team: "Join team", free_agent: "Free agent" };
-const day = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" }) : "—";
 
 export default async function DiscountPlayersPage({
   searchParams,
@@ -211,43 +202,7 @@ export default async function DiscountPlayersPage({
                   <Th>Registered</Th>
                 </tr>
               </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={`${r.player}-${r.team ?? ""}-${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
-                    <td className="px-4 py-2.5 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
-                      {r.player}
-                      {r.free && (
-                        <span className="ml-2 text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded align-middle"
-                          style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>Free</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{r.location}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-tertiary">{TYPE_LABEL[r.type] ?? r.type}</td>
-                    <td className="px-4 py-2.5 max-w-[220px] truncate" style={{ color: "var(--glass-text)" }} title={r.team ?? ""}>
-                      {r.team ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-[12px] whitespace-nowrap text-glass-text-tertiary" title={r.codes}>
-                      {r.codes}
-                    </td>
-                    <td className="px-4 py-2.5 max-w-[240px] truncate" style={{ color: "var(--glass-text-secondary)" }}
-                      title={r.discount_names ?? ""}>
-                      {r.discount_names ? shortDiscount(r.discount_names) : "—"}
-                    </td>
-                    <Td>{money(r.list_price)}</Td>
-                    {/* The share of list price says what a discount actually
-                        was — $66 is a fifth off in Canada and a quarter in the
-                        US, and the dollar figure alone hides that. */}
-                    <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
-                      <div style={{ color: GOLD, fontWeight: 700 }}>−{money(r.discount)}</div>
-                      <div className="text-[11px] text-glass-text-tertiary leading-snug">
-                        {r.list_price ? `${Math.round((100 * r.discount) / r.list_price)}%` : "—"}
-                      </div>
-                    </td>
-                    <Td>{money(r.total_paid)}</Td>
-                    <Td>{day(r.registered_on)}</Td>
-                  </tr>
-                ))}
-              </tbody>
+              <DiscountRows rows={rows} season={selectedSeason} />
             </table>
           </div>
         </div>
@@ -309,14 +264,5 @@ function Tile({ label, value, values, sub, accent }: {
       </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
     </div>
-  );
-}
-
-function Td({ children, strong = false, color }: { children: React.ReactNode; strong?: boolean; color?: string }) {
-  return (
-    <td className="px-4 py-2.5 text-right tabular whitespace-nowrap"
-      style={{ color: color ?? "var(--glass-text)", fontWeight: strong ? 700 : 500 }}>
-      {children}
-    </td>
   );
 }
