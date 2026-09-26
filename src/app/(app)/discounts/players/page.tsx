@@ -95,6 +95,13 @@ export default async function DiscountPlayersPage({
   const isReferral = (r: DiscountPlayer) => !isReturning(r) && /referral/i.test(r.discount_names ?? "");
   const returning = rows.filter(isReturning).length;
   const referral = rows.filter(isReferral).length;
+  // What each programme cost, reported per currency like the Given up card —
+  // a CAD figure and a USD figure are never added together.
+  const givenUp = (pred: (r: DiscountPlayer) => boolean) => {
+    const m = new Map<string, number>();
+    for (const r of rows) if (pred(r)) m.set(r.currency, (m.get(r.currency) ?? 0) + r.discount);
+    return [...m.entries()].sort().map(([c, v]) => `${money(v)} ${c}`).join(" \u00b7 ");
+  };
   // Currencies are never summed; the total is reported once per currency.
   const totalByCurrency = new Map<string, number>();
   for (const r of rows) totalByCurrency.set(r.currency, (totalByCurrency.get(r.currency) ?? 0) + r.discount);
@@ -141,15 +148,15 @@ export default async function DiscountPlayersPage({
             value={rows.length.toLocaleString()} accent={freeOnly ? GOLD : undefined}
             sub={totalRegs ? <Pct n={rows.length} of={totalRegs} tone={freeOnly ? freeTone : discountTone} /> : undefined} />
           {!freeOnly && (
-            <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
-              sub={totalRegs ? <Pct n={free} of={totalRegs} tone={freeTone} /> : undefined} />
-          )}
-          {!freeOnly && (
             <>
               <Tile label="Returning player" value={returning.toLocaleString()}
-                sub={totalRegs ? <Pct n={returning} of={totalRegs} tone={discountTone} /> : undefined} />
+                sub={<Sub pct={totalRegs ? <Pct n={returning} of={totalRegs} tone={discountTone} /> : null}
+                  cost={givenUp(isReturning)} />} />
               <Tile label="Referral" value={referral.toLocaleString()}
-                sub={totalRegs ? <Pct n={referral} of={totalRegs} tone={discountTone} /> : undefined} />
+                sub={<Sub pct={totalRegs ? <Pct n={referral} of={totalRegs} tone={discountTone} /> : null}
+                  cost={givenUp(isReferral)} />} />
+              <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
+                sub={totalRegs ? <Pct n={free} of={totalRegs} tone={freeTone} /> : undefined} />
             </>
           )}
           {/* Never summed across currencies — each is its own figure. */}
@@ -248,6 +255,16 @@ function Th({ children, align = "right" }: { children: React.ReactNode; align?: 
 }
 
 // A rate with its band colour, for a card's sub-label.
+// Share of registrations on one line, what the programme gave up on the next.
+function Sub({ pct, cost }: { pct: React.ReactNode; cost: string }) {
+  return (
+    <>
+      {pct}
+      {pct && cost ? <br /> : null}
+      {cost ? `${cost} given up` : null}
+    </>
+  );
+}
 function Pct({ n, of, tone }: { n: number; of: number; tone: (pct: number) => string }) {
   const pct = of ? (100 * n) / of : 0;
   return (
