@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -11,9 +10,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Idempotent: resolving an already-resolved item does NOT double-award.
  */
 export async function POST(req: Request) {
-  await requireUser();
+  const ctx = await requireUser();
   const { id } = (await req.json()) as { id: string };
-  const sb = await createClient();
+  if (!id) return NextResponse.json({ error: "bad_request" }, { status: 400 });
   const admin = createAdminClient();
 
   // Use admin to ensure we can read scoring_rule + write the snapshot even
@@ -35,16 +34,39 @@ export async function POST(req: Request) {
     metrics: { slug: string; scoring_rule: Record<string, unknown> } | null;
   };
 
-  // Already resolved → don't re-award. Use the user-scoped client to set
-  // resolved_at idempotently (RLS lets the LM update their own items).
+  // Only the LM the item belongs to (or an admin) may resolve it. The item is
+  // read with the service role, so without this any signed-in user could
+  // resolve anyone's items and award them XP.
+  const role = ctx.profile?.role;
+  const isAdmin = role === "dm" || role === "super_admin";
+  if (!isAdmin) {
+    const { data: lm } = await admin
+      .from("league_managers")
+      .select("id")
+      .eq("email", (ctx.user.email ?? "").toLowerCase())
+      .maybeSingle();
+    if ((lm as { id: string } | null)?.id !== row.lm_id) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+  }
+
+  // Already resolved → don't re-award.
   if (row.resolved_at) {
     return NextResponse.json({ ok: true, already_resolved: true });
   }
 
-  await sb
+  // Claim the resolve atomically: only the call that flips resolved_at from
+  // null awards XP. The old user-scoped update could silently no-op under RLS
+  // while the XP award below still ran, so repeat calls kept adding XP.
+  const { data: claimed } = await admin
     .from("daily_action_items")
     .update({ resolved_at: new Date().toISOString() })
-    .eq("id", id);
+    .eq("id", id)
+    .is("resolved_at", null)
+    .select("id");
+  if (!claimed?.length) {
+    return NextResponse.json({ ok: true, already_resolved: true });
+  }
 
   const rule = row.metrics?.scoring_rule ?? {};
   const isReward = rule["type"] === "reward_on_resolve";
