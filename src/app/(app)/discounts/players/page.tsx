@@ -71,11 +71,14 @@ const day = (iso: string | null) =>
 export default async function DiscountPlayersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; free?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; free?: string; kind?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam, free: freeParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam } = await searchParams;
   const freeOnly = freeParam === "1";
+  // kind=other narrows to the discounts that were neither of the two flat
+  // programmes — what the Other discounts tile on the Discounts tab counts.
+  const otherOnly = kindParam === "other";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
   const { promoLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
@@ -86,13 +89,14 @@ export default async function DiscountPlayersPage({
     loadPlayers(selectedSeason, locationNames, freeOnly),
     loadTotalRegs(selectedSeason, locationNames),
   ]);
-  const rows = feed?.players ?? [];
-  const free = rows.filter((r) => r.free).length;
   // Same test the feed sorts by, so the cards and the blocks in the table
   // agree on which programme a row belongs to. Returning player wins a tie:
   // a registration carrying both codes is counted once, on the first.
   const isReturning = (r: DiscountPlayer) => /returning player/i.test(r.discount_names ?? "");
   const isReferral = (r: DiscountPlayer) => !isReturning(r) && /referral/i.test(r.discount_names ?? "");
+  const allRows = feed?.players ?? [];
+  const rows = otherOnly ? allRows.filter((r) => !isReturning(r) && !isReferral(r)) : allRows;
+  const free = rows.filter((r) => r.free).length;
   const returning = rows.filter(isReturning).length;
   const referral = rows.filter(isReferral).length;
   // What each programme cost, reported per currency like the Given up card —
@@ -126,8 +130,13 @@ export default async function DiscountPlayersPage({
       <header>
         <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: GOLD }}>Discounts</p>
         <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
-          {freeOnly ? "Every free registration" : "Every discounted registration"}
+          {freeOnly ? "Every free registration" : otherOnly ? "Other discounts" : "Every discounted registration"}
         </h1>
+        {otherOnly && (
+          <p className="text-sm mt-1.5 text-glass-text-tertiary">
+            Every discounted registration that wasn&apos;t the returning-player discount or a referral.
+          </p>
+        )}
       </header>
 
       <Filters
@@ -138,16 +147,19 @@ export default async function DiscountPlayersPage({
           locations: selectedLocations,
         }}
         // Changing a filter must not quietly widen a free-only list back out.
-        keep={freeOnly ? { free: "1" } : undefined}
+        keep={freeOnly || otherOnly
+          ? { ...(freeOnly ? { free: "1" } : {}), ...(otherOnly ? { kind: "other" } : {}) }
+          : undefined}
       />
 
       {rows.length > 0 && (
-        <div className={`grid gap-3 grid-cols-2 md:grid-cols-3${freeOnly ? "" : " lg:grid-cols-6"}`}>
+        <div className={`grid gap-3 grid-cols-2 ${
+          freeOnly ? "md:grid-cols-3" : otherOnly ? "md:grid-cols-4" : "md:grid-cols-3 lg:grid-cols-6"}`}>
           <Tile label="Total registrations" value={totalRegs === null ? "—" : totalRegs.toLocaleString()} />
-          <Tile label={freeOnly ? "Free registrations" : "Discounted registrations"}
+          <Tile label={freeOnly ? "Free registrations" : otherOnly ? "Other discounts" : "Discounted registrations"}
             value={rows.length.toLocaleString()} accent={freeOnly ? GOLD : undefined}
             sub={totalRegs ? <Pct n={rows.length} of={totalRegs} tone={freeOnly ? freeTone : discountTone} /> : undefined} />
-          {!freeOnly && (
+          {!freeOnly && !otherOnly && (
             <>
               <Tile label="Returning player" value={returning.toLocaleString()}
                 sub={<Sub pct={totalRegs ? <Pct n={returning} of={totalRegs} tone={discountTone} /> : null}
@@ -155,9 +167,11 @@ export default async function DiscountPlayersPage({
               <Tile label="Referral" value={referral.toLocaleString()}
                 sub={<Sub pct={totalRegs ? <Pct n={referral} of={totalRegs} tone={discountTone} /> : null}
                   cost={givenUp(isReferral)} />} />
-              <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
-                sub={totalRegs ? <Pct n={free} of={totalRegs} tone={freeTone} /> : undefined} />
             </>
+          )}
+          {!freeOnly && (
+            <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
+              sub={totalRegs ? <Pct n={free} of={totalRegs} tone={freeTone} /> : undefined} />
           )}
           {/* Never summed across currencies — each is its own figure. */}
           <Tile label="Given up"
@@ -171,7 +185,7 @@ export default async function DiscountPlayersPage({
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
-          No {freeOnly ? "free" : "discounted"} registrations for {selectedSeason} in this scope.
+          No {freeOnly ? "free" : otherOnly ? "other discounted" : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
         <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
@@ -240,8 +254,12 @@ export default async function DiscountPlayersPage({
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
-        Every registration in {selectedSeason} that {freeOnly ? "paid nothing" : "carried a discount"}, largest first — the same scope as the
-        Discounts tab, so the count here matches the &ldquo;got a discount&rdquo; tile. A code that has since been
+        Every registration in {selectedSeason} that {freeOnly
+          ? "paid nothing"
+          : otherOnly
+            ? "carried a discount other than the returning-player discount or a referral"
+            : "carried a discount"}, largest first — the same scope as the
+        Discounts tab, so the count here matches the &ldquo;{freeOnly ? "free" : otherOnly ? "other discounts" : "got a discount"}&rdquo; tile. A code that has since been
         deleted takes its usage records with it, so a registration can carry a discount with nothing left to name it;
         those show as <span className="font-mono">(code removed)</span> rather than being dropped, because the money
         still came off. {feed?.truncated ? "Only the first 2,000 rows are shown." : ""}
