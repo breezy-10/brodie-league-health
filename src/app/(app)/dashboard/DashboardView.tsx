@@ -1863,17 +1863,20 @@ const AGE_COLORS = [
 // Every other metric here has a direction — more teams good, less revenue bad —
 // and age does not: a venue drifting older is a fact about who it serves, not
 // a fall in performance, and painting it red would assert otherwise.
+const SMALL_AGE_SAMPLE = 5;
 function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
   age: AgeStats; prev?: AgeStats | null; year?: AgeStats | null;
   prevLabel: string; yearLabel: string;
 }) {
   const total = age.bands.reduce((s, b) => s + b.n, 0);
-  // A handful of birth dates is not a reading on a venue, it is an anecdote —
-  // a new venue mid-launch would otherwise post an "average age" off three
-  // people and have it sit at the same size as everyone else's.
-  if (total < 5) return null;
+  if (total === 0) return null;
+  // Under five birth dates the block still shows — a new venue's first
+  // athletes are worth seeing — but says how few it rests on, and drops the
+  // change against earlier seasons: one person moves a share of three by 33
+  // points, which would read as a trend.
+  const small = total < SMALL_AGE_SAMPLE;
   const drift = (other: AgeStats | null | undefined, label: string) =>
-    !other ? null : (
+    small || !other ? null : (
       <span key={label} className="text-[10px] sm:text-[9px] font-semibold whitespace-nowrap"
         style={{ color: "var(--glass-text-secondary)" }}>
         {" "}{age.under_24_pct - other.under_24_pct > 0 ? "+" : age.under_24_pct - other.under_24_pct < 0 ? "−" : ""}
@@ -1892,6 +1895,11 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
           </p>
         )}
       </div>
+      {small && (
+        <p className="mt-0.5 text-[10px] sm:text-[9px] italic leading-snug text-glass-text-tertiary">
+          Based on {total} athlete{total === 1 ? "" : "s"} — too few to read much into
+        </p>
+      )}
       <p className="mt-0.5 text-[11px] leading-snug" title={`Average ${age.avg.toFixed(1)}`}>
         <span className="text-sm font-bold tabular" style={{ color: "var(--glass-text)" }}>
           {age.median ?? "—"}
