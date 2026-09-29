@@ -47,72 +47,6 @@ function fmt(slug: string, avg: number): string {
   return pctish ? `${Math.round(avg)}%` : `${rounded}`;
 }
 
-// --- Sample cards (structure-first; wired to live source data in a follow-up) ---
-const SAMPLE: Record<string, Tile[]> = {
-  promo: [
-    { label: "Teams registered", value: "365", sub: "across 19 locations" },
-    { label: "Stories posted", value: "322", unit: "/ 365", sub: "88%", tone: "warn" },
-    { label: "Highlights posted", value: "322", unit: "/ 365", sub: "88%", tone: "warn" },
-    { label: "Avg time to post", value: "14h 40m", sub: "340 posts", tone: "warn" },
-  ],
-  feedback: [
-    { label: "Responses", value: "2,477" },
-    { label: "CSAT", value: "77%", sub: "145 of 188 rated 8 or higher", tone: "ok" },
-    { label: "NPS", value: "28", sub: "53% promoters (972) · 25% detractors (460) of 1,850 scored", tone: "warn" },
-    { label: "Returning intent", value: "52%", sub: "1,136 yes · 646 thinking · 408 no" },
-  ],
-  checklist: [
-    { label: "Tasks complete", value: "39%", sub: "393 / 1,000", tone: "bad" },
-    { label: "Overdue tasks", value: "231", sub: "Across all your checklists", tone: "bad" },
-  ],
-  overdue: [
-    { label: "Total overdue players", value: "144", sub: "across 19 locations", tone: "bad" },
-    { label: "Overdue Balance - Canadian Locations", value: "$20,799.32 CAD", sub: "80 players" },
-    { label: "Overdue Balance - US Locations", value: "$13,184.17 USD", sub: "64 players" },
-  ],
-  content: [
-    { label: "iPhone Clips · 12h", value: "22.0", unit: "/hr", sub: "target 20/hr", tone: "ok", lines: [{ text: "Drive", strong: true, pill: { text: "On time", ok: true }, after: "0m" }, { text: "Posted", strong: true, pill: { text: "On time", ok: true }, after: "9h 14m" }] },
-    { label: "Photos · 3 days", value: "74.5", unit: "/hr", sub: "target 90/hr", tone: "bad", lines: [{ text: "Drive", strong: true, pill: { text: "On time", ok: true }, after: "3h" }, { text: "Posted", strong: true, pill: { text: "Late", ok: false }, after: "4d 2h" }] },
-    { label: "Canto - players tagged", value: "673", unit: "/ 736", sub: "91% complete", tone: "ok", lines: [{ text: "673 this season · 0 past season" }] },
-    { label: "App profiles", value: "641", unit: "/ 736", sub: "87% complete", tone: "ok", lines: [{ text: "577 current team · 64 previous team" }] },
-  ],
-  stats_health: [
-    {
-      label: "Stats completion rate",
-      value: "98%",
-      tone: "ok",
-      lines: [
-        { text: "834 — total games played", strong: true },
-        { text: "2,018 — total games tracked", strong: true },
-        { text: "1,901 — BallerTV" },
-        { text: "11 — LiveBarn" },
-        { text: "58 — In-venue" },
-        { text: "48 — No stats" },
-      ],
-    },
-    {
-      label: "Full recording %",
-      value: "91%",
-      tone: "ok",
-      lines: [
-        { text: "1,845 — full" },
-        { text: "173 — incomplete" },
-        { text: "2,018 — total" },
-      ],
-    },
-    {
-      label: "Spare players",
-      value: "464",
-      tone: "warn",
-      lines: [
-        { text: "297 — games with spares" },
-        { text: "464 — spare appearances" },
-      ],
-      link: { href: "https://brodie-stats-health.vercel.app", label: "See games with spares →" },
-    },
-  ],
-};
-
 // ---------------------------------------------------------------------------
 // Read-through reporting layer. Each loader queries its source app directly,
 // scoped to the selected season via the source's own season_id, and returns
@@ -2115,17 +2049,17 @@ async function TrainingCards({ scope, fullTag }: { scope: Scope; fullTag?: strin
 async function StatsHealthCards({ season, scope, weeks, weekTag }: { season: string; scope: Scope; weeks?: string; weekTag?: string }) {
   const tiles = await loadStatsTiles(season, scope, weeks);
   return <Section title="Stats Health" scopeTag={weekTag} href={APP_URL.stats_health}
-    tiles={tiles ?? SAMPLE.stats_health} sample={!tiles} emptyNote="Not tracked for the selected locations." />;
+    tiles={tiles} emptyNote="Not tracked for the selected locations." />;
 }
 async function ContentHealthCards({ season, scope, weeks, weekTag }: { season: string; scope: Scope; weeks?: string; weekTag?: string }) {
   const tiles = await loadContentTiles(season, scope, weeks);
   return <Section title="Content Health" scopeTag={weekTag} href={APP_URL.content_health}
-    tiles={tiles ?? SAMPLE.content} sample={!tiles} emptyNote="Not tracked for the selected locations." />;
+    tiles={tiles} emptyNote="Not tracked for the selected locations." />;
 }
 async function FeedbackCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
   const tiles = await loadFeedbackTiles(season, scope);
   return <Section title="Feedback" scopeTag={fullTag} href={APP_URL.feedback}
-    tiles={tiles ?? SAMPLE.feedback} sample={!tiles} />;
+    tiles={tiles} />;
 }
 async function OverdueCards({ season, scope, fullTag, weekly = false, nextSeason, onNext = false }: {
   season: string; scope: Scope; fullTag?: string; weekly?: boolean;
@@ -2142,7 +2076,7 @@ async function OverdueCards({ season, scope, fullTag, weekly = false, nextSeason
   // one live number among three invented ones.
   const all = tiles && forfeit ? [...tiles, forfeit] : tiles;
   return <Section title="Overdue Payments" scopeTag={fullTag} href={APP_URL.overdue}
-    tiles={all ?? SAMPLE.overdue} sample={!tiles}
+    tiles={all}
     headerExtra={nextSeason && nextSeason !== season ? (
       <BasisToggle
         param="overdueSeason"
@@ -2720,7 +2654,7 @@ export default async function DashboardView({
       <div className="space-y-8">
         {!isReg && deadlines.length > 0 && <DeadlineBanner weeks={deadlines} />}
         {!isReg && (
-          <Section title="Season Success Checklist" scopeTag={fullTag} href={APP_URL.checklist} tiles={checklistTiles ?? SAMPLE.checklist} sample={!checklistTiles} cols={6} />
+          <Section title="Season Success Checklist" scopeTag={fullTag} href={APP_URL.checklist} tiles={checklistTiles} cols={6} />
         )}
         {pacing && pacingCurrent ? (
           <section className="space-y-3">
@@ -2874,7 +2808,7 @@ export default async function DashboardView({
         {!isReg && (
           <>
             <Section title="Registration Promo Tracker" scopeTag={fullTag} href={APP_URL.promo}
-              tiles={promoTiles?.tiles ?? SAMPLE.promo} sample={!promoTiles}
+              tiles={promoTiles?.tiles ?? null}
               seasonTag={seasonToggle("promoSeason", promoSeason) ? undefined : promoSeasonName}
               headerExtra={seasonToggle("promoSeason", promoSeason)} />
             <Suspense fallback={<SectionSkeleton title="Outreach" cols={4} />}>
@@ -3559,7 +3493,6 @@ function Section({
   title,
   href,
   tiles,
-  sample = false,
   emptyNote,
   seasonTag,
   scopeTag,
@@ -3568,11 +3501,12 @@ function Section({
 }: {
   title: string;
   href?: string;
-  tiles: Tile[];
+  // null = the source app couldn't be reached. The section then says so and
+  // shows no numbers — never placeholder figures, which read as real.
+  tiles: Tile[] | null;
   // Sits beside the heading — a control that belongs to this section alone,
   // rather than to the filter bar every section shares.
   headerExtra?: ReactNode;
-  sample?: boolean;
   // Shown instead of the "coming soon" line when the section has no tiles
   // because the source does not cover the selected locations.
   emptyNote?: string;
@@ -3597,17 +3531,23 @@ function Section({
               {seasonTag}
             </span>
           )}
-          {sample && (
+          {tiles === null && (
             <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-              style={{ background: "var(--glass-surface-hover)", color: "var(--glass-text-tertiary)" }}>
-              sample
+              style={{ background: "rgba(239,68,68,0.12)", color: "var(--glass-danger-text, rgb(248,113,113))" }}>
+              not connected
             </span>
           )}
           {headerExtra}
         </div>
         {href && <MoreDetails href={href} />}
       </div>
-      {tiles.length ? (
+      {tiles === null ? (
+        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm text-glass-text-tertiary">
+          <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>Not connected.</span>{" "}
+          League Health couldn&apos;t load {title} from its app, so no numbers are shown here.
+          {href && <> Open the app for the current figures.</>}
+        </div>
+      ) : tiles.length ? (
         <div className={cols === 6
           ? "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6"
           : cols === 3
