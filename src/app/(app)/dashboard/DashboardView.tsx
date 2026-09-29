@@ -313,13 +313,11 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
         value: missingLocations.length.toLocaleString(),
         sub: "not set up",
         color: missingLocations.length > 0 ? "rgb(248,113,113)" : "var(--glass-text-tertiary)",
+        pills: missingLocations.map((n) => ({ text: n, tone: "bad" as const })),
       },
-      // "Largest" puts the ones still to do first; A-Z interleaves them.
-      pills: [
-        ...missingLocations.map((n) => ({ text: n, tone: "bad" as const, sortValue: 1 })),
-        ...setUpLocations.map((n) => ({ text: n, tone: "ok" as const, sortValue: 0 })),
-      ],
-      pillsEmpty: "no locations running this season",
+      // Each group under its own count, A-Z — no sort control, since the
+      // grouping already says which is which.
+      pills: setUpLocations.map((n) => ({ text: n, tone: "ok" as const })),
     },
     { label: `Tasks complete · ${season}`, value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pct >= 100 ? "ok" : pct > 0 ? "warn" : "bad" },
     {
