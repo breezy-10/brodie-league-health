@@ -1445,10 +1445,13 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
 // Vaughan's 24.6 while both have a median of 23. The average is kept for the
 // hover, where it is a footnote rather than a ranking.
 type AgeStats = {
-  median: number | null; avg: number; under_24_pct: number;
+  median: number | null; avg: number; under_24_pct: number; under_24?: number;
   n: number; coverage_pct: number | null; bands: { label: string; n: number }[];
 };
-type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; revenue_cad?: number; revenue_usd?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null; age?: AgeStats | null;
+type PacingSeason = { season: string; kind: string; captains: number; athletes: number; full_roster?: number; low_roster?: number; revenue?: number; revenue_native?: number; revenue_cad?: number; revenue_usd?: number; currency?: string; returning_captains_pct?: number | null; returning_athletes_pct?: number | null;
+  // The counts behind those shares ("3 of 4 captains").
+  returning_captains?: number | null; returning_captains_of?: number | null;
+  returning_athletes?: number | null; returning_athletes_of?: number | null; age?: AgeStats | null;
   // age.median flattened onto the season by loadRegistrationPacing, so the age
   // card can go through the same bar machinery as every other metric.
   age_median?: number };
@@ -1627,6 +1630,8 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
 // cards carry, so the two read the same way.
 type ShareLine = {
   pct: number;
+  // The head count behind the share, printed beside it: "75% · 3 of 4".
+  count?: { n: number; of: number } | null;
   // Reads after the percentage: "of captains", "of SU'26 returned in F'26".
   text: string;
   // Movement against another season, in points — the difference of two
@@ -1649,6 +1654,9 @@ function RegShareLines({ groups }: { groups: ShareGroup[] }) {
             <p key={l.text} title={l.title}>
               <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{l.pct.toFixed(1)}%</span>
               <span className="text-glass-text-tertiary"> {l.text}</span>
+              {l.count && (
+                <span className="text-glass-text-tertiary tabular"> · {l.count.n.toLocaleString()} of {l.count.of.toLocaleString()}</span>
+              )}
               {(l.deltas ?? []).map((d) => (
                 <span key={d.label} className="text-[11px] sm:text-[10px] font-semibold" style={{ color: upColor(d.value) }}>
                   {" "}({d.value > 0 ? "+" : ""}{d.value.toFixed(1)} {d.label})
@@ -1864,9 +1872,14 @@ const AGE_COLORS = [
 // and age does not: a venue drifting older is a fact about who it serves, not
 // a fall in performance, and painting it red would assert otherwise.
 const SMALL_AGE_SAMPLE = 5;
-function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
+// Athletes under 24, read off the bands when the feed doesn't send the count.
+const underTwentyFour = (bands: { label: string; n: number }[]) =>
+  bands.filter((b) => b.label === "Under 18" || b.label.startsWith("18")).reduce((n, b) => n + b.n, 0);
+function LocationAge({ age, prev, year, prevLabel, yearLabel, athletes }: {
   age: AgeStats; prev?: AgeStats | null; year?: AgeStats | null;
   prevLabel: string; yearLabel: string;
+  // This season's athletes at the venue, for "11 of 13 on file".
+  athletes?: number | null;
 }) {
   const total = age.bands.reduce((s, b) => s + b.n, 0);
   if (total === 0) return null;
@@ -1892,6 +1905,7 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
           <p className="text-[10px] sm:text-[9px] text-glass-text-tertiary shrink-0"
             title={`${age.n.toLocaleString()} of this season's athletes have a birth date on file`}>
             {age.coverage_pct}% on file
+            {athletes != null && <span className="tabular"> · {age.n} of {athletes}</span>}
           </p>
         )}
       </div>
@@ -1913,6 +1927,7 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel }: {
           {age.under_24_pct.toFixed(1)}%
         </span>
         <span className="text-glass-text-tertiary"> under 24</span>
+        <span className="text-glass-text-tertiary tabular"> · {(age.under_24 ?? underTwentyFour(age.bands))} of {total}</span>
         {drift(prev, prevLabel)}
         {drift(year, yearLabel)}
       </p>
@@ -2234,11 +2249,14 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
               <div className="px-3.5">{(() => {
                 const pick = (k: string, m: "returning_captains_pct" | "returning_athletes_pct") =>
                   l.seasons.find((s) => s.kind === k)?.[m] ?? null;
+                const curSeason = l.seasons.find((s) => s.kind === "current");
                 const lines = ([
-                  ["captains", "returning_captains_pct"],
-                  ["athletes", "returning_athletes_pct"],
-                ] as const).map(([noun, m]) => ({
+                  ["captains", "returning_captains_pct", "returning_captains", "returning_captains_of"],
+                  ["athletes", "returning_athletes_pct", "returning_athletes", "returning_athletes_of"],
+                ] as const).map(([noun, m, nKey, ofKey]) => ({
                   noun,
+                  n: curSeason?.[nKey] ?? null,
+                  of: curSeason?.[ofKey] ?? null,
                   cur: pick("current", m),
                   prev: pick("prev_season", m),
                   year: pick("prev_year", m),
@@ -2255,6 +2273,9 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                           {x.cur!.toFixed(1)}%
                         </span>
                         <span className="text-glass-text-tertiary"> of {x.noun}</span>
+                        {x.n != null && x.of != null && (
+                          <span className="text-glass-text-tertiary tabular"> · {x.n} of {x.of}</span>
+                        )}
                         {([[x.prev, prevLabel], [x.year, yearLabel]] as const).map(([base, lbl]) =>
                           base == null ? null : (
                             <span key={lbl} className="text-[10px] sm:text-[9px] font-semibold"
@@ -2289,6 +2310,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                         <span className="text-glass-text-tertiary">
                           {" "}of {shortSeason(r!.prev_season)} returned in {into}
                         </span>
+                        <span className="text-glass-text-tertiary tabular"> · {r!.retained} of {r!.prev_athletes}</span>
                         {pts != null && (
                           <span className="text-[10px] sm:text-[9px] font-semibold" style={{ color: upColor(pts) }}>
                             {" "}({pts > 0 ? "+" : ""}{pts.toFixed(1)} pts)
@@ -2303,7 +2325,8 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                 const at = (k: string) => l.seasons.find((s) => s.kind === k)?.age ?? null;
                 const cur = at("current");
                 return cur ? <LocationAge age={cur} prev={at("prev_season")} year={at("prev_year")}
-                  prevLabel={prevLabel} yearLabel={yearLabel} /> : null;
+                  prevLabel={prevLabel} yearLabel={yearLabel}
+                  athletes={l.seasons.find((s) => s.kind === "current")?.athletes ?? null} /> : null;
               })()}</div>
               {/* Below retention, and in the currency the venue actually
                   invoices in — a US venue's own card should not restate its
@@ -2589,6 +2612,11 @@ export default async function DashboardView({
         lines: [{
           pct: cur,
           text: `of ${noun}`,
+          count: (() => {
+            const n = pacingCurrent[noun === "captains" ? "returning_captains" : "returning_athletes"];
+            const of = pacingCurrent[noun === "captains" ? "returning_captains_of" : "returning_athletes_of"];
+            return n != null && of != null ? { n, of } : null;
+          })(),
           deltas: ([pacingPrevSeason, pacingPrevYear] as const)
             .filter((s): s is PacingSeason => s?.[k] != null)
             .map((s) => ({ value: cur - s[k]!, label: `vs ${shortSeason(s.season)}` })),
@@ -2609,6 +2637,7 @@ export default async function DashboardView({
         lines: pair.map((r, i) => ({
           pct: r.pct,
           text: `of ${shortSeason(r.prev_season)} ${noun} returned in ${shortSeason(r.into_season ?? pacingCurrent.season)}`,
+          count: { n: r.retained, of: r.prev_athletes },
           title: `${r.retained} of ${r.prev_athletes} ${shortSeason(r.prev_season)} ${noun} registered again`,
           deltas: i === 0 && pts != null ? [{ value: pts, label: "pts" }] : [],
         })),
@@ -2754,7 +2783,7 @@ export default async function DashboardView({
                     title: "Age", barTitle: "Median age",
                     barSub: `at season start · ${regBarWhen}`,
                     notes: pacingCurrent.age?.coverage_pct != null
-                      ? [{ text: `${pacingCurrent.age.coverage_pct}% have a birth date` }]
+                      ? [{ text: `${pacingCurrent.age.coverage_pct}% have a birth date · ${pacingCurrent.age.n.toLocaleString()} of ${pacingCurrent.athletes.toLocaleString()}` }]
                       : undefined,
                     roster: false,
                     bands: pacingCurrent.age?.bands,

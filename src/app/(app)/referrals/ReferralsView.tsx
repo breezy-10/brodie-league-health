@@ -163,9 +163,9 @@ export default async function ReferralsView({
           <>
             <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
               <Tile label="New athletes" value={t!.new_athletes.toLocaleString()} accent={GOLD}
-                sub={newPct === null ? undefined : `${newPct}% of referrals`} />
+                sub={newPct === null ? undefined : `${newPct}% · ${t!.new_athletes.toLocaleString()} of ${(t!.new_athletes + t!.returning_athletes).toLocaleString()} referrals`} />
               <Tile label="Returning athletes" value={t!.returning_athletes.toLocaleString()} accent={RETURNING}
-                sub={newPct === null ? undefined : `${100 - newPct}% of referrals`} />
+                sub={newPct === null ? undefined : `${100 - newPct}% · ${t!.returning_athletes.toLocaleString()} of ${(t!.new_athletes + t!.returning_athletes).toLocaleString()} referrals`} />
               <Tile label="Confirmed referrals" value={t!.total.toLocaleString()}
                 sub={`${t!.recorded.toLocaleString()} recorded`} />
               <Tile label="Referrers" value={t!.referrers.toLocaleString()}

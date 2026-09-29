@@ -214,8 +214,11 @@ function Pct({ n, of, tone }: { n: number; of: number; tone: (pct: number) => st
   const pct = of ? (100 * n) / of : 0;
   return (
     <>
+      {/* The count beside the share — 15% says how big, "6 of 40" says of what. */}
       <span style={{ color: tone(pct), fontWeight: 600 }}>{Math.round(pct)}%</span>
-      {" of all registrations"}
+      {" · "}
+      <span className="tabular">{n.toLocaleString()} of {of.toLocaleString()}</span>
+      {" registrations"}
     </>
   );
 }
