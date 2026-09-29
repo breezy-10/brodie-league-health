@@ -20,7 +20,9 @@ type Tile = {
   corner?: { label: string; value: string; color?: string; lines?: { text: string; color?: string }[] };
   // A second headline number stacked under the first, at the same size — for
   // a card that answers one question two ways ("4 set up / 0 not set up").
-  below?: { value: string; sub: string; color?: string };
+  // With `below`, the card's own chips sit right under the first number and
+  // these under the second, so each group of names reads with its count.
+  below?: { value: string; sub: string; color?: string; pills?: { text: string; tone?: Tone }[] };
   // Named items behind the number — rendered as wrapped chips, tinted by tone.
   // sortValue is what "largest first" means for that chip — a count, a share,
   // a balance, an elapsed time. Without it a chip can only be ordered A-Z,
@@ -104,10 +106,14 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
         )}
       </div>
       {below && (
-        <div className="mt-0.5 flex items-baseline gap-1.5">
-          <span className="text-2xl font-bold tabular" style={{ color: below.color ?? "var(--glass-text)" }}>{below.value}</span>
-          <span className="text-[11px] text-glass-text-tertiary leading-snug">{below.sub}</span>
-        </div>
+        <>
+          {shown.length > 0 && <ChipRow chips={shown} fallback={pillTone ?? tone} />}
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-2xl font-bold tabular" style={{ color: below.color ?? "var(--glass-text)" }}>{below.value}</span>
+            <span className="text-[11px] text-glass-text-tertiary leading-snug">{below.sub}</span>
+          </div>
+          {(below.pills?.length ?? 0) > 0 && <ChipRow chips={below.pills!} fallback="default" />}
+        </>
       )}
       {sub && !subInline && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
       {((lines?.length ?? 0) > 0 || (corner?.lines?.length ?? 0) > 0) && (
@@ -153,7 +159,7 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
           })}
         </div>
       )}
-      {chips && (
+      {chips && !below && (
         chips.length === 0
           ? (pillsEmpty ? <div className="mt-2 text-[11px] italic text-glass-text-tertiary">{pillsEmpty}</div> : null)
           : (
@@ -181,3 +187,15 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
   );
 }
 
+function ChipRow({ chips, fallback }: { chips: { text: string; tone?: Tone }[]; fallback: Tone }) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {chips.map((p) => (
+        <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full"
+          style={PILL_STYLES[p.tone ?? fallback] ?? PILL_STYLES.default}>
+          {p.text}
+        </span>
+      ))}
+    </div>
+  );
+}
