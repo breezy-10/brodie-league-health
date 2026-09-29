@@ -21,7 +21,6 @@ const NAV_MORE: NavItem[] = [
 // Dashboard sits at the far LEFT of the bar. Settings (the full admin hub) is
 // super-admin only; Users is a standalone item for the user-managing roles.
 const NAV_DASHBOARD: NavItem = { href: "/dashboard", label: "Dashboard" };
-const NAV_WEEKLY: NavItem = { href: "/weekly-review", label: "Weekly review" };
 const NAV_REGISTRATIONS: NavItem = { href: "/registrations", label: "Registrations" };
 const NAV_REFERRALS: NavItem = { href: "/referrals", label: "Referrals" };
 const NAV_DISCOUNTS: NavItem = { href: "/discounts", label: "Discounts" };
@@ -42,7 +41,9 @@ export async function Nav() {
   const isSuperAdmin = role === "super_admin";
   // Super admin gets the full bar. dm / operations_manager get Dashboard + Users.
   // Everyone else (lm) gets Dashboard only.
-  const items = [NAV_DASHBOARD, NAV_WEEKLY, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_DISCOUNTS, NAV_AMBASSADOR];
+  // Weekly review lives inside the Dashboard now (its Season / Weekly review
+  // tabs), so it has no item of its own; /weekly-review still resolves.
+  const items = [NAV_DASHBOARD, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_DISCOUNTS, NAV_AMBASSADOR];
   // Rendered after the main items: the More dropdown, then the settings entry.
   const moreItems = isSuperAdmin ? NAV_MORE : [];
   const trailing = isSuperAdmin ? [NAV_SETTINGS] : canManageUsers(role) ? [NAV_USERS] : [];
