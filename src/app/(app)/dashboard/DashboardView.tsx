@@ -167,7 +167,6 @@ function sameLocation(a: string, b: string): boolean {
 
 // A booking counts as the venue being lined up once it's past "need to book" —
 // the four statuses the facilities app offers after that.
-const BOOKED_STATUSES = ["in_communication", "verbal_confirmation", "booked_with_flexibility", "booked_with_contract"];
 
 // Which markets actually run a given season: the ones that have BOTH
 // registrations (per the promo tracker) and facility bookings entered at one of
@@ -212,11 +211,15 @@ async function loadOperatingLocations(season: string, candidates: string[]): Pro
     if (!seasonIds.length || !pacingRes) return null;
 
     const cityById = new Map(facilities.map((f) => [f.id, f.city ?? ""]));
+    // Any booking row for the season, whatever its status, means the season is
+    // planned at that venue — "need to book" included. Requiring a booking that
+    // was already in communication left out every market still to be booked:
+    // 13 for Winter '27 (Brampton, Mississauga, Kitchener, Vaughan, Brooklyn…),
+    // so the checklist card silently skipped most of the network.
     const { data: bookings } = await fac.from("bookings")
-      .select("facility_id").in("season_id", seasonIds).in("status", BOOKED_STATUSES);
+      .select("facility_id").in("season_id", seasonIds);
     const bookedCities = new Set(((bookings ?? []) as { facility_id: string }[])
       .map((b) => cityById.get(b.facility_id) ?? "").filter(Boolean));
-    if (!bookedCities.size) return null;
 
     const registered = (pacingRes.locations ?? [])
       .filter((l) => {
@@ -224,10 +227,13 @@ async function loadOperatingLocations(season: string, candidates: string[]): Pro
         return !!cur && (cur.captains > 0 || cur.athletes > 0);
       })
       .map((l) => l.location);
-    if (!registered.length) return null;
+    if (!registered.length && !bookedCities.size) return null;
 
+    // Planned (a booking for the season) OR already registering. Either one
+    // says the location runs this season; asking for both dropped Kitchener
+    // (booked, no registrations yet) and every venue not booked yet.
     return candidates.filter((n) =>
-      registered.some((r) => sameLocation(n, r)) && [...bookedCities].some((c) => sameLocation(n, c)));
+      registered.some((r) => sameLocation(n, r)) || [...bookedCities].some((c) => sameLocation(n, c)));
   } catch {
     return null;
   }
