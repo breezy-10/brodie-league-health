@@ -868,7 +868,14 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
     const url = new URL("/api/checkin-stats", "https://brodie-overdue-payments.vercel.app");
     url.searchParams.set("season", season);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    // The overdue app only answers signed-in users since its hardening, plus
+    // League Health with this key (OVERDUE_FEED_KEY here, LEAGUE_HEALTH_FEED_KEY
+    // there). Without it the section reads "not connected" — never sample data.
+    const key = process.env.OVERDUE_FEED_KEY;
+    const res = await fetch(url.toString(), {
+      cache: "no-store",
+      headers: key ? { Authorization: `Bearer ${key}` } : undefined,
+    });
     if (!res.ok) return null;
     const k = (await res.json()) as {
       currency_totals?: { cad: CurTotals; usd: CurTotals };
