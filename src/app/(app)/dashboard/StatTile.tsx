@@ -18,6 +18,9 @@ type Tile = {
   // A second headline number on the right of the same card, set at the same
   // size as the main value, with its own small label and follow-up lines.
   corner?: { label: string; value: string; color?: string; lines?: { text: string; color?: string }[] };
+  // A second headline number stacked under the first, at the same size — for
+  // a card that answers one question two ways ("4 set up / 0 not set up").
+  below?: { value: string; sub: string; color?: string };
   // Named items behind the number — rendered as wrapped chips, tinted by tone.
   // sortValue is what "largest first" means for that chip — a count, a share,
   // a balance, an elapsed time. Without it a chip can only be ordered A-Z,
@@ -42,7 +45,7 @@ const PILL_STYLES: Record<string, { color: string; borderColor: string; backgrou
 // orders the chips in its body, and the two have to share a piece of state.
 // Every prop is plain data, so the server components that render it are
 // unaffected.
-export default function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, corner }: Tile) {
+export default function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, corner, below }: Tile) {
   const [order, setOrder] = useState<"az" | "size">("az");
   // Normalised once: a chip can be given as a bare string.
   const chips = pills?.map((p) => (typeof p === "string" ? { text: p } : p));
@@ -100,6 +103,12 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
           <span className="text-2xl font-bold tabular shrink-0" style={{ color: corner.color ?? "var(--glass-text)" }}>{corner.value}</span>
         )}
       </div>
+      {below && (
+        <div className="mt-0.5 flex items-baseline gap-1.5">
+          <span className="text-2xl font-bold tabular" style={{ color: below.color ?? "var(--glass-text)" }}>{below.value}</span>
+          <span className="text-[11px] text-glass-text-tertiary leading-snug">{below.sub}</span>
+        </div>
+      )}
       {sub && !subInline && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
       {((lines?.length ?? 0) > 0 || (corner?.lines?.length ?? 0) > 0) && (
         <div className="mt-2 space-y-0.5 tabular">

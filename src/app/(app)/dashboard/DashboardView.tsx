@@ -307,9 +307,11 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
       sub: "set up",
       subInline: true,
       tone: setUpLocations.length > 0 ? "ok" : "default",
-      corner: {
-        label: "Not set up",
+      // Stacked under "set up" rather than in the corner, where it squeezed
+      // the card's title off the row.
+      below: {
         value: missingLocations.length.toLocaleString(),
+        sub: "not set up",
         color: missingLocations.length > 0 ? "rgb(248,113,113)" : "var(--glass-text-tertiary)",
       },
       // "Largest" puts the ones still to do first; A-Z interleaves them.
