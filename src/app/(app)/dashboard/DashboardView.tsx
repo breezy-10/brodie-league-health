@@ -257,6 +257,7 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   // by name against the canonical list rather than by id.
   const withChecklist = new Set(seasonRows.map((s) => s.location_id).filter(Boolean) as string[]);
   let missingLocations: string[] = [];
+  let setUpLocations: string[] = [];
   if (expectedLocations.length) {
     const rows = (clLocs ?? []) as { id: string; name: string }[];
     const inScope = scope.locationNames ? new Set(scope.locationNames) : null;
@@ -264,10 +265,12 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
     // that can't be determined, fall back to every candidate rather than
     // silently reporting nothing outstanding.
     const operating = await operatingPromise;
-    missingLocations = (operating ?? expectedLocations)
+    const running = (operating ?? expectedLocations)
       .filter((n) => !inScope || inScope.has(n))
-      .filter((n) => !rows.some((l) => sameLocation(n, l.name) && withChecklist.has(l.id)))
       .sort((a, b) => a.localeCompare(b));
+    const hasChecklist = (n: string) => rows.some((l) => sameLocation(n, l.name) && withChecklist.has(l.id));
+    setUpLocations = running.filter(hasChecklist);
+    missingLocations = running.filter((n) => !hasChecklist(n));
   }
   const list = await readSeasonTasks<{ season_id: string; status: string; due_date: string | null }>(
     sb, "season_id, status, due_date", ids);
@@ -296,13 +299,25 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   // the percentages beside it, so it reads first.
   return [
     {
+      // Both sides of the setup question: how many running locations have a
+      // checklist for the season (green) and how many still don't (red), with
+      // every location named in the matching colour underneath.
       label: `Checklist · ${season}`,
-      value: missingLocations.length.toLocaleString(),
-      sub: "locations not set up yet",
+      value: setUpLocations.length.toLocaleString(),
+      sub: "set up",
       subInline: true,
-      tone: missingLocations.length > 0 ? "bad" : "ok",
-      pills: missingLocations,
-      pillsEmpty: "every location set up",
+      tone: setUpLocations.length > 0 ? "ok" : "default",
+      corner: {
+        label: "Not set up",
+        value: missingLocations.length.toLocaleString(),
+        color: missingLocations.length > 0 ? "rgb(248,113,113)" : "var(--glass-text-tertiary)",
+      },
+      // "Largest" puts the ones still to do first; A-Z interleaves them.
+      pills: [
+        ...missingLocations.map((n) => ({ text: n, tone: "bad" as const, sortValue: 1 })),
+        ...setUpLocations.map((n) => ({ text: n, tone: "ok" as const, sortValue: 0 })),
+      ],
+      pillsEmpty: "no locations running this season",
     },
     { label: `Tasks complete · ${season}`, value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pct >= 100 ? "ok" : pct > 0 ? "warn" : "bad" },
     {
