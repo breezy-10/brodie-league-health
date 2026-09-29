@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from "react";
+import { readAppSecret } from "@/lib/app-secrets";
 import { requireUser } from "@/lib/auth";
 import { SectionSkeleton, TableSkeleton } from "./Skeletons";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -869,9 +870,10 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
     url.searchParams.set("season", season);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     // The overdue app only answers signed-in users since its hardening, plus
-    // League Health with this key (OVERDUE_FEED_KEY here, LEAGUE_HEALTH_FEED_KEY
-    // there). Without it the section reads "not connected" — never sample data.
-    const key = process.env.OVERDUE_FEED_KEY;
+    // League Health with its feed key (LEAGUE_HEALTH_FEED_KEY there). The key
+    // comes from the environment if set, else League Health's own app_secrets
+    // table. Without it the section reads "not connected" — never sample data.
+    const key = process.env.OVERDUE_FEED_KEY ?? (await readAppSecret("overdue_feed_key"));
     const res = await fetch(url.toString(), {
       cache: "no-store",
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
