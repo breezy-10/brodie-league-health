@@ -12,6 +12,8 @@ import Filters, { type FilterOptions } from "./Filters";
 import { BasisToggle } from "./BasisToggle";
 import StatTile, { type Tile, type Tone } from "./StatTile";
 import DeadlineBanner, { type DeadlineWeek } from "./DeadlineBanner";
+import type { DiscountRow } from "../discounts/DiscountsView";
+import { discountTone, freeTone } from "../discounts/rates";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -1514,6 +1516,32 @@ type Pacing = { day_n: number | null; elapsed_hours?: number | null; seasons: Pa
   retention?: Retention | null; retention_year?: Retention | null;
   // The team count’s own basis: captains who are captaining again.
   retention_captains?: Retention | null; retention_captains_year?: Retention | null };
+// The Discounts tab's per-venue rows, for the location cards. Season to date:
+// the feed has no week cut.
+async function loadLocationDiscounts(regSeason: string, scope: Scope): Promise<DiscountRow[] | null> {
+  try {
+    const url = new URL("/api/discounts", APP_URL.promo);
+    url.searchParams.set("season", regSeason);
+    const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as { locations?: DiscountRow[] };
+    return k.locations ?? null;
+  } catch {
+    return null;
+  }
+}
+// The pacing feed names a venue by its market where the discounts feed keeps
+// the bracket ("Chicago" / "Chicago (Homer Glen)"), so fall back to the name
+// without it — but only when that picks out one venue, never one of Boston's.
+function discountFor(location: string, rows: DiscountRow[]): DiscountRow | undefined {
+  const norm = (x: string) => x.toLowerCase().replace(/\s+/g, " ").trim();
+  const base = (x: string) => norm(x.replace(/\([^)]*\)/g, " "));
+  const exact = rows.find((r) => norm(r.location) === norm(location));
+  if (exact) return exact;
+  const loose = rows.filter((r) => base(r.location) === base(location));
+  return loose.length === 1 ? loose[0] : undefined;
+}
 async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string): Promise<Pacing | null> {
   try {
     const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
@@ -2189,11 +2217,61 @@ async function BookingCards({ season, scope, fullTag, promo, promoSeason, locati
     venueRegs={p?.byVenue} scopeLocations={locationNames} headerExtra={headerExtra} /> : null;
 }
 
+// The Discounts tab's three rates for one venue, in its own currency and on
+// its own colour rules. Each label opens that venue's drill-down.
+function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; season: string; seasonToDate: boolean }) {
+  const cents = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const href = (extra: Record<string, string>) =>
+    `/discounts/players?${new URLSearchParams({ season, location: row.location, ...extra })}`;
+  const items = [
+    { label: "Got a discount", n: row.discounted, cost: row.discount_total ?? 0, tone: discountTone, href: href({}) },
+    ...(row.other_discounted != null ? [{
+      label: "Other discounts", n: row.other_discounted, cost: row.other_discount_total ?? 0, tone: discountTone,
+      href: href({ kind: "other" }),
+    }] : []),
+    { label: "Free", n: row.free, cost: row.free_value ?? 0, tone: freeTone, href: href({ free: "1" }) },
+  ];
+  return (
+    <div className="mt-2.5 pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
+      <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
+        <span className="flex-1 min-w-0 truncate">Discounts ({row.currency.toUpperCase()})</span>
+        <span className="shrink-0 w-16 text-right">Players</span>
+        <span className="shrink-0 w-[4.25rem] text-right">Given up</span>
+      </div>
+      {items.map((it) => {
+        const pct = (100 * it.n) / row.regs;
+        return (
+          <div key={it.label} className="flex items-baseline gap-2">
+            <a href={it.href} className="flex-1 min-w-0 truncate text-glass-text-secondary hover:text-glass-text hover:underline">
+              {it.label}
+            </a>
+            <span className="shrink-0 tabular font-semibold" style={{ color: it.tone(pct) }}>{Math.round(pct)}%</span>
+            <span className="shrink-0 w-16 text-right tabular text-glass-text-tertiary">{it.n} of {row.regs}</span>
+            <span className="shrink-0 w-[4.25rem] text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>{cents(it.cost)}</span>
+          </div>
+        );
+      })}
+      {(() => {
+        const notes = [
+          ...(row.other_discounted != null ? ["Other = not returning player or referral"] : []),
+          ...(seasonToDate ? ["season to date"] : []),
+        ];
+        return notes.length ? <p className="mt-1 text-[10px] text-glass-text-tertiary">{notes.join(" · ")}</p> : null;
+      })()}
+    </div>
+  );
+}
+
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
-function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false }: {
+function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, discounts, discountsSeasonToDate = false }: {
   locations: PacingLocation[];
+  // The Discounts tab's venue rows; null when the feed is down or the cards
+  // are nights, which it does not break down to.
+  discounts?: DiscountRow[] | null;
+  // The cards are on a week basis but discounts can only be season to date.
+  discountsSeasonToDate?: boolean;
   prevLabel: string;
   yearLabel: string;
   season: string;
@@ -2213,14 +2291,14 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
           cards, so every section starts on the same line at every venue: a
           card with no retention lines leaves the gap rather than pulling Age
           and Revenue up to a different height from its neighbours. Each card
-          is a subgrid spanning all eight rows, so the row heights are shared.
+          is a subgrid spanning all nine rows, so the row heights are shared.
           The count has to match the card's direct children: add a section and
           this number moves with it, or the last one spills into an implicit
           row and lands beside its neighbour instead of under it.
           Where subgrid is missing the cards simply fall back to sizing their
           own rows — the old, unaligned behaviour, not a broken one. */}
       <div className="grid grid-flow-col auto-cols-[300px] gap-x-3 overflow-x-auto pb-2 snap-x"
-        style={{ gridTemplateRows: "repeat(8, auto)" }}>
+        style={{ gridTemplateRows: "repeat(9, auto)" }}>
         {locations.map((l) => {
           const get = (kind: string, metric: PacingMetric) =>
             l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
@@ -2384,6 +2462,14 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   cur={perAthlete("current")} prev={perAthlete("prev_season")} year={perAthlete("prev_year")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
+              {/* What came off the price to get there. Always rendered, even
+                  empty, so it holds its row in the shared grid. */}
+              <div className="px-3.5">{(() => {
+                const d = discounts ? discountFor(l.location, discounts) : undefined;
+                return d && d.regs > 0
+                  ? <LocationDiscounts row={d} season={season} seasonToDate={discountsSeasonToDate} />
+                  : null;
+              })()}</div>
               {/* Its own row, so it is not competing with the retention lines
                   for the same baseline. */}
               <div className="mt-2 flex justify-end px-3.5 pb-3.5">
@@ -2521,12 +2607,14 @@ export default async function DashboardView({
   // Everything below streams in its own Suspense boundary, so the shell is not
   // held behind the slowest source app. promoTiles stays because two sections
   // share it and it should not be fetched twice.
-  const [ckCurrent, ckNext, promoTiles, pacing, deadlines] = await Promise.all([
+  const [ckCurrent, ckNext, promoTiles, pacing, deadlines, locDiscounts] = await Promise.all([
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadPromoTiles(promoSeasonName, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
     isReg ? Promise.resolve([] as DeadlineWeek[]) : loadDeadlines(),
+    // Per venue only, so not for the by-night cards a single venue gets.
+    scope.locationNames?.length === 1 ? Promise.resolve(null) : loadLocationDiscounts(pacingSeason, scope),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
@@ -2870,7 +2958,8 @@ export default async function DashboardView({
                   yearLabel={shortSeason(pacingPrevYear?.season ?? "")}
                   season={pacingCurrent.season}
                   showAvgPerTeam={!regOnWeek}
-                  byNight={locationNames?.length === 1} />
+                  byNight={locationNames?.length === 1}
+                  discounts={locDiscounts} discountsSeasonToDate={regOnWeek} />
               </div>
             ) : null}
             {/* Registrations only. On the Dashboard and Weekly Review this
