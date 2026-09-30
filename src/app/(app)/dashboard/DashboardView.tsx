@@ -733,6 +733,8 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       by_source: { ballertv: number; livebarn: number; scoresheet: number }; no_stats: number;
       full_recording_pct: number | null; full: number; incomplete: number; recording_total: number;
       spare_appearances: number; spare_games: number;
+      // The games page filtered to the spares these counts cover.
+      games_with_spares_path?: string;
       stat_delivery_ms: number | null; stat_delivery_n: number;
       forfeits?: number; pending_review?: number; prev_forfeits?: number | null;
       forfeits_by_location?: { location: string; day?: string; forfeits: number }[];
@@ -848,7 +850,12 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
             { text: `${n(k.spare_appearances)} — spare appearances` },
           ],
         }),
-        link: { href: "https://brodie-stats-health.vercel.app", label: "See games with spares →" },
+        // Straight to the submitted games that had spares, over the season,
+        // window and venue the count above covers.
+        link: {
+          href: `${APP_URL.stats_health}${k.games_with_spares_path ?? "/games?tab=submitted&spares=1"}`,
+          label: "See games with spares →",
+        },
       },
       {
         // A forfeited night is a night that did not happen: no stats to
