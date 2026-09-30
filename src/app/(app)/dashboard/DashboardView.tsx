@@ -2690,7 +2690,7 @@ export default async function DashboardView({
       <div className="space-y-8">
         {!isReg && deadlines.length > 0 && <DeadlineBanner weeks={deadlines} />}
         {!isReg && (
-          <Section title="Season Success Checklist" scopeTag={fullTag} href={APP_URL.checklist} tiles={checklistTiles} cols={6} />
+          <Section title="Season Success Checklist" scopeTag={fullTag} href={`${APP_URL.checklist}/checklists?kind=lm`} tiles={checklistTiles} cols={6} />
         )}
         {pacing && pacingCurrent ? (
           <section className="space-y-3">
