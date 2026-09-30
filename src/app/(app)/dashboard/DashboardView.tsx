@@ -1516,17 +1516,21 @@ type Pacing = { day_n: number | null; elapsed_hours?: number | null; seasons: Pa
   retention?: Retention | null; retention_year?: Retention | null;
   // The team count’s own basis: captains who are captaining again.
   retention_captains?: Retention | null; retention_captains_year?: Retention | null };
-// The Discounts tab's per-venue rows, for the location cards. Season to date:
-// the feed has no week cut.
-async function loadLocationDiscounts(regSeason: string, scope: Scope): Promise<DiscountRow[] | null> {
+// A discounts row for one card: a venue, or — on the single-venue view — one
+// night at it, which carries `day`.
+type CardDiscount = DiscountRow & { day?: string };
+// The Discounts tab's rows for the location cards: per venue, or per night
+// when the cards are nights. Season to date: the feed has no week cut.
+async function loadLocationDiscounts(regSeason: string, scope: Scope, byNight: boolean): Promise<CardDiscount[] | null> {
   try {
     const url = new URL("/api/discounts", APP_URL.promo);
     url.searchParams.set("season", regSeason);
+    if (byNight) url.searchParams.set("breakdown", "day");
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
-    const k = (await res.json()) as { locations?: DiscountRow[] };
-    return k.locations ?? null;
+    const k = (await res.json()) as { locations?: DiscountRow[]; by_day?: CardDiscount[] };
+    return (byNight ? k.by_day : k.locations) ?? null;
   } catch {
     return null;
   }
@@ -1534,7 +1538,9 @@ async function loadLocationDiscounts(regSeason: string, scope: Scope): Promise<D
 // The pacing feed names a venue by its market where the discounts feed keeps
 // the bracket ("Chicago" / "Chicago (Homer Glen)"), so fall back to the name
 // without it — but only when that picks out one venue, never one of Boston's.
-function discountFor(location: string, rows: DiscountRow[]): DiscountRow | undefined {
+// A night card is named by its night, which the row carries as `day`.
+function discountFor(location: string, rows: CardDiscount[], byNight: boolean): CardDiscount | undefined {
+  if (byNight) return rows.find((r) => r.day === location);
   const norm = (x: string) => x.toLowerCase().replace(/\s+/g, " ").trim();
   const base = (x: string) => norm(x.replace(/\([^)]*\)/g, " "));
   const exact = rows.find((r) => norm(r.location) === norm(location));
@@ -2267,9 +2273,9 @@ function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; se
 // scroll two rows in sync to compare them.
 function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, discounts, discountsSeasonToDate = false }: {
   locations: PacingLocation[];
-  // The Discounts tab's venue rows; null when the feed is down or the cards
-  // are nights, which it does not break down to.
-  discounts?: DiscountRow[] | null;
+  // The Discounts tab's rows — per venue, or per night on the by-night cards;
+  // null when the feed is down.
+  discounts?: CardDiscount[] | null;
   // The cards are on a week basis but discounts can only be season to date.
   discountsSeasonToDate?: boolean;
   prevLabel: string;
@@ -2465,7 +2471,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
               {/* What came off the price to get there. Always rendered, even
                   empty, so it holds its row in the shared grid. */}
               <div className="px-3.5">{(() => {
-                const d = discounts ? discountFor(l.location, discounts) : undefined;
+                const d = discounts ? discountFor(l.location, discounts, byNight) : undefined;
                 return d && d.regs > 0
                   ? <LocationDiscounts row={d} season={season} seasonToDate={discountsSeasonToDate} />
                   : null;
@@ -2613,8 +2619,8 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadPromoTiles(promoSeasonName, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
     isReg ? Promise.resolve([] as DeadlineWeek[]) : loadDeadlines(),
-    // Per venue only, so not for the by-night cards a single venue gets.
-    scope.locationNames?.length === 1 ? Promise.resolve(null) : loadLocationDiscounts(pacingSeason, scope),
+    // Per night when the cards are nights (a single venue), else per venue.
+    loadLocationDiscounts(pacingSeason, scope, scope.locationNames?.length === 1),
   ]);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
