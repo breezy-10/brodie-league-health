@@ -94,6 +94,7 @@ export default function Filters({
           onChange={setLocations}
           allLabel="All locations"
           singularNoun="locations"
+          searchable
         />
       </Field>
       <button
