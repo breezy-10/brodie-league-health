@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 export type DeadlineWeek = {
   season: string;
@@ -10,7 +10,9 @@ export type DeadlineWeek = {
   deadline: string;
   opens_at_midnight: boolean;
   tier_label: string | null;
-  tracks: { short: string; label: string; price: string; team_fee: string }[];
+  // country: "Canada" | "US" — sent by the Promo Tracker's feed so the price
+  // table can split per country; absent on an older feed.
+  tracks: { country?: string; short: string; label: string; price: string; team_fee: string }[];
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -41,6 +43,17 @@ function countdown(ms: number) {
  * re-picks the soonest deadline on every tick so it rolls over the moment one
  * lapses rather than sitting at zero.
  */
+const PROMO_APP_URL = "https://registration-promo-tracker.vercel.app";
+
+/**
+ * The Promo Tracker's deadline banner, on this dashboard — the same card as its
+ * own countdown hero: the deadline and a More info button, the price in effect
+ * split into one bordered table per country, and the countdown.
+ *
+ * Ticks in its own component so only the clock repaints each second, and
+ * re-picks the soonest deadline on every tick so it rolls over the moment one
+ * lapses rather than sitting at zero.
+ */
 export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
@@ -59,44 +72,99 @@ export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
   if (!next) return null;
   const { w } = next;
   const dt = instant(w);
+  // Opens the deadline's own More info popup on the Promo Tracker's calendar.
+  const infoHref = `${PROMO_APP_URL}/content-calendar?season=${encodeURIComponent(w.season)}&info=${w.week}`;
 
   return (
-    <div className="rounded-xl border px-5 py-4 flex items-center justify-between gap-4 flex-wrap"
-      style={{ background: "var(--glass-surface)", borderColor: "var(--glass-gold)" }}>
+    <div
+      className="rounded-xl border px-5 py-4 flex flex-col gap-3 sm:grid sm:items-center sm:gap-4"
+      style={{
+        background: "var(--glass-surface)",
+        borderColor: "var(--glass-gold)",
+        gridTemplateColumns: "clamp(200px, 34%, 380px) auto minmax(0,1fr)",
+      }}
+    >
       <div className="min-w-0">
         <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--glass-text-tertiary)" }}>
-          Next deadline
+          Upcoming deadline
         </div>
         <div className="text-xl font-semibold mt-1" style={{ color: "var(--glass-text)" }}>{w.deadline}</div>
         <div className="text-xs mt-1" style={{ color: "var(--glass-text-secondary)" }}>
           {DAYS[dt.getDay()]}, {MONTHS[dt.getMonth()]} {dt.getDate()} · {w.opens_at_midnight ? "12:00am" : "11:59pm"}
         </div>
+        <a
+          href={infoHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`More info about ${w.deadline}`}
+          className="inline-block mt-2 rounded-md px-2.5 py-1.5 text-[11px] font-semibold whitespace-nowrap transition-colors hover:bg-[var(--glass-surface-hover)]"
+          style={{ color: "var(--glass-gold)", border: "1px solid var(--glass-border)" }}
+        >
+          More info
+        </a>
       </div>
-      {w.tracks.length > 0 && (
-        <div>
-          {w.tier_label && (
-            <div className="font-mono text-[10px] uppercase tracking-[0.14em] mb-1.5" style={{ color: "var(--glass-text-tertiary)" }}>
-              {w.tier_label}
-            </div>
-          )}
-          <div className="grid w-fit gap-x-4 gap-y-[3px] text-xs leading-tight items-baseline"
-            style={{ gridTemplateColumns: "auto auto auto" }}>
-            <span />
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-right whitespace-nowrap" style={{ color: "var(--glass-text-tertiary)" }}>Price</span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-right whitespace-nowrap" style={{ color: "var(--glass-text-tertiary)" }}>Team fee</span>
-            {w.tracks.map((t) => (
-              <Fragment key={t.short}>
-                <span className="whitespace-nowrap" style={{ color: "var(--glass-text-tertiary)" }}>{t.short}</span>
-                <span className="tabular font-semibold text-right whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{t.price}</span>
-                <span className="tabular text-right whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>{t.team_fee}</span>
-              </Fragment>
-            ))}
-          </div>
-        </div>
-      )}
-      <div className="font-mono tabular font-bold leading-none text-3xl sm:text-5xl" style={{ color: "var(--glass-gold)" }}>
+      <PriceTable week={w} />
+      <div className="font-mono tabular font-bold leading-none text-3xl sm:text-4xl lg:text-5xl sm:text-right"
+        style={{ color: "var(--glass-gold)" }}>
         {countdown(next.at - now)}
       </div>
+    </div>
+  );
+}
+
+// The Promo Tracker's price table: the tier, then one bordered table per
+// country (New / Existing location, price, team fee), and the note on what
+// new and existing mean.
+function PriceTable({ week }: { week: DeadlineWeek }) {
+  if (!week.tracks.length) return null;
+  const countries: { country: string; rows: DeadlineWeek["tracks"] }[] = [];
+  for (const t of week.tracks) {
+    const c = t.country ?? "";
+    const last = countries[countries.length - 1];
+    if (last && last.country === c) last.rows.push(t);
+    else countries.push({ country: c, rows: [t] });
+  }
+  const cell = { border: "1px solid var(--glass-border)" };
+  const head = "font-mono uppercase tracking-[0.12em] font-medium text-[10px] px-2 py-1";
+  return (
+    <div>
+      {week.tier_label && (
+        <div className="font-mono uppercase tracking-[0.14em] font-semibold text-[10px] mb-1.5" style={{ color: "var(--glass-text)" }}>
+          {week.tier_label}
+        </div>
+      )}
+      <div className="flex flex-col gap-3 sm:flex-row sm:gap-5">
+        {countries.map((g) => (
+          <div key={g.country || "all"}>
+            {g.country && (
+              <div className="font-mono uppercase tracking-[0.12em] font-semibold text-[10px] mb-1" style={{ color: "var(--glass-text)" }}>
+                {g.country}
+              </div>
+            )}
+            <table className="w-fit" style={{ borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th className={`${head} text-left`} style={{ ...cell, color: "var(--glass-text-secondary)" }}>Location</th>
+                  <th className={`${head} text-right`} style={{ ...cell, color: "var(--glass-text-secondary)" }}>Price</th>
+                  <th className={`${head} text-right`} style={{ ...cell, color: "var(--glass-text-secondary)" }}>Team fee</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.rows.map((t) => (
+                  <tr key={`${g.country}-${t.short}`}>
+                    <td className="whitespace-nowrap font-medium text-xs px-2 py-1" style={{ ...cell, color: "var(--glass-text)" }}>{t.short}</td>
+                    <td className="tabular font-semibold text-right whitespace-nowrap text-xs px-2 py-1" style={{ ...cell, color: "var(--glass-text)" }}>{t.price}</td>
+                    <td className="tabular text-right whitespace-nowrap text-xs px-2 py-1" style={{ ...cell, color: "var(--glass-text-secondary)" }}>{t.team_fee}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[10px]" style={{ color: "var(--glass-text-secondary)" }}>
+        New / existing refers to the location, not the player or team.
+      </p>
     </div>
   );
 }
