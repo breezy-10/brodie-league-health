@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import TeamRosterBlock, { StaffBadge, type RosterTeam } from "@/components/TeamRosterBlock";
 import { normName } from "@/lib/names";
 import { shortDiscount } from "@/lib/discount-names";
@@ -61,6 +62,8 @@ export default function DiscountTable({
   const openable = rows.map((r) => !!r.season_team_id);
   const openCount = rows.reduce((n, _, i) => n + (openable[i] && open[i] ? 1 : 0), 0);
   const totalOpenable = openable.filter(Boolean).length;
+  // Every openable row already open — the toggle then offers Collapse all.
+  const allOpen = totalOpenable > 0 && openCount === totalOpenable;
   const loading = Object.values(resolved).filter((v) => v.state === "loading").length;
 
   async function load(list: DiscountRowData[]) {
@@ -158,12 +161,17 @@ export default function DiscountTable({
             Loading rosters…
           </span>
         )}
-        <button type="button" onClick={expandAll} disabled={totalOpenable === 0 || openCount === totalOpenable}
-          className={TOOL_BTN}>
-          Expand all
-        </button>
-        <button type="button" onClick={() => setOpen({})} disabled={openCount === 0} className={TOOL_BTN}>
-          Collapse all
+        {/* One toggle rather than a disabled pair: the label always names
+            the action the click performs, so there is nothing dimmed to
+            decode. Matches the check-in panel in overdue-payments. */}
+        <button
+          type="button"
+          onClick={() => (allOpen ? setOpen({}) : expandAll())}
+          disabled={totalOpenable === 0}
+          className={TOOL_BTN}
+        >
+          {allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+          {allOpen ? "Collapse all" : "Expand all"}
         </button>
       </div>
       <div className="overflow-x-auto">
@@ -289,7 +297,7 @@ export default function DiscountTable({
 }
 
 const TOOL_BTN =
-  "inline-flex items-center rounded-md border border-glass-border px-2.5 py-1 text-[11px] font-semibold "
+  "inline-flex items-center gap-1.5 rounded-md border border-glass-border px-2.5 py-1 text-[11px] font-semibold "
   + "text-glass-text-tertiary hover:text-glass-text hover:border-glass-gold hover:bg-glass-surface-hover transition "
   + "disabled:opacity-40 disabled:pointer-events-none";
 
