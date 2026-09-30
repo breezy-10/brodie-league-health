@@ -378,6 +378,10 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
   const recentIds = new Set(recent.map((n) => n.id));
   const blockedRows = tasks.filter((t) => recentIds.has(t.season_id) && t.status === "blocked");
   const blockedPct = weekStats.total ? Math.round((1000 * blockedRows.length) / weekStats.total) / 10 : 0;
+  // Skipped counts as complete on the card beside it, so this says how much of
+  // that completion is skipping rather than doing.
+  const skippedRows = tasks.filter((t) => recentIds.has(t.season_id) && t.status === "skipped");
+  const skippedPct = weekStats.total ? Math.round((1000 * skippedRows.length) / weekStats.total) / 10 : 0;
 
   // Completion venue by venue AND night by night. A venue is not one job: a
   // manager works Monday's checklist and Wednesday's separately, and rolling
@@ -391,15 +395,16 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
     const d = new Date(`${iso}T00:00:00Z`);
     return Number.isNaN(d.getTime()) ? "" : DAY_NAMES[d.getUTCDay()];
   };
-  const byNight = new Map<string, { loc: string; day: string; done: number; blocked: number; total: number }>();
+  const byNight = new Map<string, { loc: string; day: string; done: number; blocked: number; skipped: number; total: number }>();
   for (const n of recent) {
     const loc = nameById.get(n.location_id ?? "") ?? "Unknown";
     const day = dayOf(n.opening_night);
     const key = `${loc} ${day}`;
     const rows = tasks.filter((t) => t.season_id === n.id);
-    const cur = byNight.get(key) ?? { loc, day, done: 0, blocked: 0, total: 0 };
+    const cur = byNight.get(key) ?? { loc, day, done: 0, blocked: 0, skipped: 0, total: 0 };
     cur.done += rows.filter((t) => t.status === "done" || t.status === "skipped").length;
     cur.blocked += rows.filter((t) => t.status === "blocked").length;
+    cur.skipped += rows.filter((t) => t.status === "skipped").length;
     cur.total += rows.length;
     byNight.set(key, cur);
   }
@@ -457,6 +462,28 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
           sortValue: v.total ? (100 * v.blocked) / v.total : 0,
         })),
       pillsEmpty: "nothing blocked",
+    },
+    {
+      label: "% skipped",
+      // Same window and denominator as the two before it, one decimal for the
+      // same reason. Gold rather than red: skipping a task can be the right
+      // call; a night skipping a tenth or more of its list is the one to ask
+      // about.
+      value: recent.length ? `${skippedPct.toFixed(1)}%` : "—",
+      sub: recent.length ? `${skippedRows.length} / ${weekStats.total} tasks · ${nightsSub}` : none,
+      tone: !recent.length || !skippedRows.length ? "ok" : skippedPct >= 10 ? "bad" : "warn",
+      pills: [...byNight.values()]
+        .filter((v) => v.skipped > 0)
+        .sort(nightOrder)
+        .map((v) => {
+          const pct = v.total ? (100 * v.skipped) / v.total : 0;
+          return {
+            text: `${v.loc} ${v.day} ${v.skipped}/${v.total} (${Math.round(pct)}%)`,
+            tone: (pct >= 10 ? "bad" : "warn") as Tone,
+            sortValue: pct,
+          };
+        }),
+      pillsEmpty: "nothing skipped",
     },
     {
       label: "Nights not started",
@@ -2048,7 +2075,7 @@ async function GameDayCards({ scope, season, weeks, tag }: {
   const tiles = await loadGameDayTiles(scope, season, weeks);
   return tiles
     ? <Section title="LM Game Day Checklist" scopeTag={tag}
-        href={`${APP_URL.checklist}/checklists?kind=lm_game_day`} tiles={tiles} cols={3} />
+        href={`${APP_URL.checklist}/checklists?kind=lm_game_day`} tiles={tiles} cols={4} />
     : null;
 }
 async function TrainingCards({ scope, fullTag }: { scope: Scope; fullTag?: string }) {
