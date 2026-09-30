@@ -2479,10 +2479,11 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   : null;
               })()}</div>
               {/* Its own row, so it is not competing with the retention lines
-                  for the same baseline. Opens the Discounts tab on this venue
-                  — a night card's venue, since that tab has no night cut. */}
+                  for the same baseline. Opens this venue's list of discounted
+                  players — a night card's venue, since that list has no night
+                  cut. */}
               <div className="mt-2 flex justify-end px-3.5 pb-3.5">
-                <a href={`/discounts?${new URLSearchParams({ season, location: byNight ? (venue ?? l.location) : l.location })}`}
+                <a href={`/discounts/players?${new URLSearchParams({ season, location: byNight ? (venue ?? l.location) : l.location })}`}
                   className="text-[11px] font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
                   View discounts →
                 </a>
