@@ -909,7 +909,12 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
     const k = (await res.json()) as {
       currency_totals?: { cad: CurTotals; usd: CurTotals };
       overall?: { total_players: number; active_players: number; locations: number };
-      locations?: { location: string; currency: string; players: number; total: number; checked_players: number }[];
+      locations?: {
+        location: string; currency: string; players: number; total: number; checked_players: number;
+        // Each active player's completed game dates ("YYYY-MM-DD", local wall
+        // clock) for the team and season they owe on.
+        active_players?: { game_dates?: string[] }[];
+      }[];
       prev?: {
         as_of: string; total_players: number;
         cad: { total_players: number; total_balance: number; active_players: number; active_balance: number };
@@ -965,6 +970,9 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
       ];
     };
     const when = asOf(k.prev?.as_of);
+    // ISO dates compare as strings, so the latest is a plain max.
+    const lastGame = (players?: { game_dates?: string[] }[]) =>
+      (players ?? []).flatMap((a) => a.game_dates ?? []).reduce<string | null>((m, d) => (!m || d > m ? d : m), null);
     // Which venues the debt is at. The feed already breaks itself down this
     // way; the cards were only ever showing the sum.
     const byLoc = [...(k.locations ?? [])].sort((a, b) => a.location.localeCompare(b.location));
@@ -981,11 +989,16 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
         // whose debtors are on the court every week — red says somebody played
         // while owing, amber says the money is owed by people no longer
         // turning up.
-        pills: byLoc.map((l) => ({
-          text: `${l.location} ${l.checked_players}/${l.players} (${l.players ? Math.round((100 * l.checked_players) / l.players) : 0}%)`,
-          tone: (l.checked_players > 0 ? "bad" : "warn") as Tone,
-          sortValue: l.players,
-        })),
+        // Red chips also carry the latest night any of that venue's active
+        // debtors played — how recently the money was last on the court.
+        pills: byLoc.map((l) => {
+          const last = lastGame(l.active_players);
+          return {
+            text: `${l.location} ${l.checked_players}/${l.players} (${l.players ? Math.round((100 * l.checked_players) / l.players) : 0}%)${last ? ` · last game ${asOf(last)}` : ""}`,
+            tone: (l.checked_players > 0 ? "bad" : "warn") as Tone,
+            sortValue: l.players,
+          };
+        }),
         pillsEmpty: "nobody overdue",
       },
     ];
