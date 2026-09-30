@@ -1415,6 +1415,11 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
       teams_registered: number; teams_tracked?: number; teams_full_roster?: number | null; stories_posted: number; highlights_posted: number;
       story_pct: number; highlight_pct: number; story_tone?: Tone; highlight_tone?: Tone; avg_time_to_post_ms: number | null;
       avg_time_to_post_sample: number; locations: number; by_venue_day?: VenueRegs[];
+      by_location?: {
+        location: string; teams_tracked: number; stories_posted: number; highlights_posted: number;
+        story_pct: number; highlight_pct: number; story_tone: Tone; highlight_tone: Tone;
+        avg_time_to_post_ms: number | null; avg_time_to_post_sample: number; avg_time_tone: Tone | null;
+      }[];
     };
     const fmt = (ms: number) => {
       const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
@@ -1425,11 +1430,37 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
     // share has to be shown over the list it was measured on, or the fraction
     // and the percentage beside it disagree.
     const tracked = k.teams_tracked ?? k.teams_registered;
+    // Each card broken down by the tracker's own locations, coloured by the
+    // tracker's thresholds (95/80% for coverage; 6h/24h for time to post).
+    // Absent until the tracker's feed carries by_location.
+    const locs = k.by_location;
+    const posts = (n: number) => `${n} post${n === 1 ? "" : "s"}`;
     const tiles: Tile[] = [
       { label: "Teams registered", value: k.teams_registered.toLocaleString(), sub: `across ${k.locations} locations` },
-      { label: "Stories posted", value: `${k.stories_posted}`, unit: `/ ${tracked}`, sub: `${k.story_pct}%`, tone: k.story_tone ?? pctTone(k.story_pct) },
-      { label: "Highlights posted", value: `${k.highlights_posted}`, unit: `/ ${tracked}`, sub: `${k.highlight_pct}%`, tone: k.highlight_tone ?? pctTone(k.highlight_pct) },
-      { label: "Avg time to post", value: k.avg_time_to_post_ms != null ? fmt(k.avg_time_to_post_ms) : "—", sub: `${k.avg_time_to_post_sample} posts`, tone: "warn" },
+      {
+        label: "Stories posted", value: `${k.stories_posted}`, unit: `/ ${tracked}`, sub: `${k.story_pct}%`, tone: k.story_tone ?? pctTone(k.story_pct),
+        ...(locs ? {
+          pills: locs.map((l) => ({ text: `${l.location} ${l.stories_posted}/${l.teams_tracked} (${l.story_pct}%)`, tone: l.story_tone, sortValue: l.stories_posted })),
+          pillsEmpty: "no teams yet",
+        } : {}),
+      },
+      {
+        label: "Highlights posted", value: `${k.highlights_posted}`, unit: `/ ${tracked}`, sub: `${k.highlight_pct}%`, tone: k.highlight_tone ?? pctTone(k.highlight_pct),
+        ...(locs ? {
+          pills: locs.map((l) => ({ text: `${l.location} ${l.highlights_posted}/${l.teams_tracked} (${l.highlight_pct}%)`, tone: l.highlight_tone, sortValue: l.highlights_posted })),
+          pillsEmpty: "no teams yet",
+        } : {}),
+      },
+      {
+        label: "Avg time to post", value: k.avg_time_to_post_ms != null ? fmt(k.avg_time_to_post_ms) : "—", sub: `${k.avg_time_to_post_sample} posts`, tone: "warn",
+        // Slowest first under "Largest" — the venues keeping teams waiting.
+        ...(locs ? {
+          pills: locs.map((l) => l.avg_time_to_post_ms != null
+            ? { text: `${l.location} ${fmt(l.avg_time_to_post_ms)} (${posts(l.avg_time_to_post_sample)})`, tone: l.avg_time_tone ?? "default", sortValue: l.avg_time_to_post_ms }
+            : { text: `${l.location} no posts yet`, tone: "default" as Tone }),
+          pillsEmpty: "no teams yet",
+        } : {}),
+      },
     ];
     return { tiles, teamsRegistered: k.teams_registered, teamsFullRoster: k.teams_full_roster ?? null, byVenue: k.by_venue_day ?? [] };
   } catch {
