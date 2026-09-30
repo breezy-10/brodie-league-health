@@ -13,14 +13,21 @@ export function MultiSelect({
   onChange,
   allLabel = "All",
   singularNoun = "selected",
+  searchable = false,
 }: {
   options: { value: string; label: string }[];
   value: string[];
   onChange: (next: string[]) => void;
   allLabel?: string;
   singularNoun?: string;
+  // A type-to-filter box at the top of the list — for long lists like the 46
+  // locations, where scrolling to one is slower than typing it.
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  // A fresh search each time the list opens.
+  useEffect(() => { if (!open) setQuery(""); }, [open]);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,6 +46,25 @@ export function MultiSelect({
     onChange(options.map((o) => o.value).filter((o) => next.has(o)));
   }
 
+  const q = query.trim().toLowerCase();
+  const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+  const shownSelected = shown.filter((o) => selected.has(o.value)).length;
+  // With a search typed, the bulk button works on what's matching — "Boston"
+  // then Select matching picks all five Boston venues.
+  function bulk() {
+    if (!q) {
+      onChange(value.length === options.length ? [] : options.map((o) => o.value));
+      return;
+    }
+    const all = shownSelected === shown.length;
+    const next = new Set(selected);
+    for (const o of shown) (all ? next.delete(o.value) : next.add(o.value));
+    onChange(options.map((o) => o.value).filter((v) => next.has(v)));
+  }
+  const bulkLabel = q
+    ? (shown.length && shownSelected === shown.length ? "Clear matching" : "Select matching")
+    : (value.length === options.length ? "Clear all" : "Select all");
+
   const label =
     value.length === 0
       ? allLabel
@@ -56,13 +82,36 @@ export function MultiSelect({
       </button>
       {open && (
         <div className="absolute z-30 mt-1 w-full min-w-[200px] max-h-72 overflow-y-auto rounded-lg border border-glass-border-light py-1 shadow-lg" style={{ background: "var(--glass-background)" }}>
+          {searchable && (
+            <div className="sticky top-0 z-10 px-2 pt-1 pb-1.5" style={{ background: "var(--glass-background)" }}>
+              <input
+                autoFocus
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { e.preventDefault(); if (query) setQuery(""); else setOpen(false); }
+                  // Enter picks the only match, so "oak" + Enter selects Oakville.
+                  if (e.key === "Enter") { e.preventDefault(); if (shown.length === 1) toggle(shown[0].value); }
+                }}
+                placeholder={`Search ${singularNoun}`}
+                aria-label={`Search ${singularNoun}`}
+                className="w-full rounded-md border border-glass-border bg-glass-surface px-2.5 py-1.5 text-sm text-glass-text placeholder:text-glass-text-tertiary focus:outline-none focus:border-glass-gold"
+              />
+            </div>
+          )}
           <div className="flex items-center justify-between px-3 py-1.5">
-            <span className="text-xs text-glass-text-secondary">{value.length} of {options.length}</span>
-            <button type="button" className="text-xs text-glass-gold" onClick={() => onChange(value.length === options.length ? [] : options.map((o) => o.value))}>
-              {value.length === options.length ? "Clear all" : "Select all"}
+            <span className="text-xs text-glass-text-secondary">
+              {value.length} of {options.length}{q ? ` · ${shown.length} matching` : ""}
+            </span>
+            <button type="button" className="text-xs text-glass-gold disabled:opacity-40" disabled={!shown.length} onClick={bulk}>
+              {bulkLabel}
             </button>
           </div>
-          {options.map((o) => {
+          {q && shown.length === 0 && (
+            <p className="px-3 py-2 text-sm italic text-glass-text-tertiary">No {singularNoun} match &ldquo;{query.trim()}&rdquo;</p>
+          )}
+          {shown.map((o) => {
             const on = selected.has(o.value);
             return (
               <button type="button" key={o.value} onClick={() => toggle(o.value)}
