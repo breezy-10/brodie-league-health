@@ -2711,12 +2711,8 @@ export default async function DashboardView({
                   />
                 )}
               </div>
-              {/* Only on the Dashboard, where every section deep-links to its
-                  source app. The Registrations tab is the detail view, so
-                  sending people out to the Promo Tracker from it is a dead end. */}
-              {!isReg && (
-                <MoreDetails href={APP_URL.promo} />
-              )}
+              {/* No More details here: the Registrations tab is the detail view
+                  for this section, reached from the nav. */}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 min-[1900px]:grid-cols-5 gap-4">
               {/* One column per metric: its season bars, then the two same-day
