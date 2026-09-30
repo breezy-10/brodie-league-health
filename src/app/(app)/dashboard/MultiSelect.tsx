@@ -48,22 +48,10 @@ export function MultiSelect({
 
   const q = query.trim().toLowerCase();
   const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
-  const shownSelected = shown.filter((o) => selected.has(o.value)).length;
-  // With a search typed, the bulk button works on what's matching — "Boston"
-  // then Select matching picks all five Boston venues.
   function bulk() {
-    if (!q) {
-      onChange(value.length === options.length ? [] : options.map((o) => o.value));
-      return;
-    }
-    const all = shownSelected === shown.length;
-    const next = new Set(selected);
-    for (const o of shown) (all ? next.delete(o.value) : next.add(o.value));
-    onChange(options.map((o) => o.value).filter((v) => next.has(v)));
+    onChange(value.length === options.length ? [] : options.map((o) => o.value));
   }
-  const bulkLabel = q
-    ? (shown.length && shownSelected === shown.length ? "Clear matching" : "Select matching")
-    : (value.length === options.length ? "Clear all" : "Select all");
+  const bulkLabel = value.length === options.length ? "Clear all" : "Select all";
 
   const label =
     value.length === 0
@@ -100,13 +88,18 @@ export function MultiSelect({
               />
             </div>
           )}
-          <div className="flex items-center justify-between px-3 py-1.5">
-            <span className="text-xs text-glass-text-secondary">
-              {value.length} of {options.length}{q ? ` · ${shown.length} matching` : ""}
-            </span>
-            <button type="button" className="text-xs text-glass-gold disabled:opacity-40" disabled={!shown.length} onClick={bulk}>
-              {bulkLabel}
-            </button>
+          <div className="flex items-start justify-between px-3 py-1.5">
+            <div className="text-xs text-glass-text-secondary leading-snug">
+              <div>{value.length} of {options.length}</div>
+              {q && <div className="text-glass-text-tertiary">{shown.length} matching</div>}
+            </div>
+            {/* Select all / Clear all only on the full list — while searching,
+                ticking the matches one by one is the whole point. */}
+            {!q && (
+              <button type="button" className="text-xs text-glass-gold" onClick={bulk}>
+                {bulkLabel}
+              </button>
+            )}
           </div>
           {q && shown.length === 0 && (
             <p className="px-3 py-2 text-sm italic text-glass-text-tertiary">No {singularNoun} match &ldquo;{query.trim()}&rdquo;</p>
