@@ -2271,8 +2271,10 @@ function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; se
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
-function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, discounts, discountsSeasonToDate = false }: {
+function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, venue, discounts, discountsSeasonToDate = false }: {
   locations: PacingLocation[];
+  // The one venue the by-night cards are nights of.
+  venue?: string;
   // The Discounts tab's rows — per venue, or per night on the by-night cards;
   // null when the feed is down.
   discounts?: CardDiscount[] | null;
@@ -2477,11 +2479,12 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   : null;
               })()}</div>
               {/* Its own row, so it is not competing with the retention lines
-                  for the same baseline. */}
+                  for the same baseline. Opens the Discounts tab on this venue
+                  — a night card's venue, since that tab has no night cut. */}
               <div className="mt-2 flex justify-end px-3.5 pb-3.5">
-                <a href={`/registrations/location?loc=${encodeURIComponent(l.location)}&season=${encodeURIComponent(season)}`}
+                <a href={`/discounts?${new URLSearchParams({ season, location: byNight ? (venue ?? l.location) : l.location })}`}
                   className="text-[11px] font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
-                  More details →
+                  View discounts →
                 </a>
               </div>
             </div>
@@ -2965,6 +2968,7 @@ export default async function DashboardView({
                   season={pacingCurrent.season}
                   showAvgPerTeam={!regOnWeek}
                   byNight={locationNames?.length === 1}
+                  venue={locationNames?.length === 1 ? locationNames[0] : undefined}
                   discounts={locDiscounts} discountsSeasonToDate={regOnWeek} />
               </div>
             ) : null}
