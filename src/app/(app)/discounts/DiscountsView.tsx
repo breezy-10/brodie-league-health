@@ -235,6 +235,8 @@ export default async function DiscountsView({
                           </td>
                         </tr>
                       ))}
+                      {/* A total of one row only repeats it. */}
+                      {locs.length > 1 && (
                       <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
                         <td className="px-4 py-3 font-bold" style={{ color: "var(--glass-text)" }}>All locations</td>
                         <Td strong>{regs.toLocaleString()}</Td>
@@ -251,6 +253,7 @@ export default async function DiscountsView({
                           <Link href={playersHref(selectedSeason, locationNames?.join(","))} className={VIEW_BTN}>View discounts</Link>
                         </td>
                       </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
