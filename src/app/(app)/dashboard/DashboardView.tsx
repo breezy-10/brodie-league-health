@@ -2839,7 +2839,7 @@ export default async function DashboardView({
         )}
         {!isReg && (
           <>
-            <Section title="Registration Promo Tracker" scopeTag={fullTag} href={APP_URL.promo}
+            <Section title="Team Confirmed Stories" scopeTag={fullTag} href={APP_URL.promo}
               tiles={promoTiles?.tiles ?? null}
               seasonTag={seasonToggle("promoSeason", promoSeason) ? undefined : promoSeasonName}
               headerExtra={seasonToggle("promoSeason", promoSeason)} />

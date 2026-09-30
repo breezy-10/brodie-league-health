@@ -16,7 +16,7 @@ export default function DashboardLoading() {
       </div>
       <SectionSkeleton title="Season Success Checklist" cols={6} />
       <SectionSkeleton title="Registrations" />
-      <SectionSkeleton title="Registration Promo Tracker" />
+      <SectionSkeleton title="Team Confirmed Stories" />
       <SectionSkeleton title="Outreach" />
       <TableSkeleton title="Site Visits" />
       <SectionSkeleton title="LM Game Day Checklist" />
