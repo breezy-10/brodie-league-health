@@ -933,7 +933,7 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
       // Parsed by hand: `new Date("2026-09-12")` is UTC midnight and formats as
       // the 11th anywhere west of Greenwich.
-      return m ? `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}` : "the last snapshot";
+      return m ? `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}` : "the last snapshot";
     };
     // Owing less is an improvement, so these deltas run the other way.
     const wowCount = (cur: number, prev: number | undefined, when: string) =>
