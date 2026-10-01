@@ -1501,8 +1501,11 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   age_median?: number;
   // Teams, athletes and rosters per country, from the league's country.
   // Absent from an older feed or when the lookup failed.
-  by_country?: Record<"CAN" | "USA", { captains: number; athletes: number; full_roster: number; low_roster: number }> };
-type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd" | "age_median";
+  by_country?: Record<"CAN" | "USA", { captains: number; athletes: number; full_roster: number; low_roster: number }>;
+  // A country's revenue over its athletes, set on that country's projected
+  // seasons only (countrySet). Undefined with no athletes to divide by.
+  revenue_per_athlete?: number };
+type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd" | "age_median" | "revenue_per_athlete";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
 const money = (n: number) => `${n < 0 ? "\u2212" : ""}$${Math.abs(Math.round(n)).toLocaleString()}`;
@@ -2643,7 +2646,12 @@ export default async function DashboardView({
   // is already split by currency on every season, so it needs no projecting.
   const countrySet = (c: "CAN" | "USA"): RegSet | null => {
     if (!allSet?.cur.by_country) return null;
-    const proj = (x: PacingSeason): PacingSeason => (x.by_country ? { ...x, ...x.by_country[c] } : x);
+    const proj = (x: PacingSeason): PacingSeason => {
+      if (!x.by_country) return x;
+      const b = x.by_country[c];
+      const rev = (c === "CAN" ? x.revenue_cad : x.revenue_usd) ?? 0;
+      return { ...x, ...b, revenue_per_athlete: b.athletes ? Math.round(rev / b.athletes) : undefined };
+    };
     return {
       cur: proj(allSet.cur),
       prev: allSet.prev && proj(allSet.prev),
@@ -2855,6 +2863,20 @@ export default async function DashboardView({
     barSub: `accrued · ${regBarWhen}`,
     notes: undefined, roster: false,
   });
+  // What a country's revenue works out to per athlete registered. Compared
+  // through deltaOf so a season with no athletes reads "—" rather than as a
+  // jump from zero.
+  const perPlayerMetric = (place: Place): RegMetric => {
+    const cur = place.revenue === "revenue_cad" ? "CAD" : "USD";
+    return {
+      key: "revenue_per_athlete", format: "money",
+      title: `${cur} per player`, barTitle: `Revenue per player (${cur})`,
+      barSub: `accrued · ${regBarWhen}`,
+      notes: undefined, roster: false,
+      deltaFormat: "money",
+      deltaOf: (x?: PacingSeason | null) => x?.revenue_per_athlete ?? null,
+    };
+  };
   // Only where the season has birth dates to average. The chip carries the
   // share it is averaging over: roughly one athlete in ten has no birth date
   // on file, and an average age is a different claim read off half a season
@@ -2897,6 +2919,8 @@ export default async function DashboardView({
         // A scope with no venue in this currency has nothing to report; one
         // that simply has not invoiced yet this season keeps its comparison.
         ...(hasCurrency(place.revenue) ? [{ m: revenueMetric(place.revenue), set: set ?? allSet }] : []),
+        // Needs the country's own athlete count, so only with the split.
+        ...(hasCurrency(place.revenue) && set ? [{ m: perPlayerMetric(place), set }] : []),
       ],
     })),
   ].filter((r) => r.items.length > 0);
@@ -2973,7 +2997,9 @@ export default async function DashboardView({
                   {row.heading && (
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary">{row.heading}</h3>
                   )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {/* Four columns on every row, so each metric sits under
+                      the same one in the row above. */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     {/* One column per metric: its season bars, then the two
                         same-day comparisons underneath. */}
                     {row.items.map(({ m, set }) => (
