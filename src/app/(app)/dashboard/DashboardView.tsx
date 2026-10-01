@@ -1498,7 +1498,10 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   returning_athletes?: number | null; returning_athletes_of?: number | null; age?: AgeStats | null;
   // age.median flattened onto the season by loadRegistrationPacing, so the age
   // card can go through the same bar machinery as every other metric.
-  age_median?: number };
+  age_median?: number;
+  // Teams, athletes and rosters per country, from the league's country.
+  // Absent from an older feed or when the lookup failed.
+  by_country?: Record<"CAN" | "USA", { captains: number; athletes: number; full_roster: number; low_roster: number }> };
 type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd" | "age_median";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
@@ -2629,12 +2632,31 @@ export default async function DashboardView({
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
   const pacingPrevYear = pacing?.seasons.find((s) => s.kind === "prev_year");
+  // A row of the Registrations section reads one population — every venue in
+  // scope, or one country's — and its bars, deltas and roster notes all come
+  // from that row's seasons.
+  type RegSet = { cur: PacingSeason; prev?: PacingSeason; year?: PacingSeason; all: PacingSeason[] };
+  const allSet: RegSet | null = pacing && pacingCurrent
+    ? { cur: pacingCurrent, prev: pacingPrevSeason, year: pacingPrevYear, all: pacing.seasons }
+    : null;
+  // One country's teams, athletes and rosters laid over each season. Revenue
+  // is already split by currency on every season, so it needs no projecting.
+  const countrySet = (c: "CAN" | "USA"): RegSet | null => {
+    if (!allSet?.cur.by_country) return null;
+    const proj = (x: PacingSeason): PacingSeason => (x.by_country ? { ...x, ...x.by_country[c] } : x);
+    return {
+      cur: proj(allSet.cur),
+      prev: allSet.prev && proj(allSet.prev),
+      year: allSet.year && proj(allSet.year),
+      all: allSet.all.map(proj),
+    };
+  };
   // Same-day difference: current season minus the comparison season at day N.
-  const regDelta = (metric: PacingMetric, against: typeof pacingPrevSeason) =>
-    pacingCurrent && against ? (pacingCurrent[metric] ?? 0) - (against[metric] ?? 0) : null;
-  const rosterDelta = (against: typeof pacingPrevSeason) =>
-    pacingCurrent?.full_roster != null && against?.full_roster != null
-      ? pacingCurrent.full_roster - against.full_roster
+  const regDelta = (set: RegSet, metric: PacingMetric, against?: PacingSeason) =>
+    against ? (set.cur[metric] ?? 0) - (against[metric] ?? 0) : null;
+  const rosterDelta = (set: RegSet, against?: PacingSeason) =>
+    set.cur.full_roster != null && against?.full_roster != null
+      ? set.cur.full_roster - against.full_roster
       : null;
   // A column of the Registrations row: the bar card's metric, and — where the
   // headline is the wrong thing to compare — what its two delta cards read
@@ -2652,11 +2674,11 @@ export default async function DashboardView({
     deltaTitle?: string; deltaFormat?: "number" | "money" | "points";
     deltaOf?: (s?: PacingSeason | null) => number | null;
   };
-  const metricBase = (m: RegMetric, against: typeof pacingPrevSeason) =>
+  const metricBase = (m: RegMetric, against?: PacingSeason) =>
     m.deltaOf ? m.deltaOf(against) : (against?.[m.key] ?? null);
-  const metricDelta = (m: RegMetric, against: typeof pacingPrevSeason) => {
-    if (!m.deltaOf) return regDelta(m.key, against);
-    const cur = m.deltaOf(pacingCurrent), was = m.deltaOf(against);
+  const metricDelta = (set: RegSet, m: RegMetric, against?: PacingSeason) => {
+    if (!m.deltaOf) return regDelta(set, m.key, against);
+    const cur = m.deltaOf(set.cur), was = m.deltaOf(against);
     return cur != null && was != null ? Math.round((cur - was) * 10) / 10 : null;
   };
   // A scope of only Canadian venues has no USD to report, and vice versa. Drop
@@ -2666,8 +2688,8 @@ export default async function DashboardView({
   const hasCurrency = (k: "revenue_cad" | "revenue_usd") =>
     (pacing?.seasons ?? []).some((s) => (s[k] ?? 0) !== 0);
 
-  const regBars = (metric: PacingMetric) =>
-    (pacing?.seasons ?? []).map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric] ?? 0, color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
+  const regBars = (set: RegSet, metric: PacingMetric) =>
+    set.all.map((s) => ({ label: s.season, sub: KIND_LABEL[s.kind] ?? s.kind, value: s[metric] ?? 0, color: REG_COLOR[s.kind] ?? "var(--glass-border-light)" }));
   // Checklist: two cards for the playing season, two for the next (prep) season.
   const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
 
@@ -2797,6 +2819,88 @@ export default async function DashboardView({
   const regBarWhen = regOnWeek ? `week of ${weekLabel}` : regWindow;
   const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : regWindowShort;
 
+  // The Registrations columns. Teams and athletes appear for the whole scope
+  // and again per country; revenue only per country, as CAD and USD are
+  // different money.
+  type Place = { code: "CAN" | "USA"; name: string; title: string; revenue: "revenue_cad" | "revenue_usd"; heading: string };
+  const teamsMetric = (set: RegSet, place?: Place): RegMetric => ({
+    key: "captains", format: "number",
+    title: place ? `${place.title} teams` : "Teams",
+    barTitle: place ? `Total teams – ${place.name}` : "Total teams", barSub: regBarWhen,
+    notes: [
+      ...(set.cur.full_roster != null
+        ? [{ text: `${set.cur.full_roster.toLocaleString()} with 7 or more players` }] : []),
+      ...(set.cur.low_roster
+        ? [{ text: `${set.cur.low_roster.toLocaleString()} with 3 or fewer players`, tone: "bad" as const }] : []),
+    ],
+    roster: true,
+    // Played-before and retention are measured on the whole scope only.
+    footer: place ? undefined : shareGroups("captains"),
+  });
+  const athletesMetric = (set: RegSet, place?: Place): RegMetric => ({
+    key: "athletes", format: "number",
+    title: place ? `${place.title} athletes` : "Athletes",
+    barTitle: place ? `Total athletes – ${place.name}` : "Total athletes", barSub: regBarWhen,
+    // The roster size the season is actually running at.
+    notes: set.cur.captains ? [{ text: `${(set.cur.athletes / set.cur.captains).toFixed(2)} per team` }] : undefined,
+    roster: false,
+    footer: place ? undefined : shareGroups("athletes"),
+  });
+  // Accrued, in the currency the venues invoice in. CAD and USD stay apart:
+  // a fixed conversion rate would bury a real change in either.
+  const revenueMetric = (k: "revenue_cad" | "revenue_usd"): RegMetric => ({
+    key: k, format: "money",
+    title: k === "revenue_cad" ? "CAD rev" : "USD rev",
+    barTitle: k === "revenue_cad" ? "Revenue (CAD)" : "Revenue (USD)",
+    barSub: `accrued · ${regBarWhen}`,
+    notes: undefined, roster: false,
+  });
+  // Only where the season has birth dates to average. The chip carries the
+  // share it is averaging over: roughly one athlete in ten has no birth date
+  // on file, and an average age is a different claim read off half a season
+  // than off all of it.
+  const ageMetric: RegMetric | null = pacingCurrent?.age_median != null ? {
+    key: "age_median", format: "age",
+    title: "Age", barTitle: "Median age",
+    barSub: `at season start · ${regBarWhen}`,
+    notes: pacingCurrent.age?.coverage_pct != null
+      ? [{ text: `${pacingCurrent.age.coverage_pct}% have a birth date · ${pacingCurrent.age.n.toLocaleString()} of ${pacingCurrent.athletes.toLocaleString()}` }]
+      : undefined,
+    roster: false,
+    bands: pacingCurrent.age?.bands,
+    // The median is the right headline and the wrong thing to compare: whole
+    // years, so it jumps one either way on a fractional shift across the
+    // midpoint and sits still through everything else. The comparisons track
+    // the share under 24, which moves when the intake moves.
+    deltaTitle: "Under 24", deltaFormat: "points",
+    deltaOf: (x?: PacingSeason | null) => x?.age?.under_24_pct ?? null,
+  } : null;
+  const PLACES: Place[] = [
+    { code: "CAN", name: "Canada", title: "Canada", revenue: "revenue_cad", heading: "Canada" },
+    { code: "USA", name: "USA", title: "US", revenue: "revenue_usd", heading: "United States" },
+  ];
+  const placeSets = PLACES.map((p) => ({ place: p, set: countrySet(p.code) }));
+  const hasPeople = (set: RegSet | null) => !!set && set.all.some((x) => x.captains || x.athletes);
+  // In a one-country scope that country's teams and athletes are the top row
+  // again, so its row keeps only its revenue.
+  const spansBoth = placeSets.filter((p) => hasPeople(p.set)).length > 1;
+  const regRows: { key: string; heading: string | null; items: { m: RegMetric; set: RegSet }[] }[] = !allSet ? [] : [
+    {
+      key: "all", heading: null,
+      items: [teamsMetric(allSet), athletesMetric(allSet), ...(ageMetric ? [ageMetric] : [])].map((m) => ({ m, set: allSet })),
+    },
+    ...placeSets.map(({ place, set }) => ({
+      key: place.code, heading: place.heading,
+      items: [
+        ...(spansBoth && set && hasPeople(set)
+          ? [{ m: teamsMetric(set, place), set }, { m: athletesMetric(set, place), set }] : []),
+        // A scope with no venue in this currency has nothing to report; one
+        // that simply has not invoiced yet this season keeps its comparison.
+        ...(hasCurrency(place.revenue) ? [{ m: revenueMetric(place.revenue), set: set ?? allSet }] : []),
+      ],
+    })),
+  ].filter((r) => r.items.length > 0);
+
   return (
     <main className="brodie-fade-in space-y-8">
       <header>
@@ -2863,99 +2967,38 @@ export default async function DashboardView({
               {/* No More details here: the Registrations tab is the detail view
                   for this section, reached from the nav. */}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 min-[1900px]:grid-cols-5 gap-4">
-              {/* One column per metric: its season bars, then the two same-day
-                  comparisons underneath. The deltas used to run four-across on
-                  their own row, so they lined up with nothing above them.
-                  Five across only past 1900px: below that a delta card is
-                  narrower than the nine characters of a money delta, so the
-                  row wraps three and two rather than clipping. */}
-              {(([
-                {
-                  key: "captains" as const, format: "number" as const,
-                  title: "Teams", barTitle: "Total teams", barSub: regBarWhen,
-                  notes: [
-                    ...(pacingCurrent.full_roster != null
-                      ? [{ text: `${pacingCurrent.full_roster.toLocaleString()} with 7 or more players` }] : []),
-                    ...(pacingCurrent.low_roster
-                      ? [{ text: `${pacingCurrent.low_roster.toLocaleString()} with 3 or fewer players`, tone: "bad" as const }] : []),
-                  ],
-                  roster: true,
-                  footer: shareGroups("captains"),
-                },
-                {
-                  key: "athletes" as const, format: "number" as const,
-                  title: "Athletes", barTitle: "Total athletes", barSub: regBarWhen,
-                  // The roster size the season is actually running at.
-                  notes: pacingCurrent.captains
-                    ? [{ text: `${(pacingCurrent.athletes / pacingCurrent.captains).toFixed(2)} per team` }]
-                    : undefined,
-                  roster: false,
-                  footer: shareGroups("athletes"),
-                },
-                // Accrued, and normalised to CAD by the feed — US venues invoice
-                // in USD, so a raw sum would mix two currencies.
-                // CAD and USD stay apart: they are different money, and a
-                // fixed conversion rate would bury a real change in either.
-                {
-                  key: "revenue_cad" as const, format: "money" as const,
-                  title: "CAD rev", barTitle: "Revenue (CAD)",
-                  barSub: `accrued · ${regBarWhen}`,
-                  notes: undefined, roster: false,
-                },
-                {
-                  key: "revenue_usd" as const, format: "money" as const,
-                  title: "USD rev", barTitle: "Revenue (USD)",
-                  barSub: `accrued · ${regBarWhen}`,
-                  notes: undefined, roster: false,
-                },
-                // Only where the season has birth dates to average. The chip
-                // carries the share it is averaging over: roughly one athlete
-                // in ten has no birth date on file, and an average age is a
-                // different claim read off half a season than off all of it.
-                ...(pacingCurrent.age_median != null
-                  ? [{
-                    key: "age_median" as const, format: "age" as const,
-                    title: "Age", barTitle: "Median age",
-                    barSub: `at season start · ${regBarWhen}`,
-                    notes: pacingCurrent.age?.coverage_pct != null
-                      ? [{ text: `${pacingCurrent.age.coverage_pct}% have a birth date · ${pacingCurrent.age.n.toLocaleString()} of ${pacingCurrent.athletes.toLocaleString()}` }]
-                      : undefined,
-                    roster: false,
-                    bands: pacingCurrent.age?.bands,
-                    // The median is the right headline and the wrong thing to
-                    // compare: whole years, so it jumps one either way on a
-                    // fractional shift across the midpoint and sits still
-                    // through everything else. The comparisons track the share
-                    // under 24, which moves when the intake moves.
-                    deltaTitle: "Under 24", deltaFormat: "points" as const,
-                    deltaOf: (x?: PacingSeason | null) => x?.age?.under_24_pct ?? null,
-                  }]
-                  : []),
-              ]) as RegMetric[])
-                .filter((m) => (m.key === "revenue_cad" || m.key === "revenue_usd")
-                  ? hasCurrency(m.key as "revenue_cad" | "revenue_usd")
-                  : true)
-                .map((m) => (
-                <div key={m.key} className="h-full flex flex-col gap-4">
-                  <div className="flex-1">
-                    <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
-                      current={pacingCurrent[m.key] ?? 0} bars={regBars(m.key)} notes={m.notes}
-                      bands={m.bands} footer={m.footer} />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <RegDeltaCard
-                      title={`${m.deltaTitle ?? m.title} vs prev season`} format={m.deltaFormat ?? (m.format === "age" ? "points" : m.format)}
-                      subtitle={`${shortSeason(pacingCurrent.season)} vs ${pacingPrevSeason ? shortSeason(pacingPrevSeason.season) : "—"} · ${regDeltaWhen}`}
-                      delta={metricDelta(m, pacingPrevSeason)} base={metricBase(m, pacingPrevSeason)}
-                      rosterDelta={m.roster ? rosterDelta(pacingPrevSeason) : undefined}
-                      rosterBase={m.roster ? pacingPrevSeason?.full_roster ?? null : undefined} />
-                    <RegDeltaCard
-                      title={`${m.deltaTitle ?? m.title} vs prev year`} format={m.deltaFormat ?? (m.format === "age" ? "points" : m.format)}
-                      subtitle={`${shortSeason(pacingCurrent.season)} vs ${pacingPrevYear ? shortSeason(pacingPrevYear.season) : "—"} · ${regDeltaWhen}`}
-                      delta={metricDelta(m, pacingPrevYear)} base={metricBase(m, pacingPrevYear)}
-                      rosterDelta={m.roster ? rosterDelta(pacingPrevYear) : undefined}
-                      rosterBase={m.roster ? pacingPrevYear?.full_roster ?? null : undefined} />
+            <div className="space-y-5">
+              {regRows.map((row) => (
+                <div key={row.key} className="space-y-2">
+                  {row.heading && (
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary">{row.heading}</h3>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {/* One column per metric: its season bars, then the two
+                        same-day comparisons underneath. */}
+                    {row.items.map(({ m, set }) => (
+                      <div key={`${row.key}-${m.key}`} className="h-full flex flex-col gap-4">
+                        <div className="flex-1">
+                          <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
+                            current={set.cur[m.key] ?? 0} bars={regBars(set, m.key)} notes={m.notes}
+                            bands={m.bands} footer={m.footer} />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <RegDeltaCard
+                            title={`${m.deltaTitle ?? m.title} vs prev season`} format={m.deltaFormat ?? (m.format === "age" ? "points" : m.format)}
+                            subtitle={`${shortSeason(set.cur.season)} vs ${set.prev ? shortSeason(set.prev.season) : "—"} · ${regDeltaWhen}`}
+                            delta={metricDelta(set, m, set.prev)} base={metricBase(m, set.prev)}
+                            rosterDelta={m.roster ? rosterDelta(set, set.prev) : undefined}
+                            rosterBase={m.roster ? set.prev?.full_roster ?? null : undefined} />
+                          <RegDeltaCard
+                            title={`${m.deltaTitle ?? m.title} vs prev year`} format={m.deltaFormat ?? (m.format === "age" ? "points" : m.format)}
+                            subtitle={`${shortSeason(set.cur.season)} vs ${set.year ? shortSeason(set.year.season) : "—"} · ${regDeltaWhen}`}
+                            delta={metricDelta(set, m, set.year)} base={metricBase(m, set.year)}
+                            rosterDelta={m.roster ? rosterDelta(set, set.year) : undefined}
+                            rosterBase={m.roster ? set.year?.full_roster ?? null : undefined} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
