@@ -72,8 +72,8 @@ export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
   if (!next) return null;
   const { w } = next;
   const dt = instant(w);
-  // Opens the deadline's own More info popup on the Promo Tracker's calendar.
-  const infoHref = `${PROMO_APP_URL}/content-calendar?season=${encodeURIComponent(w.season)}&info=${w.week}`;
+  // The Promo Tracker's registration promos page.
+  const infoHref = `${PROMO_APP_URL}/registration-promos`;
 
   return (
     <div
