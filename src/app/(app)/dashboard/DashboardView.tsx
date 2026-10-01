@@ -1517,7 +1517,7 @@ const moneyShort = (n: number) => {
 };
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
 type PacingDivision = { name: string; teams: number; full_roster: number };
-type PacingLocation = { location: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
+type PacingLocation = { location: string; country?: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
 type Pacing = { day_n: number | null; elapsed_hours?: number | null; seasons: PacingSeason[]; locations?: PacingLocation[];
   retention?: Retention | null; retention_year?: Retention | null;
   // The team count’s own basis: captains who are captaining again.
@@ -2827,6 +2827,21 @@ export default async function DashboardView({
   const regBarWhen = regOnWeek ? `week of ${weekLabel}` : regWindow;
   const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : regWindowShort;
 
+  // A strip of location (or night) cards. Each country's sits under its own
+  // row, so Canadian venues are read beside Canada's totals.
+  const strip = (locs?: PacingLocation[]) => locs?.length && pacingCurrent ? (
+    <div className="pt-1">
+      <LocationStrip
+        locations={locs}
+        prevLabel={shortSeason(pacingPrevSeason?.season ?? "")}
+        yearLabel={shortSeason(pacingPrevYear?.season ?? "")}
+        season={pacingCurrent.season}
+        showAvgPerTeam={!regOnWeek}
+        byNight={locationNames?.length === 1}
+        venue={locationNames?.length === 1 ? locationNames[0] : undefined}
+        discounts={locDiscounts} discountsSeasonToDate={regOnWeek} />
+    </div>
+  ) : null;
   // The Registrations columns. Teams and athletes appear for the whole scope
   // and again per country; revenue only per country, as CAD and USD are
   // different money.
@@ -2902,6 +2917,14 @@ export default async function DashboardView({
     { code: "USA", name: "USA", title: "US", revenue: "revenue_usd", heading: "United States" },
   ];
   const placeSets = PLACES.map((p) => ({ place: p, set: countrySet(p.code) }));
+  // The location cards, filed under their country's row. Any the feed could
+  // not place (an older feed, a failed lookup) keep one strip of their own.
+  const locsByCountry = new Map<string, PacingLocation[]>();
+  for (const l of pacing?.locations ?? []) {
+    const k = l.country === "CAN" || l.country === "USA" ? l.country : "other";
+    if (!locsByCountry.has(k)) locsByCountry.set(k, []);
+    locsByCountry.get(k)!.push(l);
+  }
   const hasPeople = (set: RegSet | null) => !!set && set.all.some((x) => x.captains || x.athletes);
   // In a one-country scope that country's teams and athletes are the top row
   // again, so its row keeps only its revenue.
@@ -2923,7 +2946,7 @@ export default async function DashboardView({
         ...(hasCurrency(place.revenue) && set ? [{ m: perPlayerMetric(place), set }] : []),
       ],
     })),
-  ].filter((r) => r.items.length > 0);
+  ].filter((r) => r.items.length > 0 || (locsByCountry.get(r.key)?.length ?? 0) > 0);
 
   return (
     <main className="brodie-fade-in space-y-8">
@@ -3026,22 +3049,11 @@ export default async function DashboardView({
                       </div>
                     ))}
                   </div>
+                  {row.key !== "all" && strip(locsByCountry.get(row.key))}
                 </div>
               ))}
             </div>
-            {pacing.locations?.length ? (
-              <div className="pt-1">
-                <LocationStrip
-                  locations={pacing.locations}
-                  prevLabel={shortSeason(pacingPrevSeason?.season ?? "")}
-                  yearLabel={shortSeason(pacingPrevYear?.season ?? "")}
-                  season={pacingCurrent.season}
-                  showAvgPerTeam={!regOnWeek}
-                  byNight={locationNames?.length === 1}
-                  venue={locationNames?.length === 1 ? locationNames[0] : undefined}
-                  discounts={locDiscounts} discountsSeasonToDate={regOnWeek} />
-              </div>
-            ) : null}
+            {strip(locsByCountry.get("other"))}
             {/* Registrations only. On the Dashboard and Weekly Review this
                 section is a summary, and a 26-row chart buries everything
                 under it. */}
