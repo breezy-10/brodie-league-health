@@ -4,7 +4,6 @@ import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seaso
 import Filters, { type FilterOptions } from "../../dashboard/Filters";
 import { discountTone, freeTone } from "../rates";
 import DiscountTable from "./DiscountTable";
-import DiscountTeams from "./DiscountTeams";
 import { BasisToggle } from "../../dashboard/BasisToggle";
 import { loadStaff } from "@/lib/staff";
 
@@ -192,9 +191,7 @@ export default async function DiscountPlayersPage({
           No {freeOnly ? "free" : otherOnly ? "other discounted" : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
-        teamView
-          ? <DiscountTeams rows={rows} season={selectedSeason} staff={staff} />
-          : <DiscountTable rows={rows} season={selectedSeason} staff={staff} />
+        <DiscountTable key={teamView ? "teams" : "players"} rows={rows} season={selectedSeason} staff={staff} teamView={teamView} />
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">

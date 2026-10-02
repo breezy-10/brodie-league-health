@@ -46,21 +46,54 @@ const pairKey = (r: DiscountRowData) => `${r.season_team_id}|${r.player_id ?? ""
 // team's roster and who has paid what. Rosters load when opened — one row, or
 // every row at once from the toolbar — rather than with the page, since that
 // meant thousands of payment lookups on a Fall list mostly read top-down.
+// A team view row: every discounted registration on one team, added up.
+type TeamUnit = {
+  rep: DiscountRowData; team: string | null; location: string; currency: string;
+  players: number; free: number; list: number; discount: number; total: number;
+  codes: string[]; names: string[]; first: string | null;
+};
+
 export default function DiscountTable({
-  rows, season, staff,
+  rows, season, staff, teamView = false,
 }: {
   rows: DiscountRowData[];
   season: string;
   staff: Record<string, string> | null;
+  // One row per team instead of per registration, opening the same roster.
+  teamView?: boolean;
 }) {
+  // Teams in scope, most given up first. A registration with no team has
+  // nothing to group under; the footer of the page counts it in player view.
+  const teamUnits: TeamUnit[] = (() => {
+    if (!teamView) return [];
+    const m = new Map<string, TeamUnit>();
+    for (const r of rows) {
+      if (!r.season_team_id) continue;
+      const u = m.get(r.season_team_id) ?? {
+        rep: r, team: r.team, location: r.location, currency: r.currency,
+        players: 0, free: 0, list: 0, discount: 0, total: 0, codes: [], names: [], first: null,
+      };
+      u.players += 1;
+      if (r.free) u.free += 1;
+      u.list += r.list_price; u.discount += r.discount; u.total += r.total_paid;
+      for (const c of r.codes.split(", ")) if (c && !u.codes.includes(c)) u.codes.push(c);
+      const n = r.discount_names ? shortDiscount(r.discount_names) : "";
+      if (n && !u.names.includes(n)) u.names.push(n);
+      if (r.registered_on && (!u.first || r.registered_on < u.first)) u.first = r.registered_on;
+      m.set(r.season_team_id, u);
+    }
+    return [...m.values()].sort((a, b) => b.discount - a.discount);
+  })();
+  // What each row opens: the registration itself, or the team's first one.
+  const units: DiscountRowData[] = teamView ? teamUnits.map((u) => u.rep) : rows;
   const [open, setOpen] = useState<Record<number, boolean>>({});
   // Keyed by team and player: two registrations on one team share a lookup,
   // but a merged team resolves per player, so the player is part of the key.
   const [resolved, setResolved] = useState<Record<string, Resolved>>({});
   const [teams, setTeams] = useState<Record<string, Team>>({});
 
-  const openable = rows.map((r) => !!r.season_team_id);
-  const openCount = rows.reduce((n, _, i) => n + (openable[i] && open[i] ? 1 : 0), 0);
+  const openable = units.map((r) => !!r.season_team_id);
+  const openCount = units.reduce((n, _, i) => n + (openable[i] && open[i] ? 1 : 0), 0);
   const totalOpenable = openable.filter(Boolean).length;
   // Every openable row already open — the toggle then offers Collapse all.
   const allOpen = totalOpenable > 0 && openCount === totalOpenable;
@@ -144,9 +177,9 @@ export default function DiscountTable({
 
   function expandAll() {
     const all: Record<number, boolean> = {};
-    rows.forEach((_, i) => { if (openable[i]) all[i] = true; });
+    units.forEach((_, i) => { if (openable[i]) all[i] = true; });
     setOpen(all);
-    void load(rows);
+    void load(units);
   }
 
   const staffLabel = (name: string) => staff?.[normName(name)];
@@ -177,6 +210,21 @@ export default function DiscountTable({
       <div className="overflow-x-auto">
         <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1120 }}>
           <thead>
+            {teamView ? (
+              <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+                <Th align="left">Team</Th>
+                <Th align="left">Location</Th>
+                {/* How many on the team carried a discount — the roster
+                    underneath has everyone, discounted or not. */}
+                <Th align="left">Discounted</Th>
+                <Th align="left">Code</Th>
+                <Th align="left">Discount type</Th>
+                <Th>List price</Th>
+                <Th>Discount</Th>
+                <Th>Total price</Th>
+                <Th>Registered</Th>
+              </tr>
+            ) : (
             <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
               <Th align="left">Player</Th>
               <Th align="left">Location</Th>
@@ -195,15 +243,71 @@ export default function DiscountTable({
               <Th>Total price</Th>
               <Th>Registered</Th>
             </tr>
+            )}
           </thead>
           <tbody>
-            {rows.map((r, i) => {
+            {units.map((r, i) => {
               const canOpen = openable[i];
               const isOpen = canOpen && !!open[i];
               const got = canOpen ? resolved[pairKey(r)] : undefined;
               const team = got?.state === "ok" ? teams[got.teamId] : undefined;
               const sLabel = staffLabel(r.player);
+              const u = teamView ? teamUnits[i] : null;
+              const chevron = (
+                <button
+                  type="button"
+                  onClick={() => toggle(i, r)}
+                  aria-expanded={isOpen}
+                  aria-label={`${isOpen ? "Hide" : "Show"} ${r.team ?? "team"} roster`}
+                  className="shrink-0 -ml-1 px-1 py-0.5 rounded hover:bg-glass-surface-hover focus-visible:outline focus-visible:outline-2"
+                  style={{ color: "var(--glass-text-tertiary)", outlineColor: GOLD }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden
+                    className="transition-transform duration-150"
+                    style={{ transform: isOpen ? "rotate(180deg)" : undefined }}>
+                    <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5"
+                      strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              );
               return [
+                u ? (
+                  <tr key={`row-${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
+                    <td className="px-4 py-2.5 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
+                      <span className="flex items-center gap-1.5">
+                        {chevron}
+                        <span className="max-w-[260px] truncate" title={u.team ?? ""}>{u.team ?? "—"}</span>
+                        {u.free > 0 && (
+                          <span className="ml-0.5 text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+                            style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>
+                            {u.free > 1 ? `${u.free} free` : "Free"}
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{u.location}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-tertiary">
+                      {u.players} player{u.players === 1 ? "" : "s"}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono text-[12px] max-w-[200px] truncate text-glass-text-tertiary" title={u.codes.join(", ")}>
+                      {u.codes.join(", ") || "—"}
+                    </td>
+                    <td className="px-4 py-2.5 max-w-[240px] truncate" style={{ color: "var(--glass-text-secondary)" }}
+                      title={u.names.join(", ")}>
+                      {u.names.join(", ") || "—"}
+                    </td>
+                    <Td>{money(u.list)}</Td>
+                    <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
+                      <div style={{ color: GOLD, fontWeight: 700 }}>−{money(u.discount)}</div>
+                      <div className="text-[11px] text-glass-text-tertiary leading-snug">
+                        {u.list ? `${Math.round((100 * u.discount) / u.list)}%` : "—"}
+                      </div>
+                    </td>
+                    <Td>{money(u.total)}</Td>
+                    {/* The team's first discounted registration. */}
+                    <Td>{day(u.first)}</Td>
+                  </tr>
+                ) : (
                 <tr key={`row-${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
                   <td className="px-4 py-2.5 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
                     <span className="flex items-center gap-1.5">
@@ -259,10 +363,11 @@ export default function DiscountTable({
                   </td>
                   <Td>{money(r.total_paid)}</Td>
                   <Td>{day(r.registered_on)}</Td>
-                </tr>,
+                </tr>
+                ),
                 isOpen && (
                   <tr key={`detail-${i}`} style={{ background: "var(--glass-surface-hover)" }}>
-                    <td colSpan={COLS} className="px-4 py-3">
+                    <td colSpan={teamView ? COLS - 1 : COLS} className="px-4 py-3">
                       {!got || got.state === "loading" ? (
                         <span className="inline-flex items-center gap-2 text-xs text-glass-text-tertiary">
                           <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
