@@ -4,6 +4,8 @@ import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seaso
 import Filters, { type FilterOptions } from "../../dashboard/Filters";
 import { discountTone, freeTone } from "../rates";
 import DiscountTable from "./DiscountTable";
+import DiscountTeams from "./DiscountTeams";
+import { BasisToggle } from "../../dashboard/BasisToggle";
 import { loadStaff } from "@/lib/staff";
 
 export const dynamic = "force-dynamic";
@@ -63,10 +65,12 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 export default async function DiscountPlayersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; free?: string; kind?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; free?: string; kind?: string; view?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam, view: viewParam } = await searchParams;
+  // Player view lists registrations; team view shows the teams they're on.
+  const teamView = viewParam === "teams";
   const freeOnly = freeParam === "1";
   // kind=other narrows to the discounts that were neither of the two flat
   // programmes — what the Other discounts tile on the Discounts tab counts.
@@ -139,10 +143,17 @@ export default async function DiscountPlayersPage({
           seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
           locations: selectedLocations,
         }}
-        // Changing a filter must not quietly widen a free-only list back out.
-        keep={freeOnly || otherOnly
-          ? { ...(freeOnly ? { free: "1" } : {}), ...(otherOnly ? { kind: "other" } : {}) }
+        // Changing a filter must not quietly widen a free-only list back out,
+        // or drop back to player view.
+        keep={freeOnly || otherOnly || teamView
+          ? { ...(freeOnly ? { free: "1" } : {}), ...(otherOnly ? { kind: "other" } : {}), ...(teamView ? { view: "teams" } : {}) }
           : undefined}
+      />
+
+      <BasisToggle
+        param="view"
+        value={teamView ? "teams" : "players"}
+        options={[{ value: "players", label: "Player view" }, { value: "teams", label: "Team view" }]}
       />
 
       {rows.length > 0 && (
@@ -181,7 +192,9 @@ export default async function DiscountPlayersPage({
           No {freeOnly ? "free" : otherOnly ? "other discounted" : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
-        <DiscountTable rows={rows} season={selectedSeason} staff={staff} />
+        teamView
+          ? <DiscountTeams rows={rows} season={selectedSeason} staff={staff} />
+          : <DiscountTable rows={rows} season={selectedSeason} staff={staff} />
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
