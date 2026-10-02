@@ -1113,144 +1113,79 @@ function addDaysIso(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// CRM outreach: touches (outbound messages) and notes, per league manager.
-// Mirrors the CRM's own leaderboard definitions — a touch is an outbound
-// activity on any channel except 'note'; a note is a 'note' activity. The CRM
-// credits a row to both manager_id and actor_manager_id, which double-counts
-// when they differ; here each activity is credited once, to whoever performed
-// it, so the per-manager rows always sum to the headline total.
-type TouchRow = { manager: string; touches: number; notes: number };
-type TouchData = { touches: number; notes: number; rows: TouchRow[] };
-async function loadTouchData(
-  scope: Scope,
-  opts: { fromIso?: string; toIso?: string; season?: string; weekLabel?: string },
-): Promise<(TouchData & { label: string }) | null> {
+// CRM outreach, measured exactly as the CRM's Team Registrations panel does:
+// its own functions, read as its super admin sees them (every venue), summed
+// over the venues with a team goal this season — the panel hides the rest.
+//   pool       current + past captains at the venue (7 seasons)
+//   contacted  pool captains with an outbound touch in the season's window
+//   outcomes   contacted captains whose latest touch has an outcome logged
+//   regAfter   contacted captains who registered after their first touch
+// A count of messages or notes reads differently: 511 touches went to 474
+// people, most of them not captains.
+type FunnelRow = { location: string; pool: number; contacted: number; outcomes: number; regAfter: number; avgHours: number | null };
+async function loadCaptainFunnel(scope: Scope, season?: string): Promise<{ season: string; total: FunnelRow; locations: FunnelRow[] } | null> {
   if (!sourceConfigured("crm")) return null;
   try {
     const sb = sourceClient("crm")!;
-
-    // Window. A week beats a season when both are given (Weekly Review). For a
-    // season, the CRM's own registry supplies the recruiting window; seasons
-    // with no registration_start recorded can't be bounded, so those read all
-    // time rather than inventing a range.
-    let fromIso = opts.fromIso, toIso = opts.toIso;
-    let label = opts.weekLabel ?? (fromIso ? "selected week" : "all time");
-    if (!fromIso && opts.season) {
-      const { data: seas } = await sb.from("seasons").select("key, p1_name, ordinal, registration_start");
-      const rows = ((seas ?? []) as { key: string; p1_name: string | null; ordinal: number; registration_start: string | null }[])
-        .sort((a, b) => a.ordinal - b.ordinal);
-      const hit = rows.find((s) => seasonKey(s.p1_name ?? s.key) === seasonKey(opts.season!));
-      if (hit?.registration_start) {
-        fromIso = hit.registration_start;
-        const next = rows.find((s) => s.ordinal > hit.ordinal && s.registration_start);
-        toIso = next?.registration_start ?? undefined;
-        label = `${opts.season} registration`;
-      } else {
-        label = "all time";
-      }
-    }
-
-    // Scope to the filtered locations via the lead each activity is against.
-    let leadIds: string[] | null = null;
-    if (scope.locationNames) {
-      if (!scope.locationNames.length) return { touches: 0, notes: 0, rows: [], label };
-      const { data: locs } = await sb.from("locations").select("id, name");
-      const wanted = ((locs ?? []) as { id: string; name: string }[])
-        .filter((l) => scope.locationNames!.some((n) => sameLocation(n, l.name)))
-        .map((l) => l.id);
-      if (!wanted.length) return { touches: 0, notes: 0, rows: [], label };
-      const ids: string[] = [];
-      for (let from = 0; ; from += 1000) {
-        const { data } = await sb.from("leads").select("id").in("location_id", wanted).order("id").range(from, from + 999);
-        const page = (data ?? []) as { id: string }[];
-        ids.push(...page.map((l) => l.id));
-        if (page.length < 1000) break;
-      }
-      if (!ids.length) return { touches: 0, notes: 0, rows: [], label };
-      leadIds = ids;
-    }
-
-    const { data: mgrs } = await sb.from("managers").select("id, name");
-    const nameById = new Map(((mgrs ?? []) as { id: string; name: string }[]).map((m) => [m.id, m.name]));
-
-    type Row = { manager_id: string | null; actor_manager_id: string | null; source?: string | null; body?: string | null };
-    // One paginated read, optionally chunked over the scoped lead ids because
-    // a location filter can select more than a single .in() list should carry.
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    async function read(cols: string, apply: (q: any) => any): Promise<Row[]> {
-      const out: Row[] = [];
-      const chunks: (string[] | null)[] = leadIds
-        ? Array.from({ length: Math.ceil(leadIds.length / 200) }, (_, i) => leadIds!.slice(i * 200, i * 200 + 200))
-        : [null];
-      for (const chunk of chunks) {
-        for (let from = 0; from < 200000; from += 1000) {
-          let q = apply(sb.from("activities").select(cols));
-          if (fromIso) q = q.gte("occurred_at", fromIso);
-          if (toIso) q = q.lt("occurred_at", toIso);
-          if (chunk) q = q.in("lead_id", chunk);
-          // Ordered by occurred_at, which the window already filters on.
-          // Ordering by id walked the primary key across ~900k rows and hit the
-          // statement timeout, and the error below turned that into a confident
-          // zero. id breaks ties so paging stays stable.
-          const { data, error } = await q.order("occurred_at").order("id").range(from, from + 999);
-          // A failed read is not an empty one. Swallowing this reported "none
-          // logged" for a season with nearly 2,000 touches in it.
-          if (error) throw new Error(`activities read failed: ${error.message}`);
-          if (!data) break;
-          out.push(...(data as unknown as Row[]));
-          if (data.length < 1000) break;
-        }
-      }
-      return out;
-    }
-
-    const [touchRows, noteRowsRaw] = await Promise.all([
-      read("manager_id, actor_manager_id", (q) => q.eq("direction", "outbound").neq("channel", "note")),
-      read("manager_id, actor_manager_id, source, body", (q) => q.eq("channel", "note")),
+    const { data: seas } = await sb.from("seasons").select("key, p1_name, is_current");
+    const seasons = (seas ?? []) as { key: string; p1_name: string | null; is_current: boolean }[];
+    const hit = season
+      ? seasons.find((x) => seasonKey(x.p1_name ?? x.key) === seasonKey(season))
+      : seasons.find((x) => x.is_current);
+    if (!hit) return null;
+    const { data: admins } = await sb.from("managers").select("id")
+      .eq("role", "super_admin").eq("active", true).order("created_at").limit(1);
+    const managerId = (admins as { id: string }[] | null)?.[0]?.id;
+    if (!managerId) return null;
+    const [goals, funnel] = await Promise.all([
+      sb.rpc("captain_progress_for_manager", { p_manager_id: managerId, p_season: hit.key }),
+      sb.rpc("location_outreach_funnel", { p_manager_id: managerId, p_season: hit.key }),
     ]);
-
-    // A note is LM insight, not machine chatter — the same exclusions the CRM's
-    // own notes feed applies (p1_reconcile reconciliation rows and [STAGE]
-    // kanban audit entries were ~1,700 of the total).
-    //
-    // Plus the one the CRM's feed never needed: it reads 200 rows at a time, so
-    // nobody there notices that the old Google Sheet was imported into this
-    // table as notes. 23,753 of them — every ticked cadence checkbox
-    // ("[Master CRM > Brampton] week 1: Player1") and every notes-column cell
-    // — against the 229 anyone has actually typed into the CRM. They are
-    // credited to nobody because nobody wrote them here, which is the tell:
-    // every note written in the app carries its author, and none of the
-    // imported ones does.
-    const noteRows = noteRowsRaw.filter((r) => {
-      const body = (r.body ?? "").trim();
-      if (!body) return false;
-      if ((r.source ?? "") === "p1_reconcile") return false;
-      if (body.startsWith("Name reconciled from Player One")) return false;
-      if (body.startsWith("[STAGE]")) return false;
-      if (!(r.actor_manager_id ?? r.manager_id)) return false;
-      return true;
-    });
-
-    const byMgr = new Map<string, { touches: number; notes: number }>();
-    const credit = (r: Row, kind: "touches" | "notes") => {
-      const who = r.actor_manager_id ?? r.manager_id;
-      const key = (who && nameById.get(who)) || "Unassigned";
-      const cur = byMgr.get(key) ?? { touches: 0, notes: 0 };
-      cur[kind]++;
-      byMgr.set(key, cur);
-    };
-    for (const r of touchRows) credit(r, "touches");
-    for (const r of noteRows) credit(r, "notes");
-
+    if (goals.error || funnel.error) return null;
+    const target = new Map<string, number>();
+    for (const g of (goals.data ?? []) as { location_id: string; target: number | null }[]) {
+      target.set(g.location_id, (target.get(g.location_id) ?? 0) + (g.target ?? 0));
+    }
+    const locations: FunnelRow[] = ((funnel.data ?? []) as {
+      location_id: string; location_name: string;
+      returning_captains_total: number | null; returning_captains_contacted: number | null;
+      returning_captains_outcome_logged: number | null; returning_captains_registered_after_contact: number | null;
+      returning_captains_avg_hours_to_register: number | string | null;
+    }[])
+      .filter((r) => (target.get(r.location_id) ?? 0) > 0)
+      .filter((r) => !scope.locationNames || scope.locationNames.some((n) => sameLocation(n, r.location_name)))
+      .map((r) => ({
+        location: r.location_name,
+        pool: r.returning_captains_total ?? 0,
+        contacted: r.returning_captains_contacted ?? 0,
+        outcomes: r.returning_captains_outcome_logged ?? 0,
+        regAfter: r.returning_captains_registered_after_contact ?? 0,
+        // numeric arrives as a string from PostgREST.
+        avgHours: r.returning_captains_avg_hours_to_register == null ? null : Number(r.returning_captains_avg_hours_to_register),
+      }))
+      .sort((a, b) => a.location.localeCompare(b.location));
+    const sum = (k: "pool" | "contacted" | "outcomes" | "regAfter") => locations.reduce((a, r) => a + r[k], 0);
+    const regAfter = sum("regAfter");
+    // Weighted by how many registered at each venue, as the CRM does.
+    const hours = locations.reduce((a, r) => a + (r.avgHours != null ? r.avgHours * r.regAfter : 0), 0);
     return {
-      touches: touchRows.length,
-      notes: noteRows.length,
-      rows: [...byMgr.entries()].map(([manager, v]) => ({ manager, ...v })),
-      label,
+      season: hit.p1_name ?? hit.key,
+      total: { location: "", pool: sum("pool"), contacted: sum("contacted"), outcomes: sum("outcomes"), regAfter, avgHours: regAfter > 0 ? hours / regAfter : null },
+      locations,
     };
   } catch {
     return null;
   }
+}
+// The CRM's own wording: "1 day 2 hours".
+function formatHours(h: number): string {
+  const total = Math.round(h);
+  if (total < 1) return "under an hour";
+  const days = Math.floor(total / 24), hrs = total % 24;
+  return [
+    ...(days > 0 ? [`${days} ${days === 1 ? "day" : "days"}`] : []),
+    ...(hrs > 0 ? [`${hrs} ${hrs === 1 ? "hour" : "hours"}`] : []),
+  ].join(" ");
 }
 
 // Training reads the training app's OWN module-rollup feed, so the numbers
@@ -2147,10 +2082,46 @@ function AthletesVsRevenueChart({ locations, prevLabel, yearLabel }: {
 // Each of these owns a single source app. Rendered inside its own Suspense
 // boundary they start together and appear as they answer, so the page fills
 // top to bottom instead of waiting for the slowest one.
-async function OutreachCards({ scope, opts, when, weekTag }: {
-  scope: Scope; opts: Parameters<typeof loadTouchData>[1]; when: string; weekTag?: string;
-}) {
-  return <TouchesSection data={await loadTouchData(scope, opts)} when={when} titleSuffix={weekTag} />;
+async function OutreachCards({ scope, season, fullTag }: { scope: Scope; season?: string; fullTag?: string }) {
+  const f = await loadCaptainFunnel(scope, season);
+  const pct = (n: number, of: number) => (of ? Math.round((100 * n) / of) : 0);
+  const chips = (text: (r: FunnelRow) => string | null, sortValue: (r: FunnelRow) => number) =>
+    (f?.locations ?? []).flatMap((r) => {
+      const t = text(r);
+      return t ? [{ text: t, tone: "default" as Tone, sortValue: sortValue(r) }] : [];
+    });
+  const tiles: Tile[] | null = f ? [
+    {
+      label: "Captains contacted", value: f.total.contacted.toLocaleString(), unit: `/ ${f.total.pool.toLocaleString()}`,
+      sub: `${pct(f.total.contacted, f.total.pool)}% of captain pool`, tone: "warn",
+      pills: chips((r) => `${r.location} ${r.contacted}/${r.pool} (${pct(r.contacted, r.pool)}%)`, (r) => r.contacted),
+      pillsEmpty: "no captain pool in scope",
+    },
+    {
+      label: "Outcomes logged", value: f.total.outcomes.toLocaleString(), unit: `/ ${f.total.contacted.toLocaleString()}`,
+      sub: `${pct(f.total.outcomes, f.total.contacted)}% of contacted`, tone: "warn",
+      pills: chips((r) => r.contacted ? `${r.location} ${r.outcomes}/${r.contacted} (${pct(r.outcomes, r.contacted)}%)` : null, (r) => r.outcomes),
+      pillsEmpty: "nobody contacted yet",
+    },
+    {
+      label: "Registered after contact", value: f.total.regAfter.toLocaleString(), unit: `/ ${f.total.contacted.toLocaleString()}`,
+      sub: `${pct(f.total.regAfter, f.total.contacted)}% of contacted`, tone: "ok",
+      pills: chips((r) => r.contacted ? `${r.location} ${r.regAfter}/${r.contacted} (${pct(r.regAfter, r.contacted)}%)` : null, (r) => r.regAfter),
+      pillsEmpty: "nobody contacted yet",
+    },
+    {
+      label: "Avg time to register", value: f.total.avgHours == null ? "—" : formatHours(f.total.avgHours),
+      sub: f.total.regAfter ? `after first touch (${f.total.regAfter} captain${f.total.regAfter === 1 ? "" : "s"})` : "nobody registered after contact yet",
+      tone: f.total.avgHours == null ? "default" : "ok",
+      // Slowest first under "Largest".
+      pills: chips((r) => r.avgHours != null && r.regAfter ? `${r.location} ${formatHours(r.avgHours)} (${r.regAfter})` : null, (r) => r.avgHours ?? 0),
+      pillsEmpty: "nobody registered after contact yet",
+    },
+  ] : null;
+  // Season to date whatever the week filter says: the CRM measures the
+  // season's registration window.
+  return <Section title="Outreach" scopeTag={fullTag} seasonTag={f ? `${f.season} registration` : undefined}
+    href={APP_URL.crm} tiles={tiles} cols={4} />;
 }
 async function SiteVisitCards({ scope, weeks, weekTag }: { scope: Scope; weeks?: string; weekTag?: string }) {
   const d = await loadSiteVisits(scope, weeks);
@@ -2610,12 +2581,6 @@ export default async function DashboardView({
   // single week because its window is offset-aligned to each season's start,
   // so a union of calendar weeks has no meaning there.
   const seasonsParam = selectedSeasons.length ? selectedSeasons.join(",") : selectedSeason;
-  // Outreach window: the selected week(s) on Weekly Review, else everything.
-  const touchFrom = activeWeeks.length ? `${activeWeeks[0]}T00:00:00Z` : undefined;
-  const touchTo = activeWeeks.length
-    ? `${addDaysIso(activeWeeks[activeWeeks.length - 1], 7)}T00:00:00Z`
-    : undefined;
-  const touchWhen = activeWeeks.length ? `week of ${weekLabel}` : "all time";
   const weeksParam = activeWeeks.length ? activeWeeks.join(",") : undefined;
   // Registrations mode shows only the Registrations section, so skip the other
   // source loads entirely — just fetch pacing.
@@ -3076,8 +3041,7 @@ export default async function DashboardView({
               seasonTag={seasonToggle("promoSeason", promoSeason) ? undefined : promoSeasonName}
               headerExtra={seasonToggle("promoSeason", promoSeason)} />
             <Suspense fallback={<SectionSkeleton title="Outreach" cols={4} />}>
-              <OutreachCards scope={scope} when={touchWhen} weekTag={weekTag}
-                opts={{ fromIso: touchFrom, toIso: touchTo, season: regSeason, weekLabel: activeWeeks.length ? `week of ${weekLabel}` : undefined }} />
+              <OutreachCards scope={scope} season={regSeason} fullTag={fullTag} />
             </Suspense>
             <Suspense fallback={<TableSkeleton title="Site Visits" />}>
               <SiteVisitCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
@@ -3173,60 +3137,6 @@ function prevWeekLabel(sat: string): string {
 
 // Site visits completed each Saturday–Friday week and their scores (from the
 // Feedback app's site-visit scorecards).
-// Two CRM outreach cards: the headline count, then every league manager who
-// logged any, listed small underneath. Managers with none are left off.
-function TouchesSection({ data, when, titleSuffix = "" }: { data: (TouchData & { label: string }) | null; when: string; titleSuffix?: string }) {
-  const card = (
-    title: string,
-    total: number,
-    pick: (r: TouchRow) => number,
-  ) => {
-    const rows = (data?.rows ?? []).filter((r) => pick(r) > 0)
-      .sort((a, b) => pick(b) - pick(a) || a.manager.localeCompare(b.manager));
-    const max = Math.max(...rows.map(pick), 1);
-    return (
-      <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
-        <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{title}</div>
-        <div className="mt-1.5 flex items-baseline gap-2">
-          <span className="text-2xl font-bold tabular" style={{ color: "var(--glass-gold)" }}>{total.toLocaleString()}</span>
-          <span className="text-[11px] text-glass-text-tertiary">{data?.label ?? when}</span>
-        </div>
-        {rows.length === 0 ? (
-          <div className="mt-2 text-[11px] italic text-glass-text-tertiary">
-            {data ? "none logged" : "CRM feed unavailable"}
-          </div>
-        ) : (
-          <div className="mt-2 space-y-1">
-            {rows.map((r) => (
-              <div key={r.manager} className="flex items-center gap-2">
-                <span className="text-[11px] text-glass-text-secondary truncate flex-1 min-w-0">{r.manager}</span>
-                {/* A bar makes the spread readable without a second column of numbers. */}
-                <span className="h-1 rounded-full shrink-0" style={{ width: `${Math.round((pick(r) / max) * 56)}px`, background: "var(--glass-gold)", opacity: 0.5 }} />
-                <span className="text-[11px] tabular font-semibold shrink-0" style={{ color: "var(--glass-text)" }}>{pick(r).toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-baseline gap-2">
-          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Outreach</h2>
-          {titleSuffix && <ScopeTag label={titleSuffix} />}
-        </div>
-        <MoreDetails href={APP_URL.crm} />
-      </div>
-      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-        {card("Touches", data?.touches ?? 0, (r) => r.touches)}
-        {card("Notes added", data?.notes ?? 0, (r) => r.notes)}
-      </div>
-    </section>
-  );
-}
-
 // Facilities reads the facilities app's OWN booking feed, so team capacity
 // matches its calendar exactly (courts x hours x 2). Null -> section omitted.
 type BookingLoc = {
