@@ -54,13 +54,15 @@ type TeamUnit = {
 };
 
 export default function DiscountTable({
-  rows, season, staff, teamView = false,
+  rows, season, staff, teamView = false, unrostered: unrosteredProp,
 }: {
   rows: DiscountRowData[];
   season: string;
   staff: Record<string, string> | null;
   // One row per team instead of per registration, opening the same roster.
   teamView?: boolean;
+  // Team view's last block: free agents not on a team yet, discounted or not.
+  unrostered?: DiscountRowData[];
 }) {
   // Teams in scope, most given up first. A registration with no team has
   // nothing to group under; the footer of the page counts it in player view.
@@ -86,9 +88,9 @@ export default function DiscountTable({
   })();
   // What each row opens: the registration itself, or the team's first one.
   const units: DiscountRowData[] = teamView ? teamUnits.map((u) => u.rep) : rows;
-  // Team view lists these last: discounted registrations with no team yet —
-  // free agents waiting to be placed. Largest discount first, like the rest.
-  const unrostered = teamView ? rows.filter((r) => !r.season_team_id) : [];
+  // Team view lists these last: free agents waiting to be placed. The page
+  // supplies every one, discounted or not; without it, the discounted ones.
+  const unrostered = teamView ? (unrosteredProp ?? rows.filter((r) => !r.season_team_id)) : [];
   const [open, setOpen] = useState<Record<number, boolean>>({});
   // Keyed by team and player: two registrations on one team share a lookup,
   // but a merged team resolves per player, so the player is part of the key.
@@ -429,10 +431,17 @@ export default function DiscountTable({
                       </td>
                       <Td>{money(r.list_price)}</Td>
                       <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
-                        <div style={{ color: GOLD, fontWeight: 700 }}>−{money(r.discount)}</div>
-                        <div className="text-[11px] text-glass-text-tertiary leading-snug">
-                          {r.list_price ? `${Math.round((100 * r.discount) / r.list_price)}%` : "—"}
-                        </div>
+                        {r.discount > 0 ? (
+                          <>
+                            <div style={{ color: GOLD, fontWeight: 700 }}>−{money(r.discount)}</div>
+                            <div className="text-[11px] text-glass-text-tertiary leading-snug">
+                              {r.list_price ? `${Math.round((100 * r.discount) / r.list_price)}%` : "—"}
+                            </div>
+                          </>
+                        ) : (
+                          // Full price: nothing came off.
+                          <span className="text-glass-text-tertiary">—</span>
+                        )}
                       </td>
                       <Td>{money(r.total_paid)}</Td>
                       <Td>{day(r.registered_on)}</Td>
