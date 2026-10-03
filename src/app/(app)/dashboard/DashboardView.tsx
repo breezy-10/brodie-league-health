@@ -1465,6 +1465,10 @@ type Back = {
   cap_4_n: number; cap_4_here: number; cap_4_any: number;
   ath_prev_n: number; ath_prev_here: number; ath_prev_any: number;
   ath_4_n: number; ath_4_here: number; ath_4_any: number;
+  // The same term a year back (Winter '26 for Winter '27). Absent from an
+  // older feed.
+  cap_yr_n?: number; cap_yr_here?: number; cap_yr_any?: number;
+  ath_yr_n?: number; ath_yr_here?: number; ath_yr_any?: number;
 };
 // "never" is the rest of the season's registrants: total less ever.
 type KeptWindow = "same_prev" | "same_4" | "any_prev" | "any_4" | "ever" | "never";
@@ -3133,16 +3137,24 @@ export default async function DashboardView({
   // ---- Retention: past players ---------------------------------------------
   const backFor = (x: PacingSeason | undefined, where: "all" | "CAN" | "USA") =>
     !x ? undefined : where === "all" ? x.back : x.back_by_country?.[where];
-  const backPct = (b: Back | undefined, pop: "cap" | "ath", win: "prev" | "4", mode: "here" | "any") => {
-    const of = b ? b[`${pop}_${win}_n`] : 0;
-    return b && of ? Math.round((1000 * b[`${pop}_${win}_${mode}`]) / of) / 10 : null;
+  // "prev" is last season's players; "yr" the same term a year back.
+  type BackWin = "prev" | "yr";
+  const backNOf = (b: Back | undefined, pop: "cap" | "ath", win: BackWin, mode: "here" | "any") => {
+    const n = b?.[`${pop}_${win}_${mode}`], of = b?.[`${pop}_${win}_n`];
+    return n != null && of != null ? { n, of } : null;
   };
-  const backColumn = (where: "all" | "CAN" | "USA", pop: "cap" | "ath", win: "prev" | "4", mode: "here" | "any") => {
+  const backPct = (b: Back | undefined, pop: "cap" | "ath", win: BackWin, mode: "here" | "any") => {
+    const x = backNOf(b, pop, win, mode);
+    return x && x.of ? Math.round((1000 * x.n) / x.of) / 10 : null;
+  };
+  const backColumn = (where: "all" | "CAN" | "USA", pop: "cap" | "ath", win: BackWin, mode: "here" | "any") => {
     const v = (x?: PacingSeason) => backPct(backFor(x, where), pop, win, mode);
     const cur = backFor(pacingCurrent, where);
     const curV = v(pacingCurrent);
     const noun = pop === "cap" ? "captains" : "athletes";
-    const title = win === "prev" ? `Last season's ${noun} back` : `${pop === "cap" ? "Captains" : "Athletes"} from the last 4 seasons back`;
+    // A year back is the same term: each season's bar reads its own (Winter
+    // '27 against Winter '26's players, Fall '26 against Fall '25's).
+    const title = win === "prev" ? `Last season's ${noun} back` : `Last year's ${noun} back`;
     const sub = pop === "cap"
       ? (mode === "here" ? "captaining again where they played" : "captaining again anywhere in Brodie")
       : (mode === "here" ? "registered again where they played" : "registered again anywhere in Brodie");
@@ -3150,7 +3162,8 @@ export default async function DashboardView({
       const was = v(against);
       return curV != null && was != null ? Math.round((curV - was) * 10) / 10 : null;
     };
-    const dTitle = win === "prev" ? `Last season's ${noun}` : `Last 4 seasons' ${noun}`;
+    const dTitle = win === "prev" ? `Last season's ${noun}` : `Last year's ${noun}`;
+    const chip = cur ? backNOf(cur, pop, win, mode) : null;
     return (
       <div key={`${where}-${pop}-${win}-${mode}`} className="h-full flex flex-col gap-4">
         <div className="flex-1">
@@ -3159,7 +3172,7 @@ export default async function DashboardView({
               label: x.season, sub: KIND_LABEL[x.kind] ?? x.kind, value: v(x) ?? 0,
               color: REG_COLOR[x.kind] ?? "var(--glass-border-light)",
             }))}
-            notes={cur ? [{ text: `${cur[`${pop}_${win}_${mode}`].toLocaleString()} of ${cur[`${pop}_${win}_n`].toLocaleString()} ${noun}` }] : undefined} />
+            notes={chip ? [{ text: `${chip.n.toLocaleString()} of ${chip.of.toLocaleString()} ${noun}` }] : undefined} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <RegDeltaCard title={`${dTitle} vs prev season`} format="points" scored
@@ -3183,19 +3196,17 @@ export default async function DashboardView({
         </span>
       </h4>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {([["cap", "prev"], ["cap", "4"], ["ath", "prev"], ["ath", "4"]] as const)
+        {([["cap", "prev"], ["cap", "yr"], ["ath", "prev"], ["ath", "yr"]] as const)
           .map(([pop, win]) => backColumn(where, pop, win, mode))}
       </div>
     </div>
   ));
-  const backHas = (c: "CAN" | "USA") => (pacing?.seasons ?? []).some((x) => (backFor(x, c)?.ath_4_n ?? 0) > 0);
+  const backHas = (c: "CAN" | "USA") => (pacing?.seasons ?? []).some((x) => (backFor(x, c)?.ath_prev_n ?? 0) > 0 || (backFor(x, c)?.ath_yr_n ?? 0) > 0);
   const backSpansBoth = backHas("CAN") && backHas("USA");
-  const backNOf = (b: Back | undefined, pop: "cap" | "ath", win: "prev" | "4", mode: "here" | "any") =>
-    b ? { n: b[`${pop}_${win}_${mode}`], of: b[`${pop}_${win}_n`] } : null;
   const backBlocks: ShareBlock[] = (["here", "any"] as const).map((mode) => ({
     label: mode === "here" ? "Back at this location" : "Back anywhere in Brodie",
-    rows: (["prev", "4"] as const).map((win) => ({
-      label: win === "prev" ? "Last season's" : "Last 4 seasons'",
+    rows: (["prev", "yr"] as const).map((win) => ({
+      label: win === "prev" ? "Last season's" : "Last year's",
       get: (x?: PacingSeason, pop?: "cap" | "ath") => backNOf(x?.back, pop!, win, mode),
     })),
   }));
@@ -3299,7 +3310,7 @@ export default async function DashboardView({
         </h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
           {isBack
-            ? <>Of the captains &amp; athletes who played the season before — and in the last four seasons — how many have registered again by day N for {scopeLabel}, at the same location and anywhere in Brodie, vs the previous season and the previous year.</>
+            ? <>Of the captains &amp; athletes who played the season before — and the same season a year before — how many have registered again by day N for {scopeLabel}, at the same location and anywhere in Brodie, vs the previous season and the previous year.</>
             : isRetention
             ? <>Of the captains &amp; athletes registered at day N for {scopeLabel}, how many played before — at the same location, and anywhere in Brodie — vs the previous season and the previous year.</>
             : isReg
