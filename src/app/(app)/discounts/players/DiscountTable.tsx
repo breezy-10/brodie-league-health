@@ -86,6 +86,9 @@ export default function DiscountTable({
   })();
   // What each row opens: the registration itself, or the team's first one.
   const units: DiscountRowData[] = teamView ? teamUnits.map((u) => u.rep) : rows;
+  // Team view lists these last: discounted registrations with no team yet —
+  // free agents waiting to be placed. Largest discount first, like the rest.
+  const unrostered = teamView ? rows.filter((r) => !r.season_team_id) : [];
   const [open, setOpen] = useState<Record<number, boolean>>({});
   // Keyed by team and player: two registrations on one team share a lookup,
   // but a merged team resolves per player, so the player is part of the key.
@@ -394,6 +397,50 @@ export default function DiscountTable({
                 ),
               ];
             })}
+            {unrostered.length > 0 && (
+              <>
+                <tr style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
+                  <td colSpan={COLS - 1} className="px-4 py-2 text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+                    Not on a team yet · {unrostered.length} free agent{unrostered.length === 1 ? "" : "s"}
+                  </td>
+                </tr>
+                {unrostered.map((r, i) => {
+                  const sLabel = staffLabel(r.player);
+                  return (
+                    <tr key={`fa-${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
+                      <td className="px-4 py-2.5 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
+                        <span className="flex items-center gap-1.5">
+                          {/* No roster to open; the gap keeps names aligned with the teams. */}
+                          <span className="shrink-0 -ml-1 inline-block" style={{ width: 18 }} aria-hidden />
+                          <span>{r.player}</span>
+                          {r.free && (
+                            <span className="ml-0.5 text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+                              style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>Free</span>
+                          )}
+                          {sLabel && <StaffBadge label={sLabel} />}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{r.location}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-tertiary">{TYPE_LABEL[r.type] ?? r.type}</td>
+                      <td className="px-4 py-2.5 font-mono text-[12px] max-w-[200px] truncate text-glass-text-tertiary" title={r.codes}>{r.codes}</td>
+                      <td className="px-4 py-2.5 max-w-[240px] truncate" style={{ color: "var(--glass-text-secondary)" }}
+                        title={r.discount_names ?? ""}>
+                        {r.discount_names ? shortDiscount(r.discount_names) : "—"}
+                      </td>
+                      <Td>{money(r.list_price)}</Td>
+                      <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
+                        <div style={{ color: GOLD, fontWeight: 700 }}>−{money(r.discount)}</div>
+                        <div className="text-[11px] text-glass-text-tertiary leading-snug">
+                          {r.list_price ? `${Math.round((100 * r.discount) / r.list_price)}%` : "—"}
+                        </div>
+                      </td>
+                      <Td>{money(r.total_paid)}</Td>
+                      <Td>{day(r.registered_on)}</Td>
+                    </tr>
+                  );
+                })}
+              </>
+            )}
           </tbody>
         </table>
       </div>
