@@ -1451,12 +1451,23 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
 type Kept = {
   cap_total: number; cap_same_prev: number; cap_same_4: number; cap_any_prev: number; cap_any_4: number;
   ath_total: number; ath_same_prev: number; ath_same_4: number; ath_any_prev: number; ath_any_4: number;
+  // Played Brodie in any earlier season, anywhere. Absent from an older feed.
+  cap_ever?: number; ath_ever?: number;
 };
-type KeptWindow = "same_prev" | "same_4" | "any_prev" | "any_4";
+// "never" is the rest of the season's registrants: total less ever.
+type KeptWindow = "same_prev" | "same_4" | "any_prev" | "any_4" | "ever" | "never";
+function keptCount(k: Kept, pop: "cap" | "ath", w: KeptWindow): number | null {
+  if (w === "ever" || w === "never") {
+    const ever = k[`${pop}_ever`];
+    return ever == null ? null : w === "ever" ? ever : k[`${pop}_total`] - ever;
+  }
+  return k[`${pop}_${w}`];
+}
 // A retention share to one decimal, or null with nobody to measure.
 function keptPct(k: Kept | undefined, pop: "cap" | "ath", w: KeptWindow): number | null {
   const total = k ? k[`${pop}_total`] : 0;
-  return k && total ? Math.round((1000 * k[`${pop}_${w}`]) / total) / 10 : null;
+  const n = k ? keptCount(k, pop, w) : null;
+  return n != null && total ? Math.round((1000 * n) / total) / 10 : null;
 }
 type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd" | "age_median" | "revenue_per_athlete";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
@@ -2292,29 +2303,33 @@ function RetentionStrip({ locations, byNight = false, prevLabel, yearLabel }: {
                   {(cur?.cap_total ?? 0).toLocaleString()} captains · {(cur?.ath_total ?? 0).toLocaleString()} athletes
                 </p>
               </div>
-              {(["same", "any"] as const).map((mode) => (
+              {([...(cur?.ath_ever != null ? ["brodie" as const] : []), "same" as const, "any" as const]).map((mode) => (
                 <div key={mode} className="mt-2.5 pt-2.5 border-t border-glass-border-light">
                   <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
-                    <span className="flex-1 min-w-0 truncate">{mode === "same" ? "This location" : "Any Brodie location"}</span>
+                    <span className="flex-1 min-w-0 truncate">{mode === "brodie" ? "Brodie overall" : mode === "same" ? "This location" : "Any Brodie location"}</span>
                     <span className="shrink-0 w-[5.5rem] text-right">Captains</span>
                     <span className="shrink-0 w-[5.5rem] text-right">Athletes</span>
                   </div>
-                  {(["prev", "4"] as const).map((sp) => {
-                    const w = `${mode}_${sp}` as KeptWindow;
+                  {(mode === "brodie" ? (["ever", "never"] as const) : (["prev", "4"] as const)).map((sp) => {
+                    const w = (mode === "brodie" ? sp : `${mode}_${sp}`) as KeptWindow;
                     return (
                       <div key={sp} className="flex items-start gap-2 text-[11px] leading-snug py-1">
-                        <span className="flex-1 min-w-0 text-glass-text-secondary">{sp === "prev" ? "Last season" : "Last 4 seasons"}</span>
+                        <span className="flex-1 min-w-0 text-glass-text-secondary">
+                          {sp === "ever" ? "Played before" : sp === "never" ? "Never played" : sp === "prev" ? "Last season" : "Last 4 seasons"}
+                        </span>
                         {(["cap", "ath"] as const).map((pop) => {
                           const v = keptPct(cur, pop, w), pv = keptPct(prev, pop, w), yv = keptPct(yr, pop, w);
                           return (
                             <span key={pop} className="shrink-0 w-[5.5rem] text-right tabular">
                               <span className="block font-semibold" style={{ color: "var(--glass-text)" }}>{v == null ? "—" : `${v.toFixed(1)}%`}</span>
                               <span className="block text-[10px] text-glass-text-tertiary">
-                                {cur ? `${cur[`${pop}_${w}`]} of ${cur[`${pop}_total`]}` : "\u00A0"}
+                                {cur && keptCount(cur, pop, w) != null ? `${keptCount(cur, pop, w)} of ${cur[`${pop}_total`]}` : "\u00A0"}
                               </span>
                               {([[pv, prevLabel], [yv, yearLabel]] as const).map(([base, lbl]) =>
                                 v != null && base != null ? (
-                                  <span key={lbl} className="block text-[10px] font-semibold" style={{ color: upColor(v - base) }}>
+                                  // Newcomers have no good direction; keep them neutral.
+                                  <span key={lbl} className="block text-[10px] font-semibold"
+                                    style={{ color: w === "never" ? "var(--glass-text-secondary)" : upColor(v - base) }}>
                                     {fmtPts(Math.round((v - base) * 10) / 10)} vs {lbl}
                                   </span>
                                 ) : null)}
@@ -3003,29 +3018,40 @@ export default async function DashboardView({
     const cur = keptFor(pacingCurrent, where);
     const curV = v(pacingCurrent);
     const noun = pop === "cap" ? "captains" : "athletes";
-    const span = w.endsWith("prev") ? "last season" : "last 4 seasons";
+    const Noun = pop === "cap" ? "Captains" : "Athletes";
+    const brodie = w === "ever" || w === "never";
+    const span = w === "ever" ? "played Brodie before" : w === "never" ? "never played before"
+      : w.endsWith("prev") ? "last season" : "last 4 seasons";
+    const title = brodie ? `${Noun} · ${span}` : `Returning ${noun} · ${span}`;
+    const sub = w === "ever" ? "in any earlier season, at any location"
+      : w === "never" ? "their first Brodie season"
+      : `${w.startsWith("same") ? "played at this location" : "played anywhere in Brodie"} ${w.endsWith("prev") ? "the season before" : "in one of the 4 seasons before"}`;
     const change = (against?: PacingSeason) => {
       const was = v(against);
       return curV != null && was != null ? Math.round((curV - was) * 10) / 10 : null;
     };
-    const dTitle = `${pop === "cap" ? "Captains" : "Athletes"} ${span}`;
+    const dTitle = brodie ? `${Noun} ${w === "ever" ? "played before" : "never played"}` : `${Noun} ${span}`;
+    // More newcomers is neither good nor bad on its own, so that change stays
+    // neutral; everything else is better up.
+    const scored = w !== "never";
+    const n = cur ? keptCount(cur, pop, w) : null;
     return (
       <div key={`${where}-${pop}-${w}`} className="h-full flex flex-col gap-4">
         <div className="flex-1">
-          <RegBarCard title={`Returning ${noun} · ${span}`}
-            subtitle={`${w.startsWith("same") ? "played at this location" : "played anywhere in Brodie"} ${w.endsWith("prev") ? "the season before" : "in one of the 4 seasons before"} · ${regBarWhen}`}
+          <RegBarCard title={title}
+            subtitle={`${sub} · ${regBarWhen}`}
             format="percent" current={curV ?? 0}
             bars={(pacing?.seasons ?? []).map((x) => ({
               label: x.season, sub: KIND_LABEL[x.kind] ?? x.kind, value: v(x) ?? 0,
               color: REG_COLOR[x.kind] ?? "var(--glass-border-light)",
             }))}
-            notes={cur ? [{ text: `${cur[`${pop}_${w}`].toLocaleString()} of ${cur[`${pop}_total`].toLocaleString()} ${noun}` }] : undefined} />
+            notes={cur && n != null ? [{ text: `${n.toLocaleString()} of ${cur[`${pop}_total`].toLocaleString()} ${noun}` }] : undefined} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <RegDeltaCard title={`${dTitle} vs prev season`} format="points" scored
+          <RegDeltaCard title={`${dTitle} vs prev season`} format="points" scored={scored}
             subtitle={`${shortSeason(pacingCurrent?.season ?? "")} vs ${pacingPrevSeason ? shortSeason(pacingPrevSeason.season) : "—"} · ${regDeltaWhen}`}
             delta={change(pacingPrevSeason)} base={v(pacingPrevSeason)} />
-          <RegDeltaCard title={`${dTitle} vs prev year`} format="points" scored
+          <RegDeltaCard title={`${dTitle} vs prev year`} format="points" scored={scored}
             subtitle={`${shortSeason(pacingCurrent?.season ?? "")} vs ${pacingPrevYear ? shortSeason(pacingPrevYear.season) : "—"} · ${regDeltaWhen}`}
             delta={change(pacingPrevYear)} base={v(pacingPrevYear)} />
         </div>
@@ -3033,19 +3059,27 @@ export default async function DashboardView({
     );
   };
   // Two rows per scope: retained at the same venue, then anywhere in Brodie.
-  const keptRows = (where: "all" | "CAN" | "USA") => (["same", "any"] as const).map((mode) => (
+  // Brodie overall only once the feed carries "ever".
+  const hasEver = pacingCurrent?.kept?.ath_ever != null;
+  const keptRows = (where: "all" | "CAN" | "USA") => ([
+    ...(hasEver ? ["brodie" as const] : []), "same" as const, "any" as const,
+  ]).map((mode) => (
     <div key={`${where}-${mode}`} className="space-y-2">
       <h4 className="text-[11px] font-semibold uppercase tracking-wider text-glass-text-tertiary">
-        {mode === "same" ? "Same location" : "Any Brodie location"}
+        {mode === "brodie" ? "Brodie overall" : mode === "same" ? "Same location" : "Any Brodie location"}
         <span className="normal-case tracking-normal font-normal">
-          {" "}— {mode === "same"
+          {" "}— {mode === "brodie"
+            ? "played Brodie in any earlier season, at any location, or never"
+            : mode === "same"
             ? "counts a player only if they played at this location before"
             : "counts a player who played at any Brodie location before"}
         </span>
       </h4>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {([["cap", "prev"], ["cap", "4"], ["ath", "prev"], ["ath", "4"]] as const)
-          .map(([pop, sp]) => keptColumn(where, pop, `${mode}_${sp}` as KeptWindow))}
+        {(mode === "brodie"
+          ? ([["cap", "ever"], ["cap", "never"], ["ath", "ever"], ["ath", "never"]] as const)
+          : ([["cap", `${mode}_prev`], ["cap", `${mode}_4`], ["ath", `${mode}_prev`], ["ath", `${mode}_4`]] as const))
+          .map(([pop, w]) => keptColumn(where, pop, w as KeptWindow))}
       </div>
     </div>
   ));
