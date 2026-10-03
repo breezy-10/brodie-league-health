@@ -738,7 +738,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       // The games page filtered to the spares these counts cover.
       games_with_spares_path?: string;
       stat_delivery_ms: number | null; stat_delivery_n: number;
-      forfeits?: number; pending_review?: number; prev_forfeits?: number | null;
+      forfeits?: number; pending_review?: number; awaiting_stats?: number; prev_forfeits?: number | null;
       forfeits_by_location?: { location: string; day?: string; forfeits: number }[];
       prev_stats_completion_pct?: number | null;
       prev_full_recording_pct?: number | null;
@@ -779,10 +779,11 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
     completionLines.push({ text: `${n(k.by_source.livebarn)} — LiveBarn` });
     completionLines.push({ text: `${n(k.by_source.scoresheet)} — In-venue` });
     completionLines.push({ text: `${n(k.no_stats)} — No stats` });
-    // Why played can exceed tracked. A forfeit has no stats to collect, so it's
-    // correctly outside the rate; a pending game just hasn't been reviewed yet,
-    // and would otherwise vanish from the card entirely.
-    if (k.pending_review) completionLines.push({ text: `${n(k.pending_review)} — not yet reviewed`, color: "var(--glass-gold)" });
+    // Games already played and still waiting for stats — not future games
+    // (pending_review counted the whole remaining schedule), not forfeits, and
+    // not games already marked as having no stats. Only from a feed that
+    // carries the count; the old pending figure would overstate it.
+    if (k.awaiting_stats) completionLines.push({ text: `${n(k.awaiting_stats)} — not posted yet`, color: "var(--glass-gold)" });
     const fDelta = k.forfeits != null && k.prev_forfeits != null ? k.forfeits - k.prev_forfeits : null;
     return [
       {
