@@ -1445,6 +1445,10 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   // N, who had played before — at the same venue or anywhere in Brodie, the
   // season before or in any of the four before. Only with ?retention=1.
   kept?: Kept; kept_by_country?: Record<"CAN" | "USA", Kept>;
+  // The other direction (Retention: past players): of the players from the
+  // season before, and from any of the four before, how many have registered
+  // again by day N — back at the same venue, or anywhere. Only with ?back=1.
+  back?: Back; back_by_country?: Record<"CAN" | "USA", Back>;
   // A country's revenue over its athletes, set on that country's projected
   // seasons only (countrySet). Undefined with no athletes to divide by.
   revenue_per_athlete?: number };
@@ -1453,6 +1457,14 @@ type Kept = {
   ath_total: number; ath_same_prev: number; ath_same_4: number; ath_any_prev: number; ath_any_4: number;
   // Played Brodie in any earlier season, anywhere. Absent from an older feed.
   cap_ever?: number; ath_ever?: number;
+};
+// Players back from earlier seasons. _n is the cohort; _here back at a venue
+// they played at, _any back anywhere. Captains count only when captaining.
+type Back = {
+  cap_prev_n: number; cap_prev_here: number; cap_prev_any: number;
+  cap_4_n: number; cap_4_here: number; cap_4_any: number;
+  ath_prev_n: number; ath_prev_here: number; ath_prev_any: number;
+  ath_4_n: number; ath_4_here: number; ath_4_any: number;
 };
 // "never" is the rest of the season's registrants: total less ever.
 type KeptWindow = "same_prev" | "same_4" | "any_prev" | "any_4" | "ever" | "never";
@@ -1518,11 +1530,12 @@ function discountFor(location: string, rows: CardDiscount[], byNight: boolean): 
   const loose = rows.filter((r) => base(r.location) === base(location));
   return loose.length === 1 ? loose[0] : undefined;
 }
-async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string, retention = false): Promise<Pacing | null> {
+async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string, retention = false, back = false): Promise<Pacing | null> {
   try {
     const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", regSeason);
     if (retention) url.searchParams.set("retention", "1");
+    if (back) url.searchParams.set("back", "1");
     // Scoped to a single venue, the useful next cut is the nights it plays.
     url.searchParams.set("breakdown", scope.locationNames?.length === 1 ? "day" : "location");
     if (week) url.searchParams.set("week", week);
@@ -2278,14 +2291,23 @@ function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; se
   );
 }
 
-// The Retention tab's location cards: for each venue (or night), the share of
-// its captains and athletes who played before — at this venue, and anywhere in
-// Brodie; the season before, and in any of the four before — each with its
-// same-day change against the previous season and the previous year.
-function RetentionStrip({ locations, byNight = false, prevLabel, yearLabel }: {
-  locations: PacingLocation[]; byNight?: boolean; prevLabel: string; yearLabel: string;
+// The retention tabs' location cards: blocks of shares, each row a captains
+// share and an athletes share with its count and its same-day change against
+// the previous season and the previous year. The tabs supply what each row
+// reads, so both use one card.
+type ShareRow = {
+  label: string;
+  // Changes with no good direction (newcomers) stay neutral.
+  neutral?: boolean;
+  get: (x?: PacingSeason, pop?: "cap" | "ath") => { n: number; of: number } | null;
+};
+type ShareBlock = { label: string; rows: ShareRow[] };
+function ShareStrip({ locations, blocks, head, byNight = false, prevLabel, yearLabel }: {
+  locations: PacingLocation[]; blocks: ShareBlock[]; head: (x?: PacingSeason) => string;
+  byNight?: boolean; prevLabel: string; yearLabel: string;
 }) {
   const fmtPts = (d: number) => `${d > 0 ? "+" : d < 0 ? "\u2212" : ""}${Math.abs(d).toFixed(1)}`;
+  const pct = (v: { n: number; of: number } | null) => (v && v.of ? Math.round((1000 * v.n) / v.of) / 10 : null);
   return (
     <div>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary mb-2">
@@ -2293,52 +2315,43 @@ function RetentionStrip({ locations, byNight = false, prevLabel, yearLabel }: {
       </h3>
       <div className="grid grid-flow-col auto-cols-[300px] gap-x-3 overflow-x-auto pb-2 snap-x">
         {locations.map((l) => {
-          const at = (kind: string) => l.seasons.find((x) => x.kind === kind)?.kept;
+          const at = (kind: string) => l.seasons.find((x) => x.kind === kind);
           const cur = at("current"), prev = at("prev_season"), yr = at("prev_year");
           return (
             <div key={l.location} className="snap-start rounded-xl border border-glass-border bg-glass-surface px-3.5 py-3.5">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={l.location}>{l.location}</p>
-                <p className="text-[11px] text-glass-text-tertiary tabular shrink-0">
-                  {(cur?.cap_total ?? 0).toLocaleString()} captains · {(cur?.ath_total ?? 0).toLocaleString()} athletes
-                </p>
+                <p className="text-[11px] text-glass-text-tertiary tabular shrink-0 truncate">{head(cur)}</p>
               </div>
-              {([...(cur?.ath_ever != null ? ["brodie" as const] : []), "same" as const, "any" as const]).map((mode) => (
-                <div key={mode} className="mt-2.5 pt-2.5 border-t border-glass-border-light">
+              {blocks.map((b) => (
+                <div key={b.label} className="mt-2.5 pt-2.5 border-t border-glass-border-light">
                   <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
-                    <span className="flex-1 min-w-0 truncate">{mode === "brodie" ? "Brodie overall" : mode === "same" ? "This location" : "Any Brodie location"}</span>
+                    <span className="flex-1 min-w-0 truncate">{b.label}</span>
                     <span className="shrink-0 w-[5.5rem] text-right">Captains</span>
                     <span className="shrink-0 w-[5.5rem] text-right">Athletes</span>
                   </div>
-                  {(mode === "brodie" ? (["ever", "never"] as const) : (["prev", "4"] as const)).map((sp) => {
-                    const w = (mode === "brodie" ? sp : `${mode}_${sp}`) as KeptWindow;
-                    return (
-                      <div key={sp} className="flex items-start gap-2 text-[11px] leading-snug py-1">
-                        <span className="flex-1 min-w-0 text-glass-text-secondary">
-                          {sp === "ever" ? "Played before" : sp === "never" ? "Never played" : sp === "prev" ? "Last season" : "Last 4 seasons"}
-                        </span>
-                        {(["cap", "ath"] as const).map((pop) => {
-                          const v = keptPct(cur, pop, w), pv = keptPct(prev, pop, w), yv = keptPct(yr, pop, w);
-                          return (
-                            <span key={pop} className="shrink-0 w-[5.5rem] text-right tabular">
-                              <span className="block font-semibold" style={{ color: "var(--glass-text)" }}>{v == null ? "—" : `${v.toFixed(1)}%`}</span>
-                              <span className="block text-[10px] text-glass-text-tertiary">
-                                {cur && keptCount(cur, pop, w) != null ? `${keptCount(cur, pop, w)} of ${cur[`${pop}_total`]}` : "\u00A0"}
-                              </span>
-                              {([[pv, prevLabel], [yv, yearLabel]] as const).map(([base, lbl]) =>
-                                v != null && base != null ? (
-                                  // Newcomers have no good direction; keep them neutral.
-                                  <span key={lbl} className="block text-[10px] font-semibold"
-                                    style={{ color: w === "never" ? "var(--glass-text-secondary)" : upColor(v - base) }}>
-                                    {fmtPts(Math.round((v - base) * 10) / 10)} vs {lbl}
-                                  </span>
-                                ) : null)}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                  {b.rows.map((row) => (
+                    <div key={row.label} className="flex items-start gap-2 text-[11px] leading-snug py-1">
+                      <span className="flex-1 min-w-0 text-glass-text-secondary">{row.label}</span>
+                      {(["cap", "ath"] as const).map((pop) => {
+                        const now = row.get(cur, pop);
+                        const v = pct(now), pv = pct(row.get(prev, pop)), yv = pct(row.get(yr, pop));
+                        return (
+                          <span key={pop} className="shrink-0 w-[5.5rem] text-right tabular">
+                            <span className="block font-semibold" style={{ color: "var(--glass-text)" }}>{v == null ? "—" : `${v.toFixed(1)}%`}</span>
+                            <span className="block text-[10px] text-glass-text-tertiary">{now ? `${now.n} of ${now.of}` : "\u00A0"}</span>
+                            {([[pv, prevLabel], [yv, yearLabel]] as const).map(([base, lbl]) =>
+                              v != null && base != null ? (
+                                <span key={lbl} className="block text-[10px] font-semibold"
+                                  style={{ color: row.neutral ? "var(--glass-text-secondary)" : upColor(v - base) }}>
+                                  {fmtPts(Math.round((v - base) * 10) / 10)} vs {lbl}
+                                </span>
+                              ) : null)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -2623,6 +2636,9 @@ export default async function DashboardView({
     overdueSeason, regsSeason, promoSeason, bookingSeason, tab: tabParam } = await searchParams;
   // The Registrations page's second tab: who came back, rather than how many.
   const isRetention = isReg && tabParam === "retention";
+  // Its third: of last season's players (and the last four seasons'), how
+  // many are back.
+  const isBack = isReg && tabParam === "back";
   // Every filter accepts a comma-separated list, so several seasons, weeks,
   // locations and league managers can be selected at once.
   const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
@@ -2704,7 +2720,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadPromoTiles(promoSeasonName, scope),
-    loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined, isRetention),
+    loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined, isRetention, isBack),
     isReg ? Promise.resolve([] as DeadlineWeek[]) : loadDeadlines(),
     // Per night when the cards are nights (a single venue), else per venue.
     loadLocationDiscounts(pacingSeason, scope, scope.locationNames?.length === 1),
@@ -3087,12 +3103,139 @@ export default async function DashboardView({
   // In a one-country scope that country's rows would repeat the top ones, so
   // it keeps only its location cards.
   const keptSpansBoth = keptHas("CAN") && keptHas("USA");
+  const keptNOf = (k: Kept | undefined, pop: "cap" | "ath", w: KeptWindow) => {
+    const n = k ? keptCount(k, pop, w) : null;
+    return k && n != null ? { n, of: k[`${pop}_total`] } : null;
+  };
+  const keptBlocks: ShareBlock[] = [
+    ...(hasEver ? [{ label: "Brodie overall", rows: [
+      { label: "Played before", get: (x?: PacingSeason, pop?: "cap" | "ath") => keptNOf(x?.kept, pop!, "ever") },
+      // Newcomers have no good direction; their changes stay neutral.
+      { label: "Never played", neutral: true, get: (x?: PacingSeason, pop?: "cap" | "ath") => keptNOf(x?.kept, pop!, "never") },
+    ] }] : []),
+    { label: "This location", rows: [
+      { label: "Last season", get: (x?: PacingSeason, pop?: "cap" | "ath") => keptNOf(x?.kept, pop!, "same_prev") },
+      { label: "Last 4 seasons", get: (x?: PacingSeason, pop?: "cap" | "ath") => keptNOf(x?.kept, pop!, "same_4") },
+    ] },
+    { label: "Any Brodie location", rows: [
+      { label: "Last season", get: (x?: PacingSeason, pop?: "cap" | "ath") => keptNOf(x?.kept, pop!, "any_prev") },
+      { label: "Last 4 seasons", get: (x?: PacingSeason, pop?: "cap" | "ath") => keptNOf(x?.kept, pop!, "any_4") },
+    ] },
+  ];
   const keptStrip = (locs?: PacingLocation[]) => locs?.length ? (
     <div className="pt-1">
-      <RetentionStrip locations={locs} byNight={locationNames?.length === 1}
+      <ShareStrip locations={locs} byNight={locationNames?.length === 1} blocks={keptBlocks}
+        head={(x) => x?.kept ? `${x.kept.cap_total.toLocaleString()} captains · ${x.kept.ath_total.toLocaleString()} athletes` : ""}
         prevLabel={shortSeason(pacingPrevSeason?.season ?? "")} yearLabel={shortSeason(pacingPrevYear?.season ?? "")} />
     </div>
   ) : null;
+
+  // ---- Retention: past players ---------------------------------------------
+  const backFor = (x: PacingSeason | undefined, where: "all" | "CAN" | "USA") =>
+    !x ? undefined : where === "all" ? x.back : x.back_by_country?.[where];
+  const backPct = (b: Back | undefined, pop: "cap" | "ath", win: "prev" | "4", mode: "here" | "any") => {
+    const of = b ? b[`${pop}_${win}_n`] : 0;
+    return b && of ? Math.round((1000 * b[`${pop}_${win}_${mode}`]) / of) / 10 : null;
+  };
+  const backColumn = (where: "all" | "CAN" | "USA", pop: "cap" | "ath", win: "prev" | "4", mode: "here" | "any") => {
+    const v = (x?: PacingSeason) => backPct(backFor(x, where), pop, win, mode);
+    const cur = backFor(pacingCurrent, where);
+    const curV = v(pacingCurrent);
+    const noun = pop === "cap" ? "captains" : "athletes";
+    const title = win === "prev" ? `Last season's ${noun} back` : `${pop === "cap" ? "Captains" : "Athletes"} from the last 4 seasons back`;
+    const sub = pop === "cap"
+      ? (mode === "here" ? "captaining again where they played" : "captaining again anywhere in Brodie")
+      : (mode === "here" ? "registered again where they played" : "registered again anywhere in Brodie");
+    const change = (against?: PacingSeason) => {
+      const was = v(against);
+      return curV != null && was != null ? Math.round((curV - was) * 10) / 10 : null;
+    };
+    const dTitle = win === "prev" ? `Last season's ${noun}` : `Last 4 seasons' ${noun}`;
+    return (
+      <div key={`${where}-${pop}-${win}-${mode}`} className="h-full flex flex-col gap-4">
+        <div className="flex-1">
+          <RegBarCard title={title} subtitle={`${sub} · ${regBarWhen}`} format="percent" current={curV ?? 0}
+            bars={(pacing?.seasons ?? []).map((x) => ({
+              label: x.season, sub: KIND_LABEL[x.kind] ?? x.kind, value: v(x) ?? 0,
+              color: REG_COLOR[x.kind] ?? "var(--glass-border-light)",
+            }))}
+            notes={cur ? [{ text: `${cur[`${pop}_${win}_${mode}`].toLocaleString()} of ${cur[`${pop}_${win}_n`].toLocaleString()} ${noun}` }] : undefined} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <RegDeltaCard title={`${dTitle} vs prev season`} format="points" scored
+            subtitle={`${shortSeason(pacingCurrent?.season ?? "")} vs ${pacingPrevSeason ? shortSeason(pacingPrevSeason.season) : "—"} · ${regDeltaWhen}`}
+            delta={change(pacingPrevSeason)} base={v(pacingPrevSeason)} />
+          <RegDeltaCard title={`${dTitle} vs prev year`} format="points" scored
+            subtitle={`${shortSeason(pacingCurrent?.season ?? "")} vs ${pacingPrevYear ? shortSeason(pacingPrevYear.season) : "—"} · ${regDeltaWhen}`}
+            delta={change(pacingPrevYear)} base={v(pacingPrevYear)} />
+        </div>
+      </div>
+    );
+  };
+  const backRows = (where: "all" | "CAN" | "USA") => (["here", "any"] as const).map((mode) => (
+    <div key={`${where}-${mode}`} className="space-y-2">
+      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-glass-text-tertiary">
+        {mode === "here" ? "Same location" : "Any Brodie location"}
+        <span className="normal-case tracking-normal font-normal">
+          {" "}— {mode === "here"
+            ? "counts a player only if they came back to a location they played at"
+            : "counts a player who came back to any Brodie location"}
+        </span>
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {([["cap", "prev"], ["cap", "4"], ["ath", "prev"], ["ath", "4"]] as const)
+          .map(([pop, win]) => backColumn(where, pop, win, mode))}
+      </div>
+    </div>
+  ));
+  const backHas = (c: "CAN" | "USA") => (pacing?.seasons ?? []).some((x) => (backFor(x, c)?.ath_4_n ?? 0) > 0);
+  const backSpansBoth = backHas("CAN") && backHas("USA");
+  const backNOf = (b: Back | undefined, pop: "cap" | "ath", win: "prev" | "4", mode: "here" | "any") =>
+    b ? { n: b[`${pop}_${win}_${mode}`], of: b[`${pop}_${win}_n`] } : null;
+  const backBlocks: ShareBlock[] = (["here", "any"] as const).map((mode) => ({
+    label: mode === "here" ? "Back at this location" : "Back anywhere in Brodie",
+    rows: (["prev", "4"] as const).map((win) => ({
+      label: win === "prev" ? "Last season's" : "Last 4 seasons'",
+      get: (x?: PacingSeason, pop?: "cap" | "ath") => backNOf(x?.back, pop!, win, mode),
+    })),
+  }));
+  // Venue cards only: the cohort played an earlier season, so there is no
+  // night of this one to file a returning player under.
+  const backStrip = (locs?: PacingLocation[]) => locs?.length && locationNames?.length !== 1 ? (
+    <div className="pt-1">
+      <ShareStrip locations={locs} blocks={backBlocks}
+        head={(x) => x?.back ? `of ${x.back.cap_prev_n.toLocaleString()} captains · ${x.back.ath_prev_n.toLocaleString()} athletes last season` : ""}
+        prevLabel={shortSeason(pacingPrevSeason?.season ?? "")} yearLabel={shortSeason(pacingPrevYear?.season ?? "")} />
+    </div>
+  ) : null;
+  const backView = () => (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2.5">
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Retention: past players</h2>
+        {seasonToggle("regsSeason", regsSeason) ?? (
+          <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
+        )}
+      </div>
+      {!pacingCurrent?.back ? (
+        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+          Not connected. League Health couldn&apos;t load retention from the Promo Tracker, so no numbers are shown here.
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <div className="space-y-5">{backRows("all")}</div>
+          {PLACES.filter((p) => backHas(p.code) || (locsByCountry.get(p.code)?.length ?? 0) > 0).map((p) => (
+            <div key={p.code} className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary">{p.heading}</h3>
+              {backSpansBoth && <div className="space-y-5">{backRows(p.code)}</div>}
+              {backStrip(locsByCountry.get(p.code))}
+            </div>
+          ))}
+          {backStrip(locsByCountry.get("other"))}
+        </div>
+      )}
+    </section>
+  );
   const retentionView = () => (
     <section className="space-y-3">
       <div className="flex items-center gap-2.5">
@@ -3155,7 +3298,9 @@ export default async function DashboardView({
           {isReg ? "Registration pacing" : isWeekly && !showViewTabs ? "Weekly review" : "League overview"}
         </h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
-          {isRetention
+          {isBack
+            ? <>Of the captains &amp; athletes who played the season before — and in the last four seasons — how many have registered again by day N for {scopeLabel}, at the same location and anywhere in Brodie, vs the previous season and the previous year.</>
+            : isRetention
             ? <>Of the captains &amp; athletes registered at day N for {scopeLabel}, how many played before — at the same location, and anywhere in Brodie — vs the previous season and the previous year.</>
             : isReg
             ? <>Teams &amp; athletes at day N of registration for {scopeLabel}, vs the previous season and the previous year.</>
@@ -3184,13 +3329,19 @@ export default async function DashboardView({
           locations: selectedLocations,
           ...(isWeekly ? { weeks: activeWeeks } : {}),
         }}
-        keep={isRetention ? { tab: "retention" } : undefined}
+        keep={isRetention ? { tab: "retention" } : isBack ? { tab: "back" } : undefined}
       />
       {isReg && (
         <BasisToggle
           param="tab"
-          value={isRetention ? "retention" : "registrations"}
-          options={[{ value: "registrations", label: "Registrations" }, { value: "retention", label: "Retention" }]}
+          value={isBack ? "back" : isRetention ? "retention" : "registrations"}
+          options={[
+            { value: "registrations", label: "Registrations" },
+            // Of who registered, who played before.
+            { value: "retention", label: "Retention: registered" },
+            // Of who played before, who registered.
+            { value: "back", label: "Retention: past players" },
+          ]}
         />
       )}
 
@@ -3199,7 +3350,7 @@ export default async function DashboardView({
         {!isReg && (
           <Section title="Season Success Checklist" scopeTag={fullTag} href={`${APP_URL.checklist}/checklists?kind=lm`} tiles={checklistTiles} cols={6} />
         )}
-        {isRetention ? retentionView() : pacing && pacingCurrent ? (
+        {isBack ? backView() : isRetention ? retentionView() : pacing && pacingCurrent ? (
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
