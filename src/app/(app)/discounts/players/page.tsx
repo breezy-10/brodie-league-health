@@ -43,6 +43,23 @@ async function loadTotalRegs(season: string, locationNames: string[] | null): Pr
   }
 }
 
+// Teams registered in scope, from the Promo Tracker's KPI feed: registered,
+// active and not deleted in the ops DB, the dashboard's Total teams basis.
+async function loadTeamCount(season: string, locationNames: string[] | null): Promise<number | null> {
+  try {
+    const url = new URL("/api/dashboard-kpis", PROMO_APP_URL);
+    url.searchParams.set("season", season);
+    const lp = locParam(locationNames);
+    if (lp) url.searchParams.set("location", lp);
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as { teams_registered?: number };
+    return typeof k.teams_registered === "number" ? k.teams_registered : null;
+  } catch {
+    return null;
+  }
+}
+
 async function loadPlayers(season: string, locationNames: string[] | null, freeOnly: boolean): Promise<Feed | null> {
   try {
     const url = new URL("/api/discounts/players", PROMO_APP_URL);
@@ -80,10 +97,11 @@ export default async function DiscountPlayersPage({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
-  const [feed, totalRegs, staff] = await Promise.all([
+  const [feed, totalRegs, staff, teamCount] = await Promise.all([
     loadPlayers(selectedSeason, locationNames, freeOnly),
     loadTotalRegs(selectedSeason, locationNames),
     loadStaff(),
+    loadTeamCount(selectedSeason, locationNames),
   ]);
   // Same test the feed sorts by, so the cards and the blocks in the table
   // agree on which programme a row belongs to. Returning player wins a tie:
@@ -158,7 +176,8 @@ export default async function DiscountPlayersPage({
       {rows.length > 0 && (
         <div className={`grid gap-3 grid-cols-2 ${
           freeOnly ? "md:grid-cols-3" : otherOnly ? "md:grid-cols-4" : "md:grid-cols-3 lg:grid-cols-6"}`}>
-          <Tile label="Total registrations" value={totalRegs === null ? "—" : totalRegs.toLocaleString()} />
+          <Tile label="Total registrations" value={totalRegs === null ? "—" : totalRegs.toLocaleString()}
+            sub={teamCount === null ? undefined : `${teamCount.toLocaleString()} team${teamCount === 1 ? "" : "s"}`} />
           <Tile label={freeOnly ? "Free registrations" : otherOnly ? "Other discounts" : "Discounted registrations"}
             value={rows.length.toLocaleString()} accent={freeOnly ? GOLD : undefined}
             sub={totalRegs ? <Pct n={rows.length} of={totalRegs} tone={freeOnly ? freeTone : discountTone} /> : undefined} />
