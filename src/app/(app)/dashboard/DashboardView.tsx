@@ -1441,9 +1441,23 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   // to, team fees left out — a captain paying the whole team on one invoice
   // pays for players who may not have joined yet. Absent from an older feed.
   athletes_indiv?: number; revenue_indiv_native?: number; revenue_indiv_cad?: number; revenue_indiv_usd?: number;
+  // Retention (Registrations > Retention): of the season's registrants at day
+  // N, who had played before — at the same venue or anywhere in Brodie, the
+  // season before or in any of the four before. Only with ?retention=1.
+  kept?: Kept; kept_by_country?: Record<"CAN" | "USA", Kept>;
   // A country's revenue over its athletes, set on that country's projected
   // seasons only (countrySet). Undefined with no athletes to divide by.
   revenue_per_athlete?: number };
+type Kept = {
+  cap_total: number; cap_same_prev: number; cap_same_4: number; cap_any_prev: number; cap_any_4: number;
+  ath_total: number; ath_same_prev: number; ath_same_4: number; ath_any_prev: number; ath_any_4: number;
+};
+type KeptWindow = "same_prev" | "same_4" | "any_prev" | "any_4";
+// A retention share to one decimal, or null with nobody to measure.
+function keptPct(k: Kept | undefined, pop: "cap" | "ath", w: KeptWindow): number | null {
+  const total = k ? k[`${pop}_total`] : 0;
+  return k && total ? Math.round((1000 * k[`${pop}_${w}`]) / total) / 10 : null;
+}
 type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "revenue" | "revenue_native" | "revenue_cad" | "revenue_usd" | "age_median" | "revenue_per_athlete";
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
@@ -1493,10 +1507,11 @@ function discountFor(location: string, rows: CardDiscount[], byNight: boolean): 
   const loose = rows.filter((r) => base(r.location) === base(location));
   return loose.length === 1 ? loose[0] : undefined;
 }
-async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string): Promise<Pacing | null> {
+async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string, retention = false): Promise<Pacing | null> {
   try {
     const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", regSeason);
+    if (retention) url.searchParams.set("retention", "1");
     // Scoped to a single venue, the useful next cut is the nights it plays.
     url.searchParams.set("breakdown", scope.locationNames?.length === 1 ? "day" : "location");
     if (week) url.searchParams.set("week", week);
@@ -1578,7 +1593,7 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
   // Second readings of the headline — how many of those teams can field a
   // side, and how many have barely started.
   notes?: { text: string; tone?: "bad" }[];
-  format?: "number" | "money" | "age";
+  format?: "number" | "money" | "age" | "percent";
   // Given a distribution, the card draws that instead of the season bars.
   // Three seasons of median age differ by a year at most, so as bars they
   // read as three identical blocks; the shape behind the median is the part
@@ -1587,8 +1602,8 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
 }) {
   // A median age is a whole year — the age of a real athlete in the middle of
   // the line — so it is not dressed up with a decimal it does not have.
-  const fmtBig = (n: number) => (format === "money" ? money(n) : format === "age" ? String(Math.round(n)) : n.toLocaleString());
-  const fmtBar = (n: number) => (format === "money" ? moneyShort(n) : format === "age" ? String(Math.round(n)) : n.toLocaleString());
+  const fmtBig = (n: number) => (format === "money" ? money(n) : format === "age" ? String(Math.round(n)) : format === "percent" ? `${n.toFixed(1)}%` : n.toLocaleString());
+  const fmtBar = (n: number) => (format === "money" ? moneyShort(n) : format === "age" ? String(Math.round(n)) : format === "percent" ? `${n.toFixed(1)}%` : n.toLocaleString());
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
     <div className="h-full flex flex-col rounded-2xl border border-glass-border bg-glass-surface p-5">
@@ -1693,7 +1708,7 @@ function RegShareLines({ groups }: { groups: ShareGroup[] }) {
 
 // Difference vs a comparison season at the same day of registration. Green =
 // ahead of that season's pace, red = behind. null when the feed is missing a side.
-function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, format = "number" }: {
+function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, format = "number", scored = false }: {
   title: string; subtitle: string; delta: number | null;
   // The comparison season's own figure, so the delta can be read as a share
   // as well as a count.
@@ -1703,6 +1718,9 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
   rosterDelta?: number | null;
   rosterBase?: number | null;
   format?: "number" | "money" | "points";
+  // Points that have a good direction (retention up is good), coloured like a
+  // count; age points stay neutral.
+  scored?: boolean;
 }) {
   // A share compared against a share moves in points, and the line underneath
   // carries the two shares themselves — a "+0.2" is unreadable without them.
@@ -1715,7 +1733,7 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
   // a result — so it is left in the plain text colour rather than scored
   // green or red like teams, athletes and revenue.
   const color =
-    isPoints || delta === null || delta === 0 ? "var(--glass-text)" :
+    (isPoints && !scored) || delta === null || delta === 0 ? "var(--glass-text)" :
     delta > 0 ? "rgb(74,222,128)" : "rgb(248,113,113)";
   return (
     <div className="h-full rounded-2xl border border-glass-border bg-glass-surface p-4">
@@ -2249,6 +2267,73 @@ function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; se
   );
 }
 
+// The Retention tab's location cards: for each venue (or night), the share of
+// its captains and athletes who played before — at this venue, and anywhere in
+// Brodie; the season before, and in any of the four before — each with its
+// same-day change against the previous season and the previous year.
+function RetentionStrip({ locations, byNight = false, prevLabel, yearLabel }: {
+  locations: PacingLocation[]; byNight?: boolean; prevLabel: string; yearLabel: string;
+}) {
+  const fmtPts = (d: number) => `${d > 0 ? "+" : d < 0 ? "\u2212" : ""}${Math.abs(d).toFixed(1)}`;
+  return (
+    <div>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary mb-2">
+        {byNight ? "By night" : "By location"}
+      </h3>
+      <div className="grid grid-flow-col auto-cols-[300px] gap-x-3 overflow-x-auto pb-2 snap-x">
+        {locations.map((l) => {
+          const at = (kind: string) => l.seasons.find((x) => x.kind === kind)?.kept;
+          const cur = at("current"), prev = at("prev_season"), yr = at("prev_year");
+          return (
+            <div key={l.location} className="snap-start rounded-xl border border-glass-border bg-glass-surface px-3.5 py-3.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={l.location}>{l.location}</p>
+                <p className="text-[11px] text-glass-text-tertiary tabular shrink-0">
+                  {(cur?.cap_total ?? 0).toLocaleString()} captains · {(cur?.ath_total ?? 0).toLocaleString()} athletes
+                </p>
+              </div>
+              {(["same", "any"] as const).map((mode) => (
+                <div key={mode} className="mt-2.5 pt-2.5 border-t border-glass-border-light">
+                  <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
+                    <span className="flex-1 min-w-0 truncate">{mode === "same" ? "This location" : "Any Brodie location"}</span>
+                    <span className="shrink-0 w-[5.5rem] text-right">Captains</span>
+                    <span className="shrink-0 w-[5.5rem] text-right">Athletes</span>
+                  </div>
+                  {(["prev", "4"] as const).map((sp) => {
+                    const w = `${mode}_${sp}` as KeptWindow;
+                    return (
+                      <div key={sp} className="flex items-start gap-2 text-[11px] leading-snug py-1">
+                        <span className="flex-1 min-w-0 text-glass-text-secondary">{sp === "prev" ? "Last season" : "Last 4 seasons"}</span>
+                        {(["cap", "ath"] as const).map((pop) => {
+                          const v = keptPct(cur, pop, w), pv = keptPct(prev, pop, w), yv = keptPct(yr, pop, w);
+                          return (
+                            <span key={pop} className="shrink-0 w-[5.5rem] text-right tabular">
+                              <span className="block font-semibold" style={{ color: "var(--glass-text)" }}>{v == null ? "—" : `${v.toFixed(1)}%`}</span>
+                              <span className="block text-[10px] text-glass-text-tertiary">
+                                {cur ? `${cur[`${pop}_${w}`]} of ${cur[`${pop}_total`]}` : "\u00A0"}
+                              </span>
+                              {([[pv, prevLabel], [yv, yearLabel]] as const).map(([base, lbl]) =>
+                                v != null && base != null ? (
+                                  <span key={lbl} className="block text-[10px] font-semibold" style={{ color: upColor(v - base) }}>
+                                    {fmtPts(Math.round((v - base) * 10) / 10)} vs {lbl}
+                                  </span>
+                                ) : null)}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
@@ -2511,6 +2596,7 @@ export default async function DashboardView({
 }: {
   searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string;
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string;
+    tab?: string;
     }>;
   mode?: "full" | "registrations" | "weekly";
   showViewTabs?: boolean;
@@ -2519,7 +2605,9 @@ export default async function DashboardView({
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
   const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
-    overdueSeason, regsSeason, promoSeason, bookingSeason } = await searchParams;
+    overdueSeason, regsSeason, promoSeason, bookingSeason, tab: tabParam } = await searchParams;
+  // The Registrations page's second tab: who came back, rather than how many.
+  const isRetention = isReg && tabParam === "retention";
   // Every filter accepts a comma-separated list, so several seasons, weeks,
   // locations and league managers can be selected at once.
   const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
@@ -2601,7 +2689,7 @@ export default async function DashboardView({
     isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadPromoTiles(promoSeasonName, scope),
-    loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined),
+    loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined, isRetention),
     isReg ? Promise.resolve([] as DeadlineWeek[]) : loadDeadlines(),
     // Per night when the cards are nights (a single venue), else per venue.
     loadLocationDiscounts(pacingSeason, scope, scope.locationNames?.length === 1),
@@ -2905,6 +2993,101 @@ export default async function DashboardView({
     if (!locsByCountry.has(k)) locsByCountry.set(k, []);
     locsByCountry.get(k)!.push(l);
   }
+  // ---- Retention tab ----------------------------------------------------
+  const keptFor = (x: PacingSeason | undefined, where: "all" | "CAN" | "USA") =>
+    !x ? undefined : where === "all" ? x.kept : x.kept_by_country?.[where];
+  // One retention measure as a column: its share in each season, then the
+  // same-day change against the previous season and the previous year.
+  const keptColumn = (where: "all" | "CAN" | "USA", pop: "cap" | "ath", w: KeptWindow) => {
+    const v = (x?: PacingSeason) => keptPct(keptFor(x, where), pop, w);
+    const cur = keptFor(pacingCurrent, where);
+    const curV = v(pacingCurrent);
+    const noun = pop === "cap" ? "captains" : "athletes";
+    const span = w.endsWith("prev") ? "last season" : "last 4 seasons";
+    const change = (against?: PacingSeason) => {
+      const was = v(against);
+      return curV != null && was != null ? Math.round((curV - was) * 10) / 10 : null;
+    };
+    const dTitle = `${pop === "cap" ? "Captains" : "Athletes"} ${span}`;
+    return (
+      <div key={`${where}-${pop}-${w}`} className="h-full flex flex-col gap-4">
+        <div className="flex-1">
+          <RegBarCard title={`Returning ${noun} · ${span}`}
+            subtitle={`${w.startsWith("same") ? "played at this location" : "played anywhere in Brodie"} ${w.endsWith("prev") ? "the season before" : "in one of the 4 seasons before"} · ${regBarWhen}`}
+            format="percent" current={curV ?? 0}
+            bars={(pacing?.seasons ?? []).map((x) => ({
+              label: x.season, sub: KIND_LABEL[x.kind] ?? x.kind, value: v(x) ?? 0,
+              color: REG_COLOR[x.kind] ?? "var(--glass-border-light)",
+            }))}
+            notes={cur ? [{ text: `${cur[`${pop}_${w}`].toLocaleString()} of ${cur[`${pop}_total`].toLocaleString()} ${noun}` }] : undefined} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <RegDeltaCard title={`${dTitle} vs prev season`} format="points" scored
+            subtitle={`${shortSeason(pacingCurrent?.season ?? "")} vs ${pacingPrevSeason ? shortSeason(pacingPrevSeason.season) : "—"} · ${regDeltaWhen}`}
+            delta={change(pacingPrevSeason)} base={v(pacingPrevSeason)} />
+          <RegDeltaCard title={`${dTitle} vs prev year`} format="points" scored
+            subtitle={`${shortSeason(pacingCurrent?.season ?? "")} vs ${pacingPrevYear ? shortSeason(pacingPrevYear.season) : "—"} · ${regDeltaWhen}`}
+            delta={change(pacingPrevYear)} base={v(pacingPrevYear)} />
+        </div>
+      </div>
+    );
+  };
+  // Two rows per scope: retained at the same venue, then anywhere in Brodie.
+  const keptRows = (where: "all" | "CAN" | "USA") => (["same", "any"] as const).map((mode) => (
+    <div key={`${where}-${mode}`} className="space-y-2">
+      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-glass-text-tertiary">
+        {mode === "same" ? "Same location" : "Any Brodie location"}
+        <span className="normal-case tracking-normal font-normal">
+          {" "}— {mode === "same"
+            ? "counts a player only if they played at this location before"
+            : "counts a player who played at any Brodie location before"}
+        </span>
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        {([["cap", "prev"], ["cap", "4"], ["ath", "prev"], ["ath", "4"]] as const)
+          .map(([pop, sp]) => keptColumn(where, pop, `${mode}_${sp}` as KeptWindow))}
+      </div>
+    </div>
+  ));
+  const keptHas = (c: "CAN" | "USA") => (pacing?.seasons ?? []).some((x) => (keptFor(x, c)?.ath_total ?? 0) > 0);
+  // In a one-country scope that country's rows would repeat the top ones, so
+  // it keeps only its location cards.
+  const keptSpansBoth = keptHas("CAN") && keptHas("USA");
+  const keptStrip = (locs?: PacingLocation[]) => locs?.length ? (
+    <div className="pt-1">
+      <RetentionStrip locations={locs} byNight={locationNames?.length === 1}
+        prevLabel={shortSeason(pacingPrevSeason?.season ?? "")} yearLabel={shortSeason(pacingPrevYear?.season ?? "")} />
+    </div>
+  ) : null;
+  const retentionView = () => (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2.5">
+        <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Retention</h2>
+        {seasonToggle("regsSeason", regsSeason) ?? (
+          <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
+        )}
+      </div>
+      {!pacingCurrent?.kept ? (
+        // Never a guess: without the feed's retention there is nothing to show.
+        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+          Not connected. League Health couldn&apos;t load retention from the Promo Tracker, so no numbers are shown here.
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <div className="space-y-5">{keptRows("all")}</div>
+          {PLACES.filter((p) => keptHas(p.code) || (locsByCountry.get(p.code)?.length ?? 0) > 0).map((p) => (
+            <div key={p.code} className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary">{p.heading}</h3>
+              {keptSpansBoth && <div className="space-y-5">{keptRows(p.code)}</div>}
+              {keptStrip(locsByCountry.get(p.code))}
+            </div>
+          ))}
+          {keptStrip(locsByCountry.get("other"))}
+        </div>
+      )}
+    </section>
+  );
   const hasPeople = (set: RegSet | null) => !!set && set.all.some((x) => x.captains || x.athletes);
   // In a one-country scope that country's teams and athletes are the top row
   // again, so its row keeps only its revenue.
@@ -2938,7 +3121,9 @@ export default async function DashboardView({
           {isReg ? "Registration pacing" : isWeekly && !showViewTabs ? "Weekly review" : "League overview"}
         </h1>
         <p className="text-sm mt-1 text-glass-text-secondary">
-          {isReg
+          {isRetention
+            ? <>Of the captains &amp; athletes registered at day N for {scopeLabel}, how many played before — at the same location, and anywhere in Brodie — vs the previous season and the previous year.</>
+            : isReg
             ? <>Teams &amp; athletes at day N of registration for {scopeLabel}, vs the previous season and the previous year.</>
             : isWeekly
               ? <>Cross-app health for {scopeLabel}, scoped to the week of {weekLabel} (Sat–Fri). Registrations, Stats Health &amp; Content Health are week-scoped; other sections show the season to date.</>
@@ -2965,14 +3150,22 @@ export default async function DashboardView({
           locations: selectedLocations,
           ...(isWeekly ? { weeks: activeWeeks } : {}),
         }}
+        keep={isRetention ? { tab: "retention" } : undefined}
       />
+      {isReg && (
+        <BasisToggle
+          param="tab"
+          value={isRetention ? "retention" : "registrations"}
+          options={[{ value: "registrations", label: "Registrations" }, { value: "retention", label: "Retention" }]}
+        />
+      )}
 
       <div className="space-y-8">
         {!isReg && deadlines.length > 0 && <DeadlineBanner weeks={deadlines} />}
         {!isReg && (
           <Section title="Season Success Checklist" scopeTag={fullTag} href={`${APP_URL.checklist}/checklists?kind=lm`} tiles={checklistTiles} cols={6} />
         )}
-        {pacing && pacingCurrent ? (
+        {isRetention ? retentionView() : pacing && pacingCurrent ? (
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
