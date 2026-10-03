@@ -1436,7 +1436,11 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   age_median?: number;
   // Teams, athletes and rosters per country, from the league's country.
   // Absent from an older feed or when the lookup failed.
-  by_country?: Record<"CAN" | "USA", { captains: number; athletes: number; full_roster: number; low_roster: number }>;
+  by_country?: Record<"CAN" | "USA", { captains: number; athletes: number; full_roster: number; low_roster: number; athletes_indiv?: number }>;
+  // The per-athlete basis: athletes who paid for themselves and what that came
+  // to, team fees left out — a captain paying the whole team on one invoice
+  // pays for players who may not have joined yet. Absent from an older feed.
+  athletes_indiv?: number; revenue_indiv_native?: number; revenue_indiv_cad?: number; revenue_indiv_usd?: number;
   // A country's revenue over its athletes, set on that country's projected
   // seasons only (countrySet). Undefined with no athletes to divide by.
   revenue_per_athlete?: number };
@@ -2288,11 +2292,16 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
           const get = (kind: string, metric: PacingMetric) =>
             l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
           const locCurrency = l.seasons.find((s) => s.kind === "current")?.currency ?? "CAD";
-          // What a season's revenue works out to per athlete registered in it.
-          // Rounded to the dollar; cents are noise against a season total.
+          // What a season's revenue works out to per athlete registered in it,
+          // team fees left out (see PacingSeason.athletes_indiv). Rounded to
+          // the dollar; cents are noise against a season total.
           const perAthlete = (kind: string) => {
-            const a = get(kind, "athletes");
-            return a ? Math.round(get(kind, "revenue_native") / a) : 0;
+            const x = l.seasons.find((y) => y.kind === kind);
+            if (!x) return 0;
+            const indiv = x.athletes_indiv != null;
+            const a = indiv ? x.athletes_indiv! : x.athletes;
+            const rev = (indiv ? x.revenue_indiv_native : x.revenue_native) ?? 0;
+            return a ? Math.round(rev / a) : 0;
           };
           const curTeams = get("current", "captains");
           const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
@@ -2614,8 +2623,13 @@ export default async function DashboardView({
     const proj = (x: PacingSeason): PacingSeason => {
       if (!x.by_country) return x;
       const b = x.by_country[c];
-      const rev = (c === "CAN" ? x.revenue_cad : x.revenue_usd) ?? 0;
-      return { ...x, ...b, revenue_per_athlete: b.athletes ? Math.round(rev / b.athletes) : undefined };
+      // Per player leaves team fees out, when the feed has the split.
+      const indiv = b.athletes_indiv != null;
+      const a = indiv ? b.athletes_indiv! : b.athletes;
+      const rev = (c === "CAN"
+        ? (indiv ? x.revenue_indiv_cad : x.revenue_cad)
+        : (indiv ? x.revenue_indiv_usd : x.revenue_usd)) ?? 0;
+      return { ...x, ...b, revenue_per_athlete: a ? Math.round(rev / a) : undefined };
     };
     return {
       cur: proj(allSet.cur),
@@ -2852,7 +2866,8 @@ export default async function DashboardView({
       key: "revenue_per_athlete", format: "money",
       title: `${cur} per player`, barTitle: `Revenue per player (${cur})`,
       barSub: `accrued · ${regBarWhen}`,
-      notes: undefined, roster: false,
+      // Said on the card: the revenue card beside it does include them.
+      notes: [{ text: "team fees left out" }], roster: false,
       deltaFormat: "money",
       deltaOf: (x?: PacingSeason | null) => x?.revenue_per_athlete ?? null,
     };
