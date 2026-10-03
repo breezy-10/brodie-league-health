@@ -23,7 +23,9 @@ type DiscountPlayer = {
   codes: string; discount_names?: string; registered_on: string | null;
   season_team_id?: string | null; player_id?: string | null;
 };
-type Feed = { season: string; players: DiscountPlayer[]; truncated: boolean };
+// unrostered: every free agent not yet on a team, discounted or not (asked
+// for in team view only).
+type Feed = { season: string; players: DiscountPlayer[]; truncated: boolean; unrostered?: DiscountPlayer[] };
 type TotalsFeed = { locations: { currency: string; regs: number }[] };
 
 // Total registrations in scope — the denominator the players feed can't supply,
@@ -60,11 +62,12 @@ async function loadTeamCount(season: string, locationNames: string[] | null): Pr
   }
 }
 
-async function loadPlayers(season: string, locationNames: string[] | null, freeOnly: boolean): Promise<Feed | null> {
+async function loadPlayers(season: string, locationNames: string[] | null, freeOnly: boolean, unrostered = false): Promise<Feed | null> {
   try {
     const url = new URL("/api/discounts/players", PROMO_APP_URL);
     url.searchParams.set("season", season);
     if (freeOnly) url.searchParams.set("free", "1");
+    if (unrostered) url.searchParams.set("unrostered", "1");
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
     const res = await fetch(url.toString(), { cache: "no-store" });
@@ -98,7 +101,7 @@ export default async function DiscountPlayersPage({
     { defaultSeason: "registration" },
   );
   const [feed, totalRegs, staff, teamCount] = await Promise.all([
-    loadPlayers(selectedSeason, locationNames, freeOnly),
+    loadPlayers(selectedSeason, locationNames, freeOnly, teamView),
     loadTotalRegs(selectedSeason, locationNames),
     loadStaff(),
     loadTeamCount(selectedSeason, locationNames),
@@ -110,6 +113,16 @@ export default async function DiscountPlayersPage({
   const isReferral = (r: DiscountPlayer) => !isReturning(r) && /referral/i.test(r.discount_names ?? "");
   const allRows = feed?.players ?? [];
   const rows = otherOnly ? allRows.filter((r) => !isReturning(r) && !isReferral(r)) : allRows;
+  // Team view's last block: free agents not on a team yet, whatever they paid
+  // — narrowed like the list when it is free-only or other-only — plus any
+  // discounted registration without a team that isn't a free agent.
+  const unrosteredRows = (() => {
+    if (!teamView) return [];
+    const fa = (feed?.unrostered ?? []).filter((r) =>
+      freeOnly ? r.free : otherOnly ? r.discount > 0 && !isReturning(r) && !isReferral(r) : true);
+    const seen = new Set(fa.map((r) => r.player_id));
+    return [...fa, ...rows.filter((r) => !r.season_team_id && !seen.has(r.player_id ?? null))];
+  })();
   const free = rows.filter((r) => r.free).length;
   const returning = rows.filter(isReturning).length;
   const referral = rows.filter(isReferral).length;
@@ -210,7 +223,8 @@ export default async function DiscountPlayersPage({
           No {freeOnly ? "free" : otherOnly ? "other discounted" : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
-        <DiscountTable key={teamView ? "teams" : "players"} rows={rows} season={selectedSeason} staff={staff} teamView={teamView} />
+        <DiscountTable key={teamView ? "teams" : "players"} rows={rows} season={selectedSeason} staff={staff} teamView={teamView}
+          unrostered={unrosteredRows} />
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
