@@ -900,10 +900,10 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       // The window comes from the feed, so the label always names it.
       ...(k.stats_overdue ? [((o) => ({
         label: `No stats after ${o.hours} hours`, value: n(o.total), tone: (o.total > 0 ? "bad" : "ok") as Tone,
+        // A game either has stats by now or it doesn't — why it doesn't
+        // (not yet submitted, or submitted without stats) isn't split out.
         lines: [
-          { text: `${n(o.waiting)} — still waiting`, strong: true },
-          { text: `${n(o.no_stats)} — marked no stats` },
-          { text: `of ${n(o.games)} games played ${o.hours}h+ ago` },
+          { text: `of ${n(o.games)} games played ${o.hours}h+ ago · ${o.games ? Math.round((100 * o.total) / o.games) : 0}%`, strong: true },
         ],
         // Every venue with a game that old: red where any is missing stats.
         pills: o.by_location.map((r) => ({
