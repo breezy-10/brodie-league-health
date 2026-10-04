@@ -916,10 +916,10 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       // Beside it: games whose player points don't add up to the final score.
       ...(k.points_check ? [((p) => ({
         label: "Points don't add up", value: n(p.off), tone: (p.off > 0 ? "bad" : "ok") as Tone,
+        // Out of the games with a box score to check; games with no player
+        // stats have nothing to add up and stay off this card.
         lines: [
-          { text: `${n(p.off)} of ${n(p.checked)} games checked`, strong: true },
-          { text: `${n(p.reconciled)} — add up` },
-          { text: `${n(p.no_stats)} — scored, no player stats` },
+          { text: `${n(p.reconciled)} add up of ${n(p.checked)} games total · ${p.checked ? Math.round((100 * p.reconciled) / p.checked) : 0}%`, strong: true },
         ],
         pills: p.by_location.map((r) => ({
           text: `${r.location} ${r.off}/${r.checked}`,
