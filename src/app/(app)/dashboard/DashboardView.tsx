@@ -751,11 +751,14 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       // venue (zeros too).
       stats_overdue?: {
         hours: number; total: number; waiting: number; no_stats: number; games: number;
+        // The Stats Health games list showing exactly these games.
+        path?: string;
         by_location: { location: string; total: number; waiting: number; no_stats: number; games: number }[];
       };
       // Box score points against the final score (Stats Health's reconciliation).
       points_check?: {
         checked: number; reconciled: number; off: number; no_stats: number;
+        path?: string;
         by_location: { location: string; checked: number; off: number }[];
       };
     };
@@ -912,6 +915,8 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
           sortValue: r.total,
         })),
         pillsEmpty: `no games ${o.hours}h old yet`,
+        // Bottom right: the games themselves, in Stats Health.
+        ...(o.path ? { link: { href: `${APP_URL.stats_health}${o.path}`, label: "More details →" } } : {}),
       }))(k.stats_overdue)] : []),
       // Beside it: games whose player points don't add up to the final score.
       ...(k.points_check ? [((p) => ({
@@ -927,6 +932,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
           sortValue: r.off,
         })),
         pillsEmpty: "no box scores to check",
+        ...(p.path ? { link: { href: `${APP_URL.stats_health}${p.path}`, label: "More details →" } } : {}),
       }))(k.points_check)] : []),
     ];
   } catch {
