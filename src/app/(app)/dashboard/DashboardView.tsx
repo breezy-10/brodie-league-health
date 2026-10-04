@@ -747,9 +747,10 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       spares_by_location?: { location: string; spares: number; games: number }[];
       delivery_by_location?: { location: string; ms: number; games: number }[];
       recording_by_location?: { location: string; full: number; total: number; pct: number }[];
-      // Games with no player stats 48h after game time, per venue (zeros too).
-      stats_overdue_48h?: {
-        total: number; waiting: number; no_stats: number; games: number;
+      // Games with no player stats some hours after game time (72 today), per
+      // venue (zeros too).
+      stats_overdue?: {
+        hours: number; total: number; waiting: number; no_stats: number; games: number;
         by_location: { location: string; total: number; waiting: number; no_stats: number; games: number }[];
       };
       // Box score points against the final score (Stats Health's reconciliation).
@@ -894,14 +895,15 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
           pillsEmpty: "no forfeits",
         } : {}),
       },
-      // Under Stats completion rate (the next row starts here): games 48h past
-      // tip with no player stats — still waiting, or marked as having none.
-      ...(k.stats_overdue_48h ? [((o) => ({
-        label: "No stats after 48 hours", value: n(o.total), tone: (o.total > 0 ? "bad" : "ok") as Tone,
+      // Under Stats completion rate (the next row starts here): games past the
+      // window with no player stats — still waiting, or marked as having none.
+      // The window comes from the feed, so the label always names it.
+      ...(k.stats_overdue ? [((o) => ({
+        label: `No stats after ${o.hours} hours`, value: n(o.total), tone: (o.total > 0 ? "bad" : "ok") as Tone,
         lines: [
           { text: `${n(o.waiting)} — still waiting`, strong: true },
           { text: `${n(o.no_stats)} — marked no stats` },
-          { text: `of ${n(o.games)} games played 48h+ ago` },
+          { text: `of ${n(o.games)} games played ${o.hours}h+ ago` },
         ],
         // Every venue with a game that old: red where any is missing stats.
         pills: o.by_location.map((r) => ({
@@ -909,8 +911,8 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
           tone: (r.total > 0 ? "bad" : "ok") as Tone,
           sortValue: r.total,
         })),
-        pillsEmpty: "no games 48h old yet",
-      }))(k.stats_overdue_48h)] : []),
+        pillsEmpty: `no games ${o.hours}h old yet`,
+      }))(k.stats_overdue)] : []),
       // Beside it: games whose player points don't add up to the final score.
       ...(k.points_check ? [((p) => ({
         label: "Points don't add up", value: n(p.off), tone: (p.off > 0 ? "bad" : "ok") as Tone,
