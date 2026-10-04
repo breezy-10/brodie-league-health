@@ -747,6 +747,16 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
       spares_by_location?: { location: string; spares: number; games: number }[];
       delivery_by_location?: { location: string; ms: number; games: number }[];
       recording_by_location?: { location: string; full: number; total: number; pct: number }[];
+      // Games with no player stats 48h after game time, per venue (zeros too).
+      stats_overdue_48h?: {
+        total: number; waiting: number; no_stats: number; games: number;
+        by_location: { location: string; total: number; waiting: number; no_stats: number; games: number }[];
+      };
+      // Box score points against the final score (Stats Health's reconciliation).
+      points_check?: {
+        checked: number; reconciled: number; off: number; no_stats: number;
+        by_location: { location: string; checked: number; off: number }[];
+      };
     };
     const n = (x: number) => x.toLocaleString();
     // Week-over-week rows: the previous week's value, then the delta. Present
@@ -884,6 +894,38 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
           pillsEmpty: "no forfeits",
         } : {}),
       },
+      // Under Stats completion rate (the next row starts here): games 48h past
+      // tip with no player stats — still waiting, or marked as having none.
+      ...(k.stats_overdue_48h ? [((o) => ({
+        label: "No stats after 48 hours", value: n(o.total), tone: (o.total > 0 ? "bad" : "ok") as Tone,
+        lines: [
+          { text: `${n(o.waiting)} — still waiting`, strong: true },
+          { text: `${n(o.no_stats)} — marked no stats` },
+          { text: `of ${n(o.games)} games played 48h+ ago` },
+        ],
+        // Every venue with a game that old: red where any is missing stats.
+        pills: o.by_location.map((r) => ({
+          text: `${r.location} (${r.total})`,
+          tone: (r.total > 0 ? "bad" : "ok") as Tone,
+          sortValue: r.total,
+        })),
+        pillsEmpty: "no games 48h old yet",
+      }))(k.stats_overdue_48h)] : []),
+      // Beside it: games whose player points don't add up to the final score.
+      ...(k.points_check ? [((p) => ({
+        label: "Points don't add up", value: n(p.off), tone: (p.off > 0 ? "bad" : "ok") as Tone,
+        lines: [
+          { text: `${n(p.off)} of ${n(p.checked)} games checked`, strong: true },
+          { text: `${n(p.reconciled)} — add up` },
+          { text: `${n(p.no_stats)} — scored, no player stats` },
+        ],
+        pills: p.by_location.map((r) => ({
+          text: `${r.location} ${r.off}/${r.checked}`,
+          tone: (r.off > 0 ? "bad" : "ok") as Tone,
+          sortValue: r.off,
+        })),
+        pillsEmpty: "no box scores to check",
+      }))(k.points_check)] : []),
     ];
   } catch {
     return null;
