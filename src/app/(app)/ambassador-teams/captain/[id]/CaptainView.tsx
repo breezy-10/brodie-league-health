@@ -5,6 +5,7 @@ import { resolveScope } from "@/lib/seasons";
 import { StaffBadge } from "@/components/TeamRosterBlock";
 import { loadStaff } from "@/lib/staff";
 import { normName } from "@/lib/names";
+import { promoFetch } from "@/lib/promo-feed";
 
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
@@ -53,7 +54,7 @@ async function loadPlayer(season: string, playerId: string): Promise<PlayerFeed 
     const url = new URL("/api/player-teams", PROMO_APP_URL);
     url.searchParams.set("season", season);
     url.searchParams.set("player_id", playerId);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as PlayerFeed;
     return k.teams ? k : null;

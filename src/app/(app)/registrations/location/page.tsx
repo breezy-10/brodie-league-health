@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getAssignableLocations, getRegistrationSeasons } from "@/lib/locations";
 import { DetailFilters } from "./DetailFilters";
+import { promoFetch } from "@/lib/promo-feed";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -46,7 +47,7 @@ function avgColor(avg: number | null): string {
 async function loadBreakdown(loc: string, season: string): Promise<Breakdown | null> {
   try {
     const url = `${PROMO_URL}/api/registration-day-breakdown?location=${encodeURIComponent(loc)}&season=${encodeURIComponent(season)}`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await promoFetch(url, { cache: "no-store" });
     if (!res.ok) return null;
     const json = (await res.json()) as Breakdown | { error: string };
     if ("error" in json) return null;

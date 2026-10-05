@@ -3,6 +3,7 @@ import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seaso
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import RatesEditor, { type CurrencyCounts } from "./RatesEditor";
 import { loadReferralRates } from "./rates";
+import { promoFetch } from "@/lib/promo-feed";
 
 // Changing the terms is a money decision — same roles that own app/metric weights.
 const RATE_EDITOR_ROLES = ["dm", "super_admin"];
@@ -43,7 +44,7 @@ async function loadReferrals(season: string, locationNames: string[] | null): Pr
     url.searchParams.set("season", season);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as ReferralFeed;
     return k.locations ? k : null;

@@ -14,6 +14,7 @@ import StatTile, { type Tile, type Tone } from "./StatTile";
 import DeadlineBanner, { type DeadlineWeek } from "./DeadlineBanner";
 import type { DiscountRow } from "../discounts/DiscountsView";
 import { discountTone, freeTone } from "../discounts/rates";
+import { promoFetch } from "@/lib/promo-feed";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -139,7 +140,7 @@ async function loadOperatingLocations(season: string, candidates: string[]): Pro
         const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
         url.searchParams.set("season", season);
         url.searchParams.set("breakdown", "location");
-        const r = await fetch(url.toString(), { cache: "no-store" });
+        const r = await promoFetch(url.toString(), { cache: "no-store" });
         return r.ok ? ((await r.json()) as Pacing) : null;
       })(),
     ]);
@@ -507,7 +508,7 @@ async function loadFeedbackTiles(season: string, scope: Scope): Promise<Tile[] |
     const url = new URL("/api/dashboard-kpis", "https://brodie-feedback.vercel.app");
     url.searchParams.set("season", season);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     // A location this app does not track is not a failed read — and must not
     // fall through to the sample tiles, which would put invented numbers on a
     // filtered dashboard. Empty tiles render an explicit note instead.
@@ -661,7 +662,7 @@ async function loadContentTiles(season: string, scope: Scope, week?: string): Pr
     url.searchParams.set("season", season);
     if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as {
       clips: ContentCard; photos: ContentCard;
@@ -728,7 +729,7 @@ async function loadStatsTiles(season: string, scope: Scope, week?: string): Prom
     url.searchParams.set("season", season);
     if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as {
       stats_completion_pct: number | null; stats_completion_tone?: Tone; full_recording_tone?: Tone; games_played: number | null; games_tracked: number;
@@ -961,7 +962,7 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
     // comes from the environment if set, else League Health's own app_secrets
     // table. Without it the section reads "not connected" — never sample data.
     const key = process.env.OVERDUE_FEED_KEY ?? (await readAppSecret("overdue_feed_key"));
-    const res = await fetch(url.toString(), {
+    const res = await promoFetch(url.toString(), {
       cache: "no-store",
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
     });
@@ -1107,7 +1108,7 @@ async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | nul
   try {
     const url = new URL("/api/all-forfeit-risk", "https://brodie-overdue-payments.vercel.app");
     url.searchParams.set("season", season);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as { teams?: { location: string }[] };
     if (!k.teams) return null;
@@ -1146,7 +1147,7 @@ async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | nul
 // and a second copy here would be a second copy to keep in step.
 async function loadDeadlines(): Promise<DeadlineWeek[]> {
   try {
-    const res = await fetch("https://registration-promo-tracker.vercel.app/api/next-deadline", { cache: "no-store" });
+    const res = await promoFetch("https://registration-promo-tracker.vercel.app/api/next-deadline", { cache: "no-store" });
     if (!res.ok) return [];
     const k = (await res.json()) as { weeks?: DeadlineWeek[] };
     return k.weeks ?? [];
@@ -1355,7 +1356,7 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
   try {
     const url = new URL("/api/dashboard-kpis", "https://brodie-training.vercel.app");
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as { modules?: ModuleRollup[] };
     const byTitle = new Map((k.modules ?? []).map((m) => [m.title.toLowerCase(), m]));
@@ -1394,7 +1395,7 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
     const url = new URL("/api/dashboard-kpis", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", season);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (res.status === 404) {
       // Season is beyond the promo horizon — registration hasn't opened.
       const zero: Tile[] = [
@@ -1564,7 +1565,7 @@ async function loadLocationDiscounts(regSeason: string, scope: Scope, byNight: b
     url.searchParams.set("season", regSeason);
     if (byNight) url.searchParams.set("breakdown", "day");
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as { locations?: DiscountRow[]; by_day?: CardDiscount[] };
     return (byNight ? k.by_day : k.locations) ?? null;
@@ -1595,7 +1596,7 @@ async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: st
     url.searchParams.set("breakdown", scope.locationNames?.length === 1 ? "day" : "location");
     if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as Pacing;
     // The feed reports age as an object; the cards chart plain numbers. Left
@@ -1623,7 +1624,7 @@ async function loadSiteVisits(scope: Scope, week?: string): Promise<SiteVisitsDa
     const url = new URL("/api/site-visits-weekly", "https://brodie-feedback.vercel.app");
     if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as SiteVisitsData;
     return { weeks: k.weeks ?? [], by_dm: k.by_dm ?? [] };
@@ -1650,7 +1651,7 @@ async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoRevie
     const url = new URL("/api/video-reviews-weekly", "https://brodie-feedback.vercel.app");
     if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as VideoReviewsData;
     return { weeks: k.weeks ?? [], by_location: k.by_location ?? [] };
@@ -3648,7 +3649,7 @@ async function loadBookings(season: string, scope: Scope): Promise<BookingData |
     const url = new URL("/api/dashboard-kpis", "https://brodie-facilities.vercel.app");
     url.searchParams.set("season", season);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as BookingData;
     return k.locations ? k : null;

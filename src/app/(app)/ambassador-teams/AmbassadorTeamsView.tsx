@@ -5,6 +5,7 @@ import AmbassadorTable, { type CaptainTeam } from "./AmbassadorTable";
 import { StaffBadge } from "@/components/TeamRosterBlock";
 import { loadStaff } from "@/lib/staff";
 import { normName } from "@/lib/names";
+import { promoFetch } from "@/lib/promo-feed";
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the ambassador
 // roster comes from its feed rather than being re-derived here — same pattern
@@ -70,7 +71,7 @@ async function loadAmbassadorTeams(
     url.searchParams.set("season", season);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as AmbassadorFeed;
     return k.locations ? k : null;

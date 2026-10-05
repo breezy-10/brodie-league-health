@@ -3,6 +3,7 @@ import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seaso
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import { discountTone, freeTone } from "./rates";
 import { requireUser } from "@/lib/auth";
+import { promoFetch } from "@/lib/promo-feed";
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the price
 // figures come from its feed rather than being re-derived here — same pattern
@@ -36,7 +37,7 @@ async function loadDiscounts(season: string, locationNames: string[] | null): Pr
     url.searchParams.set("season", season);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as DiscountFeed;
     return k.locations ? k : null;
