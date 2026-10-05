@@ -5,6 +5,7 @@
 // line up, which reads as a data bug rather than a UI one.
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCanonicalLocations } from "@/lib/districts-locations";
+import { getActiveLocationKeys, onlyActive } from "@/lib/active-locations";
 import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 import { ymd } from "@/lib/source-apps/util";
 
@@ -121,6 +122,8 @@ export function canonicalLocation(name: string): string {
 
 export type Scope = {
   promoLocations: string[];
+  /** promoLocations with a captain in the selected season(s), for the filter. */
+  filterLocations: string[];
   promoSeasons: string[];
   /** The playing season the filter bar is set to. */
   selectedSeason: string;
@@ -193,10 +196,17 @@ export async function resolveScope(
   const selectedLocations = params.locations?.length ? params.locations : (location !== "all" ? [location] : []);
   const locationNames: string[] | null = selectedLocations.length ? [...new Set(selectedLocations)] : null;
 
+  // Alphabetical: the Promo Tracker's own sort_order appends new markets at
+  // the end, which buries them under the scroll in the filter.
+  const sortedLocations = [...new Set(promoLocations)].sort((a, b) => a.localeCompare(b));
+  // The filter offers only locations with a captain in the season being looked
+  // at. A season label that doesn't parse asks for the current ones instead.
+  const filterSeasons = (params.seasons?.length ? params.seasons : [selectedSeason]).filter((n) => !!parseSeason(n));
+  const active = await getActiveLocationKeys(filterSeasons);
+
   return {
-    // Alphabetical: the Promo Tracker's own sort_order appends new markets at
-    // the end, which buries them under the scroll in the filter.
-    promoLocations: [...promoLocations].sort((a, b) => a.localeCompare(b)),
+    promoLocations: sortedLocations,
+    filterLocations: onlyActive(sortedLocations, active, selectedLocations),
     promoSeasons,
     selectedSeason,
     regSeason: nextSeasonLabel(selectedSeason),

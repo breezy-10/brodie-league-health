@@ -97,7 +97,7 @@ export default async function DiscountPlayersPage({
   const otherOnly = kindParam === "other";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
-  const { promoLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
+  const { filterLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
@@ -141,7 +141,7 @@ export default async function DiscountPlayersPage({
   // Carry the filters back to the tab that linked here.
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
-    locations: promoLocations,
+    locations: filterLocations,
   };
 
   const back = new URLSearchParams();

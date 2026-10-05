@@ -98,7 +98,7 @@ export default async function AmbassadorTeamsView({
 
   // Ambassador teams are registered for the season being sold, not the one
   // being played, so this defaults to the registration season like Referrals.
-  const { promoLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
+  const { filterLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
@@ -106,7 +106,7 @@ export default async function AmbassadorTeamsView({
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
-    locations: promoLocations,
+    locations: filterLocations,
   };
 
   const t = feed?.totals;
