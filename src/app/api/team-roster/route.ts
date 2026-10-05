@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { promoFetch } from "@/lib/promo-feed";
 
 // Signed-in proxy to the Promo Tracker's /api/team-roster, which owns the
 // ops-DB connection. The discount drill-down calls this from the browser when
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
     if (v) url.searchParams.set(k, v);
   }
   try {
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     const body = await res.json();
     return NextResponse.json(body, { status: res.status, headers: { "Cache-Control": "no-store" } });
   } catch {
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "JSON body required" }, { status: 400 });
   }
   try {
-    const res = await fetch(new URL("/api/team-roster", PROMO_APP_URL).toString(), {
+    const res = await promoFetch(new URL("/api/team-roster", PROMO_APP_URL).toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

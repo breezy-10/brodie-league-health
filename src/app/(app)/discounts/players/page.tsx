@@ -6,6 +6,7 @@ import { discountTone, freeTone } from "../rates";
 import DiscountTable from "./DiscountTable";
 import { BasisToggle } from "../../dashboard/BasisToggle";
 import { loadStaff } from "@/lib/staff";
+import { promoFetch } from "@/lib/promo-feed";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -36,7 +37,7 @@ async function loadTotalRegs(season: string, locationNames: string[] | null): Pr
     url.searchParams.set("season", season);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as TotalsFeed;
     return (k.locations ?? []).reduce((n, r) => n + (r.regs ?? 0), 0);
@@ -53,7 +54,7 @@ async function loadTeamCount(season: string, locationNames: string[] | null): Pr
     url.searchParams.set("season", season);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as { teams_registered?: number };
     return typeof k.teams_registered === "number" ? k.teams_registered : null;
@@ -70,7 +71,7 @@ async function loadPlayers(season: string, locationNames: string[] | null, freeO
     if (unrostered) url.searchParams.set("unrostered", "1");
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
-    const res = await fetch(url.toString(), { cache: "no-store" });
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as Feed;
     return k.players ? k : null;
