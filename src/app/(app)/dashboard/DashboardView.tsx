@@ -2736,7 +2736,7 @@ export default async function DashboardView({
   // lives in the playing season. The Registrations tab has nothing else on it,
   // so there the filter picks the registration season directly — selecting
   // Fall '26 shows Fall '26 rather than silently reporting the season after.
-  const { promoLocations, promoSeasons, selectedSeason, regSeason, locationNames } = await resolveScope(
+  const { promoLocations, filterLocations, promoSeasons, selectedSeason, regSeason, locationNames } = await resolveScope(
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: isReg ? "registration" : "playing" },
   );
@@ -2900,7 +2900,7 @@ export default async function DashboardView({
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
-    locations: promoLocations,
+    locations: filterLocations,
     ...(isWeekly ? { weeks } : {}),
   };
 

@@ -77,7 +77,7 @@ export default async function DiscountsView({
 
   // Same default as Referrals: the season being registered for, since a price
   // and its discounts attach to the registration rather than the season played.
-  const { promoLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
+  const { filterLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
@@ -85,7 +85,7 @@ export default async function DiscountsView({
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
-    locations: promoLocations,
+    locations: filterLocations,
   };
 
   // Each currency is its own world — never mixed on one scale or summed.

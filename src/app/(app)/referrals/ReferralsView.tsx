@@ -71,7 +71,7 @@ export default async function ReferralsView({
   // The filter selects the season this page reports on — no offset. Referrals
   // attach to registrations, so it defaults to the season being registered for
   // rather than the one being played. Terms are stored against the same season.
-  const { promoLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
+  const { filterLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
@@ -83,7 +83,7 @@ export default async function ReferralsView({
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
-    locations: promoLocations,
+    locations: filterLocations,
   };
   const rows = feed?.locations ?? [];
   const maxTotal = Math.max(...rows.map((r) => r.total), 1);

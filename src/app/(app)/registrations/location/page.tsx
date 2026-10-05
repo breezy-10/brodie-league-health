@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getAssignableLocations, getRegistrationSeasons } from "@/lib/locations";
+import { getActiveLocationKeys, onlyActive } from "@/lib/active-locations";
 import { DetailFilters } from "./DetailFilters";
 import { promoFetch } from "@/lib/promo-feed";
 
@@ -217,13 +218,16 @@ export default async function LocationDetailPage({
     );
   }
 
-  const [data, allLocations, allSeasons] = await Promise.all([
+  const [data, assignable, allSeasons, active] = await Promise.all([
     loadBreakdown(loc, season),
     getAssignableLocations(),
     getRegistrationSeasons(),
+    getActiveLocationKeys([season]),
   ]);
-  // Make sure the current selection is always in the dropdowns — split-league
-  // cards (e.g. "Calgary (North)") aren't in the promo location list.
+  // Only locations with a captain this season, and the current selection is
+  // always in the dropdowns — split-league cards (e.g. "Calgary (North)")
+  // aren't in the promo location list.
+  const allLocations = onlyActive(assignable, active);
   const locations = allLocations.includes(loc) ? allLocations : [loc, ...allLocations];
   const seasons = allSeasons.includes(season) ? allSeasons : [season, ...allSeasons];
   const prevLabel = shortSeason(data?.seasons.prev_season ?? "");
