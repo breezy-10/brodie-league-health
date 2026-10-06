@@ -1399,10 +1399,10 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
     if (res.status === 404) {
       // Season is beyond the promo horizon — registration hasn't opened.
       const zero: Tile[] = [
-        { label: "Teams registered", value: "0", sub: `${season} — registration not open yet` },
-        { label: "Stories posted", value: "0", unit: "/ 0", sub: "0%" },
+        { label: "Stories posted", value: "0", unit: "/ 0", sub: `${season} — registration not open yet` },
         { label: "Highlights posted", value: "0", unit: "/ 0", sub: "0%" },
         { label: "Avg time to post", value: "—", sub: "0 posts" },
+        { label: "Oldest unposted", value: "—", sub: "0 unposted" },
       ].map((x) => x) as Tile[];
       return { tiles: zero, teamsRegistered: 0, teamsFullRoster: null, byVenue: [] };
     }
@@ -1415,7 +1415,11 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
         location: string; teams_tracked: number; stories_posted: number; highlights_posted: number;
         story_pct: number; highlight_pct: number; story_tone: Tone; highlight_tone: Tone;
         avg_time_to_post_ms: number | null; avg_time_to_post_sample: number; avg_time_tone: Tone | null;
+        unposted_stories?: number; oldest_unposted_team?: string | null;
+        oldest_unposted_ms?: number | null; oldest_unposted_tone?: Tone | null;
       }[];
+      unposted_stories?: number;
+      oldest_unposted?: { location: string; team: string | null; age_ms: number; tone: Tone } | null;
     };
     const fmt = (ms: number) => {
       const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
@@ -1431,8 +1435,8 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
     // Absent until the tracker's feed carries by_location.
     const locs = k.by_location;
     const posts = (n: number) => `${n} post${n === 1 ? "" : "s"}`;
+    const oldest = k.oldest_unposted;
     const tiles: Tile[] = [
-      { label: "Teams registered", value: k.teams_registered.toLocaleString(), sub: `across ${k.locations} locations` },
       {
         label: "Stories posted", value: `${k.stories_posted}`, unit: `/ ${tracked}`, sub: `${k.story_pct}%`, tone: k.story_tone ?? pctTone(k.story_pct),
         ...(locs ? {
@@ -1455,6 +1459,27 @@ async function loadPromoTiles(season: string, scope: Scope): Promise<{ tiles: Ti
             ? { text: `${l.location} ${fmt(l.avg_time_to_post_ms)} (${posts(l.avg_time_to_post_sample)})`, tone: l.avg_time_tone ?? "default", sortValue: l.avg_time_to_post_ms }
             : { text: `${l.location} no posts yet`, tone: "default" as Tone }),
           pillsEmpty: "no teams yet",
+        } : {}),
+      },
+      {
+        // The team waiting longest for its story, timed like the story timer
+        // (raw time since it registered) and toned on its 6h/24h thresholds.
+        // Locations appear only while they have a story waiting.
+        label: "Oldest unposted",
+        value: oldest ? fmt(oldest.age_ms) : "—",
+        sub: oldest
+          ? [oldest.team, oldest.location].filter(Boolean).join(" · ")
+          : k.oldest_unposted === null ? "every story posted" : "not available yet",
+        tone: oldest ? oldest.tone : k.oldest_unposted === null ? "ok" : undefined,
+        ...(locs && k.oldest_unposted !== undefined ? {
+          pills: locs
+            .filter((l) => l.oldest_unposted_ms != null)
+            .map((l) => ({
+              text: `${l.location} ${fmt(l.oldest_unposted_ms!)} (${l.unposted_stories ?? 0} unposted)`,
+              tone: l.oldest_unposted_tone ?? "default",
+              sortValue: l.oldest_unposted_ms!,
+            })),
+          pillsEmpty: "every story posted",
         } : {}),
       },
     ];
