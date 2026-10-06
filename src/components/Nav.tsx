@@ -25,6 +25,9 @@ const NAV_REGISTRATIONS: NavItem = { href: "/registrations", label: "Registratio
 const NAV_REFERRALS: NavItem = { href: "/referrals", label: "Referrals" };
 const NAV_DISCOUNTS: NavItem = { href: "/discounts", label: "Discounts" };
 const NAV_AMBASSADOR: NavItem = { href: "/ambassador-teams", label: "Ambassador teams" };
+const NAV_STAFF: NavItem = { href: "/staff-performance", label: "Staff performance" };
+// Staff performance is for admins and district managers only.
+const STAFF_PERFORMANCE_ROLES = ["super_admin", "dm"];
 const NAV_USERS: NavItem = { href: "/settings/users", label: "Users" };
 const NAV_SETTINGS: NavItem = { href: "/settings", label: "Settings" };
 
@@ -43,7 +46,10 @@ export async function Nav() {
   // Everyone else (lm) gets Dashboard only.
   // Weekly review lives inside the Dashboard now (its Season / Weekly review
   // tabs), so it has no item of its own; /weekly-review still resolves.
-  const items = [NAV_DASHBOARD, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_DISCOUNTS, NAV_AMBASSADOR];
+  const items = [
+    NAV_DASHBOARD, NAV_REGISTRATIONS, NAV_REFERRALS, NAV_DISCOUNTS, NAV_AMBASSADOR,
+    ...(STAFF_PERFORMANCE_ROLES.includes(role) ? [NAV_STAFF] : []),
+  ];
   // Rendered after the main items: the More dropdown, then the settings entry.
   const moreItems = isSuperAdmin ? NAV_MORE : [];
   const trailing = isSuperAdmin ? [NAV_SETTINGS] : canManageUsers(role) ? [NAV_USERS] : [];
