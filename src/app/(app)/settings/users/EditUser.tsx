@@ -127,15 +127,15 @@ export function EditUser({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 py-12"
-      style={{ background: "rgba(0,0,0,0.55)" }}
+      className="fixed inset-0 z-[10070] flex items-start justify-center overflow-y-auto px-4 py-12"
+      style={{ background: "var(--scrim-strong)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       {/* No overflow-hidden: it clipped the locations dropdown at the modal edge. */}
       <div className="w-full max-w-[520px] rounded-2xl" style={{ background: "var(--glass-background)", border: "1px solid var(--glass-border-light)" }}>
         <div className="flex items-start justify-between px-6 pt-6">
           <div>
-            <div className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>
+            <div className="text-xs mb-1" style={{ color: "var(--glass-gold)" }}>
               Edit user{isArchived ? " · Archived" : isRequested ? " · Requested access" : isInvited ? " · Invited" : ""}
             </div>
             <h2 className="text-2xl font-semibold" style={{ color: "var(--glass-text)" }}>{user.fullName}</h2>
@@ -149,24 +149,24 @@ export function EditUser({
         <div className="px-6 pt-5 pb-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="block">
-              <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">First name</span>
+              <span className="text-xs text-glass-text-tertiary font-semibold">First name</span>
               <input className={`${INPUT} mt-1`} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
             </label>
             <label className="block">
-              <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Last name</span>
+              <span className="text-xs text-glass-text-tertiary font-semibold">Last name</span>
               <input className={`${INPUT} mt-1`} value={lastName} onChange={(e) => setLastName(e.target.value)} />
             </label>
           </div>
 
           <label className="block">
-            <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Role</span>
+            <span className="text-xs text-glass-text-tertiary font-semibold">Role</span>
             <select className={`${INPUT} mt-1`} value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
               {ROLE_ORDER.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
             </select>
           </label>
 
           <div className="block">
-            <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Locations</span>
+            <span className="text-xs text-glass-text-tertiary font-semibold">Locations</span>
             <div className="mt-1">
               <LocationMultiSelect options={allLocations} value={locations} onChange={setLocations} />
             </div>
@@ -176,10 +176,10 @@ export function EditUser({
           </div>
 
           {error && (
-            <p className="text-sm rounded-md px-3 py-2" style={{ background: "rgba(239,68,68,0.14)", color: "rgb(248,113,113)", border: "1px solid rgba(239,68,68,0.5)" }}>{error}</p>
+            <p className="text-sm rounded-md px-3 py-2" style={{ background: "var(--red-tint)", color: "var(--red)", border: "1px solid transparent" }}>{error}</p>
           )}
           {resendState === "sent" && (
-            <p className="text-sm rounded-md px-3 py-2" style={{ background: "rgba(34,197,94,0.14)", color: "rgb(74,222,128)", border: "1px solid rgba(34,197,94,0.45)" }}>Invite email re-sent.</p>
+            <p className="text-sm rounded-md px-3 py-2" style={{ background: "var(--green-tint)", color: "var(--green)", border: "1px solid transparent" }}>Invite email re-sent.</p>
           )}
         </div>
 
@@ -188,7 +188,7 @@ export function EditUser({
             <div className="flex flex-wrap items-center gap-2.5">
               {isInvited && (
                 <button onClick={onResend} disabled={resendState === "sending"}
-                  className="rounded-lg border border-glass-border bg-glass-surface text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 hover:bg-glass-surface-hover disabled:opacity-40 transition">
+                  className="rounded-lg border border-glass-border bg-glass-surface text-[11px] font-bold px-3 py-1.5 hover:bg-glass-surface-hover disabled:opacity-40 transition">
                   {resendState === "sending" ? "Sending…" : "Resend invite"}
                 </button>
               )}
@@ -200,20 +200,20 @@ export function EditUser({
               {!isSelf && isRequested && (
                 <>
                   <button onClick={onDeny} disabled={archiving}
-                    className="rounded-lg text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
-                    style={{ background: "var(--glass-red)", borderColor: "var(--glass-red)", color: "#fff" }}>
+                    className="rounded-full text-xs font-semibold px-3.5 py-1.5 disabled:opacity-40 transition"
+                    style={{ background: "var(--red)", color: "#fff" }}>
                     {archiving ? "Working…" : "Deny"}
                   </button>
                   <button onClick={onApprove} disabled={archiving}
-                    className="rounded-lg text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
-                    style={{ background: "var(--glass-green)", borderColor: "var(--glass-green)", color: "#000" }}>
+                    className="rounded-full text-xs font-semibold px-3.5 py-1.5 disabled:opacity-40 transition"
+                    style={{ background: "var(--ink)", color: "var(--on-ink)" }}>
                     {archiving ? "Working…" : "Approve"}
                   </button>
                 </>
               )}
               {!isSelf && !isRequested && (
                 <button onClick={onArchive} disabled={archiving}
-                  className="rounded-lg text-[11px] uppercase tracking-[0.14em] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
+                  className="rounded-lg text-[11px] font-bold px-3 py-1.5 disabled:opacity-40 transition border"
                   style={isArchived
                     ? { borderColor: "var(--glass-border)", color: "var(--glass-text)" }
                     : { background: "var(--glass-red)", borderColor: "var(--glass-red)", color: "#fff" }}>
@@ -222,9 +222,9 @@ export function EditUser({
               )}
             </div>
             <div className="flex items-center gap-2.5">
-              <button onClick={onClose} className="rounded-lg border border-glass-border bg-glass-surface text-[11px] uppercase tracking-[0.14em] font-bold px-3.5 py-2 hover:bg-glass-surface-hover transition">Cancel</button>
+              <button onClick={onClose} className="rounded-full bg-[color:var(--fill-3)] text-xs font-semibold px-3.5 py-2 hover:bg-glass-surface-hover transition">Cancel</button>
               <button onClick={save} disabled={pending || !dirty}
-                className="rounded-lg bg-glass-gold text-black font-semibold text-sm px-5 py-2 hover:brightness-110 disabled:opacity-40 transition">
+                className="rounded-full bg-glass-gold text-[color:var(--on-ink)] font-semibold text-sm px-5 py-2 hover:opacity-90 disabled:opacity-40 transition">
                 {pending ? "Saving…" : dirty ? "Save changes" : "Saved"}
               </button>
             </div>

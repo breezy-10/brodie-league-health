@@ -59,22 +59,16 @@ export default async function SetupDoctor() {
   const allOk = checks.every((c) => c.ok);
   return (
     <main className="space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Setup doctor</h1>
-        <p className="text-glass-text-secondary text-sm mt-1">
-          Status of env vars and adapter wiring. Fix anything red before the first cron.
-        </p>
-      </header>
 
-      <div className={`rounded-2xl border p-4 ${allOk ? "border-green-500/30 bg-green-500/10" : "border-yellow-500/30 bg-yellow-500/10"}`}>
+      <div className={`rounded-2xl border p-4 ${allOk ? "border-transparent bg-[color:var(--green-tint)]" : "border-transparent bg-[color:var(--amber-tint)]"}`}>
         <p className="font-semibold">{allOk ? "All checks pass." : "Some checks are red — see below."}</p>
       </div>
 
       <SeedDemoButton />
 
-      <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+      <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
         <table className="w-full text-sm">
-          <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[11px] sm:text-[10px] tracking-wider">
+          <thead className="bg-glass-surface-hover text-glass-text-tertiary text-xs">
             <tr>
               <th className="text-left p-3 w-10"></th>
               <th className="text-left p-3 font-semibold">Check</th>
@@ -84,7 +78,7 @@ export default async function SetupDoctor() {
           <tbody>
             {checks.map((c) => (
               <tr key={c.name} className="border-t border-glass-border-light">
-                <td className="p-3 text-lg">{c.ok ? <span className="text-green-400">●</span> : <span className="text-red-400">●</span>}</td>
+                <td className="p-3 text-lg">{c.ok ? <span className="text-[color:var(--green)]">●</span> : <span className="text-[color:var(--red)]">●</span>}</td>
                 <td className="p-3 font-mono text-xs">{c.name}</td>
                 <td className="p-3 text-glass-text-tertiary text-xs">{c.detail}</td>
               </tr>

@@ -22,11 +22,6 @@ export default async function AdminHome() {
 
   return (
     <main className="brodie-fade-in">
-      <header className="mb-6">
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>Admin</p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>Settings</h1>
-        <p className="text-glass-text-secondary text-sm mt-1">Scores, roster, weights, syncs, and the audit trail.</p>
-      </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <AdminCard
@@ -72,7 +67,7 @@ function AdminCard({ href, title, count, sub }: { href: string; title: string; c
   return (
     <Link
       href={href}
-      className="block rounded-2xl border border-glass-border bg-glass-surface p-5 transition hover:border-glass-gold hover:bg-glass-surface-hover"
+      className="block rounded-2xl bg-glass-surface p-5 transition hover:border-glass-gold hover:bg-glass-surface-hover shadow-card"
     >
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-xl font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h2>

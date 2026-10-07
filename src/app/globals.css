@@ -2,141 +2,102 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Brodie League Health — design tokens, mirrored from the CRM (post-2026-05-07
- * solid-surface refactor). The CRM ditched translucent --glass-* surfaces
- * because they killed hierarchy; we follow the same playbook here.
- *
- * Old --glass-* names are kept as aliases so existing components keep working
- * without a sweep. New code should use the new names.
- */
-
-:root, [data-theme="light"] {
-  /* Brand */
-  --accent: #F2A900;            /* Pantone 130C — Summer (CRM seasonal default) */
-  --accent-strong: #C68C00;
-  --accent-soft: rgba(242, 169, 0, 0.14);
-  --accent-text-on: #1a1a1a;
+/* ---------------------------------------------------------------------------
+   Tokens. The source of truth is the Brodie Design Library kit
+   (src/styles/brodie/tokens.css + bundle.css, loaded after this file): the
+   Lab's and Cashflow's look. The app's older names below (--accent, --text,
+   --glass-*) predate the kit and are kept so every existing component follows
+   it; each points at a kit token rather than holding a colour of its own.
+   Dark values come from src/styles/brodie/dark.css, which re-points the kit
+   tokens, so nothing here needs a dark twin unless noted there.
+--------------------------------------------------------------------------- */
+:root {
+  /* Gold was League Health's accent. The kit has one accent, used sparingly:
+     emphasis and selection are ink (a selected pill is a black pill), and
+     Brodie red is kept for what needs a person. */
+  --accent: var(--ink);
+  --accent-strong: var(--ink-2);
+  --accent-soft: var(--fill-3);
+  --accent-text-on: var(--on-ink);
+  --on-ink: #ffffff;
 
   /* Semantic */
-  --error: #C8102E;
-  --error-soft: rgba(200, 16, 46, 0.12);
-  --warn: #DC9A1A;
-  --warn-soft: rgba(220, 154, 26, 0.14);
-  --ok: #2D8B4E;
-  --ok-soft: rgba(45, 139, 78, 0.14);
+  --error: var(--red);
+  --error-soft: var(--red-soft);
+  --warn: var(--amber);
+  --warn-soft: var(--amber-tint);
+  --ok: var(--green);
+  --ok-soft: var(--green-tint);
+  --error-on: var(--red);
+  --ok-on: var(--green);
 
-  /* Surfaces (light) — solid, no translucency */
-  --bg: #FFFFFF;
-  --bg-raised: #F7F7F8;
-  --bg-sunken: #EFEFF1;
-  --bg-hover: #F0F0F2;
+  /* Surfaces: a grey page with white cards on it. */
+  --bg-raised: var(--surface);
+  --bg-sunken: var(--grouped);
+  --bg-hover: var(--fill-hover);
+  --border-strong: var(--line-strong);
+  --text: var(--ink);
+  --text-soft: var(--text-sub);
+  --text-mute: var(--text-muted);
+  --input-bg: var(--surface);
 
-  /* Borders (light) */
-  --border: #E1E1E5;
-  --border-strong: #C8C8CD;
-
-  /* Text (light) — all clear WCAG AA against bg / bg-raised / bg-sunken */
-  --text: #1A1A1A;
-  --text-soft: #585860;
-  --text-mute: #6A6A71;
-
-  /* Inputs */
-  --input-bg: #FFFFFF;
-
-  /* On-text variants of semantic colors */
-  --error-on: var(--error);
-  --ok-on: var(--ok);
-
-  /* Spacing rhythm (4) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
-
-  /* Radius rhythm */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
 
-  /* ------------------------------------------------------------------
-   * Back-compat aliases. Tailwind config + a lot of existing JSX still
-   * use --glass-* tokens. These remap onto the new system so we don't
-   * have to sweep every file at once.
-   * ----------------------------------------------------------------- */
   --glass-background: var(--bg);
-  --glass-surface: var(--bg-raised);
-  --glass-surface-hover: var(--bg-hover);
-  --glass-surface-active: var(--bg-sunken);
-  --glass-border: var(--border-strong);
-  --glass-border-light: var(--border);
-  --glass-text: var(--text);
-  --glass-text-secondary: var(--text-soft);
-  --glass-text-tertiary: var(--text-mute);
-  --glass-gold: var(--accent);
-  --glass-gold-dark: var(--accent-strong);
-  --glass-gold-light: var(--accent-soft);
-  --glass-red: var(--error);
-  --glass-red-dark: var(--error);
-  --glass-red-light: var(--error-soft);
-  --glass-green: var(--ok);
-  --glass-green-dark: var(--ok);
-  --glass-green-light: var(--ok-soft);
-  --glass-blue: var(--accent);
-  --glass-blue-dark: var(--accent-strong);
-  --glass-blue-light: var(--accent-soft);
-  --glass-yellow: var(--warn);
-  --glass-yellow-dark: var(--warn);
-  --glass-yellow-light: var(--warn-soft);
-  --glass-purple: var(--accent);
-  --glass-purple-dark: var(--accent-strong);
-  --glass-purple-light: var(--accent-soft);
+  --glass-surface: var(--surface);
+  --glass-surface-hover: #f4f4f5;
+  --glass-surface-active: #e8e8ed;
+  --glass-border: var(--border);
+  --glass-border-light: var(--divider);
+  --glass-text: var(--ink);
+  --glass-text-secondary: var(--text-sub);
+  --glass-text-tertiary: var(--text-muted);
+  --glass-gold: var(--ink);
+  --glass-gold-dark: var(--ink-2);
+  --glass-gold-light: var(--fill-3);
+  --glass-red: var(--red);
+  --glass-red-dark: var(--red-deep);
+  --glass-red-light: var(--red-soft);
+  --glass-green: var(--green);
+  --glass-green-dark: var(--green-ink);
+  --glass-green-light: var(--green-tint);
+  --glass-blue: var(--ink);
+  --glass-blue-dark: var(--ink-2);
+  --glass-blue-light: var(--fill-3);
+  --glass-yellow: var(--amber);
+  --glass-yellow-dark: var(--amber-ink);
+  --glass-yellow-light: var(--amber-tint);
+  --glass-purple: var(--ink);
+  --glass-purple-dark: var(--ink-2);
+  --glass-purple-light: var(--fill-3);
 
-  color-scheme: light;
-}
+  /* Chart series. This season is Brodie red (the kit's chart rule); the
+     seasons it is compared with are greys, darker for the nearer one. */
+  --viz-now: var(--red);
+  --viz-prev: #8e8e93;
+  --viz-prev-2: #c7c7cc;
 
-/* ------------------------------------------------------------------------
- * Dark mode. Surfaces invert, accent stays the same hex (already reads on dark).
- * Text contrast tuned to clear WCAG AA on every surface (text-mute bumped
- * from #6E6E73 to #8A8A92 in CRM, we follow).
- * ---------------------------------------------------------------------- */
-[data-theme="dark"] {
-  --bg: #0E0E10;
-  --bg-raised: #18181B;
-  --bg-sunken: #08080A;
-  --bg-hover: #1F1F23;
+  /* Status text on a tint (Brodie's shared names for them). */
+  --glass-danger-text: var(--red);
+  --glass-success-text: var(--green);
+  --glass-warning-text: var(--amber-ink);
 
-  --border: #28282D;
-  --border-strong: #3A3A3F;
-
-  --text: #F2F2F4;
-  --text-soft: #A1A1A6;
-  --text-mute: #8A8A92;
-
-  --input-bg: #0E0E10;
-
-  /* On-text variants get tuned for dark so semantic colors read AA */
-  --error-on: #EB596D;
-  --ok-on: #3DA365;
-
-  /* Alias mappings to the new dark values */
-  --glass-background: var(--bg);
-  --glass-surface: var(--bg-raised);
-  --glass-surface-hover: var(--bg-hover);
-  --glass-surface-active: var(--bg-sunken);
-  --glass-border: var(--border-strong);
-  --glass-border-light: var(--border);
-  --glass-text: var(--text);
-  --glass-text-secondary: var(--text-soft);
-  --glass-text-tertiary: var(--text-mute);
-
-  color-scheme: dark;
+  /* Height of the pinned header, for anything that sticks beneath it. */
+  --shell-top: var(--header-height);
 }
 
 html, body {
   background: var(--bg);
-  color: var(--text);
+  color: var(--ink);
+  font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01", "ss03", "calt", "kern";
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
@@ -145,29 +106,16 @@ html, body {
   transition: background-color 160ms ease, color 160ms ease;
 }
 
-/* Sticky nav surface uses solid bg-raised in both themes */
-nav.app-nav {
-  background: var(--bg) !important;
-}
-
-/* Brodie B mark logo — invert in light mode (white SVG) */
-[data-theme="light"] nav.app-nav img[alt="Brodie"] {
-  filter: invert(1);
-}
-
 /* Tabular numerals for cells that show a number / id / timestamp */
 .tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
 
-/* Focus ring — Vercel-style 2px accent + soft outer glow */
+/* Focus ring: the kit's red ring. */
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  box-shadow: 0 0 0 6px var(--accent-soft);
-  transition: outline-offset 150ms ease, box-shadow 150ms ease;
-  border-radius: var(--radius-sm);
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
 }
 
 /* Card hover — quiet bg tint, no transform */
@@ -270,11 +218,9 @@ nav.app-nav {
   table.stack-on-mobile td[data-label]:not([data-label=""])::before {
     content: attr(data-label);
     flex: 0 0 auto;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--glass-text-tertiary, #636366);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
   }
   table.stack-on-mobile td:first-child {
     padding-top: 10px;
@@ -306,4 +252,74 @@ nav.app-nav {
 }
 @media (prefers-reduced-motion: reduce) {
   .nav-progress-bar { animation-duration: 2.4s; }
+}
+
+/* ============================================================
+   Brodie Design Library glue: the kit's shell (components/AppShell.tsx)
+   meeting this app's markup. The kit loads after this file, so overrides of
+   kit rules need the extra specificity they carry here.
+============================================================ */
+
+/* A line under a page's first card for what changes with the view: the scope,
+   a person, how fresh the numbers are. The page's name is in the header. */
+.page-lede { max-width: 820px; font-size: 14px; line-height: 1.45; color: var(--text-sub); }
+.page-h2 { font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; color: var(--ink); }
+
+/* NavProgress rides the header's bottom edge instead of taking a row. */
+.br-header .hd-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none; }
+
+/* The kit styles the tab bar's and the account card's <button>s; this app
+   navigates with links, so its <a>s get the same rules. */
+.br-tabbar a { position: relative; flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 3px 0 1px; border: 0; background: none;
+  color: var(--label); font: 600 10.5px/1.1 var(--font-sans); letter-spacing: .01em; text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.br-tabbar a span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-tabbar a.is-on { color: var(--red); }
+.br-tabbar a:active { opacity: .6; }
+.br-tabbar a:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.br-menu.is-card a { margin-top: 4px; padding: 10px 12px; border-radius: 10px; background: var(--grouped); font: 600 13px/1 var(--font-sans); color: var(--ink); text-decoration: none; }
+.br-menu.is-card a:hover { background: #e8e8ed; }
+[data-theme="dark"] .br-menu.is-card a:hover { background: #3a3a3c; }
+/* The account card opens from the You tab on a phone, so it sits above the
+   tab bar rather than under the header. */
+.br-menu.is-card.is-phone { top: auto; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); right: 10px; max-height: calc(100dvh - 140px); overflow-y: auto; }
+@media (max-width: 768px) {
+  .br-menu.is-card :is(button, a) { min-height: 44px; display: flex; align-items: center; }
+  .br-tabbar a, .br-tabbar button { min-height: 44px; justify-content: center; }
+}
+/* "League Health" is two words where the kit's lockup was sized for one, so
+   it may wrap beside the B rather than being cut off. */
+.br-sidebar .br-sb-name { white-space: normal; line-height: 1.1; }
+
+/* Sign-in, request access and auth errors: one widget card on the ground. */
+.auth-screen { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: var(--bg); }
+.auth-card {
+  width: 100%; max-width: 400px; padding: 32px 30px 28px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  border-radius: var(--radius-widget); background: var(--surface);
+  border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: var(--shadow-widget);
+}
+.auth-mark { height: 28px; width: auto; margin-bottom: 14px; }
+.auth-eyebrow { font: 600 12px/1 var(--font-sans); color: var(--label); }
+.auth-title { font: 700 26px/1.15 var(--font-display); letter-spacing: -0.02em; color: var(--ink); margin: 0; }
+.auth-body { font: 400 14px/1.45 var(--font-sans); color: var(--text-sub); margin: 0 0 14px; }
+.auth-body strong { color: var(--ink); font-weight: 600; }
+.auth-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; height: 44px; border: 0; border-radius: var(--radius-pill);
+  background: var(--ink); color: #fff; font: 600 14px/1 var(--font-sans);
+  text-decoration: none; cursor: pointer; transition: background 0.15s var(--ease-apple);
+}
+.auth-btn:hover:not(:disabled) { background: var(--ink-2); }
+.auth-btn:disabled { opacity: 0.5; cursor: default; }
+.auth-btn .g-disc { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #fff; }
+.auth-foot { margin: 18px 0 0; font: 500 12px/1.3 var(--font-sans); color: var(--text-muted); }
+.auth-err { margin: 6px 0 0; font: 500 13px/1.4 var(--font-sans); color: var(--red); }
+@media (max-width: 480px) { .auth-card { padding: 28px 22px; border-radius: 18px; } }
+
+/* A segmented control with long labels (Registrations / Retention: registered
+   / Retention: past players) scrolls inside itself on a phone instead of
+   pushing the page sideways. */
+@media (max-width: 768px) {
+  .br-page .br-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .br-page .br-seg::-webkit-scrollbar { display: none; }
 }

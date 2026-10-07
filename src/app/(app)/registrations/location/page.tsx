@@ -11,7 +11,7 @@ export const revalidate = 0;
 const PROMO_URL = "https://registration-promo-tracker.vercel.app";
 
 const BACK_BTN =
-  "inline-flex items-center gap-1.5 rounded-lg border border-glass-border bg-glass-surface px-3.5 py-2 text-sm font-medium text-glass-text hover:bg-glass-surface-hover hover:border-glass-gold transition";
+  "inline-flex items-center gap-1.5 rounded-full bg-[color:var(--fill-3)] px-3.5 py-2 text-sm font-semibold text-glass-text hover:bg-glass-surface-hover hover:border-glass-gold transition";
 
 type Cell = { teams: number; athletes: number };
 type DayRow = { day: string; current: Cell; prev_season: Cell; prev_year: Cell };
@@ -37,12 +37,12 @@ function shortSeason(name: string): string {
   return t ? `${TERM_ABBR[t]}'${yy}` : name;
 }
 const deltaColor = (d: number) =>
-  d === 0 ? "var(--glass-text-secondary)" : d > 0 ? "rgb(74,222,128)" : "rgb(248,113,113)";
+  d === 0 ? "var(--glass-text-secondary)" : d > 0 ? "var(--green)" : "var(--red)";
 const signed = (d: number) => `${d > 0 ? "+" : ""}${d.toLocaleString()}`;
 // >= 8.5 green, >= 7.5 yellow, below red (matches the location cards).
 function avgColor(avg: number | null): string {
   if (avg === null) return "var(--glass-text-secondary)";
-  return avg >= 8.5 ? "rgb(74,222,128)" : avg >= 7.5 ? "var(--glass-gold)" : "rgb(248,113,113)";
+  return avg >= 8.5 ? "var(--green)" : avg >= 7.5 ? "var(--glass-gold)" : "var(--red)";
 }
 
 async function loadBreakdown(loc: string, season: string): Promise<Breakdown | null> {
@@ -77,9 +77,9 @@ function Metric({ cur, prev, year, prevLabel, yearLabel }: {
 
 // Bar colour by roster size: 1-6 red, 7-8 yellow, 9+ green (fuller rosters).
 function rosterSizeColor(size: number): string {
-  if (size >= 9) return "rgb(74,222,128)";
+  if (size >= 9) return "var(--green)";
   if (size >= 7) return "var(--glass-gold)";
-  return "rgb(248,113,113)";
+  return "var(--red)";
 }
 
 // Horizontal bar chart of teams per roster size: one row per roster size
@@ -95,7 +95,7 @@ function RosterBars({ sizes, xMin, xMax, maxCount, barH = 14 }: {
   return (
     <div>
       {/* Column headings: left numbers = roster size, right numbers = teams. */}
-      <div className="flex items-center justify-between mb-2 text-[11px] sm:text-[10px] uppercase tracking-[0.14em] font-bold text-glass-text-tertiary">
+      <div className="flex items-center justify-between mb-2 text-xs font-bold text-glass-text-tertiary">
         <span>Players / team</span>
         <span>Teams</span>
       </div>
@@ -133,7 +133,7 @@ function RosterCharts({ totals, byDay, season, divisionsByDay = [] }: {
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Players registered per team</h2>
           <p className="text-sm text-glass-text-secondary">How many teams have each roster size · {season} · {sum(totals).toLocaleString()} teams</p>
         </div>
-        <div className="rounded-2xl border border-glass-border bg-glass-surface p-5">
+        <div className="rounded-2xl bg-glass-surface p-5 shadow-card">
           <RosterBars sizes={totals} xMin={xMin} xMax={xMax} maxCount={Math.max(...totals.map((s) => s.team_count))} barH={18} />
         </div>
       </section>
@@ -150,14 +150,14 @@ function RosterCharts({ totals, byDay, season, divisionsByDay = [] }: {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {divisionsByDay.map((g) => (
-              <div key={g.day} className="rounded-2xl border border-glass-border bg-glass-surface p-4">
+              <div key={g.day} className="rounded-2xl bg-glass-surface p-4 shadow-card">
                 <div className="flex items-baseline justify-between mb-2">
                   <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{g.day}</span>
                   <span className="text-xs text-glass-text-tertiary">
                     {g.divisions.reduce((n, d) => n + d.teams, 0).toLocaleString()} teams
                   </span>
                 </div>
-                <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
+                <div className="flex items-baseline gap-2 text-[11px] font-semibold text-glass-text-tertiary mb-1">
                   <span className="flex-1 min-w-0">Division</span>
                   <span className="shrink-0 w-12 text-right">Teams</span>
                   <span className="shrink-0 w-16 text-right">With 7+</span>
@@ -169,7 +169,7 @@ function RosterCharts({ totals, byDay, season, divisionsByDay = [] }: {
                       {d.teams}
                     </span>
                     <span className="tabular shrink-0 w-16 text-right"
-                      style={{ color: d.full_roster === d.teams ? "rgb(74,222,128)" : "var(--glass-text-tertiary)" }}>
+                      style={{ color: d.full_roster === d.teams ? "var(--green)" : "var(--glass-text-tertiary)" }}>
                       {d.full_roster}
                     </span>
                   </div>
@@ -185,7 +185,7 @@ function RosterCharts({ totals, byDay, season, divisionsByDay = [] }: {
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Players per team by day</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {byDay.map((d) => (
-              <div key={d.day} className="rounded-2xl border border-glass-border bg-glass-surface p-4">
+              <div key={d.day} className="rounded-2xl bg-glass-surface p-4 shadow-card">
                 <div className="flex items-baseline justify-between mb-2">
                   <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{d.day}</span>
                   <span className="text-xs text-glass-text-tertiary">{sum(d.sizes).toLocaleString()} teams</span>
@@ -249,9 +249,9 @@ export default async function LocationDetailPage({
     <main className="brodie-fade-in space-y-6">
       <div>
         <Link href="/registrations" className={BACK_BTN}>← Back to registrations</Link>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mt-4 mb-1" style={{ color: "var(--glass-gold)" }}>Registrations · {loc}</p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>By day of week</h1>
-        <p className="text-sm mt-1 text-glass-text-secondary">
+        <h2 className="page-h2 mt-4">{loc}</h2>
+
+        <p className="page-lede">
           Teams, athletes, and players per team for {loc} by night, {season}
           {data?.day_n != null ? ` · day ${data.day_n} of registration` : ""}. Deltas vs {data?.seasons.prev_season ?? "prev season"} and {data?.seasons.prev_year ?? "last year"}, same day.
         </p>
@@ -262,10 +262,10 @@ export default async function LocationDetailPage({
       {!data || data.days.length === 0 ? (
         <p className="text-sm italic text-glass-text-tertiary py-8">No registration data for this location and season yet.</p>
       ) : (
-        <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+        <div className="rounded-2xl bg-glass-surface overflow-x-auto shadow-card">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[11px] sm:text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+              <tr className="text-left text-xs text-glass-text-tertiary border-b border-glass-border-light">
                 <th className="px-5 py-3 font-bold">Day</th>
                 <th className="px-5 py-3 font-bold">Teams</th>
                 <th className="px-5 py-3 font-bold">Athletes</th>
@@ -291,7 +291,7 @@ export default async function LocationDetailPage({
                 );
               })}
               <tr className="border-t-2 border-glass-border align-top bg-glass-surface-hover">
-                <td className="px-5 py-3 font-bold uppercase text-[11px] tracking-[0.16em] text-glass-text-secondary">Total</td>
+                <td className="px-5 py-3 font-bold text-[11px] text-glass-text-secondary">Total</td>
                 <td className="px-5 py-3">
                   <Metric cur={total.current.teams} prev={total.prev_season.teams} year={total.prev_year.teams} prevLabel={prevLabel} yearLabel={yearLabel} />
                 </td>

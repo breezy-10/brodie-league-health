@@ -30,8 +30,15 @@ const config: Config = {
           purple: "var(--glass-purple)",
         },
       },
+      // The kit's card radius and shadow, so a Tailwind card matches a br- one.
+      borderRadius: {
+        "2xl": "var(--radius-card)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+      },
       fontFamily: {
-        sans: ["var(--font-inter)", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        sans: ["var(--font-sans)"],
         mono: ["var(--font-plex-mono)", "IBM Plex Mono", "ui-monospace", "monospace"],
       },
     },

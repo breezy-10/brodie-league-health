@@ -27,16 +27,11 @@ export default async function AdminLMs() {
 
   return (
     <main className="space-y-6 brodie-fade-in">
-      <header>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>Settings</p>
-        <h1 className="text-3xl font-semibold tracking-tight">League managers</h1>
-        <p className="text-glass-text-secondary text-sm mt-1">Every LM&apos;s score today, ranked, with the day-over-day delta.</p>
-      </header>
 
       <section>
-        <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+        <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
           <table className="stack-on-mobile w-full text-sm">
-            <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[11px] sm:text-[10px] tracking-wider">
+            <thead className="bg-glass-surface-hover text-glass-text-tertiary text-xs">
               <tr>
                 <th className="text-left p-3 font-semibold">#</th>
                 <th className="text-left p-3 font-semibold">LM</th>
@@ -62,7 +57,7 @@ export default async function AdminLMs() {
                 const delta = prevPct != null ? Math.round(pct - prevPct) : null;
                 return (
                   <tr key={row.lm_id} className="border-t border-glass-border-light hover:bg-glass-surface-hover">
-                    <td data-label="Rank" className="p-3 font-mono text-glass-text-secondary">{row.rank_overall ?? ""}</td>
+                    <td data-label="Rank" className="p-3 tabular text-glass-text-secondary">{row.rank_overall ?? ""}</td>
                     <td data-label="League manager" className="p-3">
                       <Link href={`/?lm=${row.league_managers.id}`} className="hover:text-glass-gold">
                         {row.league_managers.full_name}
@@ -76,7 +71,7 @@ export default async function AdminLMs() {
                     <td data-label="XP" className="p-3 text-right">{Math.round(row.total_xp)} / {Math.round(row.max_xp)}</td>
                     <td data-label="Percent" className={`p-3 text-right font-semibold ${scoreColor(pct)}`}>{pct}%</td>
                     <td data-label="Vs yesterday" className="p-3 text-right text-xs">
-                      {delta == null ? "—" : delta > 0 ? <span className="text-green-400">+{delta}</span> : delta < 0 ? <span className="text-red-400">{delta}</span> : "0"}
+                      {delta == null ? "—" : delta > 0 ? <span className="text-[color:var(--green)]">+{delta}</span> : delta < 0 ? <span className="text-[color:var(--red)]">{delta}</span> : "0"}
                     </td>
                     <td className="p-3 text-right space-x-3">
                       <Link href={`/?lm=${row.league_managers.id}`} className="text-glass-gold text-xs">View day →</Link>

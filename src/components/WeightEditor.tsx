@@ -151,7 +151,7 @@ export function WeightEditor({ apps, metrics }: { apps: App[]; metrics: Metric[]
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-glass-border bg-glass-surface p-5">
+      <section className="rounded-2xl bg-glass-surface p-5 shadow-card">
         <div className="flex justify-between items-baseline mb-4">
           <h2 className="text-base font-semibold">App weights</h2>
           <span className="text-xs text-glass-text-tertiary">Total: 100 (auto-balanced)</span>
@@ -176,7 +176,7 @@ export function WeightEditor({ apps, metrics }: { apps: App[]; metrics: Metric[]
       {apps.map((a) => {
         const list = metricsByApp.get(a.id) ?? [];
         return (
-          <section key={a.id} className="rounded-2xl border border-glass-border bg-glass-surface p-5">
+          <section key={a.id} className="rounded-2xl bg-glass-surface p-5 shadow-card">
             <div className="flex justify-between items-baseline mb-4">
               <h3 className="text-sm font-semibold">{a.name} <span className="text-glass-text-tertiary font-normal">· sub-metrics</span></h3>
               <span className="text-xs text-glass-text-tertiary">Total: 100 (auto-balanced)</span>
@@ -207,9 +207,9 @@ export function WeightEditor({ apps, metrics }: { apps: App[]; metrics: Metric[]
         );
       })}
 
-      <section className="rounded-2xl border border-glass-border bg-glass-surface p-5 flex items-end gap-3 flex-wrap">
+      <section className="rounded-2xl bg-glass-surface p-5 flex items-end gap-3 flex-wrap shadow-card">
         <div className="flex-1 min-w-[260px]">
-          <label className="block text-xs text-glass-text-tertiary mb-1 uppercase tracking-wider font-semibold">
+          <label className="block text-xs text-glass-text-tertiary mb-1 font-semibold">
             Note (optional, written to audit log)
           </label>
           <input
@@ -222,7 +222,7 @@ export function WeightEditor({ apps, metrics }: { apps: App[]; metrics: Metric[]
         <button
           onClick={save}
           disabled={busy}
-          className="px-5 py-2.5 rounded-lg bg-glass-gold text-black font-semibold text-sm disabled:opacity-50 hover:brightness-110 transition"
+          className="px-5 py-2.5 rounded-full bg-glass-gold text-[color:var(--on-ink)] font-semibold text-sm disabled:opacity-50 hover:opacity-90 transition"
         >
           {busy ? "Saving..." : "Save weights"}
         </button>

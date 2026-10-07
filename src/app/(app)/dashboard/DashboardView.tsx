@@ -256,7 +256,7 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
       below: {
         value: missingLocations.length.toLocaleString(),
         sub: "not set up",
-        color: missingLocations.length > 0 ? "rgb(248,113,113)" : "var(--glass-text-tertiary)",
+        color: missingLocations.length > 0 ? "var(--red)" : "var(--glass-text-tertiary)",
         pills: missingLocations.map((n) => ({ text: n, tone: "bad" as const })),
       },
       // Each group under its own count, A-Z — no sort control, since the
@@ -1374,7 +1374,7 @@ async function loadTrainingTiles(scope: Scope): Promise<Tile[] | null> {
         lines: [
           { text: `${m.not_certified} — not certified` },
           ...(m.expired ? [{ text: `${m.expired} — expired` }] : []),
-          ...(m.overdue ? [{ text: `${m.overdue} — overdue`, color: "rgb(248,113,113)" }] : []),
+          ...(m.overdue ? [{ text: `${m.overdue} — overdue`, color: "var(--red)" }] : []),
         ],
         ...(outstanding ? {
           pills: (outstanding.get(title.toLowerCase()) ?? [])
@@ -1686,7 +1686,9 @@ async function loadVideoReviews(scope: Scope, week?: string): Promise<VideoRevie
 }
 
 const KIND_LABEL: Record<string, string> = { current: "this season", prev_season: "prev season", prev_year: "prev year" };
-const REG_COLOR: Record<string, string> = { current: "var(--glass-gold)", prev_season: "#5B8AC4", prev_year: "#A874C9" };
+// This season is Brodie red and the seasons it is compared with are greys,
+// darker for the nearer one (the kit's chart rule).
+const REG_COLOR: Record<string, string> = { current: "var(--viz-now)", prev_season: "var(--viz-prev)", prev_year: "var(--viz-prev-2)" };
 const TRACK_PX = 130;
 function RegBarCard({ title, subtitle, current, bars, notes, format = "number", bands, footer }: {
   title: string; subtitle: string; current: number;
@@ -1711,7 +1713,7 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
   const fmtBar = (n: number) => (format === "money" ? moneyShort(n) : format === "age" ? String(Math.round(n)) : format === "percent" ? `${n.toFixed(1)}%` : n.toLocaleString());
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
-    <div className="h-full flex flex-col rounded-2xl border border-glass-border bg-glass-surface p-5">
+    <div className="h-full flex flex-col rounded-2xl bg-glass-surface p-5 shadow-card">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
@@ -1729,8 +1731,8 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
                 <span key={i} className="text-[11px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
                   style={n
                     ? (n.tone === "bad"
-                      ? { background: "rgba(239,68,68,0.14)", color: "rgb(248,113,113)" }
-                      : { background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" })
+                      ? { background: "var(--red-tint)", color: "var(--red)" }
+                      : { background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" })
                     : { visibility: "hidden" }}>
                   {n ? n.text : "\u00A0"}
                 </span>
@@ -1753,7 +1755,7 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
         {bars.map((b, i) => (
           <div key={i} className="flex-1 flex flex-col items-center">
             <span className="text-[11px] font-semibold text-glass-text-secondary">{b.label}</span>
-            <span className="text-[11px] sm:text-[10px] uppercase tracking-wider text-glass-text-tertiary">{b.sub}</span>
+            <span className="text-xs text-glass-text-tertiary">{b.sub}</span>
           </div>
         ))}
       </div>
@@ -1787,7 +1789,7 @@ function RegShareLines({ groups }: { groups: ShareGroup[] }) {
       {groups.map((g, gi) => (
         <div key={gi} className={gi ? "mt-2" : ""}>
           {g.label && (
-            <p className="text-[11px] sm:text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-0.5">
+            <p className="text-xs font-semibold text-glass-text-tertiary mb-0.5">
               {g.label}
             </p>
           )}
@@ -1839,9 +1841,9 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
   // green or red like teams, athletes and revenue.
   const color =
     (isPoints && !scored) || delta === null || delta === 0 ? "var(--glass-text)" :
-    delta > 0 ? "rgb(74,222,128)" : "rgb(248,113,113)";
+    delta > 0 ? "var(--green)" : "var(--red)";
   return (
-    <div className="h-full rounded-2xl border border-glass-border bg-glass-surface p-4">
+    <div className="h-full rounded-2xl bg-glass-surface p-4 shadow-card">
       {/* Sized to the narrowest these get — five columns, two cards to a
           column — so "Athletes vs prev season" reads in full rather than
           truncating to "Athletes vs prev ...". */}
@@ -1879,7 +1881,7 @@ function RegDeltaCard({ title, subtitle, delta, base, rosterDelta, rosterBase, f
 }
 
 const deltaColor = (d: number) =>
-  d === 0 ? "var(--glass-text-secondary)" : d > 0 ? "rgb(74,222,128)" : "rgb(248,113,113)";
+  d === 0 ? "var(--glass-text-secondary)" : d > 0 ? "var(--green)" : "var(--red)";
 const signed = (d: number) => `${d > 0 ? "+" : ""}${d.toLocaleString()}`;
 // Percent change against the comparison season. Null when that season had none
 // of whatever is being counted — there is no percentage against zero.
@@ -1901,7 +1903,7 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
   const pctPrev = signedPct(cur, prev), pctYear = signedPct(cur, year);
   return (
     <div className="min-w-0">
-      <p className="text-[11px] sm:text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary">{label}</p>
+      <p className="text-xs font-semibold text-glass-text-tertiary">{label}</p>
       <p className="text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>{fmt(cur)}</p>
       {/* The count and the share it moved by, then what it is measured against.
           Left to wrap rather than forced onto one line — the column is narrow
@@ -1927,8 +1929,8 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
           {notes.map((n) => (
             <span key={n.text} className="inline-block text-[11px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
               style={n.tone === "bad"
-                ? { background: "rgba(239,68,68,0.14)", color: "rgb(248,113,113)" }
-                : { background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>
+                ? { background: "var(--red-tint)", color: "var(--red)" }
+                : { background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>
               {n.text}
             </span>
           ))}
@@ -1990,16 +1992,8 @@ function AgeBandRows({ bands, roomy = false }: {
     </div>
   );
 }
-const AGE_COLORS = [
-  "#E8C468", // Under 18
-  "#F0B429", // 18–23
-  "#E08A4C", // 24–29
-  "#C4707E", // 30–34
-  "#9A73B5", // 35–39
-  "#6D82C4", // 40–44
-  "#4E9AA8", // 45–49
-  "#5D9E80", // 50+
-];
+// One neutral for every age band: the bars are a shape to read, not categories.
+const AGE_COLORS = Array(8).fill("var(--viz-prev)");
 // How old this venue's athletes are: the typical one, how the intake moved,
 // and the shape behind both. A single number hides the difference between a
 // venue that is evenly 25 and one that is half students and half
@@ -2044,7 +2038,7 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel, athletes }: {
   return (
     <div className="mt-2.5 pt-2.5 border-t border-glass-border-light">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-[11px] sm:text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary">Age</p>
+        <p className="text-xs font-semibold text-glass-text-tertiary">Age</p>
         {age.coverage_pct != null && (
           <p className="text-[10px] sm:text-[9px] text-glass-text-tertiary shrink-0"
             title={`${age.n.toLocaleString()} of this season's athletes have a birth date on file`}>
@@ -2094,17 +2088,17 @@ function LocationAge({ age, prev, year, prevLabel, yearLabel, athletes }: {
 const ROSTER_OK = 8.5, ROSTER_WARN = 7.5;
 const rosterColor = (avg: number | null) =>
   avg === null ? "var(--glass-text-secondary)"
-    : avg >= ROSTER_OK ? "rgb(74,222,128)"
+    : avg >= ROSTER_OK ? "var(--green)"
       : avg >= ROSTER_WARN ? "var(--glass-gold)"
-        : "rgb(248,113,113)";
+        : "var(--red)";
 const rosterChipStyle = (avg: number) =>
   avg >= ROSTER_OK
-    ? { color: "rgb(74,222,128)", borderColor: "rgba(74,222,128,0.35)", background: "rgba(74,222,128,0.10)" }
+    ? { color: "var(--green)", borderColor: "transparent", background: "var(--green-tint)" }
     : avg >= ROSTER_WARN
-      ? { color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }
-      : { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" };
+      ? { color: "var(--glass-gold)", borderColor: "transparent", background: "var(--fill-3)" }
+      : { color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" };
 
-const ATH_COLOR = "#5B8AC4";
+const ATH_COLOR = "var(--ink)";
 function AthletesVsRevenueChart({ locations, prevLabel, yearLabel }: {
   locations: PacingLocation[]; prevLabel: string; yearLabel: string;
 }) {
@@ -2144,11 +2138,11 @@ function AthletesVsRevenueChart({ locations, prevLabel, yearLabel }: {
   const scale = (panel / 2) / span;
 
   return (
-    <div className="rounded-2xl border border-glass-border bg-glass-surface p-5 overflow-x-auto">
+    <div className="rounded-2xl bg-glass-surface p-5 overflow-x-auto shadow-card">
       <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>Athletes and revenue per location</h3>
       <p className="text-xs mt-0.5 text-glass-text-tertiary">
         % change · <span style={{ color: ATH_COLOR }}>athletes</span>
-        {" "}and <span style={{ color: "var(--glass-gold)" }}>revenue</span>, each venue in its own currency
+        {" "}and <span style={{ color: "var(--viz-prev)" }}>revenue</span>, each venue in its own currency
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full mt-3" style={{ minWidth: 720 }} role="img"
         aria-label={`Percent change in athletes and revenue for each location, against ${prevLabel} and ${yearLabel}`}>
@@ -2186,7 +2180,7 @@ function AthletesVsRevenueChart({ locations, prevLabel, yearLabel }: {
                       fill="var(--glass-text-tertiary)">no {p.title.replace("vs ", "")} season</text>
                   );
                 }
-                return ([[pair.ath, ATH_COLOR], [pair.rev, "var(--glass-gold)"]] as const).map(([v, color], j) =>
+                return ([[pair.ath, ATH_COLOR], [pair.rev, "var(--viz-prev)"]] as const).map(([v, color], j) =>
                   v === null ? null : (
                     <g key={`${p.key}${j}`}>
                       <rect x={Math.min(zeroX(pi), zeroX(pi) + v * scale)} y={y + 4 + j * 10}
@@ -2343,7 +2337,7 @@ function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; se
   ];
   return (
     <div className="mt-2.5 pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
-      <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
+      <div className="flex items-baseline gap-2 text-[11px] font-semibold text-glass-text-tertiary mb-1">
         <span className="flex-1 min-w-0 truncate">Discounts ({row.currency.toUpperCase()})</span>
         <span className="shrink-0 w-16 text-right">Players</span>
         <span className="shrink-0 w-[4.25rem] text-right">Given up</span>
@@ -2391,7 +2385,7 @@ function ShareStrip({ locations, blocks, head, byNight = false, prevLabel, yearL
   const pct = (v: { n: number; of: number } | null) => (v && v.of ? Math.round((1000 * v.n) / v.of) / 10 : null);
   return (
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary mb-2">
+      <h3 className="text-xs font-semibold text-glass-text-tertiary mb-2">
         {byNight ? "By night" : "By location"}
       </h3>
       <div className="grid grid-flow-col auto-cols-[300px] gap-x-3 overflow-x-auto pb-2 snap-x">
@@ -2399,14 +2393,14 @@ function ShareStrip({ locations, blocks, head, byNight = false, prevLabel, yearL
           const at = (kind: string) => l.seasons.find((x) => x.kind === kind);
           const cur = at("current"), prev = at("prev_season"), yr = at("prev_year");
           return (
-            <div key={l.location} className="snap-start rounded-xl border border-glass-border bg-glass-surface px-3.5 py-3.5">
+            <div key={l.location} className="snap-start rounded-xl bg-glass-surface px-3.5 py-3.5 shadow-card">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={l.location}>{l.location}</p>
                 <p className="text-[11px] text-glass-text-tertiary tabular shrink-0 truncate">{head(cur)}</p>
               </div>
               {blocks.map((b) => (
                 <div key={b.label} className="mt-2.5 pt-2.5 border-t border-glass-border-light">
-                  <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
+                  <div className="flex items-baseline gap-2 text-[11px] font-semibold text-glass-text-tertiary mb-1">
                     <span className="flex-1 min-w-0 truncate">{b.label}</span>
                     <span className="shrink-0 w-[5.5rem] text-right">Captains</span>
                     <span className="shrink-0 w-[5.5rem] text-right">Athletes</span>
@@ -2467,7 +2461,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
 }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary mb-2">
+      <h3 className="text-xs font-semibold text-glass-text-tertiary mb-2">
         {byNight ? "By night" : "By location"}
       </h3>
       {/* One grid across the whole strip rather than a row of independent
@@ -2502,7 +2496,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
           const avgColor = rosterColor(avgPerTeam);
           return (
             <div key={l.location}
-              className="snap-start grid row-span-full rounded-xl border border-glass-border bg-glass-surface"
+              className="snap-start grid row-span-full rounded-xl bg-glass-surface shadow-card"
               style={{ gridTemplateRows: "subgrid" }}>
               <div className="flex items-baseline justify-between gap-2 px-3.5 pt-3.5">
                 <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={l.location}>
@@ -2537,7 +2531,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                 <div className="px-3.5 mt-2.5 pt-2.5 border-t border-glass-border-light">
                   {/* Column headings, so the two numbers say what they are
                       rather than leaving the reader to infer them. */}
-                  <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-1">
+                  <div className="flex items-baseline gap-2 text-[11px] font-semibold text-glass-text-tertiary mb-1">
                     <span className="flex-1 min-w-0">Divisions</span>
                     <span className="shrink-0">Teams</span>
                     <span className="shrink-0 w-16 text-right">With 7+</span>
@@ -2547,7 +2541,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                       <span className="truncate flex-1 min-w-0 text-glass-text-secondary" title={d.name}>{d.name}</span>
                       <span className="tabular font-semibold shrink-0" style={{ color: "var(--glass-text)" }}>{d.teams}</span>
                       <span className="tabular text-[10px] shrink-0 w-16 text-right"
-                        style={{ color: d.full_roster === d.teams ? "rgb(74,222,128)" : "var(--glass-text-tertiary)" }}>
+                        style={{ color: d.full_roster === d.teams ? "var(--green)" : "var(--glass-text-tertiary)" }}>
                         {d.full_roster}
                       </span>
                     </div>
@@ -2572,7 +2566,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                 if (!lines.length) return null;
                 return (
                   <div className="mt-2.5 pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
-                    <p className="text-[11px] sm:text-[10px] font-semibold uppercase tracking-wider text-glass-text-tertiary mb-0.5">
+                    <p className="text-xs font-semibold text-glass-text-tertiary mb-0.5">
                       Played Brodie before
                     </p>
                     {lines.map((x) => (
@@ -3162,7 +3156,7 @@ export default async function DashboardView({
     ...(hasEver ? ["brodie" as const] : []), "same" as const, "any" as const,
   ]).map((mode) => (
     <div key={`${where}-${mode}`} className="space-y-2">
-      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-glass-text-tertiary">
+      <h4 className="text-[11px] font-semibold text-glass-text-tertiary">
         {mode === "brodie" ? "Brodie overall" : mode === "same" ? "Same location" : "Any Brodie location"}
         <span className="normal-case tracking-normal font-normal">
           {" "}— {mode === "brodie"
@@ -3264,7 +3258,7 @@ export default async function DashboardView({
   };
   const backRows = (where: "all" | "CAN" | "USA") => (["here", "any"] as const).map((mode) => (
     <div key={`${where}-${mode}`} className="space-y-2">
-      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-glass-text-tertiary">
+      <h4 className="text-[11px] font-semibold text-glass-text-tertiary">
         {mode === "here" ? "Same location" : "Any Brodie location"}
         <span className="normal-case tracking-normal font-normal">
           {" "}— {mode === "here"
@@ -3298,15 +3292,15 @@ export default async function DashboardView({
   ) : null;
   const backView = () => (
     <section className="space-y-3">
-      <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center gap-2.5">
         <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Retention: past players</h2>
         {seasonToggle("regsSeason", regsSeason) ?? (
-          <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-            style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
+          <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
         )}
       </div>
       {!pacingCurrent?.back ? (
-        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           Not connected. League Health couldn&apos;t load retention from the Promo Tracker, so no numbers are shown here.
         </div>
       ) : (
@@ -3314,7 +3308,7 @@ export default async function DashboardView({
           <div className="space-y-5">{backRows("all")}</div>
           {PLACES.filter((p) => backHas(p.code) || (locsByCountry.get(p.code)?.length ?? 0) > 0).map((p) => (
             <div key={p.code} className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary">{p.heading}</h3>
+              <h3 className="text-xs font-semibold text-glass-text-tertiary">{p.heading}</h3>
               {backSpansBoth && <div className="space-y-5">{backRows(p.code)}</div>}
               {backStrip(locsByCountry.get(p.code))}
             </div>
@@ -3326,16 +3320,16 @@ export default async function DashboardView({
   );
   const retentionView = () => (
     <section className="space-y-3">
-      <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center gap-2.5">
         <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Retention</h2>
         {seasonToggle("regsSeason", regsSeason) ?? (
-          <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-            style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
+          <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
         )}
       </div>
       {!pacingCurrent?.kept ? (
         // Never a guess: without the feed's retention there is nothing to show.
-        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           Not connected. League Health couldn&apos;t load retention from the Promo Tracker, so no numbers are shown here.
         </div>
       ) : (
@@ -3343,7 +3337,7 @@ export default async function DashboardView({
           <div className="space-y-5">{keptRows("all")}</div>
           {PLACES.filter((p) => keptHas(p.code) || (locsByCountry.get(p.code)?.length ?? 0) > 0).map((p) => (
             <div key={p.code} className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary">{p.heading}</h3>
+              <h3 className="text-xs font-semibold text-glass-text-tertiary">{p.heading}</h3>
               {keptSpansBoth && <div className="space-y-5">{keptRows(p.code)}</div>}
               {keptStrip(locsByCountry.get(p.code))}
             </div>
@@ -3378,14 +3372,9 @@ export default async function DashboardView({
 
   return (
     <main className="brodie-fade-in space-y-8">
+      {/* The page's name is in the header; this line says what is in view. */}
       <header>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>
-          {isReg ? "Registrations" : isWeekly && !showViewTabs ? "Weekly review" : "Dashboard"}
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
-          {isReg ? "Registration pacing" : isWeekly && !showViewTabs ? "Weekly review" : "League overview"}
-        </h1>
-        <p className="text-sm mt-1 text-glass-text-secondary">
+        <p className="page-lede">
           {isBack
             ? <>Of the captains &amp; athletes who played the season before — and the same season a year before — how many have registered again by day N for {scopeLabel}, at the same location and anywhere in Brodie, vs the previous season and the previous year.</>
             : isRetention
@@ -3440,14 +3429,14 @@ export default async function DashboardView({
         )}
         {isBack ? backView() : isRetention ? retentionView() : pacing && pacingCurrent ? (
           <section className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Registrations</h2>
                 {/* The toggle names the season itself, so the chip only shows
                     where there is nothing to switch between. */}
                 {seasonToggle("regsSeason", regsSeason) ?? (
-                  <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-                    style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
+                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
                 )}
                 {isWeekly && (
                   <BasisToggle
@@ -3464,7 +3453,7 @@ export default async function DashboardView({
               {regRows.map((row) => (
                 <div key={row.key} className="space-y-2">
                   {row.heading && (
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-glass-text-tertiary">{row.heading}</h3>
+                    <h3 className="text-xs font-semibold text-glass-text-tertiary">{row.heading}</h3>
                   )}
                   {/* Four columns on every row, so each metric sits under
                       the same one in the row above. */}
@@ -3578,35 +3567,26 @@ export default async function DashboardView({
 // easy to slide past. There is nothing to choose here — the tabs at the top of
 // the page already made the choice — so it is a badge, not a control.
 function ScopeTag({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center rounded-lg border p-0.5 shrink-0 align-middle"
-      style={{ borderColor: "var(--glass-border)" }}>
-      <span className="px-2.5 py-1 rounded-md"
-        style={{ fontSize: 11, fontWeight: 600, background: "var(--glass-gold)", color: "#000" }}>
-        {label}
-      </span>
-    </span>
-  );
+  return <span className="br-pill is-ink shrink-0 align-middle">{label}</span>;
 }
 
 // Every section's way out to the app behind it. A button rather than a line of
 // gold text: it is the one thing on a heading row you can click, and it was
 // reading as a caption next to the tag beside it.
-function MoreDetails({ href, label = "More details →" }: { href: string; label?: string }) {
+function MoreDetails({ href, label = "More details ↗" }: { href: string; label?: string }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer"
-      className="inline-flex items-center shrink-0 rounded-md border border-glass-gold px-2.5 py-1 text-[11px] sm:text-[10px] uppercase tracking-[0.14em] font-bold text-glass-gold hover:bg-glass-gold hover:text-black transition-colors">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="br-btn is-outline is-sm shrink-0">
       {label}
     </a>
   );
 }
 
 const TONE_COLOR: Record<string, string> = {
-  ok: "rgb(74,222,128)", warn: "var(--glass-gold)", bad: "rgb(248,113,113)", default: "var(--glass-text-secondary)",
+  ok: "var(--green)", warn: "var(--amber-ink)", bad: "var(--red)", default: "var(--glass-text-secondary)",
 };
 const scoreTone = (s: number | null): string => TONE_COLOR[s == null ? "default" : s >= 80 ? "ok" : s >= 60 ? "warn" : "bad"];
 // WoW deltas: more visits / higher score = green, fewer / lower = red.
-const upColor = (n: number) => (n > 0 ? "rgb(74,222,128)" : n < 0 ? "rgb(248,113,113)" : "var(--glass-text-tertiary)");
+const upColor = (n: number) => (n > 0 ? "var(--green)" : n < 0 ? "var(--red)" : "var(--glass-text-tertiary)");
 const signedN = (n: number) => `${n > 0 ? "+" : ""}${n}`;
 const SV_MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 // The Sat-Fri week before this week's Saturday, e.g. "Aug 1 – Aug 7".
@@ -3649,11 +3629,11 @@ const BOOKING_STATUS_LABEL: Record<string, string> = {
 const BOOKING_STATUS_ORDER = ["booked_with_contract", "booked_with_flexibility", "verbal_confirmation", "in_communication", "cannot_book_until_later", "need_to_book"];
 const BOOKING_STATUS_COLOR: Record<string, string> = {
   cannot_book_until_later: "var(--glass-text-tertiary)",
-  booked_with_contract: "rgb(74,222,128)",
-  booked_with_flexibility: "rgb(74,222,128)",
+  booked_with_contract: "var(--green)",
+  booked_with_flexibility: "var(--green)",
   verbal_confirmation: "var(--glass-gold)",
   in_communication: "var(--glass-text-secondary)",
-  need_to_book: "rgb(248,113,113)",
+  need_to_book: "var(--red)",
 };
 const DOW_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const BOOKING_STATUS_TONE: Record<string, Tone> = {
@@ -3751,21 +3731,21 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
       style={{
         color: BOOKING_STATUS_COLOR[s] ?? "var(--glass-text-secondary)",
-        borderColor: s === "need_to_book" ? "rgba(239,68,68,0.35)" : "var(--glass-border)",
-        background: s === "need_to_book" ? "rgba(239,68,68,0.10)" : "transparent",
+        borderColor: "transparent",
+        background: s === "need_to_book" ? "var(--red-tint)" : "transparent",
       }}>
       {BOOKING_STATUS_LABEL[s] ?? s}{n != null && <> <span className="font-bold tabular">{n}</span></>}
     </span>
   );
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility Bookings</h2>
           {titleSuffix && <ScopeTag label={titleSuffix} />}
           {headerExtra ?? (
-            <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-              style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>{season}</span>
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+              style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>{season}</span>
           )}
         </div>
         <MoreDetails href={APP_URL.facilities} />
@@ -3812,12 +3792,12 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           pillsEmpty="no locations" />
       </div>
 
-      <div className="rounded-2xl border border-glass-border bg-glass-surface">
+      <div className="rounded-2xl bg-glass-surface shadow-card">
         <table className="w-full text-sm">
           {/* Sticky per cell rather than on the row: the page's scroll container
               starts directly under the nav, so top:0 lands flush against it. */}
           <thead>
-            <tr className="text-left text-[11px] sm:text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary">
+            <tr className="text-left text-xs text-glass-text-tertiary">
               {[
                 { label: "Location", align: "" },
                 { label: "Night", align: "" },
@@ -3826,7 +3806,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 { label: "Booking status", align: "" },
               ].map((h) => (
                 <th key={h.label}
-                  className={`px-5 py-3 font-bold sticky top-0 z-[5] ${h.align}`}
+                  className={`px-5 py-3 font-bold sticky top-[var(--shell-top)] z-[5] ${h.align}`}
                   style={{
                     // Rows share the card's surface, so a header on the same
                     // colour with a hairline under it just looks like the first
@@ -3857,7 +3837,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 return [(
                   <tr key={l.location} className="border-t border-glass-border align-top">
                     <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
-                    <td className="px-5 py-3 font-semibold" style={{ color: "rgb(248,113,113)" }}>none booked</td>
+                    <td className="px-5 py-3 font-semibold" style={{ color: "var(--red)" }}>none booked</td>
                     <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">—</td>
                     <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">0</td>
                     <td className="px-5 py-3" />
@@ -3889,20 +3869,20 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                       {(!!reg?.full || !!reg?.low || !!reg?.teams) && (
                         <div className="mt-1 flex flex-col items-end gap-1">
                           {!!reg?.teams && (
-                            <span className="inline-block text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                            <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
                               style={rosterChipStyle(reg.players / reg.teams)}>
                               {(reg.players / reg.teams).toFixed(1)} avg players per team
                             </span>
                           )}
                           {!!reg?.full && (
-                            <span className="inline-block text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                              style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
+                            <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                              style={{ color: "var(--glass-gold)", borderColor: "transparent", background: "var(--fill-3)" }}>
                               {reg.full} with 7 or more players
                             </span>
                           )}
                           {!!reg?.low && (
-                            <span className="inline-block text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                              style={{ color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }}>
+                            <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                              style={{ color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" }}>
                               {reg.low} with 3 or fewer players
                             </span>
                           )}
@@ -3945,19 +3925,19 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                   </div>
                   {!!totals.registered && (
                     <div className="mt-1 flex flex-col items-end gap-1">
-                      <span className="inline-block text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+                      <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
                         style={rosterChipStyle(totals.players / totals.registered)}>
                         {(totals.players / totals.registered).toFixed(1)} avg players per team
                       </span>
                       {!!totals.full && (
-                        <span className="inline-block text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                          style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
+                        <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                          style={{ color: "var(--glass-gold)", borderColor: "transparent", background: "var(--fill-3)" }}>
                           {totals.full} with 7 or more players
                         </span>
                       )}
                       {!!totals.low && (
-                        <span className="inline-block text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                          style={{ color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }}>
+                        <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                          style={{ color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" }}>
                           {totals.low} with 3 or fewer players
                         </span>
                       )}
@@ -3988,17 +3968,17 @@ function SiteVisitsSection({ data, titleSuffix = "" }: { data: SiteVisitsData; t
   const { weeks, by_dm } = data;
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site Visits</h2>
           {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
         <MoreDetails href={`${APP_URL.feedback}/site-visits`} />
       </div>
-      <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+      <div className="rounded-2xl bg-glass-surface overflow-x-auto shadow-card">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[11px] sm:text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+            <tr className="text-left text-xs text-glass-text-tertiary border-b border-glass-border-light">
               <th className="px-5 py-3 font-bold">Week</th>
               <th className="px-5 py-3 font-bold text-right">Visits</th>
               <th className="px-5 py-3 font-bold text-right">Avg score</th>
@@ -4038,7 +4018,7 @@ function SiteVisitsSection({ data, titleSuffix = "" }: { data: SiteVisitsData; t
       </div>
       {by_dm.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] sm:text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">By district manager</span>
+          <span className="text-xs font-bold text-glass-text-tertiary">By district manager</span>
           {by_dm.map((d) => (
             <span key={d.dm} className="text-[11px] rounded-md px-2 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
               {d.dm} <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{d.count}</span>
@@ -4058,17 +4038,17 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
   const { weeks, by_location } = data;
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video Reviews</h2>
           {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
         <MoreDetails href={`${APP_URL.feedback}/video-review`} />
       </div>
-      <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+      <div className="rounded-2xl bg-glass-surface overflow-x-auto shadow-card">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[11px] sm:text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+            <tr className="text-left text-xs text-glass-text-tertiary border-b border-glass-border-light">
               <th className="px-5 py-3 font-bold">Week</th>
               <th className="px-5 py-3 font-bold text-right">Reviews</th>
               <th className="px-5 py-3 font-bold">Nights not reviewed</th>
@@ -4116,7 +4096,7 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
                     <div className="flex flex-wrap gap-1.5">
                       {w.missing_list.map((v, i) => (
                         <span key={i} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                          style={{ color: "var(--glass-danger-text, rgb(248,113,113))", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" }}>
+                          style={{ color: "var(--glass-danger-text, var(--red))", borderColor: "transparent", background: "var(--red-tint)" }}>
                           {v.location} <span style={{ opacity: 0.75 }}>{v.day}</span>
                         </span>
                       ))}
@@ -4130,7 +4110,7 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
       </div>
       {by_location.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] sm:text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">Completed by location</span>
+          <span className="text-xs font-bold text-glass-text-tertiary">Completed by location</span>
           {by_location.map((d) => (
             <span key={d.location} className="text-[11px] rounded-md px-2 py-0.5 border border-glass-border whitespace-nowrap" style={{ color: "var(--glass-text-secondary)" }}>
               {d.location} <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{d.completed}</span>
@@ -4176,19 +4156,19 @@ function Section({
 }) {
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h2>
           {scopeTag && <ScopeTag label={scopeTag} />}
           {seasonTag && (
-            <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-              style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: "var(--glass-gold)" }}>
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+              style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>
               {seasonTag}
             </span>
           )}
           {tiles === null && (
-            <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-              style={{ background: "rgba(239,68,68,0.12)", color: "var(--glass-danger-text, rgb(248,113,113))" }}>
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+              style={{ background: "var(--red-tint)", color: "var(--glass-danger-text, var(--red))" }}>
               not connected
             </span>
           )}
@@ -4197,7 +4177,7 @@ function Section({
         {href && <MoreDetails href={href} />}
       </div>
       {tiles === null ? (
-        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm text-glass-text-tertiary">
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm text-glass-text-tertiary shadow-card">
           <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>Not connected.</span>{" "}
           League Health couldn&apos;t load {title} from its app, so no numbers are shown here.
           {href && <> Open the app for the current figures.</>}
@@ -4211,7 +4191,7 @@ function Section({
           {tiles.map((t, i) => <StatTile key={i} {...t} />)}
         </div>
       ) : (
-        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           {emptyNote ?? "Cards coming soon — open the app for the full view."}
         </div>
       )}

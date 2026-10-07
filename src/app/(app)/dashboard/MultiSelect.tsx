@@ -84,7 +84,7 @@ export function MultiSelect({
                 }}
                 placeholder={`Search ${singularNoun}`}
                 aria-label={`Search ${singularNoun}`}
-                className="w-full rounded-md border border-glass-border bg-glass-surface px-2.5 py-1.5 text-sm text-glass-text placeholder:text-glass-text-tertiary focus:outline-none focus:border-glass-gold"
+                className="w-full rounded-full border border-glass-border bg-glass-surface px-2.5 py-1.5 text-sm text-glass-text placeholder:text-glass-text-tertiary focus:outline-none focus:border-[color:var(--hairline-strong)]"
               />
             </div>
           )}

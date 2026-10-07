@@ -54,7 +54,7 @@ async function loadReferrals(season: string, locationNames: string[] | null): Pr
 }
 
 const GOLD = "var(--glass-gold)";
-const RETURNING = "#5B8AC4"; // same blue the registration bars use for "prev season"
+const RETURNING = "var(--viz-prev)"; // the grey the registration bars use for "prev season"
 
 const money = (n: number, cur: string) => `$${n.toLocaleString("en-US")} ${cur}`;
 
@@ -118,12 +118,6 @@ export default async function ReferralsView({
 
   return (
     <main className="brodie-fade-in space-y-8">
-      <header>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: GOLD }}>Referrals</p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
-          Referral program
-        </h1>
-      </header>
 
       <Filters
         key={`${selectedSeasons.join(",")}|${selectedLocations.join(",")}`}
@@ -147,17 +141,17 @@ export default async function ReferralsView({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Referrals</h2>
-            <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-              style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>{selectedSeason}</span>
+            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+              style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>{selectedSeason}</span>
           </div>
         </div>
 
         {!feed ? (
-          <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+          <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
             Referral feed unavailable — the Promo Tracker didn&apos;t answer for {selectedSeason}.
           </div>
         ) : rows.length === 0 ? (
-          <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+          <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
             No referrals recorded for {selectedSeason} in this scope yet.
           </div>
         ) : (
@@ -177,11 +171,11 @@ export default async function ReferralsView({
                 values={currencies.length ? currencies.map((c) => money(t!.earned[c], c)) : ["—"]} />
             </div>
 
-            <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+            <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860 }}>
                   <thead>
-                    <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+                    <tr className="text-xs font-bold text-glass-text-tertiary">
                       <Th align="left">League</Th>
                       <Th>New</Th>
                       <Th>Returning</Th>
@@ -279,8 +273,8 @@ function Tile({ label, value, values, sub, accent }: {
 }) {
   const figures = values ?? (value === undefined ? [] : [value]);
   return (
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
-      <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
+    <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card">
+      <div className="text-xs font-bold text-glass-text-tertiary truncate">{label}</div>
       <div className="mt-1.5 space-y-0.5">
         {figures.map((f, i) => (
           <div key={i} className="text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>

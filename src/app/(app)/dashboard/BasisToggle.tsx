@@ -39,10 +39,7 @@ export function BasisToggle({
   }
 
   return (
-    <div
-      className="inline-flex items-center rounded-lg border p-0.5 shrink-0"
-      style={{ borderColor: "var(--glass-border)", opacity: pending ? 0.6 : 1 }}
-    >
+    <div className="br-seg items-center" style={{ opacity: pending ? 0.6 : 1 }}>
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -50,15 +47,9 @@ export function BasisToggle({
             key={o.value}
             type="button"
             onClick={() => pick(o.value)}
-            className="px-2.5 py-1 rounded-md transition"
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: on ? "default" : "pointer",
-              border: "none",
-              background: on ? "var(--glass-gold)" : "transparent",
-              color: on ? "#000" : "var(--glass-text-tertiary)",
-            }}
+            className={on ? "is-on" : undefined}
+            aria-pressed={on}
+            style={{ cursor: on ? "default" : "pointer" }}
           >
             {o.label}
           </button>
@@ -72,7 +63,7 @@ export function BasisToggle({
           role="status"
           aria-label="Loading"
           className="mx-1.5 inline-block h-3 w-3 shrink-0 animate-spin rounded-full"
-          style={{ border: "2px solid var(--glass-border)", borderTopColor: "var(--glass-gold)" }}
+          style={{ border: "2px solid var(--glass-border)", borderTopColor: "var(--ink)" }}
         />
       )}
     </div>

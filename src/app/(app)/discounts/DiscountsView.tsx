@@ -48,7 +48,7 @@ async function loadDiscounts(season: string, locationNames: string[] | null): Pr
 
 const GOLD = "var(--glass-gold)";
 
-const LIST = "#5B8AC4"; // the same blue the registration bars use for the prior season
+const LIST = "var(--viz-prev)"; // the grey the registration bars use for the prior season
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -93,16 +93,7 @@ export default async function DiscountsView({
 
   return (
     <main className="brodie-fade-in space-y-8">
-      <header>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: GOLD }}>Discounts</p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
-          Price and discounting
-        </h1>
-        <p className="text-sm mt-1.5 text-glass-text-tertiary max-w-[68ch]">
-          What a registration is advertised at, what comes off, and what actually lands. List price is the
-          subtotal — no sales tax anywhere on this page.
-        </p>
-      </header>
+      <p className="page-lede">List price is the subtotal. There is no sales tax anywhere on this page.</p>
 
       <Filters
         key={`${selectedSeasons.join(",")}|${selectedLocations.join(",")}`}
@@ -114,11 +105,11 @@ export default async function DiscountsView({
       />
 
       {!feed ? (
-        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           Discount feed unavailable — the Promo Tracker didn&apos;t answer for {selectedSeason}.
         </div>
       ) : currencies.length === 0 ? (
-        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           No registrations for {selectedSeason} in this scope yet.
         </div>
       ) : (
@@ -149,8 +140,8 @@ export default async function DiscountsView({
                 <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>
                   {cur === "CAD" ? "Canada" : cur === "USD" ? "United States" : cur}
                 </h2>
-                <span className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>{cur}</span>
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                  style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>{cur}</span>
                 <span className="text-xs text-glass-text-tertiary">
                   {regs.toLocaleString()} registrations · {selectedSeason}
                 </span>
@@ -189,11 +180,11 @@ export default async function DiscountsView({
                   href={playersHref(selectedSeason, locationNames?.join(","), true)} hrefLabel="View free" />
               </div>
 
-              <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+              <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 900 }}>
                     <thead>
-                      <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+                      <tr className="text-xs font-bold text-glass-text-tertiary">
                         <Th align="left">Location</Th>
                         <Th>Regs</Th>
                         <Th>List price</Th>
@@ -324,8 +315,8 @@ function Tile({ label, value, sub, accent, href, hrefLabel }: {
   label: string; value: string; sub?: React.ReactNode; accent?: string; href?: string; hrefLabel?: string;
 }) {
   return (
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0 flex flex-col">
-      <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
+    <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 flex flex-col shadow-card">
+      <div className="text-xs font-bold text-glass-text-tertiary truncate">{label}</div>
       <div className="mt-1.5 text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>
         {value}
       </div>

@@ -190,8 +190,8 @@ export default async function Leaderboard({
   return (
     <main className="space-y-5 sm:space-y-6">
       <header>
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Leaderboard</h1>
-        <p className="text-glass-text-secondary text-sm mt-1">
+
+        <p className="page-lede">
           {scope === "today" && "Today's ranking. Opt out from My Day if you want off the board."}
           {scope === "yesterday" && "Yesterday's final ranking."}
           {scope === "all_time" && "Total XP earned across every day since you started."}
@@ -218,9 +218,9 @@ export default async function Leaderboard({
         })}
       </div>
 
-      <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+      <div className="rounded-2xl bg-glass-surface overflow-x-auto shadow-card">
         <table className="w-full text-sm min-w-[560px]">
-          <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[11px] sm:text-[10px] tracking-wider">
+          <thead className="bg-glass-surface-hover text-glass-text-tertiary text-xs">
             <tr>
               <th className="text-left p-3 font-semibold w-12">Rank</th>
               <th className="text-left p-3 font-semibold">LM</th>
@@ -243,8 +243,8 @@ export default async function Leaderboard({
                     isChamp ? "bg-glass-gold/5" : ""
                   }`}
                 >
-                  <td className="p-3 font-mono text-glass-text-secondary">
-                    {isChamp ? <span className="text-glass-gold">🥇</span> : row.rank}
+                  <td className="p-3 tabular text-glass-text-secondary">
+                    {row.rank}
                   </td>
                   <td className="p-3">
                     <div>{row.full_name}</div>
@@ -260,7 +260,7 @@ export default async function Leaderboard({
                   </td>
                   <td className="p-3 text-xs">
                     {row.current_streak > 0 ? (
-                      <span>🔥 {row.current_streak}d</span>
+                      <span>{row.current_streak}-day streak</span>
                     ) : (
                       <span className="text-glass-text-tertiary">—</span>
                     )}

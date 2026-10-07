@@ -112,11 +112,11 @@ export default async function MonthlyPack({
 
       <header className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <p className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold" style={{ color: "var(--accent)" }}>
+          <p className="text-xs font-semibold text-glass-text-secondary">
             Monthly review · {range.label}
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight mt-1">{lmRow.full_name}</h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-mute)" }}>
+          <h2 className="page-h2">{lmRow.full_name}</h2>
+          <p className="page-lede">
             {lmRow.location_name} · {lmRow.tier?.replace(/_/g, " ")} · {lmRow.email}
           </p>
         </div>
@@ -126,14 +126,14 @@ export default async function MonthlyPack({
           style={{
             background: "var(--accent-soft)",
             color: "var(--accent)",
-            border: "1px solid rgba(242, 169, 0, 0.5)",
+            border: "1px solid transparent",
           }}
         >
           <a href={`#`} onClick={(e) => { e.preventDefault(); window.print(); }}>Print / Save PDF →</a>
         </button>
       </header>
 
-      <section className="rounded-2xl border p-5" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
+      <section className="rounded-2xl p-5 shadow-card" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
         <h2 className="text-base font-semibold mb-3">Month summary</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <Stat label="Total XP" value={Math.round(totalXp).toLocaleString()} />
@@ -147,11 +147,11 @@ export default async function MonthlyPack({
         </div>
       </section>
 
-      <section className="rounded-2xl border p-5" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
+      <section className="rounded-2xl p-5 shadow-card" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
         <h2 className="text-base font-semibold mb-3">By app — month total</h2>
         <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
           <table className="w-full text-sm">
-            <thead className="uppercase text-[11px] sm:text-[10px] tracking-wider" style={{ background: "var(--bg-hover)", color: "var(--text-mute)" }}>
+            <thead className="text-xs" style={{ background: "var(--bg-hover)", color: "var(--text-mute)" }}>
               <tr>
                 <th className="text-left p-2 font-semibold">App</th>
                 <th className="text-right p-2 font-semibold">XP earned</th>
@@ -163,7 +163,7 @@ export default async function MonthlyPack({
               {appRows.map((r) => (
                 <tr key={r.slug} className="border-t" style={{ borderColor: "var(--border)" }}>
                   <td className="p-2">{APP_LABEL[r.slug] ?? r.slug}</td>
-                  <td className="p-2 text-right font-mono" style={{ color: r.score > 0 ? "var(--ok)" : r.score < 0 ? "var(--error)" : "var(--text-mute)" }}>
+                  <td className="p-2 text-right tabular" style={{ color: r.score > 0 ? "var(--ok)" : r.score < 0 ? "var(--error)" : "var(--text-mute)" }}>
                     {r.score > 0 ? "+" : ""}{Math.round(r.score)}
                   </td>
                   <td className="p-2 text-right" style={{ color: "var(--text-mute)" }}>{Math.round(r.max)}</td>
@@ -182,7 +182,7 @@ export default async function MonthlyPack({
         </div>
       </section>
 
-      <section className="rounded-2xl border p-5" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
+      <section className="rounded-2xl p-5 shadow-card" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
         <h2 className="text-base font-semibold mb-3">Achievements unlocked this month</h2>
         {((unlocks ?? []) as unknown as Unlock[]).length === 0 ? (
           <p className="text-sm" style={{ color: "var(--text-mute)" }}>None this month.</p>
@@ -192,14 +192,14 @@ export default async function MonthlyPack({
               <li
                 key={i}
                 className="flex items-start gap-3 p-3 rounded-lg"
-                style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}
+                style={{ background: "var(--bg-sunken)" }}
               >
                 <div className="text-xl">{u.achievements.icon}</div>
                 <div className="flex-1">
                   <p className="font-semibold">{u.achievements.name}</p>
                   <p className="text-xs" style={{ color: "var(--text-mute)" }}>{u.achievements.description}</p>
                 </div>
-                <p className="text-[11px] font-mono" style={{ color: "var(--text-mute)" }}>
+                <p className="text-[11px] tabular" style={{ color: "var(--text-mute)" }}>
                   {u.unlocked_at.slice(0, 10)}
                 </p>
               </li>
@@ -217,8 +217,8 @@ export default async function MonthlyPack({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg p-3" style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}>
-      <p className="uppercase text-[11px] sm:text-[10px] tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>{label}</p>
+    <div className="rounded-lg p-3" style={{ background: "var(--bg-sunken)" }}>
+      <p className="text-xs font-semibold" style={{ color: "var(--text-mute)" }}>{label}</p>
       <p className="text-lg font-semibold mt-0.5" style={{ color: "var(--text)" }}>{value}</p>
     </div>
   );

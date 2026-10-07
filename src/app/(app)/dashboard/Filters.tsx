@@ -100,13 +100,7 @@ export default function Filters({
       <button
         onClick={apply}
         disabled={pending || !dirty}
-        className={`inline-flex items-center gap-2 rounded-lg font-semibold text-sm px-5 py-2 transition ${
-          pending
-            ? "border border-glass-border bg-glass-surface text-glass-text cursor-default"
-            : dirty
-              ? "bg-glass-gold text-black hover:brightness-110"
-              : "bg-glass-gold text-black opacity-40 cursor-default"
-        }`}
+        className={`br-btn ${pending ? "is-grey" : ""}`}
       >
         {pending && <Spinner />}
         {pending ? "Applying…" : dirty ? "Apply" : "Applied"}
@@ -118,7 +112,7 @@ export default function Filters({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{label}</span>
+      <span className="text-xs font-bold text-glass-text-tertiary">{label}</span>
       {children}
     </label>
   );

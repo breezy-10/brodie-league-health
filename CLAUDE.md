@@ -63,3 +63,39 @@ You can move them around without recalculating absolutes.
   `lm_xp_totals` and ranks.
 - 08:00 cron `/api/cron/slack-digest` → DMs each LM with `slack_user_id`.
 - Manual "Refresh now" button on `/admin` re-runs sync + score.
+
+## Design system
+
+The look is the **Brodie Design Library** (Connor's kit, built from the Lab
+and Cashflow): https://claude.ai/artifact/4kQ1GoCHRUqQvCqkZBzAtw. Read its
+README and `rebrand.md` before changing any UI. Feedback and Overdue Payments
+are built the same way.
+
+- `src/styles/brodie/tokens.css` is generated from the library's
+  `tokens.json`; `bundle.css` is the kit verbatim, minus its Google Fonts
+  `@import` (next/font self-hosts Inter and IBM Plex Mono). Both load after
+  `globals.css`. Re-download and regenerate them rather than editing.
+- **Light first, dark by request.** The kit is light only; this app keeps an
+  opt-in dark mode in `src/styles/brodie/dark.css`, a layer keyed on
+  `[data-theme="dark"]` with the Lab's dark values. The theme is the
+  `brodie-league-health-theme` cookie (`lib/theme.ts`), so the server renders
+  it; ThemeScript migrates a choice made with the old toggle (localStorage
+  `blh-theme`). The toggle is a row in the account menu.
+- The app's older variables (`--accent`, `--text`, `--bg-raised`, `--glass-*`)
+  point at kit tokens in `globals.css`, so older components follow both
+  themes. Gold is gone: emphasis and selection are ink, Brodie red is for what
+  needs a person and for this season on a chart (`--viz-now`; past seasons are
+  `--viz-prev` / `--viz-prev-2` greys).
+- The shell is the kit's markup in `components/AppShell.tsx`, rendered by
+  `components/Shell.tsx` from `(app)/layout.tsx`. bundle.js is not loaded;
+  React owns the sidebar, tab bar and menus. Page titles and their
+  one-sentence subtitles live in the `PAGES` map in AppShell; a page keeps a
+  line of its own (`.page-h2`, `.page-lede`) only for what changes with the
+  view: a person's name, the scope, how fresh the numbers are.
+- Sentence case everywhere; mono only for literal codes. Cards are white,
+  borderless, `rounded-2xl shadow-card` (18px, the kit shadow). Primary
+  buttons are black pills (`br-btn`), secondary ones grey; segmented controls
+  are `br-seg`; status chips are tinted pills with a word.
+- The page scrolls the window, under the kit's sticky header, so anything
+  sticky uses `top: var(--shell-top)`. The kit's sidebar and header sit at
+  z-index 900-1000; overlays use `z-[10070]` on `var(--scrim-strong)`.

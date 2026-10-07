@@ -36,14 +36,14 @@ function CounterCard({
 }) {
   return (
     <div
-      className="rounded-2xl border p-3 sm:p-5 brodie-card"
+      className="rounded-2xl p-3 sm:p-5 brodie-card shadow-card"
       style={{
         background: "var(--bg-raised)",
-        borderColor: accent ? "rgba(242, 169, 0, 0.5)" : "var(--border)",
+        borderColor: "transparent",
       }}
     >
       <p
-        className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold mb-1"
+        className="text-xs font-semibold mb-1"
         style={{ color: accent ? "var(--accent)" : "var(--text-mute)" }}
       >
         {label}

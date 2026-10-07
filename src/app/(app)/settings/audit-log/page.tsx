@@ -53,15 +53,6 @@ export default async function AuditLog({
 
   return (
     <main className="space-y-6">
-      <header>
-        <p className="uppercase text-[11px] tracking-[0.08em] font-semibold" style={{ color: "var(--text-mute)" }}>
-          Compliance
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight mt-1">Audit log</h1>
-        <p className="text-glass-text-secondary text-sm mt-1">
-          Append-only ledger. Most recent 200 events.
-        </p>
-      </header>
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
@@ -69,9 +60,8 @@ export default async function AuditLog({
           href="/settings/audit-log"
           className="text-xs px-3 py-1.5 rounded-full font-semibold"
           style={{
-            background: !action ? "var(--accent)" : "var(--bg-raised)",
+            background: !action ? "var(--accent)" : "var(--fill-chip)",
             color: !action ? "var(--accent-text-on)" : "var(--text)",
-            border: !action ? "1px solid var(--accent)" : "1px solid var(--border)",
           }}
         >
           All
@@ -82,9 +72,8 @@ export default async function AuditLog({
             href={`/settings/audit-log?action=${a}`}
             className="text-xs px-3 py-1.5 rounded-full font-semibold"
             style={{
-              background: action === a ? "var(--accent)" : "var(--bg-raised)",
+              background: action === a ? "var(--accent)" : "var(--fill-chip)",
               color: action === a ? "var(--accent-text-on)" : "var(--text)",
-              border: action === a ? "1px solid var(--accent)" : "1px solid var(--border)",
             }}
           >
             {ACTION_LABELS[a] ?? a}
@@ -93,7 +82,7 @@ export default async function AuditLog({
       </div>
 
       <section
-        className="rounded-2xl border overflow-hidden"
+        className="rounded-2xl overflow-hidden shadow-card"
         style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}
       >
         {list.length === 0 ? (
@@ -111,11 +100,10 @@ export default async function AuditLog({
                 <div className="flex items-baseline justify-between gap-3 flex-wrap">
                   <div className="flex items-baseline gap-2 min-w-0">
                     <span
-                      className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full"
+                      className="text-xs font-semibold px-2 py-0.5 rounded-full"
                       style={{
-                        background: "var(--bg-sunken)",
+                        background: "var(--fill-chip)",
                         color: ACTION_COLORS[r.action] ?? "var(--text-mute)",
-                        border: `1px solid ${ACTION_COLORS[r.action] ?? "var(--border)"}`,
                       }}
                     >
                       {ACTION_LABELS[r.action] ?? r.action}
@@ -133,8 +121,7 @@ export default async function AuditLog({
                     className="mt-2 text-[11px] leading-relaxed rounded-lg p-2 overflow-x-auto"
                     style={{
                       background: "var(--bg-sunken)",
-                      color: "var(--text-secondary)",
-                      border: "1px solid var(--border)",
+                      color: "var(--text-soft)",
                       fontFamily: "ui-monospace, SF Mono, monospace",
                     }}
                   >

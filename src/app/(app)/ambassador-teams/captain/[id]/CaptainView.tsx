@@ -97,7 +97,7 @@ export default async function CaptainView({
     return (
       <main className="brodie-fade-in space-y-6">
         <BackLink href={boardHref} />
-        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           Ambassador feed unavailable — the Promo Tracker didn&apos;t answer for {selectedSeason}.
         </div>
       </main>
@@ -123,15 +123,12 @@ export default async function CaptainView({
       <div className="space-y-3">
         <BackLink href={boardHref} />
         <header>
-          <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: GOLD }}>
-            Ambassador · {selectedSeason}
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
+          <h2 className="page-h2">
             {name}
             {staff?.[normName(name)] && (
               <span className="align-middle text-base"><StaffBadge label={staff[normName(name)]} /></span>
             )}
-          </h1>
+          </h2>
         </header>
       </div>
 
@@ -194,15 +191,15 @@ function TeamTable({
   const template = cols.join(" ");
 
   return (
-    <section className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+    <section className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
       <div className="px-4 pt-4 pb-3">
-        <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-1">{title}</div>
+        <div className="text-xs font-bold text-glass-text-tertiary mb-1">{title}</div>
         <p className="text-xs text-glass-text-tertiary">{note}</p>
       </div>
       <div className="overflow-x-auto">
         <div style={{ minWidth: 760 }}>
           <div
-            className="grid gap-3 px-4 py-2.5 text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary"
+            className="grid gap-3 px-4 py-2.5 text-xs font-bold text-glass-text-tertiary"
             style={{ gridTemplateColumns: template, borderBottom: "1px solid var(--glass-border)" }}
           >
             <span>Team</span>
@@ -299,7 +296,7 @@ function TeamRowItem({
         className="px-4 pb-3 pt-1 space-y-1"
         style={{ background: "var(--glass-surface-hover)", borderTop: "1px solid var(--glass-border)" }}
       >
-        <li className="flex items-baseline gap-3 text-[11px] sm:text-[10px] uppercase tracking-[0.14em] font-bold text-glass-text-tertiary max-w-2xl pb-0.5">
+        <li className="flex items-baseline gap-3 text-xs font-bold text-glass-text-tertiary max-w-2xl pb-0.5">
           <span className="flex-1">Player</span>
           <span className="shrink-0 w-[128px] text-right">Paid / total</span>
           <span className="shrink-0 w-[104px] text-right">Completed</span>
@@ -312,7 +309,7 @@ function TeamRowItem({
               {staff?.[normName(x.player)] && <StaffBadge label={staff[normName(x.player)]} />}
             </span>
             <span
-              className="tabular font-mono shrink-0 w-[128px] text-right"
+              className="tabular shrink-0 w-[128px] text-right"
               style={{ color: owes(x) ? GOLD : "var(--glass-text-secondary)" }}
               title={x.no_registration ? "No registration on file" : undefined}
             >
@@ -321,7 +318,7 @@ function TeamRowItem({
                 : `$${Math.round(x.paid)} / $${Math.round(x.total)}${x.currency ? " " + x.currency.toUpperCase() : ""}`}
             </span>
             <span
-              className="tabular font-mono shrink-0 w-[104px] text-right text-glass-text-tertiary"
+              className="tabular shrink-0 w-[104px] text-right text-glass-text-tertiary"
               title={x.paid_completed_at ? "Payment completed" : "Payment not complete"}
             >
               {x.no_registration ? "" : fmtCompleted(x.paid_completed_at)}
@@ -337,7 +334,7 @@ function BackLink({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-[0.14em] hover:underline"
+      className="inline-flex items-center gap-1.5 text-xs hover:underline"
       style={{ color: "var(--glass-text-tertiary)" }}
     >
       <span aria-hidden>&larr;</span> Roster board
@@ -347,8 +344,8 @@ function BackLink({ href }: { href: string }) {
 
 function Tile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
-      <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{label}</div>
+    <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card">
+      <div className="text-xs font-bold text-glass-text-tertiary">{label}</div>
       <div className="mt-1.5 text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>
         {value}
       </div>

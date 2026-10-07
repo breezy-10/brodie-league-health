@@ -77,7 +77,7 @@ export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
 
   return (
     <div
-      className="rounded-xl border px-5 py-4 flex flex-col gap-3 sm:grid sm:items-center sm:gap-4"
+      className="rounded-xl px-5 py-4 flex flex-col gap-3 sm:grid sm:items-center sm:gap-4 shadow-card"
       style={{
         background: "var(--glass-surface)",
         borderColor: "var(--glass-gold)",
@@ -85,7 +85,7 @@ export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
       }}
     >
       <div className="min-w-0">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--glass-text-tertiary)" }}>
+        <div className="text-[11px]" style={{ color: "var(--glass-text-tertiary)" }}>
           Upcoming deadline
         </div>
         <div className="text-xl font-semibold mt-1" style={{ color: "var(--glass-text)" }}>{w.deadline}</div>
@@ -97,14 +97,13 @@ export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`More info about ${w.deadline}`}
-          className="inline-block mt-2 rounded-md px-2.5 py-1.5 text-[11px] font-semibold whitespace-nowrap transition-colors hover:bg-[var(--glass-surface-hover)]"
-          style={{ color: "var(--glass-gold)", border: "1px solid var(--glass-border)" }}
+          className="br-btn is-outline is-sm mt-2 whitespace-nowrap"
         >
-          More info
+          More info ↗
         </a>
       </div>
       <PriceTable week={w} />
-      <div className="font-mono tabular font-bold leading-none text-3xl sm:text-4xl lg:text-5xl sm:text-right"
+      <div className="tabular font-bold leading-none text-3xl sm:text-4xl lg:text-5xl sm:text-right"
         style={{ color: "var(--glass-gold)" }}>
         {countdown(next.at - now)}
       </div>
@@ -124,12 +123,13 @@ function PriceTable({ week }: { week: DeadlineWeek }) {
     if (last && last.country === c) last.rows.push(t);
     else countries.push({ country: c, rows: [t] });
   }
-  const cell = { border: "1px solid var(--glass-border)" };
-  const head = "font-mono uppercase tracking-[0.12em] font-medium text-[10px] px-2 py-1";
+  // A Numbers-style table: hairlines between rows, none around the cells.
+  const cell = { borderBottom: "1px solid var(--divider)" };
+  const head = "text-xs font-medium text-glass-text-tertiary px-2 py-1";
   return (
     <div>
       {week.tier_label && (
-        <div className="font-mono uppercase tracking-[0.14em] font-semibold text-[10px] mb-1.5" style={{ color: "var(--glass-text)" }}>
+        <div className="font-semibold text-[11px] mb-1.5" style={{ color: "var(--glass-text)" }}>
           {week.tier_label}
         </div>
       )}
@@ -137,7 +137,7 @@ function PriceTable({ week }: { week: DeadlineWeek }) {
         {countries.map((g) => (
           <div key={g.country || "all"}>
             {g.country && (
-              <div className="font-mono uppercase tracking-[0.12em] font-semibold text-[10px] mb-1" style={{ color: "var(--glass-text)" }}>
+              <div className="font-semibold text-[11px] mb-1" style={{ color: "var(--glass-text)" }}>
                 {g.country}
               </div>
             )}

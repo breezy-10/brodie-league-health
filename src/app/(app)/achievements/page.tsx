@@ -58,18 +58,18 @@ export default async function AchievementsPage({
   return (
     <main className="space-y-6">
       {viewingAs && lm && (
-        <div className="rounded-2xl border border-glass-gold/40 bg-glass-gold/10 p-3 flex items-center gap-3">
-          <span className="text-xs uppercase tracking-wider text-glass-gold font-semibold px-2 py-1 rounded bg-glass-surface-hover">Viewing as</span>
+        <div className="rounded-2xl bg-glass-surface p-3 flex items-center gap-3 shadow-card">
+          <span className="text-xs text-glass-gold font-semibold px-2 py-1 rounded bg-glass-surface-hover">Viewing as</span>
           <span className="font-semibold">{lm.full_name}</span>
-          <a href={`/?lm=${lm.id}`} className="text-xs px-3 py-1.5 rounded-md border border-glass-border bg-[var(--input-bg)] hover:bg-glass-surface-hover transition ml-auto">Their day →</a>
+          <a href={`/?lm=${lm.id}`} className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[color:var(--fill-3)] hover:bg-glass-surface-hover transition ml-auto">Their day →</a>
         </div>
       )}
 
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h2 className="page-h2">
           {viewingAs ? `${lm?.full_name}'s trophies` : "Trophy cabinet"}
-        </h1>
-        <p className="text-glass-text-secondary text-sm mt-1">
+        </h2>
+        <p className="page-lede">
           {unlockedCount} of {achievements.length} unlocked.
         </p>
       </header>
@@ -82,11 +82,11 @@ export default async function AchievementsPage({
           return (
             <div
               key={a.id}
-              className="rounded-2xl border p-4 sm:p-5 flex flex-col items-center text-center transition"
+              className="rounded-2xl p-4 sm:p-5 flex flex-col items-center text-center transition shadow-card"
               style={{
-                borderColor: unlocked ? "rgba(242, 169, 0, 0.5)" : "var(--border)",
+                borderColor: "transparent",
                 background: unlocked ? "var(--accent-soft)" : "var(--bg-raised)",
-                boxShadow: unlocked ? "0 6px 20px rgba(242, 169, 0, 0.15)" : "none",
+                boxShadow: unlocked ? "0 6px 20px var(--fill-3)" : "none",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -101,7 +101,7 @@ export default async function AchievementsPage({
                   height: "auto",
                   aspectRatio: "1 / 1",
                   objectFit: "contain",
-                  filter: unlocked ? "drop-shadow(0 4px 12px rgba(242, 169, 0, 0.35))" : "grayscale(1)",
+                  filter: unlocked ? "none" : "grayscale(1)",
                   opacity: unlocked ? 1 : 0.35,
                 }}
               />
@@ -119,11 +119,11 @@ export default async function AchievementsPage({
               </p>
               {unlocked && when && (
                 <p
-                  className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold mt-3 px-2 py-1 rounded-full"
+                  className="text-xs font-semibold mt-3 px-2 py-1 rounded-full"
                   style={{
                     color: "var(--accent)",
                     background: "var(--bg-raised)",
-                    border: "1px solid rgba(242, 169, 0, 0.4)",
+                    border: "1px solid transparent",
                   }}
                 >
                   Unlocked {new Date(when).toLocaleDateString()}
@@ -131,11 +131,10 @@ export default async function AchievementsPage({
               )}
               {!unlocked && (
                 <p
-                  className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold mt-3 px-2 py-1 rounded-full"
+                  className="text-xs font-semibold mt-3 px-2 py-1 rounded-full"
                   style={{
                     color: "var(--text-mute)",
                     background: "var(--bg-sunken)",
-                    border: "1px solid var(--border)",
                   }}
                 >
                   Locked

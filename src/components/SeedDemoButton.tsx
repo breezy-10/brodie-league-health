@@ -22,7 +22,7 @@ export function SeedDemoButton() {
   }
 
   return (
-    <div className="rounded-2xl border border-glass-border bg-glass-surface p-5 space-y-2">
+    <div className="rounded-2xl bg-glass-surface p-5 space-y-2 shadow-card">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-base font-semibold">Seed demo data</h2>
@@ -33,7 +33,7 @@ export function SeedDemoButton() {
         <button
           onClick={seed}
           disabled={busy}
-          className="text-sm px-3.5 py-2 rounded-lg bg-glass-gold text-black font-semibold disabled:opacity-50 hover:brightness-110 transition"
+          className="text-sm px-3.5 py-2 rounded-full bg-glass-gold text-[color:var(--on-ink)] font-semibold disabled:opacity-50 hover:opacity-90 transition"
         >
           {busy ? "Seeding..." : "Seed demo data"}
         </button>

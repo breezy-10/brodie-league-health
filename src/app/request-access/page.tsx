@@ -6,6 +6,9 @@ import RequestAccessButton from "./RequestAccessButton";
 // call the gate itself or it would bounce in a loop.
 export const dynamic = "force-dynamic";
 
+const BRODIE_MARK =
+  "https://cdn.prod.website-files.com/6921d2c2bd3b56136200df40/6921d2c2bd3b56136200e036_Brodie_Icon.svg";
+
 export default async function RequestAccessPage() {
   const supabase = await createClient();
   const {
@@ -15,42 +18,18 @@ export default async function RequestAccessPage() {
   if (!user) redirect("/login");
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 440,
-          background: "#1c1c1e",
-          border: "1px solid #2c2c2e",
-          borderRadius: 14,
-          padding: 32,
-          textAlign: "center",
-        }}
-      >
-        <p
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: "#FFB800",
-            margin: "0 0 10px",
-          }}
-        >
-          League Health
-        </p>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: "0 0 10px", color: "#f5f5f7" }}>
-          You&apos;re not on the list yet
-        </h1>
-        <p style={{ fontSize: 14, lineHeight: 1.6, color: "#a1a1a6", margin: "0 0 22px" }}>
-          League Health is invite only. Ask for access and Sohaib gets a Slack message
-          straight away.
+    <main className="auth-screen">
+      <div className="auth-card">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="auth-mark" src={BRODIE_MARK} alt="Brodie" />
+        <p className="auth-eyebrow">League Health</p>
+        <h1 className="auth-title">You&apos;re not on the list yet</h1>
+        <p className="auth-body">
+          League Health is invite only. Ask for access and Sohaib gets a Slack message straight away.
         </p>
         <RequestAccessButton />
-        <p style={{ fontSize: 12, color: "#6e6e73", margin: "20px 0 0" }}>
-          Signed in as {user.email}
-        </p>
+        <p className="auth-foot">Signed in as {user.email}</p>
       </div>
-    </div>
+    </main>
   );
 }

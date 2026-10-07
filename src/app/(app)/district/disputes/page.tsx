@@ -55,13 +55,8 @@ export default async function DisputesQueue() {
     <main className="space-y-8">
       <header className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <p className="uppercase text-[11px] tracking-[0.08em] font-semibold" style={{ color: "var(--text-mute)" }}>
-            Triage
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight mt-1">Disputes</h1>
-          <p className="text-glass-text-secondary text-sm mt-1">
-            LMs flag metrics they think are wrong. You decide if the score gets adjusted.
-          </p>
+
+
         </div>
         <Link
           href="/district"
@@ -89,7 +84,7 @@ export default async function DisputesQueue() {
             {openRows.map((d) => (
               <li
                 key={d.id}
-                className="rounded-2xl border p-4"
+                className="rounded-2xl p-4 shadow-card"
                 style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}
               >
                 <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -101,13 +96,13 @@ export default async function DisputesQueue() {
                         {d.metrics.apps.name} — {d.metrics.name}
                       </span>
                     </p>
-                    <p className="text-[11px] uppercase tracking-wider" style={{ color: "var(--text-mute)" }}>
+                    <p className="text-[11px]" style={{ color: "var(--text-mute)" }}>
                       For {d.snapshot_date} · filed {new Date(d.filed_at).toLocaleString()}
                     </p>
                   </div>
                   <Link
                     href={`/settings/lm/${d.league_managers.id}`}
-                    className="text-[11px] uppercase tracking-wider hover:underline"
+                    className="text-[11px] hover:underline"
                     style={{ color: "var(--accent)" }}
                   >
                     Open LM
@@ -117,7 +112,6 @@ export default async function DisputesQueue() {
                   className="mt-3 text-sm leading-relaxed whitespace-pre-wrap rounded-xl p-3"
                   style={{
                     background: "var(--bg-sunken)",
-                    border: "1px solid var(--border)",
                     color: "var(--text)",
                   }}
                 >
@@ -137,19 +131,19 @@ export default async function DisputesQueue() {
             {resolvedRows.map((d) => (
               <li
                 key={d.id}
-                className="rounded-xl border p-3 text-sm"
+                className="rounded-xl p-3 text-sm shadow-card"
                 style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}
               >
                 <div className="flex items-baseline justify-between gap-2 flex-wrap">
                   <p style={{ color: "var(--text)" }}>
                     <span
-                      className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold mr-2 px-2 py-0.5 rounded-full"
+                      className="text-xs font-semibold mr-2 px-2 py-0.5 rounded-full"
                       style={{
                         background:
                           d.status === "approved"
-                            ? "rgba(34, 178, 76, 0.12)"
+                            ? "var(--green-tint)"
                             : d.status === "rejected"
-                            ? "rgba(200, 16, 46, 0.12)"
+                            ? "var(--red-tint)"
                             : "var(--bg-sunken)",
                         color:
                           d.status === "approved"
@@ -168,7 +162,7 @@ export default async function DisputesQueue() {
                   </p>
                   {d.score_adjustment != null && (
                     <span
-                      className="text-[11px] font-mono"
+                      className="text-[11px] tabular"
                       style={{
                         color: d.score_adjustment > 0 ? "var(--ok, #22b24c)" : "var(--error)",
                       }}

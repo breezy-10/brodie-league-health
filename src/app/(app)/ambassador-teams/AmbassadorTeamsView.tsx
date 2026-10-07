@@ -190,14 +190,6 @@ export default async function AmbassadorTeamsView({
 
   return (
     <main className="brodie-fade-in space-y-8">
-      <header>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: GOLD }}>
-          Ambassador teams
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
-          Roster board
-        </h1>
-      </header>
 
       <Filters
         key={`${selectedSeasons.join(",")}|${selectedLocations.join(",")}`}
@@ -214,19 +206,19 @@ export default async function AmbassadorTeamsView({
             Ambassador teams
           </h2>
           <span
-            className="text-[10px] sm:text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-            style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}
+            className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}
           >
             {selectedSeason}
           </span>
         </div>
 
         {!feed ? (
-          <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+          <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
             Ambassador feed unavailable — the Promo Tracker didn&apos;t answer for {selectedSeason}.
           </div>
         ) : locations.length === 0 ? (
-          <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+          <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
             No ambassador teams registered for {selectedSeason} in this scope yet.
           </div>
         ) : (
@@ -263,9 +255,9 @@ export default async function AmbassadorTeamsView({
             </div>
 
             {captainRows.length > 0 && (
-              <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+              <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
                 <div className="px-4 pt-4 pb-3">
-                  <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary mb-1">
+                  <div className="text-xs font-bold text-glass-text-tertiary mb-1">
                     Ambassadors
                   </div>
                   <p className="text-xs text-glass-text-tertiary">
@@ -334,7 +326,7 @@ function LocationCard({
   ];
 
   return (
-    <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+    <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
       <div
         className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3"
         style={{ borderBottom: "1px solid var(--glass-border)" }}
@@ -342,7 +334,7 @@ function LocationCard({
         <h3 className="font-semibold" style={{ color: "var(--glass-text)" }}>
           {loc.location}
         </h3>
-        <div className="flex gap-4 font-mono text-[11px] text-glass-text-tertiary">
+        <div className="flex gap-4 tabular text-[11px] text-glass-text-tertiary">
           <span>
             <b style={{ color: "var(--glass-text-secondary)" }}>{loc.teams}</b> teams
           </span>
@@ -375,10 +367,10 @@ function LocationCard({
                 className="flex items-center justify-between gap-2 pb-2 mb-2.5"
                 style={{ borderBottom: "1px solid var(--glass-border)" }}
               >
-                <span className="font-mono text-[11px] font-bold tracking-[0.14em]" style={{ color: GOLD }}>
+                <span className="tabular text-[11px] font-bold" style={{ color: GOLD }}>
                   {day ? DAY_ABBR(day) : "TBD"}
                 </span>
-                <span className="font-mono text-[11px] text-glass-text-tertiary">{teams.length}</span>
+                <span className="tabular text-[11px] text-glass-text-tertiary">{teams.length}</span>
               </div>
               {teams.length === 0 ? (
                 <p className="text-xs italic text-glass-text-tertiary">No ambassador team</p>
@@ -427,14 +419,14 @@ function TeamChip({
         <span className="text-[13px] font-semibold leading-tight break-words" style={{ color: "var(--glass-text)" }}>
           {row.team}
         </span>
-        <span className="tabular font-mono text-[12px] font-bold shrink-0" style={{ color: "var(--glass-text-secondary)" }}>
+        <span className="tabular text-[12px] font-bold shrink-0" style={{ color: "var(--glass-text-secondary)" }}>
           {row.players}
         </span>
       </div>
 
       <div className="flex items-center gap-1.5 text-[11.5px]" style={{ color: "var(--glass-text-secondary)" }}>
         <span
-          className="font-mono text-[8.5px] font-bold px-1 py-px rounded shrink-0"
+          className="tabular text-[8.5px] font-bold px-1 py-px rounded shrink-0"
           style={{
             background: row.captain ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)",
             color: "var(--glass-background)",
@@ -448,7 +440,7 @@ function TeamChip({
             {staffOf(row.captain) && <StaffBadge label={staffOf(row.captain)!} />}
             {runs > 1 && (
               <span
-                className="font-mono text-[11px] sm:text-[10px] font-bold px-1 rounded shrink-0"
+                className="tabular text-[11px] sm:text-[10px] font-bold px-1 rounded shrink-0"
                 style={{ border: `1px solid ${GOLD}`, color: GOLD }}
                 title={`Runs ${runs} ambassador teams in this view`}
               >
@@ -504,8 +496,8 @@ function TeamChip({
             <span style={{ color: paid === roster.length ? "var(--glass-text-secondary)" : THIN }}>
               {paid} of {roster.length} paid
             </span>
-            <span className="font-mono text-[11px] sm:text-[10px] text-glass-text-tertiary group-open:hidden">Show roster</span>
-            <span className="font-mono text-[11px] sm:text-[10px] text-glass-text-tertiary hidden group-open:inline">Hide</span>
+            <span className="tabular text-[11px] sm:text-[10px] text-glass-text-tertiary group-open:hidden">Show roster</span>
+            <span className="tabular text-[11px] sm:text-[10px] text-glass-text-tertiary hidden group-open:inline">Hide</span>
           </div>
         </summary>
 
@@ -519,7 +511,7 @@ function TeamChip({
                 {staffOf(r.player) && <StaffBadge label={staffOf(r.player)!} />}
               </span>
               <span
-                className="tabular font-mono shrink-0"
+                className="tabular shrink-0"
                 style={{ color: r.paid_ok ? "var(--glass-text-secondary)" : THIN }}
                 title={r.no_registration ? "No registration on file" : undefined}
               >
@@ -536,7 +528,7 @@ function TeamChip({
 function Flag({ color, children }: { color: string; children: React.ReactNode }) {
   return (
     <span
-      className="font-mono text-[10px] sm:text-[9px] uppercase tracking-[0.06em] font-bold px-1.5 py-px rounded"
+      className="text-[11px] font-bold px-1.5 py-px rounded"
       style={{ border: `1px solid ${color}`, color }}
     >
       {children}
@@ -547,8 +539,8 @@ function Flag({ color, children }: { color: string; children: React.ReactNode })
 // The dashboard's roster chips: gold for full rosters, red for what needs work
 // (thin rosters, a location still without an ambassador team).
 const CHIP_STYLE = {
-  gold: { color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" },
-  red: { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" },
+  gold: { color: "var(--glass-gold)", borderColor: "transparent", background: "var(--fill-3)" },
+  red: { color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" },
 };
 type Chip = { text: string; tone: keyof typeof CHIP_STYLE };
 
@@ -556,8 +548,8 @@ function Tile({ label, value, sub, chips, stackChips, accent }: {
   label: string; value: string; sub?: string; chips?: Chip[]; stackChips?: boolean; accent?: string;
 }) {
   return (
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
-      <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
+    <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card">
+      <div className="text-xs font-bold text-glass-text-tertiary truncate">{label}</div>
       <div className="mt-1.5 text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>
         {value}
       </div>
@@ -566,7 +558,7 @@ function Tile({ label, value, sub, chips, stackChips, accent }: {
         <div className={`mt-2 flex gap-1.5 ${stackChips ? "flex-col items-start" : "flex-wrap"}`}>
           {chips.map((c) => (
             <span key={c.text}
-              className="text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+              className="text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
               style={CHIP_STYLE[c.tone]}>
               {c.text}
             </span>

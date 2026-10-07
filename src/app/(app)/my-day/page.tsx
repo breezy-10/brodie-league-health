@@ -171,15 +171,15 @@ export default async function MyDay({
           />
         )}
         {viewingAs && <ViewAsBanner name="Unknown LM" options={switcherOptions} />}
-        <h1 className="text-3xl font-semibold tracking-tight">Welcome.</h1>
-        <p className="text-glass-text-secondary">
+
+        <p className="page-lede">
           {viewingAs
             ? "That LM isn't in our roster anymore."
             : "We don't see you in the CRM managers table yet. Ask an admin to add you, then refresh."}
         </p>
         {isAdmin && !viewingAs && (
           <div className="pt-4">
-            <p className="text-xs text-glass-text-tertiary mb-2 uppercase tracking-wider font-semibold">
+            <p className="text-xs text-glass-text-tertiary mb-2 font-semibold">
               You&apos;re an admin — view as any LM:
             </p>
             <ViewAsSwitcher options={switcherOptions} />
@@ -344,12 +344,12 @@ export default async function MyDay({
 
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
-          <p className="text-glass-text-tertiary text-xs uppercase tracking-wider">
+          <p className="text-glass-text-tertiary text-xs">
             {lm.location_name ?? "—"} {lm.district ? `· ${lm.district}` : ""}
           </p>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
+          <h2 className="page-h2">
             {viewingAs ? `${lm.full_name}'s day` : `Good day, ${firstName}.`}
-          </h1>
+          </h2>
           <div className="flex flex-wrap gap-2 pt-1">
             <TierBadge tier={lm.tier} avg30d={lm.avg_30d} />
             <StreakBadge days={lm.current_streak ?? 0} />
@@ -377,7 +377,7 @@ export default async function MyDay({
       <section className={`rounded-2xl border p-4 sm:p-6 ${scoreBg(pct)}`}>
         <div className="flex items-end gap-4 sm:gap-6 flex-wrap">
           <div>
-            <p className="uppercase text-[11px] text-glass-text-tertiary tracking-[0.08em] font-semibold">Today&apos;s XP</p>
+            <p className="text-[11px] text-glass-text-tertiary font-semibold">Today&apos;s XP</p>
             <p className={`text-5xl sm:text-6xl font-semibold tracking-tight ${scoreColor(pct)}`}>
               {xp}<span className="text-glass-text-tertiary text-xl sm:text-2xl"> / {maxXp}</span>
             </p>
@@ -385,7 +385,7 @@ export default async function MyDay({
               <span>{pct}% of max</span>
               {todayRank && <span>· rank #{todayRank}</span>}
               {delta != null && delta !== 0 && (
-                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${delta > 0 ? "bg-green-500/15 text-green-300" : "bg-red-500/15 text-red-300"}`}>
+                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${delta > 0 ? "bg-[color:var(--green-tint)] text-[color:var(--green)]" : "bg-[color:var(--red-tint)] text-[color:var(--red)]"}`}>
                   {delta > 0 ? "▲" : "▼"} {Math.abs(delta)} vs yest.
                 </span>
               )}
@@ -393,7 +393,7 @@ export default async function MyDay({
           </div>
           <div className="flex-1 w-full sm:min-w-[260px]">
             <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-              <p className="uppercase text-[11px] text-glass-text-tertiary tracking-[0.08em] font-semibold">Last 30 days</p>
+              <p className="text-[11px] text-glass-text-tertiary font-semibold">Last 30 days</p>
               {!viewingAs && (
                 <PersonalGoalEditor initial={ctx.profile?.personal_goal_pct ?? null} />
               )}
@@ -410,9 +410,9 @@ export default async function MyDay({
       </section>
 
       {(recentUnlocks ?? []).length > 0 && (
-        <section className="rounded-2xl border border-glass-gold/30 bg-glass-gold/5 p-4">
+        <section className="rounded-2xl bg-glass-surface p-4 shadow-card">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs uppercase tracking-wider text-glass-gold font-semibold">Recently unlocked</p>
+            <p className="text-xs text-glass-gold font-semibold">Recently unlocked</p>
             <Link href={viewingAs ? `/achievements?lm=${lm.id}` : "/achievements"} className="text-xs text-glass-text-tertiary hover:text-glass-text">Full cabinet →</Link>
           </div>
           <div className="flex flex-wrap gap-2">

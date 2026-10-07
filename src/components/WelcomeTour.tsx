@@ -53,27 +53,27 @@ export function WelcomeTour({ profileId, tourCompletedAt }: { profileId: string;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0, 0, 0, 0.6)" }}
+      className="fixed inset-0 z-[10070] flex items-center justify-center p-4"
+      style={{ background: "var(--scrim-strong)" }}
     >
       <div
-        className="rounded-2xl border max-w-md w-full p-6 brodie-fade-in"
+        className="rounded-2xl max-w-md w-full p-6 brodie-fade-in shadow-card"
         style={{
           background: "var(--bg-raised)",
           borderColor: "var(--border)",
-          boxShadow: "0 30px 80px rgba(0,0,0,0.4)",
+          boxShadow: "var(--shadow-sheet)",
         }}
       >
         <div className="flex items-center justify-between mb-4">
           <p
-            className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold"
+            className="text-xs font-semibold"
             style={{ color: "var(--accent)" }}
           >
             Step {step + 1} of {STEPS.length}
           </p>
           <button
             onClick={finish}
-            className="text-[11px] uppercase tracking-wider"
+            className="text-[11px]"
             style={{ color: "var(--text-mute)" }}
           >
             Skip
