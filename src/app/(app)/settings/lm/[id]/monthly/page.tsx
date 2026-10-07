@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
+import { PrintButton } from "@/components/PrintButton";
 
 /**
  * Monthly performance pack. Default = current month; ?month=YYYY-MM jumps
@@ -120,17 +121,7 @@ export default async function MonthlyPack({
             {lmRow.location_name} · {lmRow.tier?.replace(/_/g, " ")} · {lmRow.email}
           </p>
         </div>
-        <button
-          onClick={undefined /* CSS-only print, handled by browser Cmd+P */}
-          className="print:hidden text-xs px-3 py-1.5 rounded-full font-semibold"
-          style={{
-            background: "var(--accent-soft)",
-            color: "var(--accent)",
-            border: "1px solid transparent",
-          }}
-        >
-          <a href={`#`} onClick={(e) => { e.preventDefault(); window.print(); }}>Print / Save PDF →</a>
-        </button>
+        <PrintButton />
       </header>
 
       <section className="rounded-2xl p-5 shadow-card" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
