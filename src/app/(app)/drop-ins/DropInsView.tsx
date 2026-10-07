@@ -107,7 +107,10 @@ export default async function DropInsView({
 
   return (
     <main className="brodie-fade-in space-y-8">
-      <p className="page-lede">List price is the subtotal. There is no sales tax anywhere on this page.</p>
+      <p className="page-lede">
+        Revenue is the drop-in price, $50 for a returning player, before processing fees. There is no sales tax
+        anywhere on this page.
+      </p>
 
       <Filters
         key={`${selectedSeasons.join(",")}|${selectedLocations.join(",")}`}
@@ -180,7 +183,7 @@ export default async function DropInsView({
                       <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats · {sum("upcoming").toLocaleString()} upcoming</span>
                     </>
                   } />
-                <Tile label="Revenue" value={money(sum("revenue"))} accent={ACCENT} sub="collected, without sales tax" />
+                <Tile label="Revenue" value={money(sum("revenue"))} accent={ACCENT} sub="drop-in price after any discount, before processing fees" />
                 <Tile label="Started, not paid" value={notPaid.toLocaleString()}
                   accent={notPaid ? "var(--amber-ink)" : undefined}
                   sub={`${cancelled.toLocaleString()} cancelled`} />
@@ -339,7 +342,9 @@ export default async function DropInsView({
         the price figures are measured on returning players&apos; drop-ins only. Became registrations is new drop-in
         players who completed a paid season registration after their drop-in. Showed up is measured on games already
         played: the player has a stat line or is marked as played; a completed game without them is a no-show.
-        Started, not paid is drop-ins left as a draft or with a failed payment. Prices are without sales tax.
+        Started, not paid is drop-ins left as a draft or with a failed payment. Revenue is the drop-in price after any
+        discount and before processing fees; the returning players&apos; total price card adds the fees. Prices are
+        without sales tax.
         Drop-ins on a test code are left out. Currencies are never mixed or summed.
       </p>
     </main>
