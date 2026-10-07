@@ -42,6 +42,7 @@ type DropInRow = {
   returning_discount?: number;
   returning_fees?: number;
   returning_total_paid?: number;
+  returning_revenue?: number;
   showed_up?: number;
   no_show?: number;
   awaiting_stats?: number;
@@ -206,7 +207,7 @@ export default async function DropInsView({
               </div>
 
               <SubHead title="Returning players" note="Charged for each drop-in" />
-              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+              <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
                 <Tile label="Returning players" value={retPlayers.toLocaleString()} accent={ACCENT}
                   sub={
                     <>
@@ -218,9 +219,10 @@ export default async function DropInsView({
                   } />
                 <Tile label="List price" value={retDropins ? money(rw("returning_list_price")) : "—"} accent={LIST} sub="before discount" />
                 <Tile label="Discount" value={retDropins ? `−${money(rw("returning_discount"))}` : "—"} sub="averaged over returning drop-ins" />
-                <Tile label="Fees" value={retDropins ? `+${money(rw("returning_fees"))}` : "—"} />
-                <Tile label="Total price" value={retDropins ? money(rw("returning_total_paid")) : "—"} accent={ACCENT}
-                  sub="after discount, with fees" />
+                {/* Before processing fees, like Revenue above: the drop-in price
+                    returning players brought in, summed. */}
+                <Tile label="Revenue" value={money(sum("returning_revenue"))} accent={ACCENT}
+                  sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
               </div>
 
               <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
@@ -233,7 +235,7 @@ export default async function DropInsView({
                         <Th>New players</Th>
                         <Th>Became registrations</Th>
                         <Th>Returning players</Th>
-                        <Th>Returning price</Th>
+                        <Th>Returning revenue</Th>
                         <Th>Revenue</Th>
                         <Th>Showed up</Th>
                         <Th>Not paid</Th>
@@ -264,7 +266,7 @@ export default async function DropInsView({
                               </div>
                             )}
                           </Td>
-                          <Td>{r.returning_dropins ? money(r.returning_total_paid ?? 0) : "—"}</Td>
+                          <Td>{r.returning_dropins ? money(r.returning_revenue ?? 0) : "—"}</Td>
                           <Td strong>{money(r.revenue)}</Td>
                           <RateTd count={r.showed_up ?? 0} total={(r.showed_up ?? 0) + (r.no_show ?? 0)}
                             color={(r.showed_up ?? 0) + (r.no_show ?? 0)
@@ -285,7 +287,7 @@ export default async function DropInsView({
                           <Td strong>{newPlayers.toLocaleString()}</Td>
                           <RateTd strong count={converted} total={newPlayers} />
                           <Td strong>{retPlayers.toLocaleString()}</Td>
-                          <Td strong>{retDropins ? money(rw("returning_total_paid")) : "—"}</Td>
+                          <Td strong>{retDropins ? money(sum("returning_revenue")) : "—"}</Td>
                           <Td strong>{money(sum("revenue"))}</Td>
                           <RateTd strong count={showed} total={showed + noShow}
                             color={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined} />
@@ -342,9 +344,8 @@ export default async function DropInsView({
         the price figures are measured on returning players&apos; drop-ins only. Became registrations is new drop-in
         players who completed a paid season registration after their drop-in. Showed up is measured on games already
         played: the player has a stat line or is marked as played; a completed game without them is a no-show.
-        Started, not paid is drop-ins left as a draft or with a failed payment. Revenue is the drop-in price after any
-        discount and before processing fees; the returning players&apos; total price card adds the fees. Prices are
-        without sales tax.
+        Started, not paid is drop-ins left as a draft or with a failed payment. Revenue, overall and for returning
+        players, is the drop-in price after any discount and before processing fees. Prices are without sales tax.
         Drop-ins on a test code are left out. Currencies are never mixed or summed.
       </p>
     </main>
