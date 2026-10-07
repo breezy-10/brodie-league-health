@@ -38,7 +38,11 @@ type LocationRow = {
   location: string;
   teams: number;
   players: number;
+  // Nights with an ambassador team.
   nights: number;
+  // Every night the location plays this season, Monday first, ambassador team
+  // or not. Absent from an older feed.
+  days?: string[];
   rows: TeamRow[];
 };
 type AmbassadorFeed = {
@@ -52,6 +56,9 @@ type AmbassadorFeed = {
     no_roster: number;
     no_captain: number;
     max_roster: number;
+    // Teams with 7+ players and with 3 or fewer, captain included.
+    full_roster?: number;
+    three_or_fewer?: number;
   };
   captain_teams: Record<string, number>;
   captain_players?: Record<string, number>;
@@ -60,6 +67,9 @@ type AmbassadorFeed = {
     { name: string; teams: number; full_roster?: number; players: number; teammates?: number; paid_teammates?: number }>;
   by_day: { day: string; teams: number; players: number }[];
   locations: LocationRow[];
+  // Locations in scope with a captain this season but no ambassador team.
+  // Null when the Promo Tracker couldn't tell.
+  locations_without_ambassador?: string[] | null;
 };
 
 async function loadAmbassadorTeams(
@@ -85,6 +95,7 @@ const THIN = "var(--glass-yellow)"; // captain-only roster
 const EMPTY = "var(--glass-red)"; // no roster at all
 
 const DAY_ABBR = (d: string) => d.slice(0, 3).toUpperCase();
+const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default async function AmbassadorTeamsView({
   searchParams,
@@ -110,6 +121,9 @@ export default async function AmbassadorTeamsView({
   };
 
   const t = feed?.totals;
+  // Locations with captains but no ambassador team. Undefined from an older
+  // feed and null when the Promo Tracker couldn't tell; either way no chips.
+  const missing = feed?.locations_without_ambassador ?? null;
   const locations = feed?.locations ?? [];
   // The meter is scaled to the season's largest roster rather than a fixed cap,
   // so it stays honest if a team ever carries more than ten.
@@ -211,20 +225,26 @@ export default async function AmbassadorTeamsView({
           </div>
         ) : (
           <>
-            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-              <Tile label="Ambassador teams" value={t!.teams.toLocaleString()} accent={GOLD} />
-              <Tile label="Locations" value={t!.locations.toLocaleString()} />
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              <Tile
+                label="Ambassador teams"
+                value={t!.teams.toLocaleString()}
+                accent={GOLD}
+                lines={t!.full_roster != null && t!.three_or_fewer != null
+                  ? [`${t!.full_roster} with 7+ players`, `${t!.three_or_fewer} with 3 or fewer`]
+                  : undefined}
+              />
+              <Tile
+                label="Locations"
+                value={t!.locations.toLocaleString()}
+                sub={missing ? (missing.length ? `${missing.length} with captains but no ambassador team` : "every location has an ambassador team") : undefined}
+                chips={missing ?? undefined}
+              />
               <Tile label="Players placed" value={t!.players.toLocaleString()} />
               <Tile
                 label="Distinct captains"
                 value={t!.captains.toLocaleString()}
                 sub={multiTeam ? `${multiTeam} run more than one team` : undefined}
-              />
-              <Tile
-                label="Rosters at 0–1"
-                value={(t!.captain_only + t!.no_roster).toLocaleString()}
-                accent={THIN}
-                sub={`${t!.captain_only} captain-only · ${t!.no_roster} empty`}
               />
             </div>
 
@@ -288,10 +308,16 @@ function LocationCard({
   captainTeams: Record<string, number>;
   staff: Record<string, string> | null;
 }) {
-  // Only the nights this location actually plays get a column, so a one-night
-  // venue doesn't render six empty ones.
-  const days: (string | null)[] = [];
-  for (const r of loc.rows) if (!days.includes(r.day)) days.push(r.day);
+  // Every night the location plays gets a column, ambassador team or not, so an
+  // uncovered night shows as empty rather than missing. Only nights it plays,
+  // so a one-night venue doesn't render six empty ones. A team with no night
+  // goes in a TBD column at the end.
+  const played = new Set<string | null>([...(loc.days ?? []), ...loc.rows.map((r) => r.day)]);
+  const days: (string | null)[] = [
+    ...DAY_ORDER.filter((d) => played.has(d)),
+    ...[...played].filter((d): d is string => !!d && !DAY_ORDER.includes(d)),
+    ...(played.has(null) ? [null] : []),
+  ];
 
   return (
     <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
@@ -310,8 +336,18 @@ function LocationCard({
             <b style={{ color: "var(--glass-text-secondary)" }}>{loc.players}</b> players
           </span>
           <span>
-            <b style={{ color: "var(--glass-text-secondary)" }}>{loc.nights}</b>{" "}
-            {loc.nights === 1 ? "night" : "nights"}
+            {loc.days ? (
+              <>
+                <b style={{ color: "var(--glass-text-secondary)" }}>{loc.nights}</b> of{" "}
+                <b style={{ color: "var(--glass-text-secondary)" }}>{loc.days.length}</b>{" "}
+                {loc.days.length === 1 ? "night" : "nights"}
+              </>
+            ) : (
+              <>
+                <b style={{ color: "var(--glass-text-secondary)" }}>{loc.nights}</b>{" "}
+                {loc.nights === 1 ? "night" : "nights"}
+              </>
+            )}
           </span>
         </div>
       </div>
@@ -330,11 +366,15 @@ function LocationCard({
                 </span>
                 <span className="font-mono text-[11px] text-glass-text-tertiary">{teams.length}</span>
               </div>
-              <ul className="space-y-2">
-                {teams.map((r, i) => (
-                  <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} staff={staff} />
-                ))}
-              </ul>
+              {teams.length === 0 ? (
+                <p className="text-xs italic text-glass-text-tertiary">No ambassador team</p>
+              ) : (
+                <ul className="space-y-2">
+                  {teams.map((r, i) => (
+                    <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} staff={staff} />
+                  ))}
+                </ul>
+              )}
             </div>
           );
         })}
@@ -490,7 +530,12 @@ function Flag({ color, children }: { color: string; children: React.ReactNode })
   );
 }
 
-function Tile({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
+// Red, as the dashboard's "bad" chips: a location still needing an ambassador.
+const MISSING_CHIP = { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" };
+
+function Tile({ label, value, sub, lines, chips, accent }: {
+  label: string; value: string; sub?: string; lines?: string[]; chips?: string[]; accent?: string;
+}) {
   return (
     <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
       <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
@@ -498,6 +543,16 @@ function Tile({ label, value, sub, accent }: { label: string; value: string; sub
         {value}
       </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
+      {lines?.map((l) => (
+        <div key={l} className="text-[12px] text-glass-text-secondary mt-1 leading-snug tabular">{l}</div>
+      ))}
+      {chips && chips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2.5">
+          {chips.map((c) => (
+            <span key={c} className="rounded-md border px-2 py-0.5 text-[12px] whitespace-nowrap" style={MISSING_CHIP}>{c}</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
