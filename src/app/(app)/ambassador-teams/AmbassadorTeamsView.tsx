@@ -230,15 +230,19 @@ export default async function AmbassadorTeamsView({
                 label="Ambassador teams"
                 value={t!.teams.toLocaleString()}
                 accent={GOLD}
-                lines={t!.full_roster != null && t!.three_or_fewer != null
-                  ? [`${t!.full_roster} with 7+ players`, `${t!.three_or_fewer} with 3 or fewer`]
+                chips={t!.full_roster != null && t!.three_or_fewer != null
+                  ? [
+                      { text: `${t!.full_roster.toLocaleString()} with 7 or more players`, tone: "gold" },
+                      { text: `${t!.three_or_fewer.toLocaleString()} with 3 or fewer players`, tone: "red" },
+                    ]
                   : undefined}
+                stackChips
               />
               <Tile
                 label="Locations"
                 value={t!.locations.toLocaleString()}
                 sub={missing ? (missing.length ? `${missing.length} with captains but no ambassador team` : "every location has an ambassador team") : undefined}
-                chips={missing ?? undefined}
+                chips={missing?.map((m) => ({ text: m, tone: "red" as const }))}
               />
               <Tile label="Players placed" value={t!.players.toLocaleString()} />
               <Tile
@@ -530,11 +534,16 @@ function Flag({ color, children }: { color: string; children: React.ReactNode })
   );
 }
 
-// Red, as the dashboard's "bad" chips: a location still needing an ambassador.
-const MISSING_CHIP = { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" };
+// The dashboard's roster chips: gold for full rosters, red for what needs work
+// (thin rosters, a location still without an ambassador team).
+const CHIP_STYLE = {
+  gold: { color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" },
+  red: { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" },
+};
+type Chip = { text: string; tone: keyof typeof CHIP_STYLE };
 
-function Tile({ label, value, sub, lines, chips, accent }: {
-  label: string; value: string; sub?: string; lines?: string[]; chips?: string[]; accent?: string;
+function Tile({ label, value, sub, chips, stackChips, accent }: {
+  label: string; value: string; sub?: string; chips?: Chip[]; stackChips?: boolean; accent?: string;
 }) {
   return (
     <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
@@ -543,13 +552,14 @@ function Tile({ label, value, sub, lines, chips, accent }: {
         {value}
       </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
-      {lines?.map((l) => (
-        <div key={l} className="text-[12px] text-glass-text-secondary mt-1 leading-snug tabular">{l}</div>
-      ))}
       {chips && chips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-2.5">
+        <div className={`mt-2 flex gap-1.5 ${stackChips ? "flex-col items-start" : "flex-wrap"}`}>
           {chips.map((c) => (
-            <span key={c} className="rounded-md border px-2 py-0.5 text-[12px] whitespace-nowrap" style={MISSING_CHIP}>{c}</span>
+            <span key={c.text}
+              className="text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
+              style={CHIP_STYLE[c.tone]}>
+              {c.text}
+            </span>
           ))}
         </div>
       )}
