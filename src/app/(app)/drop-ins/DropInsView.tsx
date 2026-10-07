@@ -343,7 +343,8 @@ export default async function DropInsView({
         and no earlier drop-in; new players&apos; drop-ins are meant to be free, returning players&apos; charged, so
         the price figures are measured on returning players&apos; drop-ins only. Became registrations is new drop-in
         players who completed a paid season registration after their drop-in. Showed up is measured on games already
-        played: the player has a stat line or is marked as played; a completed game without them is a no-show.
+        played: the player has a stat line or is marked as played. A no-show is a game whose stats are in for their
+        team but not for them; a game with no stats for their team yet waits under awaiting stats.
         Started, not paid is drop-ins left as a draft or with a failed payment. Revenue, overall and for returning
         players, is the drop-in price after any discount and before processing fees. Prices are without sales tax.
         Drop-ins on a test code are left out. Currencies are never mixed or summed.
