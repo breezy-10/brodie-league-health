@@ -50,29 +50,32 @@ export default function AmbassadorTable({
   const colCount = 3 + (hasFullRoster ? 1 : 0) + (hasTeammates ? 1 : 0) + (hasPaid ? 2 : 0);
 
   return (
+    // The table scrolls inside this box, not the window, so its header sticks
+    // at the box's top (top-0). The page's --shell-top offset would pin it a
+    // header-height down, over the rows.
     <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
       <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 420 }}>
         <thead>
           <tr className="text-xs font-bold text-glass-text-tertiary">
-            <th className="px-4 py-2.5 text-left font-bold sticky top-[var(--shell-top)] bg-glass-surface"
+            <th className="px-4 py-2.5 text-left font-bold sticky top-0 z-[2] bg-glass-surface"
               style={{ borderBottom: "1px solid var(--glass-border)" }}>Ambassador</th>
-            <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
+            <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
               style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams</th>
             {hasFullRoster && (
-              <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
+              <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
                 style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams with 7+</th>
             )}
             {hasTeammates && (
-              <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
+              <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
                 style={{ borderBottom: "1px solid var(--glass-border)" }}>Teammates</th>
             )}
-            <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
+            <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
               style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg teammates per team</th>
             {hasPaid && (
               <>
-                <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
+                <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
                   style={{ borderBottom: "1px solid var(--glass-border)" }}>Paid teammates</th>
-                <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
+                <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
                   style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg paid per team</th>
               </>
             )}
