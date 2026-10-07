@@ -25,7 +25,9 @@ export const LOCATIONS_FALLBACK = [
   "Toronto PRO-AM", "Vaughan", "Victoria", "Winnipeg",
 ];
 
-const alphabetical = (names: string[]) => [...names].sort((a, b) => a.localeCompare(b));
+// Deduplicated as well as sorted: the districts feed has listed the same name
+// twice (Dallas, Houston), which doubled them in every picker.
+const alphabetical = (names: string[]) => [...new Set(names.map((n) => n.trim()))].sort((a, b) => a.localeCompare(b));
 
 // One fetch per request. Several callers ask for this list while rendering a
 // single page.

@@ -149,8 +149,8 @@ export default function UsersTable({
                               <td className="px-5 py-3 text-glass-text">{ROLE_LABELS[r.role]}</td>
                               <td className="px-5 py-3 text-glass-text">
                                 {r.locations.length > 0
-                                  ? (r.locations.length >= allLocations.length
-                                      ? <span className="text-glass-text-tertiary">All locations ({r.locations.length})</span>
+                                  ? (coversAll(r.locations, allLocations)
+                                      ? <span className="text-glass-text-tertiary">All locations</span>
                                       : <span className="flex flex-wrap gap-x-1.5 gap-y-1">
                                           {r.locations.map((n) => (
                                             <span key={n} className="rounded px-1.5 py-0.5 text-xs whitespace-nowrap bg-glass-surface-hover text-glass-text-secondary">{n}</span>
@@ -252,6 +252,15 @@ function InviteForm({ allLocations, onDone, onCancel }: { allLocations: string[]
       </div>
     </div>
   );
+}
+
+// Whether someone is assigned every location there is. Compared as a set,
+// ignoring case: the canonical list once carried Dallas and Houston twice,
+// so comparing counts left people with every location listing all of them.
+function coversAll(mine: string[], all: string[]): boolean {
+  const have = new Set(mine.map((n) => n.trim().toLowerCase()));
+  const every = new Set(all.map((n) => n.trim().toLowerCase()));
+  return every.size > 0 && [...every].every((n) => have.has(n));
 }
 
 // Sticky column header: stays visible while a long roster scrolls beneath it.
