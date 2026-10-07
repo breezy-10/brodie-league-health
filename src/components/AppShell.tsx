@@ -14,6 +14,7 @@ import {
   Scale,
   Settings,
   Star,
+  Ticket,
   Trophy,
   UserCheck,
   UserCog,
@@ -30,7 +31,7 @@ import { SIDEBAR_COOKIE, type Theme } from "@/lib/theme-shared";
 // instead, because bundle.js toggling classes would be undone by the next render.
 
 export type NavIcon =
-  | "dashboard" | "registrations" | "referrals" | "discounts" | "ambassadors" | "staff"
+  | "dashboard" | "registrations" | "referrals" | "discounts" | "ambassadors" | "dropins" | "staff"
   | "myday" | "leaderboard" | "trophies" | "district" | "disputes" | "settings" | "users";
 
 export interface NavItem {
@@ -58,6 +59,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   referrals: Gift,
   discounts: BadgePercent,
   ambassadors: Star,
+  dropins: Ticket,
   staff: UserCheck,
   myday: CalendarCheck,
   leaderboard: Trophy,
@@ -81,6 +83,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/discounts", title: "Price and discounting", subtitle: "What a registration is advertised at, what comes off, and what actually lands." },
   { path: "/ambassador-teams/captain", title: "Captain", subtitle: "One captain's ambassador team and roster." },
   { path: "/ambassador-teams", title: "Ambassador teams", subtitle: "Every night's ambassador team, and how full each roster is." },
+  { path: "/drop-ins", title: "Drop-ins", subtitle: "Players who paid for a single game: how many, what they paid, and what came off." },
   { path: "/staff-performance", title: "Staff performance", subtitle: "Everyone in the Training app, with their role and locations, rated from 0 to 10." },
   { path: "/my-day", title: "My day", subtitle: "Today's score and the actions that move it." },
   { path: "/leaderboard", title: "Leaderboard", subtitle: "How league managers rank on XP." },
