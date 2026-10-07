@@ -70,6 +70,10 @@ type AmbassadorFeed = {
   // Locations in scope with a captain this season but no ambassador team.
   // Null when the Promo Tracker couldn't tell.
   locations_without_ambassador?: string[] | null;
+  // Each night a location in scope plays with no ambassador team on it, at
+  // locations that cover some nights and at ones that cover none. A null day
+  // is a location with captains but no known night.
+  nights_without_ambassador?: { location: string; day: string | null }[] | null;
 };
 
 async function loadAmbassadorTeams(
@@ -121,9 +125,11 @@ export default async function AmbassadorTeamsView({
   };
 
   const t = feed?.totals;
-  // Locations with captains but no ambassador team. Undefined from an older
-  // feed and null when the Promo Tracker couldn't tell; either way no chips.
-  const missing = feed?.locations_without_ambassador ?? null;
+  // Location-nights with no ambassador team ("Burlington Monday"). Undefined
+  // from an older feed and null when the Promo Tracker couldn't tell; either
+  // way no chips.
+  const missing = feed?.nights_without_ambassador ?? null;
+  const missingLocations = new Set((missing ?? []).map((m) => m.location)).size;
   const locations = feed?.locations ?? [];
   // The meter is scaled to the season's largest roster rather than a fixed cap,
   // so it stays honest if a team ever carries more than ten.
@@ -241,8 +247,12 @@ export default async function AmbassadorTeamsView({
               <Tile
                 label="Locations"
                 value={t!.locations.toLocaleString()}
-                sub={missing ? (missing.length ? `${missing.length} with captains but no ambassador team` : "every location has an ambassador team") : undefined}
-                chips={missing?.map((m) => ({ text: m, tone: "red" as const }))}
+                sub={missing
+                  ? (missing.length
+                      ? `${missing.length} ${missing.length === 1 ? "night" : "nights"} at ${missingLocations} ${missingLocations === 1 ? "location" : "locations"} with no ambassador team`
+                      : "every night has an ambassador team")
+                  : undefined}
+                chips={missing?.map((m) => ({ text: m.day ? `${m.location} ${m.day}` : m.location, tone: "red" as const }))}
               />
               <Tile label="Players placed" value={t!.players.toLocaleString()} />
               <Tile
