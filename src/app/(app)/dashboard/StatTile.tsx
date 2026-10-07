@@ -37,10 +37,10 @@ type Tile = {
 export type { Tile, Tone };
 
 const PILL_STYLES: Record<string, { color: string; borderColor: string; background?: string }> = {
-  bad: { color: "rgb(248,113,113)", borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.10)" },
-  warn: { color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" },
-  ok: { color: "rgb(74,222,128)", borderColor: "rgba(74,222,128,0.35)", background: "rgba(74,222,128,0.10)" },
-  default: { color: "var(--glass-text-secondary)", borderColor: "var(--glass-border)" },
+  bad: { color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" },
+  warn: { color: "var(--amber-ink)", borderColor: "transparent", background: "var(--amber-tint)" },
+  ok: { color: "var(--green)", borderColor: "transparent", background: "var(--green-tint)" },
+  default: { color: "var(--glass-text-secondary)", borderColor: "transparent", background: "var(--fill-chip)" },
 };
 
 // A client component for one reason: the A-Z / Largest control in its corner
@@ -58,40 +58,36 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
     ? [...chips!].sort((a, b) => (b.sortValue ?? -Infinity) - (a.sortValue ?? -Infinity))
     : chips ?? [];
   const color =
-    tone === "ok" ? "rgb(74,222,128)" :
-    tone === "warn" ? "var(--glass-gold)" :
-    tone === "bad" ? "rgb(248,113,113)" : "var(--glass-text)";
+    tone === "ok" ? "var(--green)" :
+    tone === "warn" ? "var(--amber-ink)" :
+    tone === "bad" ? "var(--red)" : "var(--glass-text)";
   return (
     // h-full + column, so a card carrying a button can push it to the floor
     // rather than leaving it wherever the content above happened to end.
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0 h-full flex flex-col">
+    <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 h-full flex flex-col shadow-card">
       {/* The corner shares the card's rows rather than stacking beside them:
           its label sits on the label row, its value on the value row, and its
           follow-up lines on the first lines below. */}
       <div className="flex items-start justify-between gap-3">
-        <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate pt-0.5">{label}</div>
+        <div className="text-xs font-bold text-glass-text-tertiary truncate pt-0.5">{label}</div>
         {/* Top right, on the title's line: the order is a property of the card,
             so it reads as part of the card's furniture rather than as something
             wedged between the numbers and the chips. Only where there is
             something to sort by — two or more chips carrying a magnitude. */}
         {sortable && (
-          <div className="inline-flex items-center rounded-lg border p-0.5 shrink-0" style={{ borderColor: "var(--glass-border)" }}>
+          <div className="br-seg is-pill shrink-0">
             {([["az", "A–Z"], ["size", "Largest"]] as const).map(([v, text]) => (
               <button key={v} type="button" onClick={() => setOrder(v)}
-                className="px-2 py-0.5 rounded-md transition"
-                style={{
-                  fontSize: 10, fontWeight: 600, border: "none",
-                  cursor: order === v ? "default" : "pointer",
-                  background: order === v ? "var(--glass-gold)" : "transparent",
-                  color: order === v ? "#000" : "var(--glass-text-tertiary)",
-                }}>
+                className={order === v ? "is-on" : undefined}
+                aria-pressed={order === v}
+                style={{ minHeight: 22, padding: "3px 9px", fontSize: 11, cursor: order === v ? "default" : "pointer" }}>
                 {text}
               </button>
             ))}
           </div>
         )}
         {corner && (
-          <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary shrink-0">{corner.label}</div>
+          <div className="text-xs font-bold text-glass-text-tertiary shrink-0">{corner.label}</div>
         )}
       </div>
       <div className="mt-1.5 flex items-baseline justify-between gap-3">
@@ -130,8 +126,8 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
               style={{ color: l?.color ?? (l?.strong ? "var(--glass-text)" : "var(--glass-text-tertiary)"), fontWeight: l?.strong ? 600 : 400 }}
             >
               {l && (l.chip
-                ? <span className="text-[11px] sm:text-[10px] font-semibold rounded-md px-1.5 py-0.5 border whitespace-nowrap"
-                    style={{ color: "var(--glass-gold)", borderColor: "rgba(255,184,0,0.35)", background: "rgba(255,184,0,0.10)" }}>
+                ? <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                    style={{ color: "var(--glass-gold)", borderColor: "transparent", background: "var(--fill-3)" }}>
                     {l.text}
                   </span>
                 : <span>{l.text}</span>)}
@@ -139,8 +135,8 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
                 <span
                   className="text-[11px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                   style={{
-                    color: l.pill.ok ? "rgb(74,222,128)" : "rgb(248,113,113)",
-                    background: l.pill.ok ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)",
+                    color: l.pill.ok ? "var(--green)" : "var(--red)",
+                    background: l.pill.ok ? "var(--green-tint)" : "var(--red-tint)",
                   }}
                 >
                   {l.pill.text}
@@ -178,7 +174,7 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
       {link && (
         <div className="mt-auto pt-3 flex justify-end">
           <a href={link.href} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center rounded-md border border-glass-gold px-2.5 py-1 text-[11px] sm:text-[10px] uppercase tracking-[0.14em] font-bold text-glass-gold hover:bg-glass-gold hover:text-black transition-colors">
+            className="inline-flex items-center rounded-full border border-glass-gold px-2.5 py-1 text-xs font-bold text-glass-gold hover:bg-glass-gold hover:text-[color:var(--on-ink)] transition-colors">
             {link.label}
           </a>
         </div>

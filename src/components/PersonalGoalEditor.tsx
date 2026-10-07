@@ -71,7 +71,6 @@ export function PersonalGoalEditor({ initial }: { initial: number | null }) {
         className="w-14 text-center rounded px-1.5 py-0.5"
         style={{
           background: "var(--bg-sunken)",
-          border: "1px solid var(--border)",
           color: "var(--text)",
         }}
       />

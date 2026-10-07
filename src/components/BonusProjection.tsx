@@ -18,15 +18,15 @@ export function BonusProjectionCard({ projection }: { projection: BonusProjectio
 
   return (
     <section
-      className="rounded-2xl border p-5 brodie-card"
+      className="rounded-2xl p-5 brodie-card shadow-card"
       style={{
         background: "var(--bg-raised)",
-        borderColor: "rgba(242, 169, 0, 0.45)",
+        borderColor: "transparent",
       }}
     >
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div>
-          <p className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold mb-1" style={{ color: "var(--accent)" }}>
+          <p className="text-xs font-semibold mb-1" style={{ color: "var(--accent)" }}>
             Projected commission · {unlock_label} pace
           </p>
           <p className="text-3xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>
@@ -40,9 +40,9 @@ export function BonusProjectionCard({ projection }: { projection: BonusProjectio
         {next_tier && pct_to_next_tier != null && (
           <div
             className="rounded-xl p-3 text-right"
-            style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}
+            style={{ background: "var(--bg-sunken)" }}
           >
-            <p className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>
+            <p className="text-xs font-semibold" style={{ color: "var(--text-mute)" }}>
               Next tier
             </p>
             <p className="text-sm font-semibold mt-0.5" style={{ color: "var(--text)" }}>

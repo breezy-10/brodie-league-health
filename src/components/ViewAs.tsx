@@ -8,8 +8,8 @@ type Option = { id: string; full_name: string; location_name: string | null };
 
 export function ViewAsBanner({ name, options }: { name: string; options: Option[] }) {
   return (
-    <div className="rounded-2xl border border-glass-gold/40 bg-glass-gold/10 p-3 flex flex-wrap items-center gap-3">
-      <span className="text-xs uppercase tracking-wider text-glass-gold font-semibold px-2 py-1 rounded bg-glass-surface-hover">
+    <div className="rounded-2xl bg-glass-surface p-3 flex flex-wrap items-center gap-3 shadow-card">
+      <span className="text-xs text-glass-gold font-semibold px-2 py-1 rounded bg-glass-surface-hover">
         Viewing as
       </span>
       <span className="font-semibold">{name}</span>
@@ -44,7 +44,7 @@ export function ViewAsSwitcher({ options, compact = false }: { options: Option[]
       value={value}
       onChange={(e) => go(e.target.value)}
       disabled={pending}
-      className={`border rounded-md text-xs px-2 py-1.5 focus:outline-none focus:border-glass-gold ${
+      className={`border rounded-full text-xs px-2 py-1.5 focus:outline-none focus:border-[color:var(--hairline-strong)] ${
         compact ? "" : "w-full"
       }`}
       style={{

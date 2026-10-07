@@ -16,12 +16,6 @@ export default async function WeightsPage() {
 
   return (
     <main className="space-y-8">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Weights</h1>
-        <p className="text-glass-text-secondary text-sm mt-1">
-          App weights and sub-metric weights both auto-balance to 100. Move one slider and the others adjust proportionally.
-        </p>
-      </header>
 
       <WeightEditor
         apps={(apps ?? []) as Array<{ id: string; slug: string; name: string; weight: number }>}
@@ -30,9 +24,9 @@ export default async function WeightsPage() {
 
       <section>
         <h2 className="text-base font-semibold mb-3">Recent changes</h2>
-        <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+        <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
           <table className="w-full text-sm">
-            <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[11px] sm:text-[10px] tracking-wider">
+            <thead className="bg-glass-surface-hover text-glass-text-tertiary text-xs">
               <tr>
                 <th className="text-left p-3 font-semibold">When</th>
                 <th className="text-left p-3 font-semibold">Who</th>
@@ -46,7 +40,7 @@ export default async function WeightsPage() {
                 const row = h as unknown as { id: string; changed_at: string; scope: string; old_weight: number | null; new_weight: number | null; note: string | null; profiles: { email: string; full_name: string } | null };
                 return (
                   <tr key={row.id} className="border-t border-glass-border-light">
-                    <td className="p-3 font-mono text-xs text-glass-text-tertiary">{row.changed_at.replace("T", " ").slice(0, 16)}</td>
+                    <td className="p-3 tabular text-xs text-glass-text-tertiary">{row.changed_at.replace("T", " ").slice(0, 16)}</td>
                     <td className="p-3">{row.profiles?.full_name ?? row.profiles?.email ?? "—"}</td>
                     <td className="p-3 text-glass-text-tertiary">{row.scope}</td>
                     <td className="p-3 text-right">{row.old_weight ?? "—"} → {row.new_weight ?? "—"}</td>

@@ -83,7 +83,7 @@ export default function RatesEditor({
   }
 
   return (
-    <div className="rounded-2xl border border-glass-border bg-glass-surface p-4 sm:p-5">
+    <div className="rounded-2xl bg-glass-surface p-4 sm:p-5 shadow-card">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>
@@ -104,8 +104,8 @@ export default function RatesEditor({
               pending
                 ? "border border-glass-border bg-glass-surface text-glass-text cursor-default"
                 : dirty && valid
-                  ? "bg-glass-gold text-black hover:brightness-110"
-                  : "bg-glass-gold text-black opacity-40 cursor-default"
+                  ? "bg-glass-gold text-[color:var(--on-ink)] hover:opacity-90"
+                  : "bg-glass-gold text-[color:var(--on-ink)] opacity-40 cursor-default"
             }`}
           >
             {pending && <Spinner />}
@@ -128,7 +128,7 @@ export default function RatesEditor({
 
       {/* Cost of the season at the amounts currently in the boxes. */}
       <div className="mt-4 pt-3.5" style={{ borderTop: "1px solid var(--glass-border)" }}>
-        <p className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+        <p className="text-xs font-bold text-glass-text-tertiary">
           Cost at these terms
         </p>
         {!valid ? (
@@ -169,8 +169,8 @@ export default function RatesEditor({
       {msg && (
         <p className="text-xs mt-3" style={{
           color: msg.kind === "ok"
-            ? "var(--glass-success-text, rgb(74,222,128))"
-            : "var(--glass-danger-text, rgb(248,113,113))",
+            ? "var(--glass-success-text, var(--green))"
+            : "var(--glass-danger-text, var(--red))",
         }}>
           {msg.text}
         </p>
@@ -182,7 +182,7 @@ export default function RatesEditor({
 function Field({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">{label}</span>
+      <span className="text-xs font-bold text-glass-text-tertiary">{label}</span>
       {children}
       <span className="text-[11px] sm:text-[10px] text-glass-text-tertiary">{hint}</span>
     </label>

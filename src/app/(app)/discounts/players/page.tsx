@@ -14,7 +14,7 @@ export const revalidate = 0;
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
 const BACK_BTN =
-  "inline-flex items-center gap-1.5 rounded-lg border border-glass-border bg-glass-surface px-3.5 py-2 text-sm font-medium text-glass-text hover:bg-glass-surface-hover hover:border-glass-gold transition";
+  "inline-flex items-center gap-1.5 rounded-full bg-[color:var(--fill-3)] px-3.5 py-2 text-sm font-semibold text-glass-text hover:bg-glass-surface-hover hover:border-glass-gold transition";
 
 const GOLD = "var(--glass-gold)";
 
@@ -156,12 +156,11 @@ export default async function DiscountPlayersPage({
       </div>
 
       <header>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: GOLD }}>Discounts</p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>
+        <h2 className="page-h2">
           {freeOnly ? "Every free registration" : otherOnly ? "Other discounts" : "Every discounted registration"}
-        </h1>
+        </h2>
         {otherOnly && (
-          <p className="text-sm mt-1.5 text-glass-text-tertiary">
+          <p className="page-lede mt-1">
             Every discounted registration that wasn&apos;t the returning-player discount or a referral.
           </p>
         )}
@@ -216,11 +215,11 @@ export default async function DiscountPlayersPage({
       )}
 
       {!feed ? (
-        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           Discount feed unavailable — the Promo Tracker didn&apos;t answer for {selectedSeason}.
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary">
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           No {freeOnly ? "free" : otherOnly ? "other discounted" : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
@@ -272,8 +271,8 @@ function Tile({ label, value, values, sub, accent }: {
 }) {
   const figures = values ?? (value === undefined ? [] : [value]);
   return (
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
-      <div className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary truncate">{label}</div>
+    <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card">
+      <div className="text-xs font-bold text-glass-text-tertiary truncate">{label}</div>
       <div className="mt-1.5 space-y-0.5">
         {(figures.length ? figures : ["—"]).map((f, i) => (
           <div key={i} className="text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>

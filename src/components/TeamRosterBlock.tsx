@@ -45,7 +45,7 @@ function money(x: RosterLine) {
 export function StaffBadge({ label }: { label: string }) {
   return (
     <span
-      className="ml-1.5 text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded align-middle cursor-help"
+      className="ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded align-middle cursor-help"
       style={{ background: "var(--ok-soft)", color: "var(--ok-on)" }}
       title={label}
     >
@@ -107,7 +107,7 @@ export default function TeamRosterBlock({
                 {staff?.[normName(x.player)] && <StaffBadge label={staff[normName(x.player)]} />}
               </span>
               <span
-                className="tabular font-mono shrink-0 w-[128px] text-right"
+                className="tabular shrink-0 w-[128px] text-right"
                 style={{ color: owes(x) ? GOLD : "var(--glass-text-secondary)" }}
                 title={x.no_registration ? "No registration on file" : undefined}
               >
@@ -118,7 +118,7 @@ export default function TeamRosterBlock({
                   title={x.discount_names ?? undefined}>
                   {(x.discount ?? 0) > 0 && (
                     <>
-                      <span className="tabular font-mono font-bold" style={{ color: GOLD }}>
+                      <span className="tabular font-bold" style={{ color: GOLD }}>
                         {"\u2212"}${Math.round(x.discount!)}
                       </span>
                       <span style={{ color: "var(--glass-text-secondary)" }}>

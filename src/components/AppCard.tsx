@@ -106,7 +106,7 @@ export function AppCard({
 
   return (
     <section
-      className="rounded-2xl border p-4 brodie-card"
+      className="rounded-2xl p-4 brodie-card shadow-card"
       style={{
         background: "var(--bg-raised)",
         borderColor: "var(--border)",
@@ -114,7 +114,7 @@ export function AppCard({
     >
       {/* Top row: app name only — Lock-in moves to each action row */}
       <p
-        className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold leading-tight mb-2"
+        className="text-xs font-semibold leading-tight mb-2"
         style={{ color: "var(--text-mute)" }}
       >
         {appName}
@@ -131,7 +131,7 @@ export function AppCard({
         {metrics && Object.keys(metrics).length > 0 && (
           <button
             onClick={() => setWhyOpen((v) => !v)}
-            className="ml-auto text-[11px] sm:text-[10px] font-semibold uppercase tracking-wider transition"
+            className="ml-auto text-xs font-semibold transition"
             style={{ color: whyOpen ? "var(--accent)" : "var(--text-mute)" }}
             aria-label="Show metric breakdown"
           >
@@ -144,7 +144,7 @@ export function AppCard({
       {whyOpen && metrics && (
         <ul
           className="mt-3 space-y-1.5 rounded-xl p-3"
-          style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}
+          style={{ background: "var(--bg-sunken)" }}
         >
           {Object.entries(metrics).map(([slug, m]) => {
             const help = helpForMetric(slug);
@@ -159,7 +159,7 @@ export function AppCard({
                     {help.label}
                   </span>
                   <span
-                    className="font-mono whitespace-nowrap"
+                    className="tabular whitespace-nowrap"
                     style={{
                       color: s > 0 ? "var(--ok)" : s < 0 ? "var(--error)" : "var(--text-mute)",
                     }}
@@ -204,7 +204,7 @@ export function AppCard({
             <li>
               <button
                 onClick={() => setExpanded(true)}
-                className="text-[11px] font-semibold uppercase tracking-wider hover:underline"
+                className="text-[11px] font-semibold hover:underline"
                 style={{ color: "var(--text-mute)" }}
               >
                 +{hiddenCount} more
@@ -233,7 +233,6 @@ function ActionItemInline({ item, appLink }: { item: ActionItem; appLink: string
       className="flex items-center gap-2 rounded-lg p-2"
       style={{
         background: "var(--bg-sunken)",
-        border: "1px solid var(--border)",
       }}
     >
       <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${severityDot(item.severity)}`} />
@@ -249,9 +248,9 @@ function ActionItemInline({ item, appLink }: { item: ActionItem; appLink: string
         <span
           className="text-[11px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded-md whitespace-nowrap"
           style={{
-            background: item.xpReward > 0 ? "var(--accent-soft)" : "rgba(200, 16, 46, 0.12)",
+            background: item.xpReward > 0 ? "var(--accent-soft)" : "var(--red-tint)",
             color: item.xpReward > 0 ? "var(--accent)" : "var(--error)",
-            border: `1px solid ${item.xpReward > 0 ? "rgba(242, 169, 0, 0.45)" : "rgba(200, 16, 46, 0.4)"}`,
+            border: "1px solid transparent",
           }}
         >
           {item.xpReward > 0 ? "+" : ""}{item.xpReward}
@@ -273,10 +272,8 @@ function LockInPill({ href, compact = false }: { href: string; compact?: boolean
       style={{
         background: "var(--accent-soft)",
         color: "var(--accent)",
-        border: "1px solid rgba(242, 169, 0, 0.5)",
+        border: "1px solid transparent",
         fontWeight: 700,
-        letterSpacing: "0.04em",
-        textTransform: "uppercase",
         padding: compact ? "2px 8px" : "4px 10px",
         fontSize: compact ? 9 : 10,
       }}
@@ -316,7 +313,7 @@ function DisputeStatusChip({ info }: { info: DisputeInfo }) {
       <button
         onClick={() => hasDetail && setOpen((v) => !v)}
         disabled={!hasDetail}
-        className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
+        className="text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap"
         style={{
           background: "var(--bg-sunken)",
           color,
@@ -326,7 +323,7 @@ function DisputeStatusChip({ info }: { info: DisputeInfo }) {
       >
         {label}
         {adj !== null && adj !== 0 && (
-          <span className="ml-1 font-mono">
+          <span className="ml-1 tabular">
             {adj > 0 ? "+" : ""}{adj} XP
           </span>
         )}
@@ -341,7 +338,6 @@ function DisputeStatusChip({ info }: { info: DisputeInfo }) {
           className="mt-1 text-[11px] leading-relaxed rounded p-2"
           style={{
             background: "var(--bg-sunken)",
-            border: "1px solid var(--border)",
             color: "var(--text-secondary)",
             maxWidth: 260,
           }}

@@ -48,8 +48,8 @@ export default async function LMDrill({ params }: { params: Promise<{ id: string
       <Link href="/settings" className="text-xs text-glass-text-tertiary hover:text-glass-text">&larr; Back to settings</Link>
       <header className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{lmRow.full_name}</h1>
-          <p className="text-glass-text-secondary text-sm mt-1">
+          <h2 className="page-h2">{lmRow.full_name}</h2>
+          <p className="page-lede">
             {lmRow.email} · {lmRow.location_name ?? "—"}{lmRow.district ? ` · ${lmRow.district}` : ""}
           </p>
         </div>
@@ -60,7 +60,7 @@ export default async function LMDrill({ params }: { params: Promise<{ id: string
             style={{
               background: "var(--accent-soft)",
               color: "var(--accent)",
-              border: "1px solid rgba(242, 169, 0, 0.5)",
+              border: "1px solid transparent",
             }}
           >
             Monthly review →
@@ -81,7 +81,7 @@ export default async function LMDrill({ params }: { params: Promise<{ id: string
 
       {today_xp && (
         <section className={`rounded-2xl border p-6 ${scoreBg(pct)}`}>
-          <p className="uppercase text-[11px] text-glass-text-tertiary tracking-[0.08em] font-semibold">Today</p>
+          <p className="text-[11px] text-glass-text-tertiary font-semibold">Today</p>
           <p className={`text-5xl font-semibold tracking-tight ${scoreColor(pct)}`}>
             {Math.round(today_xp.total_xp)}<span className="text-glass-text-tertiary text-xl"> / {Math.round(today_xp.max_xp)}</span>
           </p>
@@ -91,9 +91,9 @@ export default async function LMDrill({ params }: { params: Promise<{ id: string
 
       <section>
         <h2 className="text-base font-semibold mb-3">Metrics — today</h2>
-        <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+        <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
           <table className="w-full text-sm">
-            <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[11px] sm:text-[10px] tracking-wider">
+            <thead className="bg-glass-surface-hover text-glass-text-tertiary text-xs">
               <tr>
                 <th className="text-left p-3 font-semibold">Metric</th>
                 <th className="text-right p-3 font-semibold">Raw</th>
@@ -131,7 +131,7 @@ export default async function LMDrill({ params }: { params: Promise<{ id: string
                 <div className="flex-1">
                   <p className="text-sm">{item.title}</p>
                   {item.detail && <p className="text-xs text-glass-text-secondary mt-1">{item.detail}</p>}
-                  <p className="text-[11px] sm:text-[10px] uppercase tracking-wider text-glass-text-tertiary mt-1 font-semibold">
+                  <p className="text-xs text-glass-text-tertiary mt-1 font-semibold">
                     {item.apps?.name} · {item.severity}
                   </p>
                 </div>

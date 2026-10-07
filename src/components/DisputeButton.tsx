@@ -61,7 +61,7 @@ export function DisputeButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-[11px] sm:text-[10px] uppercase tracking-wider transition hover:underline"
+        className="text-xs transition hover:underline"
         style={{ color: "var(--text-mute)" }}
         aria-label={`Dispute ${metricLabel}`}
       >
@@ -70,21 +70,21 @@ export function DisputeButton({
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0, 0, 0, 0.6)" }}
+          className="fixed inset-0 z-[10070] flex items-center justify-center p-4"
+          style={{ background: "var(--scrim-strong)" }}
           onClick={() => !submitting && setOpen(false)}
         >
           <div
-            className="rounded-2xl border max-w-md w-full p-6"
+            className="rounded-2xl max-w-md w-full p-6 shadow-card"
             style={{
               background: "var(--bg-raised)",
               borderColor: "var(--border)",
-              boxShadow: "0 30px 80px rgba(0,0,0,0.4)",
+              boxShadow: "var(--shadow-sheet)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <p
-              className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold"
+              className="text-xs font-semibold"
               style={{ color: "var(--accent)" }}
             >
               Dispute metric
@@ -127,7 +127,6 @@ export function DisputeButton({
                   className="w-full text-sm rounded-lg p-3 mb-2 focus:outline-none focus:ring-2"
                   style={{
                     background: "var(--bg-sunken)",
-                    border: "1px solid var(--border)",
                     color: "var(--text)",
                   }}
                 />

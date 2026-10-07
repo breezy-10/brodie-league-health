@@ -4,7 +4,7 @@
 
 export function TilePlaceholder() {
   return (
-    <div className="rounded-xl border border-glass-border bg-glass-surface px-4 py-3.5 min-w-0">
+    <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card">
       <div className="h-2.5 w-24 rounded skeleton-pulse" />
       <div className="h-7 w-16 mt-2.5 rounded skeleton-pulse" />
       <div className="h-2 w-20 mt-2.5 rounded skeleton-pulse" />
@@ -33,7 +33,7 @@ export function TableSkeleton({ title, rows = 4 }: { title: string; rows?: numbe
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h2>
-      <div className="rounded-2xl border border-glass-border bg-glass-surface p-5 space-y-3">
+      <div className="rounded-2xl bg-glass-surface p-5 space-y-3 shadow-card">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="h-3 rounded skeleton-pulse" style={{ width: `${92 - i * 11}%` }} />
         ))}

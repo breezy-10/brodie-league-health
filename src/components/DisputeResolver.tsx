@@ -45,9 +45,9 @@ export function DisputeResolver({ disputeId }: { disputeId: string }) {
           onClick={() => setMode("approve")}
           className="text-xs px-3 py-1.5 rounded-lg font-semibold"
           style={{
-            background: "var(--ok-soft, rgba(34, 178, 76, 0.12))",
+            background: "var(--ok-soft, var(--green-tint))",
             color: "var(--ok, #22b24c)",
-            border: "1px solid rgba(34, 178, 76, 0.4)",
+            border: "1px solid transparent",
           }}
         >
           Approve
@@ -56,9 +56,9 @@ export function DisputeResolver({ disputeId }: { disputeId: string }) {
           onClick={() => setMode("reject")}
           className="text-xs px-3 py-1.5 rounded-lg font-semibold"
           style={{
-            background: "rgba(200, 16, 46, 0.12)",
+            background: "var(--red-tint)",
             color: "var(--error)",
-            border: "1px solid rgba(200, 16, 46, 0.4)",
+            border: "1px solid transparent",
           }}
         >
           Reject
@@ -70,9 +70,9 @@ export function DisputeResolver({ disputeId }: { disputeId: string }) {
   return (
     <div
       className="mt-3 p-3 rounded-xl space-y-2"
-      style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}
+      style={{ background: "var(--bg-sunken)" }}
     >
-      <p className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>
+      <p className="text-[11px] font-semibold" style={{ color: "var(--text-mute)" }}>
         {mode === "approve" ? "Approve dispute" : "Reject dispute"}
       </p>
 

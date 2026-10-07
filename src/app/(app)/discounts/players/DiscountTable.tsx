@@ -190,7 +190,7 @@ export default function DiscountTable({
   const staffLabel = (name: string) => staff?.[normName(name)];
 
   return (
-    <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+    <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
       <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-2.5"
         style={{ borderBottom: "1px solid var(--glass-border)" }}>
         {loading > 0 && (
@@ -216,7 +216,7 @@ export default function DiscountTable({
         <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1120 }}>
           <thead>
             {teamView ? (
-              <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+              <tr className="text-xs font-bold text-glass-text-tertiary">
                 <Th align="left">Team</Th>
                 <Th align="left">Location</Th>
                 {/* How many on the team carried a discount — the roster
@@ -230,7 +230,7 @@ export default function DiscountTable({
                 <Th>Registered</Th>
               </tr>
             ) : (
-            <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+            <tr className="text-xs font-bold text-glass-text-tertiary">
               <Th align="left">Player</Th>
               <Th align="left">Location</Th>
               {/* Captain or player — the kind of registration, not the kind of
@@ -283,8 +283,8 @@ export default function DiscountTable({
                         {chevron}
                         <span className="max-w-[260px] truncate" title={u.team ?? ""}>{u.team ?? "—"}</span>
                         {u.free > 0 && (
-                          <span className="ml-0.5 text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>
+                          <span className="ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded"
+                            style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>
                             {u.free > 1 ? `${u.free} free` : "Free"}
                           </span>
                         )}
@@ -338,8 +338,8 @@ export default function DiscountTable({
                       )}
                       <span>{r.player}</span>
                       {r.free && (
-                        <span className="ml-0.5 text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-                          style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>Free</span>
+                        <span className="ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>Free</span>
                       )}
                       {sLabel && <StaffBadge label={sLabel} />}
                     </span>
@@ -402,7 +402,7 @@ export default function DiscountTable({
             {unrostered.length > 0 && (
               <>
                 <tr style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
-                  <td colSpan={COLS - 1} className="px-4 py-2 text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
+                  <td colSpan={COLS - 1} className="px-4 py-2 text-xs font-bold text-glass-text-tertiary">
                     Not on a team yet · {unrostered.length} free agent{unrostered.length === 1 ? "" : "s"}
                   </td>
                 </tr>
@@ -416,8 +416,8 @@ export default function DiscountTable({
                           <span className="shrink-0 -ml-1 inline-block" style={{ width: 18 }} aria-hidden />
                           <span>{r.player}</span>
                           {r.free && (
-                            <span className="ml-0.5 text-[9px] uppercase tracking-[0.16em] font-bold px-1.5 py-0.5 rounded"
-                              style={{ background: "var(--glass-gold-light, rgba(255,184,0,0.16))", color: GOLD }}>Free</span>
+                            <span className="ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded"
+                              style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>Free</span>
                           )}
                           {sLabel && <StaffBadge label={sLabel} />}
                         </span>

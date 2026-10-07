@@ -26,35 +26,20 @@ export default function RequestAccessButton() {
 
   if (state === "sent") {
     return (
-      <p style={{ fontSize: 14, fontWeight: 600, color: "#4ade80", margin: 0 }}>
+      <p className="auth-body" style={{ color: "var(--green)", fontWeight: 600, margin: 0 }}>
         {notified
           ? "Request sent. Sohaib has been notified."
-          : "Request sent. It's on Sohaib's list — message him if it's urgent."}
+          : "Request sent. It's on Sohaib's list, so message him if it's urgent."}
       </p>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-      <button
-        type="button"
-        onClick={submit}
-        disabled={state === "sending"}
-        style={{
-          padding: "10px 20px",
-          borderRadius: 10,
-          border: "none",
-          background: "#FFB800",
-          color: "#000",
-          fontSize: 14,
-          fontWeight: 700,
-          cursor: state === "sending" ? "not-allowed" : "pointer",
-          opacity: state === "sending" ? 0.6 : 1,
-        }}
-      >
-        {state === "sending" ? "Sending..." : "Request access"}
+    <>
+      <button type="button" className="auth-btn" onClick={submit} disabled={state === "sending"}>
+        {state === "sending" ? "Sending…" : "Request access"}
       </button>
-      {state === "error" ? <span style={{ fontSize: 13, color: "#f87171" }}>{msg}</span> : null}
-    </div>
+      {state === "error" ? <p className="auth-err">{msg}</p> : null}
+    </>
   );
 }

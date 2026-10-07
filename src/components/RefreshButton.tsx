@@ -31,7 +31,7 @@ export function RefreshButton() {
       <button
         onClick={refresh}
         disabled={busy}
-        className="text-sm px-3.5 py-2 rounded-lg bg-glass-gold text-black font-semibold disabled:opacity-50 hover:brightness-110 transition"
+        className="text-sm px-3.5 py-2 rounded-full bg-glass-gold text-[color:var(--on-ink)] font-semibold disabled:opacity-50 hover:opacity-90 transition"
       >
         {busy ? "Refreshing..." : "Refresh now"}
       </button>

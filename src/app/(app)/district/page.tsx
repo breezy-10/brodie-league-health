@@ -23,20 +23,17 @@ export default async function District({
   return (
     <main className="space-y-6">
       <header>
-        <p className="text-[11px] sm:text-[10px] uppercase tracking-[0.08em] font-semibold" style={{ color: "var(--text-mute)" }}>
-          District view
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight mt-1">
+        <h2 className="page-h2">
           {dmName ? `${dmName}'s district` : "All league managers"}
-        </h1>
-        <p className="text-sm mt-1" style={{ color: "var(--text-mute)" }}>
+        </h2>
+        <p className="page-lede">
           {lms.length} LM{lms.length === 1 ? "" : "s"} · ranked by today's XP · click a row for 1:1 prep
         </p>
       </header>
 
-      <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--bg-raised)" }}>
+      <div className="rounded-2xl overflow-hidden shadow-card" style={{ borderColor: "var(--border)", background: "var(--bg-raised)" }}>
         <table className="w-full text-sm">
-          <thead className="uppercase text-[11px] sm:text-[10px] tracking-wider" style={{ background: "var(--bg-hover)", color: "var(--text-mute)" }}>
+          <thead className="text-xs" style={{ background: "var(--bg-hover)", color: "var(--text-mute)" }}>
             <tr>
               <th className="text-left p-3 font-semibold">LM</th>
               <th className="text-left p-3 font-semibold">Location</th>
@@ -44,7 +41,7 @@ export default async function District({
               <th className="text-left p-3 font-semibold">Streak</th>
               <th className="text-right p-3 font-semibold">Today</th>
               <th className="text-right p-3 font-semibold">30d avg</th>
-              <th className="text-right p-3 font-semibold">⚠ open</th>
+              <th className="text-right p-3 font-semibold">Open</th>
               <th className="p-3"></th>
             </tr>
           </thead>
@@ -56,7 +53,7 @@ export default async function District({
                   <td className="p-3">{lm.name}</td>
                   <td className="p-3" style={{ color: "var(--text-mute)" }}>{lm.location_name}</td>
                   <td className="p-3 text-xs">{lm.tier ? lm.tier.replace(/_/g, " ") : "—"}</td>
-                  <td className="p-3 text-xs">{lm.current_streak ? `🔥 ${lm.current_streak}d` : <span style={{ color: "var(--text-mute)" }}>—</span>}</td>
+                  <td className="p-3 text-xs">{lm.current_streak ? `${lm.current_streak}-day streak` : <span style={{ color: "var(--text-mute)" }}>—</span>}</td>
                   <td className={`p-3 text-right font-semibold ${scoreColor(pct)}`}>
                     {lm.today_xp != null ? Math.round(lm.today_xp) : "—"} <span className="text-xs font-normal" style={{ color: "var(--text-mute)" }}>{lm.today_xp != null ? `(${pct}%)` : ""}</span>
                   </td>
@@ -67,7 +64,7 @@ export default async function District({
                     {lm.open_critical_count > 0 ? (
                       <span
                         className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold"
-                        style={{ background: "rgba(200, 16, 46, 0.12)", color: "var(--error)", border: "1px solid rgba(200, 16, 46, 0.4)" }}
+                        style={{ background: "var(--red-tint)", color: "var(--error)", border: "1px solid transparent" }}
                       >
                         {lm.open_critical_count}
                       </span>
@@ -82,7 +79,7 @@ export default async function District({
                       style={{
                         background: "var(--accent-soft)",
                         color: "var(--accent)",
-                        border: "1px solid rgba(242, 169, 0, 0.45)",
+                        border: "1px solid transparent",
                       }}
                     >
                       1:1 prep →

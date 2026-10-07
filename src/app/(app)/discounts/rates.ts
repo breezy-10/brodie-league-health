@@ -10,9 +10,9 @@
 export const DISCOUNT_RED_AT_PCT = 25;
 export const FREE_RED_AT_PCT = 10;
 
-export const DANGER = "var(--glass-danger-text, rgb(248,113,113))";
+export const DANGER = "var(--red)";
 export const WARNING = "var(--glass-warning-text, var(--glass-gold))";
-export const SUCCESS = "var(--glass-success-text, rgb(74,222,128))";
+export const SUCCESS = "var(--green)";
 
 // Rounded before banding so what the eye reads and what the colour says agree:
 // 24.6% prints as 25% and must colour like 25%, not like 24%.

@@ -94,16 +94,13 @@ export default async function OneOnOnePrep({ params }: { params: Promise<{ id: s
       <Link href="/district" className="text-xs" style={{ color: "var(--text-mute)" }}>&larr; Back to district</Link>
 
       <header>
-        <p className="uppercase text-[11px] sm:text-[10px] tracking-[0.08em] font-semibold" style={{ color: "var(--accent)" }}>
-          1:1 prep
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight mt-1">{lmRow.full_name}</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--text-mute)" }}>
+        <h2 className="page-h2">{lmRow.full_name}</h2>
+        <p className="page-lede">
           {lmRow.location_name} · {lmRow.tier?.replace(/_/g, " ")} · {lmRow.email}
         </p>
       </header>
 
-      <section className="rounded-2xl border p-5" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
+      <section className="rounded-2xl p-5 shadow-card" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
         <h2 className="text-base font-semibold mb-3">Snapshot</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <Stat label="30-day avg" value={lmRow.avg_30d != null ? `${Math.round(Number(lmRow.avg_30d))}%` : "—"} />
@@ -113,7 +110,7 @@ export default async function OneOnOnePrep({ params }: { params: Promise<{ id: s
         </div>
       </section>
 
-      <section className="rounded-2xl border p-5" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
+      <section className="rounded-2xl p-5 shadow-card" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
         <h2 className="text-base font-semibold mb-3">Talking points</h2>
         {prompts.length === 0 ? (
           <p className="text-sm" style={{ color: "var(--text-mute)" }}>
@@ -126,17 +123,17 @@ export default async function OneOnOnePrep({ params }: { params: Promise<{ id: s
         )}
       </section>
 
-      <section className="rounded-2xl border p-5" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
+      <section className="rounded-2xl p-5 shadow-card" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
         <h2 className="text-base font-semibold mb-3">App performance — last 7d</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
           {appAggArr.sort((a, b) => b.pct - a.pct).map((a) => (
             <div
               key={a.slug}
               className="flex items-center justify-between p-2 rounded-lg"
-              style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}
+              style={{ background: "var(--bg-sunken)" }}
             >
               <span>{appName(a.slug)}</span>
-              <span className="font-mono text-xs" style={{ color: a.pct >= 70 ? "var(--ok)" : a.pct >= 40 ? "var(--warn)" : "var(--error)" }}>
+              <span className="tabular text-xs" style={{ color: a.pct >= 70 ? "var(--ok)" : a.pct >= 40 ? "var(--warn)" : "var(--error)" }}>
                 {Math.round(a.pct)}%
               </span>
             </div>
@@ -144,16 +141,16 @@ export default async function OneOnOnePrep({ params }: { params: Promise<{ id: s
         </div>
       </section>
 
-      <section className="rounded-2xl border p-5" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
+      <section className="rounded-2xl p-5 shadow-card" style={{ background: "var(--bg-raised)", borderColor: "var(--border)" }}>
         <h2 className="text-base font-semibold mb-3">Open action items to work through</h2>
         {(openActions ?? []).length === 0 ? (
           <p className="text-sm" style={{ color: "var(--text-mute)" }}>Clean board.</p>
         ) : (
           <ul className="space-y-2 text-sm">
             {((openActions ?? []) as unknown as Array<{ title: string; severity: string; apps: { name: string } }>).map((a, i) => (
-              <li key={i} className="flex items-center justify-between p-2 rounded-lg" style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}>
+              <li key={i} className="flex items-center justify-between p-2 rounded-lg" style={{ background: "var(--bg-sunken)" }}>
                 <span>{a.title}</span>
-                <span className="text-[11px] sm:text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>{a.apps?.name}</span>
+                <span className="text-xs font-semibold" style={{ color: "var(--text-mute)" }}>{a.apps?.name}</span>
               </li>
             ))}
           </ul>
@@ -169,8 +166,8 @@ export default async function OneOnOnePrep({ params }: { params: Promise<{ id: s
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: "good" | "bad" }) {
   return (
-    <div className="rounded-lg p-3" style={{ background: "var(--bg-sunken)", border: "1px solid var(--border)" }}>
-      <p className="uppercase text-[11px] sm:text-[10px] tracking-wider font-semibold" style={{ color: "var(--text-mute)" }}>{label}</p>
+    <div className="rounded-lg p-3" style={{ background: "var(--bg-sunken)" }}>
+      <p className="text-xs font-semibold" style={{ color: "var(--text-mute)" }}>{label}</p>
       <p
         className="text-lg font-semibold mt-0.5"
         style={{ color: accent === "good" ? "var(--ok)" : accent === "bad" ? "var(--error)" : "var(--text)" }}

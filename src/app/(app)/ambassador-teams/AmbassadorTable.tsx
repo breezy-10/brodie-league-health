@@ -53,26 +53,26 @@ export default function AmbassadorTable({
     <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
       <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 420 }}>
         <thead>
-          <tr className="text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-text-tertiary">
-            <th className="px-4 py-2.5 text-left font-bold sticky top-0 bg-glass-surface"
+          <tr className="text-xs font-bold text-glass-text-tertiary">
+            <th className="px-4 py-2.5 text-left font-bold sticky top-[var(--shell-top)] bg-glass-surface"
               style={{ borderBottom: "1px solid var(--glass-border)" }}>Ambassador</th>
-            <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+            <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
               style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams</th>
             {hasFullRoster && (
-              <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+              <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
                 style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams with 7+</th>
             )}
             {hasTeammates && (
-              <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+              <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
                 style={{ borderBottom: "1px solid var(--glass-border)" }}>Teammates</th>
             )}
-            <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+            <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
               style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg teammates per team</th>
             {hasPaid && (
               <>
-                <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+                <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
                   style={{ borderBottom: "1px solid var(--glass-border)" }}>Paid teammates</th>
-                <th className="px-4 py-2.5 text-right font-bold sticky top-0 bg-glass-surface"
+                <th className="px-4 py-2.5 text-right font-bold sticky top-[var(--shell-top)] bg-glass-surface"
                   style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg paid per team</th>
               </>
             )}
@@ -159,7 +159,7 @@ function Row({
              ambassador reads at a glance instead of by comparing two columns. */
           <td className="px-4 py-2.5 text-right tabular"
             style={{ color: c.fullRoster != null && c.fullRoster === c.teams
-              ? "rgb(74,222,128)" : "var(--glass-text-secondary)" }}>
+              ? "var(--green)" : "var(--glass-text-secondary)" }}>
             {c.fullRoster ?? "—"}
           </td>
         )}

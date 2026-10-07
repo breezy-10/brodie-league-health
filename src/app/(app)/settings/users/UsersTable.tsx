@@ -20,14 +20,14 @@ export interface UserListRow {
 const INPUT =
   "w-full rounded-lg border border-glass-border bg-glass-surface px-3 py-2 text-sm text-glass-text placeholder:text-glass-text-tertiary focus:outline-none focus:border-glass-gold transition";
 const BTN_PRIMARY =
-  "rounded-lg bg-glass-gold text-black font-semibold text-sm px-4 py-2 hover:brightness-110 disabled:opacity-50 transition shrink-0";
+  "rounded-full bg-glass-gold text-[color:var(--on-ink)] font-semibold text-sm px-4 py-2 hover:opacity-90 disabled:opacity-50 transition shrink-0";
 const BTN_SECONDARY =
-  "rounded-lg border border-glass-border bg-glass-surface text-sm px-3.5 py-2 hover:bg-glass-surface-hover transition";
+  "rounded-full bg-[color:var(--fill-3)] text-glass-text font-semibold text-sm px-3.5 py-2 hover:bg-[color:var(--fill-2)] transition";
 
 const STATUS_GROUPS: { key: UserStatus; label: string; dot: string }[] = [
   // First: the only group that needs an admin to do something.
   { key: "requested", label: "Requested access", dot: "var(--glass-gold)" },
-  { key: "active", label: "Active", dot: "rgb(74,222,128)" },
+  { key: "active", label: "Active", dot: "var(--green)" },
   { key: "invited", label: "Invited", dot: "var(--glass-gold)" },
   { key: "inactive", label: "Archived", dot: "var(--glass-text-tertiary)" },
 ];
@@ -81,16 +81,16 @@ export default function UsersTable({
             <option value="all">All locations</option>
             {locations.map((l) => <option key={l} value={l}>{l}</option>)}
           </select>
-          <span className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.18em] font-bold shrink-0 text-glass-text-tertiary">
+          <span className="text-xs font-bold shrink-0 text-glass-text-tertiary">
             {filtered.length} of {rows.length}
           </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name or email…"
-            className={`${INPUT} !w-auto min-w-[240px]`}
+            className={`${INPUT} !w-auto min-w-0 flex-1 sm:min-w-[240px]`}
           />
           <button className={BTN_PRIMARY} onClick={() => setInviteOpen((v) => !v)}>+ Invite user</button>
         </div>
@@ -115,14 +115,14 @@ export default function UsersTable({
               <section key={g.key} className="space-y-2.5">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full" style={{ background: g.dot }} />
-                  <h3 className="text-xs uppercase tracking-[0.18em] font-bold text-glass-text-secondary">
+                  <h3 className="text-xs font-bold text-glass-text-secondary">
                     {g.label}<span className="ml-1.5 text-glass-text-tertiary">({groupRows.length})</span>
                   </h3>
                 </div>
-                <div className="rounded-2xl border border-glass-border bg-glass-surface">
+                <div className="rounded-2xl bg-glass-surface shadow-card">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] sm:text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+                      <tr className="text-left text-xs text-glass-text-tertiary border-b border-glass-border-light">
                         <StickyTh>Name</StickyTh>
                         <StickyTh>Role</StickyTh>
                         <StickyTh>Location</StickyTh>
@@ -136,7 +136,7 @@ export default function UsersTable({
                           <Fragment key={r.id}>
                             {showRoleHeader && (
                               <tr className="bg-glass-surface-hover border-t border-glass-border-light">
-                                <td colSpan={4} className="px-5 py-1.5 text-[11px] sm:text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">
+                                <td colSpan={4} className="px-5 py-1.5 text-xs font-bold text-glass-text-tertiary">
                                   {ROLE_LABELS[r.role]}
                                 </td>
                               </tr>
@@ -164,7 +164,7 @@ export default function UsersTable({
                               <td className="px-5 py-3 text-right">
                                 <button
                                   onClick={() => setEditing(r)}
-                                  className="inline-flex items-center rounded-md border border-glass-gold px-3 py-1 text-[11px] sm:text-[10px] uppercase tracking-[0.16em] font-bold text-glass-gold hover:bg-glass-gold hover:text-black transition-colors"
+                                  className="inline-flex items-center rounded-full border border-glass-gold px-3 py-1 text-xs font-bold text-glass-gold hover:bg-glass-gold hover:text-[color:var(--on-ink)] transition-colors"
                                 >
                                   Edit
                                 </button>
@@ -214,35 +214,35 @@ function InviteForm({ allLocations, onDone, onCancel }: { allLocations: string[]
   }
 
   return (
-    <div className="rounded-2xl border border-glass-border bg-glass-surface p-5 space-y-4">
+    <div className="rounded-2xl bg-glass-surface p-5 space-y-4 shadow-card">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <label className="block">
-          <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">First name</span>
+          <span className="text-xs text-glass-text-tertiary font-semibold">First name</span>
           <input className={`${INPUT} mt-1`} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Paul" />
         </label>
         <label className="block">
-          <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Last name</span>
+          <span className="text-xs text-glass-text-tertiary font-semibold">Last name</span>
           <input className={`${INPUT} mt-1`} value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Wandili" />
         </label>
         <label className="block">
-          <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Email</span>
+          <span className="text-xs text-glass-text-tertiary font-semibold">Email</span>
           <input className={`${INPUT} mt-1`} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="someone@brodierec.com" />
         </label>
         <label className="block">
-          <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Role</span>
+          <span className="text-xs text-glass-text-tertiary font-semibold">Role</span>
           <select className={`${INPUT} mt-1`} value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
             {ROLE_ORDER.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
           </select>
         </label>
         <div className="block">
-          <span className="text-xs uppercase tracking-wider text-glass-text-tertiary font-semibold">Locations</span>
+          <span className="text-xs text-glass-text-tertiary font-semibold">Locations</span>
           <div className="mt-1">
             <LocationMultiSelect options={allLocations} value={locations} onChange={setLocations} />
           </div>
         </div>
       </div>
       {error && (
-        <p className="text-sm rounded-md px-3 py-2" style={{ background: "rgba(239,68,68,0.14)", color: "rgb(248,113,113)", border: "1px solid rgba(239,68,68,0.5)" }}>{error}</p>
+        <p className="text-sm rounded-md px-3 py-2" style={{ background: "var(--red-tint)", color: "var(--red)", border: "1px solid transparent" }}>{error}</p>
       )}
       <div className="flex items-center justify-end gap-2">
         <button type="button" onClick={onCancel} className={BTN_SECONDARY}>Cancel</button>
@@ -259,7 +259,7 @@ function StickyTh({ children, align }: { children?: React.ReactNode; align?: "ri
   return (
     <th
       className={`px-5 py-3 font-bold bg-glass-surface ${align === "right" ? "text-right" : ""}`}
-      style={{ position: "sticky", top: 0, zIndex: 2,
+      style={{ position: "sticky", top: "var(--shell-top)", zIndex: 2,
                boxShadow: "0 -40px 0 var(--glass-background), inset 0 -1px 0 var(--glass-border-light)" }}
     >
       {children}

@@ -18,18 +18,13 @@ export default async function AdminSync() {
   return (
     <main className="space-y-6 brodie-fade-in">
       <header className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>Settings</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Sync &amp; refresh</h1>
-          <p className="text-glass-text-secondary text-sm mt-1">Re-run every adapter and re-score all LMs, then review the last runs.</p>
-        </div>
         <RefreshButton />
       </header>
 
       <section>
-        <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-hidden">
+        <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
           <table className="w-full text-sm">
-            <thead className="bg-glass-surface-hover text-glass-text-tertiary uppercase text-[11px] sm:text-[10px] tracking-wider">
+            <thead className="bg-glass-surface-hover text-glass-text-tertiary text-xs">
               <tr>
                 <th className="text-left p-3 font-semibold">App</th>
                 <th className="text-left p-3 font-semibold">Started</th>
@@ -42,16 +37,16 @@ export default async function AdminSync() {
               {(syncs ?? []).map((s) => {
                 const row = s as unknown as { id: string; started_at: string; status: string; rows_synced: number | null; error: string | null; apps: { name: string } };
                 const color =
-                  row.status === "success" ? "text-green-400" :
-                  row.status === "error"   ? "text-red-400"   :
-                  row.status === "partial" ? "text-yellow-400" : "text-glass-text-tertiary";
+                  row.status === "success" ? "text-[color:var(--green)]" :
+                  row.status === "error"   ? "text-[color:var(--red)]"   :
+                  row.status === "partial" ? "text-[color:var(--amber-ink)]" : "text-glass-text-tertiary";
                 return (
                   <tr key={row.id} className="border-t border-glass-border-light">
                     <td className="p-3">{row.apps?.name}</td>
-                    <td className="p-3 text-glass-text-tertiary font-mono text-xs">{row.started_at.replace("T", " ").slice(0, 16)}</td>
+                    <td className="p-3 text-glass-text-tertiary tabular text-xs">{row.started_at.replace("T", " ").slice(0, 16)}</td>
                     <td className={`p-3 ${color}`}>{row.status}</td>
                     <td className="p-3 text-right">{row.rows_synced ?? "—"}</td>
-                    <td className="p-3 text-red-400 text-xs truncate max-w-xs">{row.error}</td>
+                    <td className="p-3 text-[color:var(--red)] text-xs truncate max-w-xs">{row.error}</td>
                   </tr>
                 );
               })}

@@ -32,15 +32,8 @@ export default async function StaffPerformancePage() {
 
   return (
     <main className="brodie-fade-in space-y-6">
-      <div>
-        <p className="font-mono text-xs uppercase tracking-[0.18em] mb-1" style={{ color: "var(--glass-gold)" }}>Staff</p>
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "var(--glass-text)" }}>Staff performance</h1>
-        <p className="text-sm mt-1 text-glass-text-secondary">
-          Everyone in the Training app, with their role and locations. Rate each person from 0 to 10.
-        </p>
-      </div>
       {staff === null ? (
-        <p className="text-sm rounded-2xl border border-glass-border bg-glass-surface px-5 py-4 text-glass-text-secondary">
+        <p className="text-sm rounded-2xl bg-glass-surface px-5 py-4 text-glass-text-secondary shadow-card">
           Not connected: the Training app couldn&apos;t be read, so there&apos;s no staff list to show.
         </p>
       ) : (

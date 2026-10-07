@@ -1,0 +1,135 @@
+/* Dark mode for brodie-league-health (copied from brodie-feedback).
+
+   The Brodie Design Library kit is light only; this app keeps a dark theme
+   because its people asked for one. It is a layer over the kit, not an edit
+   to it: tokens.css and bundle.css stay verbatim, and everything here is
+   keyed on [data-theme="dark"]. Values come from the Lab's own dark mode
+   (brodielabs.io .dark tokens and its dark sidebar, header and menus), with
+   Apple's dark system colours where the Lab has none. */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ink: #f5f5f7;
+  --ink-2: #e5e5ea;
+  --ink-3: #d1d1d6;
+  --text-sub: #a1a1a6;
+  /* The Lab's #636366 is 3.0:1 on its panels; meta stays readable here. */
+  --text-muted: #8e8e93;
+  --label: #8e8e93;
+  --text-faint: #636366;
+  --chevron: #48484a;
+
+  --bg: #141414;
+  --surface: #1c1c1e;
+  --surface-2: #1f1f21;
+  --grouped: #2c2c2e;
+  --border: #2c2c2e;
+  --divider: #222224;
+  --line-strong: #3a3a3c;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.16);
+  --separator: rgba(84, 84, 88, 0.48);
+
+  --fill-1: rgba(120, 120, 128, 0.36);
+  --fill-2: rgba(120, 120, 128, 0.32);
+  --fill-3: rgba(120, 120, 128, 0.24);
+  --fill-4: rgba(120, 120, 128, 0.18);
+  --fill-chip: rgba(120, 120, 128, 0.2);
+  --fill-hover: rgba(255, 255, 255, 0.07);
+
+  --red: #ff453a;
+  --red-deep: #ff6961;
+  --red-soft: rgba(255, 69, 58, 0.16);
+  --red-tint: rgba(255, 69, 58, 0.16);
+  --red-ink: #ff6961;
+  --green: #30d158;
+  --green-tint: rgba(48, 209, 88, 0.16);
+  --green-ink: #30d158;
+  --green-ui: #30d158;
+  --amber: #ffd60a;
+  --amber-tint: rgba(255, 214, 10, 0.14);
+  --amber-ink: #ffd60a;
+
+  --tag-green: #30d158;
+  --tag-blue: #64d2ff;
+  --tag-orange: #ff9f0a;
+  --tag-purple: #bf5af2;
+  --tag-indigo: #7d7aff;
+  --tag-teal: #40c8e0;
+
+  --glass-nav: rgba(28, 28, 30, 0.86);
+  --glass-bar: rgba(22, 22, 24, 0.82);
+  --glass-tabbar: rgba(22, 22, 24, 0.88);
+  --glass-menu: rgba(28, 28, 30, 0.97);
+  --glass-grouped: rgba(28, 28, 30, 0.94);
+  --scrim: rgba(0, 0, 0, 0.4);
+  --scrim-strong: rgba(0, 0, 0, 0.5);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-card-lab: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-widget: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --shadow-widget-hover: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-tile: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.4);
+  --shadow-panel-float: 0 22px 60px rgba(0, 0, 0, 0.6);
+  --shadow-menu: 0 14px 44px rgba(0, 0, 0, 0.5);
+  --shadow-sheet: 0 24px 70px rgba(0, 0, 0, 0.55), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  --shadow-thumb: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --ring-avatar: 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  --focus-halo: 0 0 0 3px rgba(255, 69, 58, 0.2);
+
+  /* League Health's own variables that are not plain token aliases. */
+  --glass-surface-hover: #2a2a2c;
+  --glass-surface-active: #3a3a3c;
+  --on-ink: #1d1d1f;
+  --viz-prev: #8e8e93;
+  --viz-prev-2: #48484a;
+}
+
+/* The shell: the Lab's dark sidebar, header and menus. */
+[data-theme="dark"] .br-sidebar { border-color: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] .br-sb-foot { border-top-color: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] .br-sidebar.is-rail .br-sb-header { background: rgba(255, 255, 255, 0.1); }
+[data-theme="dark"] .br-sb-item.is-active,
+[data-theme="dark"] .br-sb-item[aria-current="page"] { background: rgba(255, 255, 255, 0.13); }
+[data-theme="dark"] .br-header { border-bottom-color: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] .br-menu { border-color: rgba(255, 255, 255, 0.1); }
+[data-theme="dark"] .br-menu.is-card { box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.1); }
+[data-theme="dark"] .br-menu.is-card :is(button, a):hover { background: #3a3a3c; }
+
+/* The official B is black and never recoloured: on a dark ground it sits on
+   a small white tile (BrandMark). */
+[data-theme="dark"] :is(.br-sb-logo, .br-hd-logo, .auth-mark) { background: #fff; border-radius: 8px; padding: 4px; box-sizing: content-box; }
+[data-theme="dark"] .br-sb-logo { height: 22px; }
+[data-theme="dark"] .br-sidebar.is-rail .br-sb-logo { height: 18px; }
+[data-theme="dark"] .br-hd-logo { height: 17px; padding: 3px; border-radius: 6px; }
+[data-theme="dark"] .brodie-logo { filter: none; }
+
+/* Ink fills flip to near-white, so whatever sat on them in white goes ink. */
+[data-theme="dark"] :is(.br-btn:not(.is-grey):not(.is-outline):not(.is-red):not(.is-white):not(.is-add),
+  .br-filter.is-on, .br-filter[aria-pressed="true"], .br-pill.is-ink, .br-seg button.is-on.is-ink,
+  .br-nextup, .br-logo-tile.is-text, .btn-primary, .chip.on, .auth-btn) { color: #1d1d1f; }
+[data-theme="dark"] :is(.br-filter.is-on, .br-filter[aria-pressed="true"]) > span { color: rgba(0, 0, 0, 0.55); }
+[data-theme="dark"] .br-avatar { background: #3a3a3c; color: #f5f5f7; }
+[data-theme="dark"] .br-avatar.is-soft { background: #2c2c2e; color: var(--text-sub); }
+
+/* White thumbs, tiles and rows become raised dark surfaces. */
+[data-theme="dark"] :is(.br-seg button.is-on, .br-seg button[aria-pressed="true"], .seg-option.on) { background: #636366; box-shadow: none; }
+[data-theme="dark"] :is(.br-pchip, .br-tile[aria-checked="true"], .br-group, .br-group-btn, .br-dr-txt, .br-dr-act,
+  details.br-more > summary, .br-dr-remove, .br-table tr.is-total td, .br-table.is-money :is(th, td).sticky) { background: var(--surface); }
+[data-theme="dark"] .br-card-foot { background: var(--surface-2); border-top-color: rgba(255, 255, 255, 0.06); }
+[data-theme="dark"] .br-widget { border-color: rgba(255, 255, 255, 0.06); }
+[data-theme="dark"] .br-chart-tip { background: rgba(44, 44, 46, 0.96); border-color: rgba(255, 255, 255, 0.08); }
+[data-theme="dark"] .br-search:focus { background: var(--grouped); }
+
+/* Rings that cut a gap out of the ground use the dark ground, not white. */
+[data-theme="dark"] :is(.br-sb-badge, .br-count, .br-sb-you-dot, .br-avatar-dot) { box-shadow: 0 0 0 2px var(--surface); }
+[data-theme="dark"] .br-avatar.ring-red { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--red); }
+[data-theme="dark"] .br-avatar.ring-amber { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--amber); }
+[data-theme="dark"] .br-avatar.ring-green { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--green-ui); }
+
+/* The app's own pieces. */
+[data-theme="dark"] .auth-card { border-color: rgba(255, 255, 255, 0.06); }
+[data-theme="dark"] .auth-btn:hover:not(:disabled) { background: var(--ink-2); }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { border-color: var(--bg); }

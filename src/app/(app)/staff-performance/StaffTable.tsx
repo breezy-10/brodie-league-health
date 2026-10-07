@@ -94,7 +94,7 @@ export default function StaffTable({
             <option value="all">All locations</option>
             {locationOptions.map((l) => <option key={l} value={l}>{l}</option>)}
           </select>
-          <span className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.18em] font-bold shrink-0 text-glass-text-tertiary">
+          <span className="text-xs font-bold shrink-0 text-glass-text-tertiary">
             {filtered.length} of {staff.length}
           </span>
         </div>
@@ -125,10 +125,10 @@ export default function StaffTable({
       {filtered.length === 0 ? (
         <p className="text-sm italic py-8 text-center text-glass-text-tertiary">No staff match these filters.</p>
       ) : (
-        <div className="rounded-2xl border border-glass-border bg-glass-surface overflow-x-auto">
+        <div className="rounded-2xl bg-glass-surface overflow-x-auto shadow-card">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[11px] sm:text-[10px] uppercase tracking-[0.18em] text-glass-text-tertiary border-b border-glass-border-light">
+              <tr className="text-left text-xs text-glass-text-tertiary border-b border-glass-border-light">
                 <th className="px-5 py-3 font-bold">Name</th>
                 <th className="px-5 py-3 font-bold">Role</th>
                 <th className="px-5 py-3 font-bold">Location</th>
@@ -144,7 +144,7 @@ export default function StaffTable({
                   <Fragment key={s.id}>
                     {showRoleHeader && (
                       <tr className="bg-glass-surface-hover border-t border-glass-border-light">
-                        <td colSpan={5} className="px-5 py-1.5 text-[11px] sm:text-[10px] uppercase tracking-[0.18em] font-bold text-glass-text-tertiary">
+                        <td colSpan={5} className="px-5 py-1.5 text-xs font-bold text-glass-text-tertiary">
                           {s.role}
                         </td>
                       </tr>
@@ -227,7 +227,7 @@ function RatingScale({
             aria-checked={on}
             disabled={disabled}
             onClick={() => onRate(n)}
-            className="w-7 h-7 rounded-md border text-xs font-semibold tabular-nums transition disabled:cursor-not-allowed border-glass-border text-glass-text-secondary hover:border-glass-gold hover:text-glass-text disabled:hover:border-glass-border"
+            className="w-7 h-7 rounded-full border text-xs font-semibold tabular-nums transition disabled:cursor-not-allowed border-glass-border text-glass-text-secondary hover:border-[color:var(--hairline-strong)] hover:text-glass-text disabled:hover:border-glass-border"
             style={on ? { background: c.tint, color: c.ink, borderColor: c.ink } : undefined}
           >
             {n}
