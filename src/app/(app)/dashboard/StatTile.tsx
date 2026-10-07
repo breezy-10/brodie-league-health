@@ -127,7 +127,8 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
             >
               {l && (l.chip
                 ? <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
-                    style={{ color: "var(--glass-gold)", borderColor: "transparent", background: "var(--fill-3)" }}>
+                    // The one line chip is the full-roster count, yellow everywhere.
+                    style={{ color: "var(--amber-ink)", borderColor: "transparent", background: "var(--amber-tint)" }}>
                     {l.text}
                   </span>
                 : <span>{l.text}</span>)}
