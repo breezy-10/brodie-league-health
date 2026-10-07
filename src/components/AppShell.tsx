@@ -83,7 +83,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/discounts", title: "Price and discounting", subtitle: "What a registration is advertised at, what comes off, and what actually lands." },
   { path: "/ambassador-teams/captain", title: "Captain", subtitle: "One captain's ambassador team and roster." },
   { path: "/ambassador-teams", title: "Ambassador teams", subtitle: "Every night's ambassador team, and how full each roster is." },
-  { path: "/drop-ins", title: "Drop-ins", subtitle: "Players who paid for a single game: how many, what they paid, and what came off." },
+  { path: "/drop-ins", title: "Drop-ins", subtitle: "Players who came for a single game: who was new, who showed up, and who went on to register." },
   { path: "/staff-performance", title: "Staff performance", subtitle: "Everyone in the Training app, with their role and locations, rated from 0 to 10." },
   { path: "/my-day", title: "My day", subtitle: "Today's score and the actions that move it." },
   { path: "/leaderboard", title: "Leaderboard", subtitle: "How league managers rank on XP." },
