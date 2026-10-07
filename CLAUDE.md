@@ -97,5 +97,7 @@ are built the same way.
   buttons are black pills (`br-btn`), secondary ones grey; segmented controls
   are `br-seg`; status chips are tinted pills with a word.
 - The page scrolls the window, under the kit's sticky header, so anything
-  sticky uses `top: var(--shell-top)`. The kit's sidebar and header sit at
+  sticky uses `top: var(--shell-top)`. The exception is a header inside a
+  box that scrolls on its own (`overflow` with a `max-height`, like the
+  Ambassadors table): it sticks to that box, so it uses `top-0`. The kit's sidebar and header sit at
   z-index 900-1000; overlays use `z-[10070]` on `var(--scrim-strong)`.
