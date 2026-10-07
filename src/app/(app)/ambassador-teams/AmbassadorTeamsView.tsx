@@ -230,7 +230,7 @@ export default async function AmbassadorTeamsView({
                 accent={GOLD}
                 chips={t!.full_roster != null && t!.three_or_fewer != null
                   ? [
-                      { text: `${t!.full_roster.toLocaleString()} with 7 or more players`, tone: "gold" },
+                      { text: `${t!.full_roster.toLocaleString()} with 7 or more players`, tone: "yellow" },
                       { text: `${t!.three_or_fewer.toLocaleString()} with 3 or fewer players`, tone: "red" },
                     ]
                   : undefined}
@@ -536,10 +536,10 @@ function Flag({ color, children }: { color: string; children: React.ReactNode })
   );
 }
 
-// The dashboard's roster chips: gold for full rosters, red for what needs work
+// The dashboard's roster chips: yellow for full rosters, red for what needs work
 // (thin rosters, a location still without an ambassador team).
 const CHIP_STYLE = {
-  gold: { color: "var(--glass-gold)", borderColor: "transparent", background: "var(--fill-3)" },
+  yellow: { color: "var(--amber-ink)", borderColor: "transparent", background: "var(--amber-tint)" },
   red: { color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" },
 };
 type Chip = { text: string; tone: keyof typeof CHIP_STYLE };

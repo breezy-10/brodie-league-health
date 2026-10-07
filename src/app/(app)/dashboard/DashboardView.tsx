@@ -1699,7 +1699,7 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
   footer?: ShareGroup[];
   // Second readings of the headline — how many of those teams can field a
   // side, and how many have barely started.
-  notes?: { text: string; tone?: "bad" }[];
+  notes?: { text: string; tone?: "bad" | "yellow" }[];
   format?: "number" | "money" | "age" | "percent";
   // Given a distribution, the card draws that instead of the season bars.
   // Three seasons of median age differ by a year at most, so as bars they
@@ -1732,7 +1732,9 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
                   style={n
                     ? (n.tone === "bad"
                       ? { background: "var(--red-tint)", color: "var(--red)" }
-                      : { background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" })
+                      : n.tone === "yellow"
+                        ? FULL_ROSTER_CHIP
+                        : { background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" })
                     : { visibility: "hidden" }}>
                   {n ? n.text : "\u00A0"}
                 </span>
@@ -1893,7 +1895,7 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
   label: string; cur: number; prev: number; year: number; prevLabel: string; yearLabel: string;
   // Read under the deltas — how many of these teams can field a side, and how
   // many have barely started.
-  notes?: { text: string; tone?: "gold" | "bad" }[];
+  notes?: { text: string; tone?: "gold" | "bad" | "yellow" }[];
   // Revenue reads as dollars; the counts do not.
   money?: boolean;
 }) {
@@ -1930,7 +1932,9 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
             <span key={n.text} className="inline-block text-[11px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
               style={n.tone === "bad"
                 ? { background: "var(--red-tint)", color: "var(--red)" }
-                : { background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>
+                : n.tone === "yellow"
+                  ? FULL_ROSTER_CHIP
+                  : { background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>
               {n.text}
             </span>
           ))}
@@ -2515,7 +2519,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
                   prevLabel={prevLabel} yearLabel={yearLabel}
                   notes={[
-                    { text: `${get("current", "full_roster").toLocaleString()} with 7 or more players` },
+                    { text: `${get("current", "full_roster").toLocaleString()} with 7 or more players`, tone: "yellow" as const },
                     ...(get("current", "low_roster")
                       ? [{ text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`, tone: "bad" as const }]
                       : []),
@@ -2845,7 +2849,7 @@ export default async function DashboardView({
   type RegMetric = {
     key: PacingMetric; format: "number" | "money" | "age";
     title: string; barTitle: string; barSub: string;
-    notes?: { text: string; tone?: "bad" }[]; roster: boolean;
+    notes?: { text: string; tone?: "bad" | "yellow" }[]; roster: boolean;
     // Retention lines under the bars. Only the two count cards have any.
     footer?: ShareGroup[];
     // Drawn in place of the season bars where a distribution says more.
@@ -3025,7 +3029,7 @@ export default async function DashboardView({
     barTitle: place ? `Total teams – ${place.name}` : "Total teams", barSub: regBarWhen,
     notes: [
       ...(set.cur.full_roster != null
-        ? [{ text: `${set.cur.full_roster.toLocaleString()} with 7 or more players` }] : []),
+        ? [{ text: `${set.cur.full_roster.toLocaleString()} with 7 or more players`, tone: "yellow" as const }] : []),
       ...(set.cur.low_roster
         ? [{ text: `${set.cur.low_roster.toLocaleString()} with 3 or fewer players`, tone: "bad" as const }] : []),
     ],
@@ -3581,6 +3585,11 @@ function MoreDetails({ href, label = "More details ↗" }: { href: string; label
   );
 }
 
+// Teams with a full roster (7 or more players) read yellow everywhere they
+// appear: the kit's amber pair, dark amber on a pale fill in light mode and
+// bright yellow in dark.
+const FULL_ROSTER_CHIP = { color: "var(--amber-ink)", borderColor: "transparent", background: "var(--amber-tint)" };
+
 const TONE_COLOR: Record<string, string> = {
   ok: "var(--green)", warn: "var(--amber-ink)", bad: "var(--red)", default: "var(--glass-text-secondary)",
 };
@@ -3876,7 +3885,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                           )}
                           {!!reg?.full && (
                             <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
-                              style={{ color: "var(--glass-gold)", borderColor: "transparent", background: "var(--fill-3)" }}>
+                              style={FULL_ROSTER_CHIP}>
                               {reg.full} with 7 or more players
                             </span>
                           )}
@@ -3931,7 +3940,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                       </span>
                       {!!totals.full && (
                         <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
-                          style={{ color: "var(--glass-gold)", borderColor: "transparent", background: "var(--fill-3)" }}>
+                          style={FULL_ROSTER_CHIP}>
                           {totals.full} with 7 or more players
                         </span>
                       )}
