@@ -348,8 +348,10 @@ function Tile({ label, value, sub, accent, href, hrefLabel }: {
         {value}
       </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
+      {/* Pinned to the bottom-right corner: cards in a row stretch to the
+          tallest, so the buttons line up whatever each card holds above. */}
       {href && (
-        <div className="mt-2 flex justify-end">
+        <div className="mt-auto pt-3 flex justify-end">
           <Link href={href} className={VIEW_BTN}>{hrefLabel ?? "View"}</Link>
         </div>
       )}
