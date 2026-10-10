@@ -8,6 +8,7 @@ import { resolveLocationsForLM, resolveLocationIdsByName } from "@/lib/source-ap
 import type { AppSlug } from "@/lib/source-apps/clients";
 import { ymd } from "@/lib/source-apps/util";
 import { canonicalLocation, loadActiveLMs, locParam, resolveScope, seasonKey, shortSeason } from "@/lib/seasons";
+import { getNewLocationKeys, locationKey } from "@/lib/active-locations";
 import Filters, { type FilterOptions } from "./Filters";
 import { BasisToggle } from "./BasisToggle";
 import StatTile, { type Tile, type Tone } from "./StatTile";
@@ -2718,6 +2719,12 @@ export default async function DashboardView({
   // Its third: of last season's players (and the last four seasons'), how
   // many are back.
   const isBack = isReg && tabParam === "back";
+  // The registrations again, split by whether the location is new this season
+  // (its first season with a captain): without the new ones, so a season reads
+  // against the last like for like, and the new ones on their own.
+  const isExisting = isReg && tabParam === "existing";
+  const isNewLocs = isReg && tabParam === "new";
+  const isSplit = isExisting || isNewLocs;
   // Every filter accepts a comma-separated list, so several seasons, weeks,
   // locations and league managers can be selected at once.
   const csv = (v?: string) => (v ?? "").split(",").map((s) => s.trim()).filter((s) => s && s !== "all");
@@ -2759,10 +2766,21 @@ export default async function DashboardView({
   // lives in the playing season. The Registrations tab has nothing else on it,
   // so there the filter picks the registration season directly — selecting
   // Fall '26 shows Fall '26 rather than silently reporting the season after.
-  const { promoLocations, filterLocations, promoSeasons, selectedSeason, regSeason, locationNames } = await resolveScope(
+  const { promoLocations, filterLocations, promoSeasons, selectedSeason, regSeason, locationNames: filteredNames } = await resolveScope(
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: isReg ? "registration" : "playing" },
   );
+  // On the two location splits, the scope is the filtered locations (every
+  // location with a captain when none is picked) narrowed to the existing or
+  // the new ones. Every section below then reads that list, so last season and
+  // last year are measured over the same locations: like for like. Null keys
+  // mean the feed couldn't say which locations are new.
+  const newKeys = isSplit ? await getNewLocationKeys([selectedSeason]) : null;
+  const splitBase = filteredNames ?? filterLocations;
+  const newInScope = newKeys ? splitBase.filter((n) => newKeys.has(locationKey(n))) : [];
+  const locationNames = isSplit && newKeys
+    ? splitBase.filter((n) => newKeys.has(locationKey(n)) === isNewLocs)
+    : filteredNames;
   // Registration work runs a season ahead of the games, so Registrations, the
   // Promo Tracker and Facility Bookings default to the season being sold and
   // can be read back on the one being played. On the Registrations tab the
@@ -3410,14 +3428,18 @@ export default async function DashboardView({
           locations: selectedLocations,
           ...(isWeekly ? { weeks: activeWeeks } : {}),
         }}
-        keep={isRetention ? { tab: "retention" } : isBack ? { tab: "back" } : undefined}
+        keep={isRetention ? { tab: "retention" } : isBack ? { tab: "back" } : isSplit ? { tab: isNewLocs ? "new" : "existing" } : undefined}
       />
       {isReg && (
         <BasisToggle
           param="tab"
-          value={isBack ? "back" : isRetention ? "retention" : "registrations"}
+          value={isBack ? "back" : isRetention ? "retention" : isExisting ? "existing" : isNewLocs ? "new" : "registrations"}
           options={[
             { value: "registrations", label: "Registrations" },
+            // Every location that ran before this season, like for like.
+            { value: "existing", label: "Without new locations" },
+            // Only the locations opening this season.
+            { value: "new", label: "New locations only" },
             // Of who registered, who played before.
             { value: "retention", label: "Retention: registered" },
             // Of who played before, who registered.
@@ -3431,7 +3453,20 @@ export default async function DashboardView({
         {!isReg && (
           <Section title="Season Success Checklist" scopeTag={fullTag} href={`${APP_URL.checklist}/checklists?kind=lm`} tiles={checklistTiles} cols={6} />
         )}
-        {isBack ? backView() : isRetention ? retentionView() : pacing && pacingCurrent ? (
+        {isSplit && (
+          <p className="text-sm text-glass-text-secondary max-w-[90ch]">
+            {!newKeys
+              ? `Couldn't tell which locations are new for ${selectedSeason}, so this view is unavailable right now.`
+              : isExisting
+                ? (newInScope.length
+                    ? `Leaves out the ${newInScope.length} ${newInScope.length === 1 ? "location" : "locations"} new in ${selectedSeason}: ${newInScope.join(", ")}. Last season and last year are counted over the same locations.`
+                    : `No location in this scope is new in ${selectedSeason}, so this matches Registrations.`)
+                : (newInScope.length
+                    ? `The ${newInScope.length} ${newInScope.length === 1 ? "location" : "locations"} opening in ${selectedSeason}: ${newInScope.join(", ")}. None ran before, so last season and last year read zero.`
+                    : `No location in this scope is new in ${selectedSeason}.`)}
+          </p>
+        )}
+        {isSplit && (!newKeys || !locationNames?.length) ? null : isBack ? backView() : isRetention ? retentionView() : pacing && pacingCurrent ? (
           <section className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2.5">
