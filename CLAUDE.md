@@ -101,3 +101,10 @@ are built the same way.
   box that scrolls on its own (`overflow` with a `max-height`, like the
   Ambassadors table): it sticks to that box, so it uses `top-0`. The kit's sidebar and header sit at
   z-index 900-1000; overlays use `z-[10070]` on `var(--scrim-strong)`.
+
+## Deploys and checks
+
+- Merging to `main` deploys production automatically (Vercel's GitHub integration). Don't run `vercel --prod` from a local checkout: it deploys whatever is on disk, and a stale checkout has rolled production back before. The live site is the Vercel project in Amy's scope; the `brodie-league` project this checkout is linked to is a stale duplicate, so a local `vercel --prod` never reaches users anyway.
+- Every PR runs `.github/workflows/checks.yml`: `.github/scripts/guards.mjs` (middleware in the folder Next reads, every scheduled job in `vercel.json` has a route that checks `CRON_SECRET`, no committed env files) and the type check.
+- After each production deploy, `.github/workflows/after-deploy.yml` runs `.github/scripts/smoke.mjs` against https://brodie-league-health.vercel.app: the home page must redirect to /login, /login must load, and every scheduled job's route must be reachable. A failed run means production is broken or a job has silently stopped; GitHub emails whoever merged.
+- These files are the same in every Brodie app; change them in all of them.
