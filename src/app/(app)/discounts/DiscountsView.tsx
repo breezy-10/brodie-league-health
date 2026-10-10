@@ -28,6 +28,11 @@ export type DiscountRow = {
   // Optional so an older feed without them just hides the tile.
   other_discounted?: number;
   other_discount_total?: number;
+  // The two flat programmes on their own. Optional for the same reason.
+  referral_discounted?: number;
+  referral_discount_total?: number;
+  returning_discounted?: number;
+  returning_discount_total?: number;
 };
 type DiscountFeed = { season: string; seasons: string[]; trend: DiscountRow[]; locations: DiscountRow[] };
 
@@ -54,7 +59,7 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 
 // Drill-down to the per-player list, carrying the current season and either the
 // row's own location or whatever the filter is already scoped to.
-function playersHref(season: string, location?: string, freeOnly = false, kind?: "other") {
+function playersHref(season: string, location?: string, freeOnly = false, kind?: "other" | "referral" | "returning") {
   const p = new URLSearchParams({ season });
   if (location) p.set("location", location);
   if (freeOnly) p.set("free", "1");
@@ -132,6 +137,13 @@ export default async function DiscountsView({
           const hasOther = locs.some((r) => r.other_discounted != null);
           const other = locs.reduce((s, r) => s + (r.other_discounted ?? 0), 0);
           const otherTotal = locs.reduce((s, r) => s + (r.other_discount_total ?? 0), 0);
+          // Referral and returning player apart, in place of "got a discount",
+          // once the feed carries them.
+          const hasProgrammes = locs.some((r) => r.referral_discounted != null && r.returning_discounted != null);
+          const referral = locs.reduce((s, r) => s + (r.referral_discounted ?? 0), 0);
+          const referralTotal = locs.reduce((s, r) => s + (r.referral_discount_total ?? 0), 0);
+          const returning = locs.reduce((s, r) => s + (r.returning_discounted ?? 0), 0);
+          const returningTotal = locs.reduce((s, r) => s + (r.returning_discount_total ?? 0), 0);
           const maxPaid = Math.max(...locs.map((r) => r.total_paid), 1);
 
           return (
@@ -147,16 +159,31 @@ export default async function DiscountsView({
                 </span>
               </div>
 
-              <div className={`grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ${hasOther ? "2xl:grid-cols-8" : "xl:grid-cols-7"}`}>
+              <div className={`grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ${
+                hasProgrammes ? (hasOther ? "xl:grid-cols-5 2xl:grid-cols-9" : "2xl:grid-cols-8") : hasOther ? "2xl:grid-cols-8" : "xl:grid-cols-7"}`}>
                 <Tile label="List price" value={money(w("list_price"))} accent={LIST} sub="before discount" />
                 <Tile label="Discount" value={`−${money(w("discount"))}`} sub="averaged over everyone" />
                 <Tile label="After discount" value={money(w("after_discount"))} sub="before fees" />
                 <Tile label="Fees" value={`+${money(w("fees"))}`} />
                 <Tile label="Total price" value={money(w("total_paid"))} accent={GOLD} sub="after discount, with fees" />
-                <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
-                  accent={regs ? discountTone((100 * discounted) / regs) : undefined}
-                  sub={<CountCost n={discounted} of={regs} cost={discountTotal} />}
-                  href={playersHref(selectedSeason, locationNames?.join(","))} hrefLabel="View discounts" />
+                {hasProgrammes ? (
+                  <>
+                    {/* The two flat $20 programmes, each as a share of every
+                        registration. They don't stack, so with Other discounts
+                        they add up to everyone who got a discount. */}
+                    <Tile label="Referral discount" value={regs ? `${Math.round((100 * referral) / regs)}%` : "—"}
+                      sub={<CountCost n={referral} of={regs} cost={referralTotal} />}
+                      href={playersHref(selectedSeason, locationNames?.join(","), false, "referral")} hrefLabel="View referrals" />
+                    <Tile label="Returning player discount" value={regs ? `${Math.round((100 * returning) / regs)}%` : "—"}
+                      sub={<CountCost n={returning} of={regs} cost={returningTotal} />}
+                      href={playersHref(selectedSeason, locationNames?.join(","), false, "returning")} hrefLabel="View returning" />
+                  </>
+                ) : (
+                  <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
+                    accent={regs ? discountTone((100 * discounted) / regs) : undefined}
+                    sub={<CountCost n={discounted} of={regs} cost={discountTotal} />}
+                    href={playersHref(selectedSeason, locationNames?.join(","))} hrefLabel="View discounts" />
+                )}
                 {/* The discounting that isn't one of the two flat $20
                     programmes — ambassador, staff and district-manager codes,
                     which is where the free registrations come from. */}

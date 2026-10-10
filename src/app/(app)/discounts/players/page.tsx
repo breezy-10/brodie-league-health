@@ -92,9 +92,21 @@ export default async function DiscountPlayersPage({
   // Player view lists registrations; team view shows the teams they're on.
   const teamView = viewParam === "teams";
   const freeOnly = freeParam === "1";
-  // kind=other narrows to the discounts that were neither of the two flat
-  // programmes — what the Other discounts tile on the Discounts tab counts.
-  const otherOnly = kindParam === "other";
+  // kind narrows the list to one group, matching a tile on the Discounts tab:
+  // "referral" and "returning" are the two flat programmes, "other" is every
+  // discount that was neither.
+  const kind = kindParam === "other" || kindParam === "referral" || kindParam === "returning" ? kindParam : null;
+  const KIND_TITLE = { other: "Other discounts", referral: "Referral discounts", returning: "Returning player discounts" } as const;
+  const KIND_LEDE = {
+    other: "Every discounted registration that wasn\u2019t the returning-player discount or a referral.",
+    referral: "Every registration discounted through the referral program.",
+    returning: "Every registration that got the returning-player discount.",
+  } as const;
+  const KIND_SCOPE = {
+    other: "carried a discount other than the returning-player discount or a referral",
+    referral: "carried a referral discount",
+    returning: "carried the returning-player discount",
+  } as const;
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
   const { filterLocations, promoSeasons, selectedSeason, locationNames } = await resolveScope(
@@ -112,15 +124,17 @@ export default async function DiscountPlayersPage({
   // a registration carrying both codes is counted once, on the first.
   const isReturning = (r: DiscountPlayer) => /returning player/i.test(r.discount_names ?? "");
   const isReferral = (r: DiscountPlayer) => !isReturning(r) && /referral/i.test(r.discount_names ?? "");
+  const inKind = (r: DiscountPlayer) =>
+    kind === "returning" ? isReturning(r) : kind === "referral" ? isReferral(r) : !isReturning(r) && !isReferral(r);
   const allRows = feed?.players ?? [];
-  const rows = otherOnly ? allRows.filter((r) => !isReturning(r) && !isReferral(r)) : allRows;
+  const rows = kind ? allRows.filter(inKind) : allRows;
   // Team view's last block: free agents not on a team yet, whatever they paid
   // — narrowed like the list when it is free-only or other-only — plus any
   // discounted registration without a team that isn't a free agent.
   const unrosteredRows = (() => {
     if (!teamView) return [];
     const fa = (feed?.unrostered ?? []).filter((r) =>
-      freeOnly ? r.free : otherOnly ? r.discount > 0 && !isReturning(r) && !isReferral(r) : true);
+      freeOnly ? r.free : kind ? r.discount > 0 && inKind(r) : true);
     const seen = new Set(fa.map((r) => r.player_id));
     return [...fa, ...rows.filter((r) => !r.season_team_id && !seen.has(r.player_id ?? null))];
   })();
@@ -157,13 +171,9 @@ export default async function DiscountPlayersPage({
 
       <header>
         <h2 className="page-h2">
-          {freeOnly ? "Every free registration" : otherOnly ? "Other discounts" : "Every discounted registration"}
+          {freeOnly ? "Every free registration" : kind ? KIND_TITLE[kind] : "Every discounted registration"}
         </h2>
-        {otherOnly && (
-          <p className="page-lede mt-1">
-            Every discounted registration that wasn&apos;t the returning-player discount or a referral.
-          </p>
-        )}
+        {kind && !freeOnly && <p className="page-lede mt-1">{KIND_LEDE[kind]}</p>}
       </header>
 
       <Filters
@@ -175,8 +185,8 @@ export default async function DiscountPlayersPage({
         }}
         // Changing a filter must not quietly widen a free-only list back out,
         // or drop back to player view.
-        keep={freeOnly || otherOnly || teamView
-          ? { ...(freeOnly ? { free: "1" } : {}), ...(otherOnly ? { kind: "other" } : {}), ...(teamView ? { view: "teams" } : {}) }
+        keep={freeOnly || kind || teamView
+          ? { ...(freeOnly ? { free: "1" } : {}), ...(kind ? { kind } : {}), ...(teamView ? { view: "teams" } : {}) }
           : undefined}
       />
 
@@ -188,13 +198,13 @@ export default async function DiscountPlayersPage({
 
       {rows.length > 0 && (
         <div className={`grid gap-3 grid-cols-2 ${
-          freeOnly ? "md:grid-cols-3" : otherOnly ? "md:grid-cols-4" : "md:grid-cols-3 lg:grid-cols-6"}`}>
+          freeOnly ? "md:grid-cols-3" : kind ? "md:grid-cols-4" : "md:grid-cols-3 lg:grid-cols-6"}`}>
           <Tile label="Total registrations" value={totalRegs === null ? "—" : totalRegs.toLocaleString()}
             sub={teamCount === null ? undefined : `${teamCount.toLocaleString()} team${teamCount === 1 ? "" : "s"}`} />
-          <Tile label={freeOnly ? "Free registrations" : otherOnly ? "Other discounts" : "Discounted registrations"}
+          <Tile label={freeOnly ? "Free registrations" : kind ? KIND_TITLE[kind] : "Discounted registrations"}
             value={rows.length.toLocaleString()} accent={freeOnly ? GOLD : undefined}
             sub={totalRegs ? <Pct n={rows.length} of={totalRegs} tone={freeOnly ? freeTone : discountTone} /> : undefined} />
-          {!freeOnly && !otherOnly && (
+          {!freeOnly && !kind && (
             <>
               <Tile label="Returning player" value={returning.toLocaleString()}
                 sub={<Sub pct={totalRegs ? <Pct n={returning} of={totalRegs} tone={discountTone} /> : null}
@@ -220,7 +230,7 @@ export default async function DiscountPlayersPage({
         </div>
       ) : rows.length === 0 ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
-          No {freeOnly ? "free" : otherOnly ? "other discounted" : "discounted"} registrations for {selectedSeason} in this scope.
+          No {freeOnly ? "free" : kind ? KIND_TITLE[kind].toLowerCase().replace(" discounts", " discounted") : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
         <DiscountTable key={teamView ? "teams" : "players"} rows={rows} season={selectedSeason} staff={staff} teamView={teamView}
@@ -230,10 +240,10 @@ export default async function DiscountPlayersPage({
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
         Every registration in {selectedSeason} that {freeOnly
           ? "paid nothing"
-          : otherOnly
-            ? "carried a discount other than the returning-player discount or a referral"
+          : kind
+            ? KIND_SCOPE[kind]
             : "carried a discount"}, largest first — the same scope as the
-        Discounts tab, so the count here matches the &ldquo;{freeOnly ? "free" : otherOnly ? "other discounts" : "got a discount"}&rdquo; tile. A code that has since been
+        Discounts tab, so the count here matches the &ldquo;{freeOnly ? "free" : kind ? KIND_TITLE[kind].toLowerCase() : "discounted"}&rdquo; tile. A code that has since been
         deleted takes its usage records with it, so a registration can carry a discount with nothing left to name it;
         those show as <span className="font-mono">(code removed)</span> rather than being dropped, because the money
         still came off. {feed?.truncated ? "Only the first 2,000 rows are shown." : ""}
