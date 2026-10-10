@@ -1,5 +1,6 @@
 # Runs on every pull request. Guard checks first (no install needed), then
-# the type check. Vercel's preview deployment builds the app separately.
+# the type check (Next 16 apps generate route types first with next typegen).
+# Vercel's preview deployment builds the app separately.
 name: Checks
 on:
   pull_request:

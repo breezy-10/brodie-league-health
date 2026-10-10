@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && contains(github.event.deployment_status.environment_url, 'amycorreia')) }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && startsWith(github.event.deployment_status.environment, 'Production') && contains(github.event.deployment_status.environment_url, 'amycorreia')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
