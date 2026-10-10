@@ -59,11 +59,14 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 
 // Drill-down to the per-player list, carrying the current season and either the
 // row's own location or whatever the filter is already scoped to.
-function playersHref(season: string, location?: string, freeOnly = false, kind?: "other" | "referral" | "returning") {
+// The cards are per currency, so their links carry it and the list matches
+// the card's count.
+function playersHref(season: string, location?: string, freeOnly = false, kind?: "other" | "referral" | "returning", currency?: string) {
   const p = new URLSearchParams({ season });
   if (location) p.set("location", location);
   if (freeOnly) p.set("free", "1");
   if (kind) p.set("kind", kind);
+  if (currency) p.set("currency", currency);
   return `/discounts/players?${p}`;
 }
 const VIEW_BTN =
@@ -173,16 +176,16 @@ export default async function DiscountsView({
                         they add up to everyone who got a discount. */}
                     <Tile label="Referral discount" value={regs ? `${Math.round((100 * referral) / regs)}%` : "—"}
                       sub={<CountCost n={referral} of={regs} cost={referralTotal} />}
-                      href={playersHref(selectedSeason, locationNames?.join(","), false, "referral")} hrefLabel="View referrals" />
+                      href={playersHref(selectedSeason, locationNames?.join(","), false, "referral", cur)} hrefLabel="View referrals" />
                     <Tile label="Returning player discount" value={regs ? `${Math.round((100 * returning) / regs)}%` : "—"}
                       sub={<CountCost n={returning} of={regs} cost={returningTotal} />}
-                      href={playersHref(selectedSeason, locationNames?.join(","), false, "returning")} hrefLabel="View returning" />
+                      href={playersHref(selectedSeason, locationNames?.join(","), false, "returning", cur)} hrefLabel="View returning" />
                   </>
                 ) : (
                   <Tile label="Got a discount" value={regs ? `${Math.round((100 * discounted) / regs)}%` : "—"}
                     accent={regs ? discountTone((100 * discounted) / regs) : undefined}
                     sub={<CountCost n={discounted} of={regs} cost={discountTotal} />}
-                    href={playersHref(selectedSeason, locationNames?.join(","))} hrefLabel="View discounts" />
+                    href={playersHref(selectedSeason, locationNames?.join(","), false, undefined, cur)} hrefLabel="View discounts" />
                 )}
                 {/* The discounting that isn't one of the two flat $20
                     programmes — ambassador, staff and district-manager codes,
@@ -192,11 +195,11 @@ export default async function DiscountsView({
                     accent={regs ? discountTone((100 * other) / regs) : undefined}
                     sub={
                       <>
-                        <span className="block">Not returning player or referral</span>
+                        <span className="block">Any code but returning player or referral</span>
                         <CountCost n={other} of={regs} cost={otherTotal} />
                       </>
                     }
-                    href={playersHref(selectedSeason, locationNames?.join(","), false, "other")} hrefLabel="View discounts" />
+                    href={playersHref(selectedSeason, locationNames?.join(","), false, "other", cur)} hrefLabel="View discounts" />
                 )}
                 {/* A free registration is a discount of 100%, so it is already
                     inside "got a discount" — the sub-label says so, because two
@@ -204,7 +207,7 @@ export default async function DiscountsView({
                 <Tile label="Free" value={regs ? `${Math.round((100 * free) / regs)}%` : "—"}
                   accent={regs ? freeTone((100 * free) / regs) : undefined}
                   sub={<CountCost n={free} of={regs} cost={freeValue} />}
-                  href={playersHref(selectedSeason, locationNames?.join(","), true)} hrefLabel="View free" />
+                  href={playersHref(selectedSeason, locationNames?.join(","), true, undefined, cur)} hrefLabel="View free" />
               </div>
 
               <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
@@ -250,7 +253,7 @@ export default async function DiscountsView({
                           <RateTd count={r.free} total={r.regs}
                             color={r.regs ? freeTone((100 * r.free) / r.regs) : undefined} />
                           <td className="px-4 py-2.5 whitespace-nowrap">
-                            <Link href={playersHref(selectedSeason, r.location)} className={VIEW_BTN}>View discounts</Link>
+                            <Link href={playersHref(selectedSeason, r.location, false, undefined, cur)} className={VIEW_BTN}>View discounts</Link>
                           </td>
                         </tr>
                       ))}
@@ -269,7 +272,7 @@ export default async function DiscountsView({
                         <RateTd strong count={free} total={regs}
                           color={regs ? freeTone((100 * free) / regs) : undefined} />
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <Link href={playersHref(selectedSeason, locationNames?.join(","))} className={VIEW_BTN}>View discounts</Link>
+                          <Link href={playersHref(selectedSeason, locationNames?.join(","), false, undefined, cur)} className={VIEW_BTN}>View discounts</Link>
                         </td>
                       </tr>
                       )}

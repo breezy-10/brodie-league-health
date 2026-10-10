@@ -23,6 +23,10 @@ type DiscountPlayer = {
   list_price: number; discount: number; total_paid: number; free: boolean;
   codes: string; discount_names?: string; registered_on: string | null;
   season_team_id?: string | null; player_id?: string | null;
+  // What each group of the registration's codes took off (absent from an
+  // older feed): a returning-player $20 stacked with an ambassador $30 is 20
+  // returning and 30 other.
+  returning_amount?: number; referral_amount?: number; other_amount?: number;
 };
 // unrostered: every free agent not yet on a team, discounted or not (asked
 // for in team view only).
@@ -31,7 +35,7 @@ type TotalsFeed = { locations: { currency: string; regs: number }[] };
 
 // Total registrations in scope — the denominator the players feed can't supply,
 // since it only returns rows that carried a discount.
-async function loadTotalRegs(season: string, locationNames: string[] | null): Promise<number | null> {
+async function loadTotalRegs(season: string, locationNames: string[] | null, currency: string | null): Promise<number | null> {
   try {
     const url = new URL("/api/discounts", PROMO_APP_URL);
     url.searchParams.set("season", season);
@@ -40,7 +44,7 @@ async function loadTotalRegs(season: string, locationNames: string[] | null): Pr
     const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as TotalsFeed;
-    return (k.locations ?? []).reduce((n, r) => n + (r.regs ?? 0), 0);
+    return (k.locations ?? []).filter((r) => !currency || r.currency === currency).reduce((n, r) => n + (r.regs ?? 0), 0);
   } catch {
     return null;
   }
@@ -85,10 +89,14 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 export default async function DiscountPlayersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; free?: string; kind?: string; view?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; free?: string; kind?: string; view?: string; currency?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam, view: viewParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam, view: viewParam, currency: currencyParam } = await searchParams;
+  // The Discounts tab's cards are per currency (Canada, United States), so
+  // their links carry it and this list narrows to match the card's count.
+  const currency = currencyParam === "CAD" || currencyParam === "USD" ? currencyParam : null;
+  const COUNTRY = { CAD: "Canada", USD: "United States" } as const;
   // Player view lists registrations; team view shows the teams they're on.
   const teamView = viewParam === "teams";
   const freeOnly = freeParam === "1";
@@ -115,25 +123,37 @@ export default async function DiscountPlayersPage({
   );
   const [feed, totalRegs, staff, teamCount] = await Promise.all([
     loadPlayers(selectedSeason, locationNames, freeOnly, teamView),
-    loadTotalRegs(selectedSeason, locationNames),
+    loadTotalRegs(selectedSeason, locationNames, currency),
     loadStaff(),
     loadTeamCount(selectedSeason, locationNames),
   ]);
-  // Same test the feed sorts by, so the cards and the blocks in the table
-  // agree on which programme a row belongs to. Returning player wins a tie:
-  // a registration carrying both codes is counted once, on the first.
-  const isReturning = (r: DiscountPlayer) => /returning player/i.test(r.discount_names ?? "");
-  const isReferral = (r: DiscountPlayer) => !isReturning(r) && /referral/i.test(r.discount_names ?? "");
+  // Which groups a row belongs to: by what each group of its codes took off
+  // when the feed says, so a returning-player code stacked with an ambassador
+  // code counts under both, each for its own part. An older feed falls back to
+  // the code names, returning player winning a tie.
+  const hasAmounts = (r: DiscountPlayer) => r.returning_amount != null && r.other_amount != null;
+  const isReturning = (r: DiscountPlayer) =>
+    hasAmounts(r) ? (r.returning_amount ?? 0) > 0 : /returning player/i.test(r.discount_names ?? "");
+  const isReferral = (r: DiscountPlayer) =>
+    hasAmounts(r) ? (r.referral_amount ?? 0) > 0 : !/returning player/i.test(r.discount_names ?? "") && /referral/i.test(r.discount_names ?? "");
+  const isOther = (r: DiscountPlayer) =>
+    hasAmounts(r) ? (r.other_amount ?? 0) > 0.009 : !isReturning(r) && !isReferral(r);
+  // What a row gave up toward one group: that group's own part, or the whole
+  // discount when no group is picked.
+  const partOf = (r: DiscountPlayer, k: "returning" | "referral" | "other" | null) =>
+    !k || !hasAmounts(r) ? r.discount
+      : k === "returning" ? r.returning_amount ?? 0 : k === "referral" ? r.referral_amount ?? 0 : r.other_amount ?? 0;
   const inKind = (r: DiscountPlayer) =>
-    kind === "returning" ? isReturning(r) : kind === "referral" ? isReferral(r) : !isReturning(r) && !isReferral(r);
-  const allRows = feed?.players ?? [];
+    kind === "returning" ? isReturning(r) : kind === "referral" ? isReferral(r) : isOther(r);
+  const inCurrency = (r: DiscountPlayer) => !currency || r.currency === currency;
+  const allRows = (feed?.players ?? []).filter(inCurrency);
   const rows = kind ? allRows.filter(inKind) : allRows;
   // Team view's last block: free agents not on a team yet, whatever they paid
   // — narrowed like the list when it is free-only or other-only — plus any
   // discounted registration without a team that isn't a free agent.
   const unrosteredRows = (() => {
     if (!teamView) return [];
-    const fa = (feed?.unrostered ?? []).filter((r) =>
+    const fa = (feed?.unrostered ?? []).filter(inCurrency).filter((r) =>
       freeOnly ? r.free : kind ? r.discount > 0 && inKind(r) : true);
     const seen = new Set(fa.map((r) => r.player_id));
     return [...fa, ...rows.filter((r) => !r.season_team_id && !seen.has(r.player_id ?? null))];
@@ -143,14 +163,14 @@ export default async function DiscountPlayersPage({
   const referral = rows.filter(isReferral).length;
   // What each programme cost, reported per currency like the Given up card —
   // a CAD figure and a USD figure are never added together.
-  const givenUp = (pred: (r: DiscountPlayer) => boolean) => {
+  const givenUp = (pred: (r: DiscountPlayer) => boolean, k: "returning" | "referral") => {
     const m = new Map<string, number>();
-    for (const r of rows) if (pred(r)) m.set(r.currency, (m.get(r.currency) ?? 0) + r.discount);
+    for (const r of rows) if (pred(r)) m.set(r.currency, (m.get(r.currency) ?? 0) + partOf(r, k));
     return [...m.entries()].sort().map(([c, v]) => `${money(v)} ${c}`).join(" \u00b7 ");
   };
   // Currencies are never summed; the total is reported once per currency.
   const totalByCurrency = new Map<string, number>();
-  for (const r of rows) totalByCurrency.set(r.currency, (totalByCurrency.get(r.currency) ?? 0) + r.discount);
+  for (const r of rows) totalByCurrency.set(r.currency, (totalByCurrency.get(r.currency) ?? 0) + partOf(r, kind));
 
   // Carry the filters back to the tab that linked here.
   const options: FilterOptions = {
@@ -173,7 +193,12 @@ export default async function DiscountPlayersPage({
         <h2 className="page-h2">
           {freeOnly ? "Every free registration" : kind ? KIND_TITLE[kind] : "Every discounted registration"}
         </h2>
-        {kind && !freeOnly && <p className="page-lede mt-1">{KIND_LEDE[kind]}</p>}
+        {(kind && !freeOnly) || currency ? (
+          <p className="page-lede mt-1">
+            {kind && !freeOnly ? KIND_LEDE[kind] : null}
+            {currency ? `${kind && !freeOnly ? " " : ""}${COUNTRY[currency]} only, as on the Discounts tab\u2019s card.` : null}
+          </p>
+        ) : null}
       </header>
 
       <Filters
@@ -185,8 +210,9 @@ export default async function DiscountPlayersPage({
         }}
         // Changing a filter must not quietly widen a free-only list back out,
         // or drop back to player view.
-        keep={freeOnly || kind || teamView
-          ? { ...(freeOnly ? { free: "1" } : {}), ...(kind ? { kind } : {}), ...(teamView ? { view: "teams" } : {}) }
+        keep={freeOnly || kind || teamView || currency
+          ? { ...(freeOnly ? { free: "1" } : {}), ...(kind ? { kind } : {}), ...(teamView ? { view: "teams" } : {}),
+              ...(currency ? { currency } : {}) }
           : undefined}
       />
 
@@ -208,10 +234,10 @@ export default async function DiscountPlayersPage({
             <>
               <Tile label="Returning player" value={returning.toLocaleString()}
                 sub={<Sub pct={totalRegs ? <Pct n={returning} of={totalRegs} tone={discountTone} /> : null}
-                  cost={givenUp(isReturning)} />} />
+                  cost={givenUp(isReturning, "returning")} />} />
               <Tile label="Referral" value={referral.toLocaleString()}
                 sub={<Sub pct={totalRegs ? <Pct n={referral} of={totalRegs} tone={discountTone} /> : null}
-                  cost={givenUp(isReferral)} />} />
+                  cost={givenUp(isReferral, "referral")} />} />
             </>
           )}
           {!freeOnly && (
