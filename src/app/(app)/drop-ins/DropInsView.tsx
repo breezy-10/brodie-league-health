@@ -2,6 +2,8 @@ import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seaso
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import { requireUser } from "@/lib/auth";
 import { promoFetch } from "@/lib/promo-feed";
+import { BasisToggle } from "../dashboard/BasisToggle";
+import ScheduledDropIns from "./ScheduledDropIns";
 
 // Drop-ins: players who came for a single game rather than a season. A drop-in
 // is free for a brand-new player (the First-Time Free code) and $50 for a
@@ -83,10 +85,13 @@ const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : 
 export default async function DropInsView({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; tab?: string; when?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, tab: tabParam, when: whenParam } = await searchParams;
+  // Overview is the season in numbers; Scheduled lists each drop-in by game.
+  const isScheduled = tabParam === "scheduled";
+  const showPast = whenParam === "past";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
 
@@ -96,7 +101,8 @@ export default async function DropInsView({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "playing" },
   );
-  const feed = await loadDropIns(selectedSeason, locationNames);
+  // The overview's figures aren't needed on the Scheduled tab.
+  const feed = isScheduled ? null : await loadDropIns(selectedSeason, locationNames);
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
@@ -120,9 +126,18 @@ export default async function DropInsView({
           seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
           locations: selectedLocations,
         }}
+        keep={isScheduled ? { tab: "scheduled", ...(showPast ? { when: "past" } : {}) } : undefined}
       />
 
-      {!feed ? (
+      <BasisToggle
+        param="tab"
+        value={isScheduled ? "scheduled" : "overview"}
+        options={[{ value: "overview", label: "Overview" }, { value: "scheduled", label: "Scheduled" }]}
+      />
+
+      {isScheduled ? (
+        <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={showPast} />
+      ) : !feed ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {selectedSeason}.
         </div>
