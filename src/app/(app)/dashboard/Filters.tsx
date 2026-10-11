@@ -67,15 +67,18 @@ export default function Filters({
 
   return (
     <div className="flex flex-wrap items-end gap-3">
-      <Field label="Season">
-        <MultiSelect
-          options={options.seasons}
-          value={seasons}
-          onChange={setSeasons}
-          allLabel="Current season"
-          singularNoun="seasons"
-        />
-      </Field>
+      {/* A page with no seasons to offer (Events) shows the location only. */}
+      {options.seasons.length > 0 && (
+        <Field label="Season">
+          <MultiSelect
+            options={options.seasons}
+            value={seasons}
+            onChange={setSeasons}
+            allLabel="Current season"
+            singularNoun="seasons"
+          />
+        </Field>
+      )}
       {hasWeeks && (
         <Field label="Week">
           <MultiSelect
