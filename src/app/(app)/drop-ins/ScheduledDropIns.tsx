@@ -73,6 +73,10 @@ const ATTENDANCE: Record<Exclude<Attendance, "upcoming">, { label: string; style
   awaiting: { label: "Awaiting stats", style: { color: "var(--glass-text-secondary)", background: "var(--fill-3)" } },
 };
 const CHIP = "inline-block text-[11px] font-semibold rounded-md px-1.5 py-0.5 whitespace-nowrap";
+// Column widths shared by every day's table: time, location, player, team,
+// price, and on Past, attendance.
+const COLS = ["12%", "17%", "27%", "34%", "10%"];
+const COLS_PAST = ["11%", "15%", "25%", "29%", "8%", "12%"];
 
 export default async function ScheduledDropIns({
   season,
@@ -105,10 +109,15 @@ export default async function ScheduledDropIns({
   }
 
   const rows = all.filter((r) => (past ? r.attendance !== "upcoming" : r.attendance === "upcoming"));
-  // Upcoming soonest first; past most recent first.
+  // Day, then location, then time: each day's drop-ins sit together by venue,
+  // in the order the games are played there. Upcoming days soonest first, past
+  // days most recent first; within a day it is always earliest game first.
   const sorted = [...rows].sort((a, b) => {
-    const x = a.game_at ?? "9999", y = b.game_at ?? "9999";
-    return (past ? y.localeCompare(x) : x.localeCompare(y)) || a.location.localeCompare(b.location) || a.player.localeCompare(b.player);
+    const da = dateKey(a.game_at) || "9999", db = dateKey(b.game_at) || "9999";
+    return (past ? db.localeCompare(da) : da.localeCompare(db))
+      || a.location.localeCompare(b.location)
+      || (a.game_at ?? "").localeCompare(b.game_at ?? "")
+      || a.player.localeCompare(b.player);
   });
   const groups: { key: string; rows: ScheduledRow[] }[] = [];
   for (const r of sorted) {
@@ -147,7 +156,12 @@ export default async function ScheduledDropIns({
             </h3>
             <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 760 }}>
+                {/* Fixed layout with the same widths in every day's table, so the
+                    columns line up from one day to the next whatever each holds. */}
+                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 760, tableLayout: "fixed" }}>
+                  <colgroup>
+                    {(past ? COLS_PAST : COLS).map((w, i) => <col key={i} style={{ width: w }} />)}
+                  </colgroup>
                   <thead>
                     <tr className="text-xs font-bold text-glass-text-tertiary">
                       <th className="px-4 py-2.5 text-left font-bold">Time</th>
@@ -160,11 +174,18 @@ export default async function ScheduledDropIns({
                   </thead>
                   <tbody>
                     {g.rows.map((r, i) => (
-                      <tr key={`${r.game_at}-${r.player}-${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
+                      <tr key={`${r.game_at}-${r.player}-${i}`}
+                        style={{
+                          // A heavier rule where the venue changes, so each
+                          // location's drop-ins read as one block.
+                          borderTop: i > 0 && g.rows[i - 1].location !== r.location
+                            ? "2px solid var(--glass-border-light)"
+                            : "1px solid var(--glass-border)",
+                        }}>
                         <td className="px-4 py-2.5 whitespace-nowrap tabular" style={{ color: "var(--glass-text)" }}>
                           {timeLabel(r.game_at, r.game_tz)}
                         </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{r.location}</td>
+                        <td className="px-4 py-2.5" style={{ color: "var(--glass-text)" }}>{r.location}</td>
                         <td className="px-4 py-2.5">
                           <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{r.player}</span>
                           <span className={`${CHIP} ml-2`}
