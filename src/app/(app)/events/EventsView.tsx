@@ -23,6 +23,8 @@ export type EventRow = {
   starts_at: string | null; // the event's own local time, "YYYY-MM-DDTHH:MM"
   timezone: string;
   upcoming: boolean;
+  // Present when the request named a season.
+  in_season?: boolean;
   venue: string | null;
   location: string;
   rsvps: number;
@@ -33,9 +35,10 @@ export type EventRow = {
   converted: number;
 };
 
-export async function loadEvents(locationNames: string[] | null): Promise<EventRow[] | null> {
+export async function loadEvents(locationNames: string[] | null, season?: string): Promise<EventRow[] | null> {
   try {
     const url = new URL("/api/events", PROMO_APP_URL);
+    if (season) url.searchParams.set("season", season);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
     const res = await promoFetch(url.toString(), { cache: "no-store" });
