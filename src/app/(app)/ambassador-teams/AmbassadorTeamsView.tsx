@@ -138,7 +138,9 @@ export default async function AmbassadorTeamsView({
   // way no chips.
   const missing = feed?.nights_without_ambassador ?? null;
   const missingLocations = new Set((missing ?? []).map((m) => m.location)).size;
-  const locations = feed?.locations ?? [];
+  // Alphabetical, so a location is found by name; the feed ranks them by
+  // team count, which moved a location around as teams registered.
+  const locations = [...(feed?.locations ?? [])].sort((a, b) => a.location.localeCompare(b.location));
   // The meter is scaled to the season's largest roster rather than a fixed cap,
   // so it stays honest if a team ever carries more than ten.
   const slots = Math.max(t?.max_roster ?? 0, 1);
