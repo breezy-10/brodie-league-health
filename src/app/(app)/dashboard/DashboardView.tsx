@@ -3779,9 +3779,16 @@ const BOOKING_STATUS_COLOR: Record<string, string> = {
   cannot_book_until_later: "var(--glass-text-tertiary)",
   booked_with_contract: "var(--green)",
   booked_with_flexibility: "var(--green)",
-  verbal_confirmation: "var(--glass-gold)",
-  in_communication: "var(--glass-text-secondary)",
+  // Yellow, the kit's amber pair: promised but not signed.
+  verbal_confirmation: "var(--amber-ink)",
+  // Orange, the kit's orange tag: talking, nothing promised yet.
+  in_communication: "var(--tag-orange)",
   need_to_book: "var(--red)",
+};
+const BOOKING_STATUS_TINT: Record<string, string> = {
+  verbal_confirmation: "var(--amber-tint)",
+  in_communication: "var(--tag-orange-bg)",
+  need_to_book: "var(--red-tint)",
 };
 const DOW_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const BOOKING_STATUS_TONE: Record<string, Tone> = {
@@ -3880,7 +3887,9 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
       style={{
         color: BOOKING_STATUS_COLOR[s] ?? "var(--glass-text-secondary)",
         borderColor: "transparent",
-        background: s === "need_to_book" ? "var(--red-tint)" : "transparent",
+        // The ones that need chasing sit on a tint: red for nothing yet,
+        // orange while still talking, yellow for a verbal to be signed.
+        background: BOOKING_STATUS_TINT[s] ?? "transparent",
       }}>
       {BOOKING_STATUS_LABEL[s] ?? s}{n != null && <> <span className="font-bold tabular">{n}</span></>}
     </span>
