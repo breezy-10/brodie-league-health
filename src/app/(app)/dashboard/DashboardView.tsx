@@ -2273,12 +2273,13 @@ async function AmbassadorCards({ season, scope, fullTag }: { season: string; sco
 }
 
 // How many drop-ins and events each location has. A drop-in is a game in the
-// season being played; events aren't tied to a season, so that card counts the
-// ones still to come.
+// season being played. Events have no season of their own: upcoming is every
+// one still to come, and held is the ones already past inside the season's
+// dates (the earliest league's start to the latest league's end).
 async function DropInEventCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
   const [dropIns, events] = await Promise.all([
     loadDropIns(season, scope.locationNames),
-    loadEvents(scope.locationNames),
+    loadEvents(scope.locationNames, season),
   ]);
   // Most first, then by name, as one chip per location.
   const perLocation = (counts: Map<string, number>): Chip[] =>
@@ -2296,6 +2297,10 @@ async function DropInEventCards({ season, scope, fullTag }: { season: string; sc
   const dropInLocs = [...dropInsBy.values()].filter((n) => n > 0).length;
   const upcoming = (events ?? []).filter((e) => e.upcoming);
   const eventsBy = tally(upcoming.map((e) => [e.location, 1]));
+  // Absent from an older feed, which doesn't know the season's dates.
+  const knowsSeason = (events ?? []).some((e) => e.in_season !== undefined);
+  const held = (events ?? []).filter((e) => !e.upcoming && e.in_season);
+  const heldBy = tally(held.map((e) => [e.location, 1]));
   const where = (n: number) => `at ${n} ${n === 1 ? "location" : "locations"}`;
   const q = new URLSearchParams({ season });
   const lp = locParam(scope.locationNames);
@@ -2328,6 +2333,12 @@ async function DropInEventCards({ season, scope, fullTag }: { season: string; sc
             chips={perLocation(eventsBy)}
             footer={link(`/events${lp ? `?${new URLSearchParams({ location: lp })}` : ""}`, "View events")} />
         ) : unavailable("events")}
+        {events && knowsSeason && (
+          <ChipTile label="Events held this season" value={held.length.toLocaleString()}
+            sub={held.length ? where(heldBy.size) : `none yet in ${season}`}
+            chips={perLocation(heldBy)}
+            footer={link(`/events?${new URLSearchParams({ when: "past", ...(lp ? { location: lp } : {}) })}`, "View past events")} />
+        )}
       </div>
     </Section>
   );
@@ -3631,7 +3642,7 @@ export default async function DashboardView({
             <Suspense fallback={<SectionSkeleton title="Ambassador teams" cols={3} count={2} />}>
               <AmbassadorCards season={regSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
-            <Suspense fallback={<SectionSkeleton title="Drop-ins and events" cols={3} count={2} />}>
+            <Suspense fallback={<SectionSkeleton title="Drop-ins and events" cols={3} />}>
               <DropInEventCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
             <Section title="Team Confirmed Stories" scopeTag={fullTag} href={`${APP_URL.promo}/team-confirmed-stories`}
