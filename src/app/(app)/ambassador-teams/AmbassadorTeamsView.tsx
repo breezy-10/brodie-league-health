@@ -384,6 +384,16 @@ function LocationCard({
         </div>
       </div>
 
+      {/* A location with captains but no known night (and no ambassador
+          team) still says so, rather than showing an empty card. */}
+      {days.length === 0 && (
+        <div className="px-4 py-3">
+          <div className="rounded-lg px-2.5 py-2 text-[11.5px] font-semibold"
+            style={{ color: "var(--red)", background: "var(--red-tint)" }}>
+            No ambassador team
+          </div>
+        </div>
+      )}
       <div className="grid gap-px" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(216px, 1fr))", background: "var(--glass-border)" }}>
         {days.map((day) => {
           const teams = loc.rows.filter((r) => r.day === day);
