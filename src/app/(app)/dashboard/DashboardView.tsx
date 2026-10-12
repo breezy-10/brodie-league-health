@@ -3829,11 +3829,27 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     thursday: "Thu", friday: "Fri", saturday: "Sat",
   };
   const shortDay = (d: string | null) => (d ? SHORT_DAY[d.trim().toLowerCase()] ?? d.trim().slice(0, 3) : null);
+  // Which row each registration venue's teams land on: the booking location
+  // with the same name, else its own row. A bare name and a sub-venue
+  // ("Boston", "Boston (North)") are only taken as one place when the market
+  // has a single location on each side. Chicago has three on the calendar
+  // (Hope Academy is booked as plain "Chicago"), and the loose match used to
+  // hand Homer Glen's Sunday and Pullman's Saturday signups to that row too.
+  const market = (s: string) => canonLoc(s).split(" ")[0];
+  const regVenues = [...new Set((venueRegs ?? []).map((v) => v.venue))];
+  const rowOf = (venue: string): string => {
+    const exact = data.locations.find((l) => canonLoc(l.location) === canonLoc(venue));
+    if (exact) return exact.location;
+    const booked = data.locations.filter((l) => market(l.location) === market(venue));
+    const signedUp = new Set(regVenues.filter((v) => market(v) === market(venue)).map(canonLoc));
+    if (booked.length === 1 && signedUp.size === 1 && sameLocation(venue, booked[0].location)) return booked[0].location;
+    return venue;
+  };
   // Every night a venue has signups on, whether or not it has been booked.
   const regDaysFor = (loc: string) => {
     const m = new Map<string, { teams: number; full: number; low: number; players: number }>();
     for (const v of venueRegs ?? []) {
-      if (!sameLocation(v.venue, loc)) continue;
+      if (rowOf(v.venue) !== loc) continue;
       const d = shortDay(v.day ?? null);
       if (!d) continue;
       const cur = m.get(d) ?? { teams: 0, full: 0, low: 0, players: 0 };
@@ -3851,8 +3867,8 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
   // bookings feed at all, so it used to drop out of the list entirely — the one
   // case you would most want to see. Ottawa had 26 teams registered for Fall
   // and no Fall bookings, and simply was not listed.
-  const regOnly: BookingLoc[] = [...new Set((venueRegs ?? []).map((v) => v.venue))]
-    .filter((venue) => !data.locations.some((l) => sameLocation(venue, l.location)))
+  const regOnly: BookingLoc[] = regVenues
+    .filter((venue) => rowOf(venue) === venue && !data.locations.some((l) => l.location === venue))
     // Only markets the view actually asked for. Without this, a feed that
     // ignores the location filter drags every other market into a filtered
     // view — which is exactly what happened when the registration feed
