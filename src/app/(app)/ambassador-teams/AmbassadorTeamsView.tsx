@@ -5,6 +5,7 @@ import AmbassadorTable, { type CaptainTeam } from "./AmbassadorTable";
 import { StaffBadge } from "@/components/TeamRosterBlock";
 import { loadStaff } from "@/lib/staff";
 import { normName } from "@/lib/names";
+import { shortDiscount } from "@/lib/discount-names";
 import { promoFetch } from "@/lib/promo-feed";
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the ambassador
@@ -21,6 +22,10 @@ type RosterEntry = {
   currency: string | null;
   paid_completed_at: string | null;
   paid_ok: boolean;
+  // The discount on their registration and the code's name (the feed carries
+  // both; optional for an older one).
+  discount?: number;
+  discount_names?: string | null;
   no_registration: boolean;
 };
 type TeamRow = {
@@ -43,6 +48,9 @@ type LocationRow = {
   // Every night the location plays this season, Monday first, ambassador team
   // or not. Absent from an older feed.
   days?: string[];
+  // The divisions open on each night (absent from an older feed), so one with
+  // no ambassador team can be named.
+  divisions?: { day: string; division: string }[];
   rows: TeamRow[];
 };
 type AmbassadorFeed = {
@@ -372,15 +380,45 @@ function LocationCard({
                 </span>
                 <span className="tabular text-[11px] text-glass-text-tertiary">{teams.length}</span>
               </div>
-              {teams.length === 0 ? (
-                <p className="text-xs italic text-glass-text-tertiary">No ambassador team</p>
-              ) : (
-                <ul className="space-y-2">
-                  {teams.map((r, i) => (
-                    <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} staff={staff} />
-                  ))}
-                </ul>
-              )}
+              {(() => {
+                // The night's teams by division: every division open that
+                // night, in order, each with its ambassador teams or a clear
+                // note that it has none. A team with no division goes last.
+                const open = (loc.divisions ?? []).filter((d) => d.day === day).map((d) => d.division);
+                const names = [...new Set([...open, ...teams.map((r) => r.division).filter((d): d is string => !!d)])]
+                  .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                const groups: { division: string | null; rows: TeamRow[] }[] = names.map((d) => ({
+                  division: d, rows: teams.filter((r) => r.division === d),
+                }));
+                const undivided = teams.filter((r) => !r.division);
+                if (undivided.length) groups.push({ division: null, rows: undivided });
+                if (groups.length === 0) {
+                  return <p className="text-xs italic text-glass-text-tertiary">No ambassador team</p>;
+                }
+                return (
+                  <div className="space-y-3">
+                    {groups.map((g) => (
+                      <div key={g.division ?? "none"} className="space-y-1.5">
+                        <div className="text-[11px] font-semibold text-glass-text-secondary">
+                          {g.division ?? "No division"}
+                        </div>
+                        {g.rows.length === 0 ? (
+                          <div className="rounded-lg px-2.5 py-2 text-[11.5px] font-semibold"
+                            style={{ color: "var(--red)", background: "var(--red-tint)" }}>
+                            No ambassador team
+                          </div>
+                        ) : (
+                          <ul className="space-y-2">
+                            {g.rows.map((r, i) => (
+                              <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} staff={staff} />
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
@@ -493,7 +531,7 @@ function TeamChip({
         >
           {head}
           <div className="flex items-center justify-between gap-2 text-[11px] pt-0.5">
-            <span style={{ color: paid === roster.length ? "var(--glass-text-secondary)" : THIN }}>
+            <span style={{ color: paid === roster.length ? "var(--green)" : THIN }}>
               {paid} of {roster.length} paid
             </span>
             <span className="tabular text-[11px] sm:text-[10px] text-glass-text-tertiary group-open:hidden">Show roster</span>
@@ -501,24 +539,41 @@ function TeamChip({
           </div>
         </summary>
 
-        <ul className="px-2.5 pb-2.5 pt-1 space-y-1" style={{ borderTop: "1px solid var(--glass-border)" }}>
-          {ordered.map((r, i) => (
-            <li key={`${r.player}-${i}`} className="flex items-baseline justify-between gap-2 text-[11.5px]">
-              <span className="truncate" style={{ color: r.paid_ok ? "var(--glass-text-secondary)" : "var(--glass-text)" }}
-                title={r.player}>
-                {r.player}
-                {r.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
-                {staffOf(r.player) && <StaffBadge label={staffOf(r.player)!} />}
-              </span>
-              <span
-                className="tabular shrink-0"
-                style={{ color: r.paid_ok ? "var(--glass-text-secondary)" : THIN }}
-                title={r.no_registration ? "No registration on file" : undefined}
-              >
-                {r.no_registration ? "no reg" : `$${Math.round(r.paid)}${r.currency ? " " + r.currency.toUpperCase() : ""}`}
-              </span>
-            </li>
-          ))}
+        {/* Name on one line, what they've paid on the next, in the Ambassadors
+            table's form: paid of price, then any discount and its code. */}
+        <ul className="px-2.5 pb-2.5 pt-1.5 space-y-1.5" style={{ borderTop: "1px solid var(--glass-border)" }}>
+          {ordered.map((r, i) => {
+            const owes = !r.no_registration && r.total > 0;
+            const cur = r.currency ? ` ${r.currency.toUpperCase()}` : "";
+            return (
+              <li key={`${r.player}-${i}`} className="text-[11.5px] leading-snug">
+                <div className="truncate" style={{ color: owes ? "var(--glass-text)" : "var(--glass-text-secondary)" }} title={r.player}>
+                  {r.player}
+                  {r.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
+                  {staffOf(r.player) && <StaffBadge label={staffOf(r.player)!} />}
+                </div>
+                <div className="truncate tabular text-[11px]" title={r.discount_names ?? (r.no_registration ? "No registration on file" : undefined)}>
+                  {r.no_registration ? (
+                    <span className="text-glass-text-tertiary">No registration on file</span>
+                  ) : (
+                    <>
+                      <span style={{ color: owes ? "var(--glass-text)" : "var(--glass-text-secondary)" }}>
+                        ${Math.round(r.paid)} / ${Math.round(r.total)}{cur}
+                      </span>
+                      {(r.discount ?? 0) > 0 && (
+                        <>
+                          <span className="font-bold" style={{ color: "var(--glass-text)" }}> {"\u2212"}${Math.round(r.discount ?? 0)}</span>
+                          <span className="text-glass-text-tertiary">
+                            {" \u00b7 "}{r.discount_names ? shortDiscount(r.discount_names) : "code removed"}
+                          </span>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </details>
     </li>
