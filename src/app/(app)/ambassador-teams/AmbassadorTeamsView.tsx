@@ -247,13 +247,16 @@ export default async function AmbassadorTeamsView({
                 stackChips
                 // Players placed belongs with the teams they're placed on: the
                 // count, and how many that comes to per team.
+                // A second figure in the same card, set like the first: its
+                // label, the number at the card's size, then per team.
                 footer={
-                  <div className="mt-3 space-y-1">
-                    <div className="text-[12px] text-glass-text-secondary tabular">
-                      <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{t!.players.toLocaleString()}</span> players placed
+                  <div className="mt-5">
+                    <div className="text-xs font-bold text-glass-text-tertiary truncate">Players placed</div>
+                    <div className="mt-1.5 text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>
+                      {t!.players.toLocaleString()}
                     </div>
                     {t!.teams > 0 && (
-                      <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 tabular" style={CHIP_STYLE.neutral}>
+                      <span className="mt-2 inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 tabular" style={CHIP_STYLE.neutral}>
                         {(t!.players / t!.teams).toFixed(2)} per team
                       </span>
                     )}
