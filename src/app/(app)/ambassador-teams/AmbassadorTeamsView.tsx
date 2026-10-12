@@ -256,7 +256,8 @@ export default async function AmbassadorTeamsView({
 
             {captainRows.length > 0 && (
               <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
-                <div className="px-4 pt-4 pb-3">
+                <AmbassadorTable
+                  header={<>
                   <div className="text-xs font-bold text-glass-text-tertiary mb-1">
                     Ambassadors
                   </div>
@@ -268,8 +269,7 @@ export default async function AmbassadorTeamsView({
                     any amount toward their registration this season (on any team). Open the arrow beside a name for their
                     teams and who has paid on each; select the name for their full page.
                   </p>
-                </div>
-                <AmbassadorTable
+                  </>}
                   rows={captainRows}
                   staff={staff}
                   teamsByKey={teamsByKey}
