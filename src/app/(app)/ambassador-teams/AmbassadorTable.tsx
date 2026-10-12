@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import TeamRosterBlock, { StaffBadge, type RosterLine, type RosterTeam } from "@/components/TeamRosterBlock";
 import { normName } from "@/lib/names";
 
@@ -36,7 +37,10 @@ export default function AmbassadorTable({
   hasFullRoster,
   hasTeammates,
   hasPaid,
+  header,
 }: {
+  // The card's title and explanation, drawn beside the Expand all toggle.
+  header?: React.ReactNode;
   rows: CaptainRow[];
   teamsByKey: Record<string, CaptainTeam[]>;
   season: string;
@@ -48,11 +52,28 @@ export default function AmbassadorTable({
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const colCount = 3 + (hasFullRoster ? 1 : 0) + (hasTeammates ? 1 : 0) + (hasPaid ? 2 : 0);
+  // Only captains with teams to show can open, and the toggle's label names
+  // what a click does: Collapse all once every one of them is open.
+  const openable = rows.filter((c) => (teamsByKey[c.key] ?? []).length > 0).map((c) => c.key);
+  const allOpen = openable.length > 0 && openable.every((k) => open[k]);
 
   return (
-    // The table scrolls inside this box, not the window, so its header sticks
-    // at the box's top (top-0). The page's --shell-top offset would pin it a
-    // header-height down, over the rows.
+    <>
+    <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
+      <div className="min-w-0 flex-1">{header}</div>
+      <button
+        type="button"
+        onClick={() => setOpen(allOpen ? {} : Object.fromEntries(openable.map((k) => [k, true])))}
+        disabled={openable.length === 0}
+        className={TOOL_BTN}
+      >
+        {allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+        {allOpen ? "Collapse all" : "Expand all"}
+      </button>
+    </div>
+    {/* The table scrolls inside this box, not the window, so its header sticks
+        at the box's top (top-0). The page's --shell-top offset would pin it a
+        header-height down, over the rows. */}
     <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
       <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 420 }}>
         <thead>
@@ -99,6 +120,7 @@ export default function AmbassadorTable({
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
@@ -199,3 +221,9 @@ function Row({
     </>
   );
 }
+
+// The same toggle as the discount drill-down's Expand all.
+const TOOL_BTN =
+  "inline-flex items-center gap-1.5 rounded-md border border-glass-border px-2.5 py-1 text-[11px] font-semibold shrink-0 "
+  + "text-glass-text-tertiary hover:text-glass-text hover:border-glass-gold hover:bg-glass-surface-hover transition "
+  + "disabled:opacity-40 disabled:pointer-events-none";
