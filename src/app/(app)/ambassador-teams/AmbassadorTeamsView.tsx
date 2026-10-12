@@ -233,7 +233,7 @@ export default async function AmbassadorTeamsView({
           </div>
         ) : (
           <>
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
               <Tile
                 label="Ambassador teams"
                 value={t!.teams.toLocaleString()}
@@ -245,6 +245,20 @@ export default async function AmbassadorTeamsView({
                     ]
                   : undefined}
                 stackChips
+                // Players placed belongs with the teams they're placed on: the
+                // count, and how many that comes to per team.
+                footer={
+                  <div className="mt-3 space-y-1">
+                    <div className="text-[12px] text-glass-text-secondary tabular">
+                      <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{t!.players.toLocaleString()}</span> players placed
+                    </div>
+                    {t!.teams > 0 && (
+                      <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 tabular" style={CHIP_STYLE.neutral}>
+                        {(t!.players / t!.teams).toFixed(2)} per team
+                      </span>
+                    )}
+                  </div>
+                }
               />
               <Tile
                 label="Locations"
@@ -256,7 +270,6 @@ export default async function AmbassadorTeamsView({
                   : undefined}
                 chips={missing?.map((m) => ({ text: m.day ? `${m.location} ${m.day}` : m.location, tone: "red" as const }))}
               />
-              <Tile label="Players placed" value={t!.players.toLocaleString()} />
               <Tile
                 label="Distinct captains"
                 value={t!.captains.toLocaleString()}
@@ -598,11 +611,13 @@ function Flag({ color, children }: { color: string; children: React.ReactNode })
 const CHIP_STYLE = {
   yellow: { color: "var(--amber-ink)", borderColor: "transparent", background: "var(--amber-tint)" },
   red: { color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" },
+  // The Registrations card's "per team" note: informational, not a judgement.
+  neutral: { color: "var(--glass-gold)", borderColor: "transparent", background: "var(--glass-gold-light, var(--fill-3))" },
 };
 type Chip = { text: string; tone: keyof typeof CHIP_STYLE };
 
-function Tile({ label, value, sub, chips, stackChips, accent }: {
-  label: string; value: string; sub?: string; chips?: Chip[]; stackChips?: boolean; accent?: string;
+function Tile({ label, value, sub, chips, stackChips, accent, footer }: {
+  label: string; value: string; sub?: string; chips?: Chip[]; stackChips?: boolean; accent?: string; footer?: React.ReactNode;
 }) {
   return (
     <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card">
@@ -622,6 +637,7 @@ function Tile({ label, value, sub, chips, stackChips, accent }: {
           ))}
         </div>
       )}
+      {footer}
     </div>
   );
 }
