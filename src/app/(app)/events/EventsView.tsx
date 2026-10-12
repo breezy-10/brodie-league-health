@@ -14,7 +14,7 @@ import { promoFetch } from "@/lib/promo-feed";
 // splits them into upcoming and past instead of filtering by season.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
-type EventRow = {
+export type EventRow = {
   id: string;
   name: string;
   kind: string;
@@ -33,7 +33,7 @@ type EventRow = {
   converted: number;
 };
 
-async function loadEvents(locationNames: string[] | null): Promise<EventRow[] | null> {
+export async function loadEvents(locationNames: string[] | null): Promise<EventRow[] | null> {
   try {
     const url = new URL("/api/events", PROMO_APP_URL);
     const lp = locParam(locationNames);

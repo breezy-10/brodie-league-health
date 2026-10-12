@@ -13,7 +13,7 @@ import ScheduledDropIns from "./ScheduledDropIns";
 // Tracker owns the ops-DB connection, so the figures come from its feed.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
-type DropInRow = {
+export type DropInRow = {
   location: string;
   currency: string;
   dropins: number;
@@ -50,7 +50,7 @@ type DropInRow = {
   awaiting_stats?: number;
   upcoming?: number;
 };
-type DropInFeed = {
+export type DropInFeed = {
   season: string;
   locations: DropInRow[];
   // A player who dropped in at two venues is one player, so these are counted
@@ -62,7 +62,7 @@ type DropInFeed = {
   truncated: boolean;
 };
 
-async function loadDropIns(season: string, locationNames: string[] | null): Promise<DropInFeed | null> {
+export async function loadDropIns(season: string, locationNames: string[] | null): Promise<DropInFeed | null> {
   try {
     const url = new URL("/api/drop-ins", PROMO_APP_URL);
     url.searchParams.set("season", season);
