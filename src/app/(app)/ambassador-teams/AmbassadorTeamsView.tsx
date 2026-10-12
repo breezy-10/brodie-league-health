@@ -1,106 +1,13 @@
 import { requireUser } from "@/lib/auth";
-import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
+import { canonicalLocation, csvParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import AmbassadorTable, { type CaptainTeam } from "./AmbassadorTable";
 import { StaffBadge } from "@/components/TeamRosterBlock";
 import { loadStaff } from "@/lib/staff";
 import { normName } from "@/lib/names";
 import { shortDiscount } from "@/lib/discount-names";
-import { promoFetch } from "@/lib/promo-feed";
-
-// The Promo Tracker owns the ops-DB (Metabase) connection, so the ambassador
-// roster comes from its feed rather than being re-derived here — same pattern
-// as the Registrations and Referrals tabs. Overridable so a local dev server
-// can point at a local promo tracker.
-const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
-
-type RosterEntry = {
-  player: string;
-  is_captain: boolean;
-  paid: number;
-  total: number;
-  currency: string | null;
-  paid_completed_at: string | null;
-  paid_ok: boolean;
-  // The discount on their registration and the code's name (the feed carries
-  // both; optional for an older one).
-  discount?: number;
-  discount_names?: string | null;
-  no_registration: boolean;
-};
-type TeamRow = {
-  team: string;
-  roster?: RosterEntry[];
-  captain: string | null;
-  // Ops player id. Two captains can share a name, so this is what groups a
-  // person's teams under their row on the board.
-  captain_id?: string | null;
-  day: string | null;
-  division: string | null;
-  players: number;
-};
-type LocationRow = {
-  location: string;
-  teams: number;
-  players: number;
-  // Nights with an ambassador team.
-  nights: number;
-  // Every night the location plays this season, Monday first, ambassador team
-  // or not. Absent from an older feed.
-  days?: string[];
-  // The divisions open on each night (absent from an older feed), so one with
-  // no ambassador team can be named.
-  divisions?: { day: string; division: string }[];
-  rows: TeamRow[];
-};
-type AmbassadorFeed = {
-  season: string;
-  totals: {
-    teams: number;
-    players: number;
-    locations: number;
-    captains: number;
-    captain_only: number;
-    no_roster: number;
-    no_captain: number;
-    max_roster: number;
-    // Teams with 7+ players and with 3 or fewer, captain included.
-    full_roster?: number;
-    three_or_fewer?: number;
-  };
-  captain_teams: Record<string, number>;
-  captain_players?: Record<string, number>;
-  // Keyed by ops player id. Covers every captain, not just repeat ones.
-  captains?: Record<string,
-    { name: string; teams: number; full_roster?: number; players: number; teammates?: number; paid_teammates?: number }>;
-  by_day: { day: string; teams: number; players: number }[];
-  locations: LocationRow[];
-  // Locations in scope with a captain this season but no ambassador team.
-  // Null when the Promo Tracker couldn't tell.
-  locations_without_ambassador?: string[] | null;
-  // Each night a location in scope plays with no ambassador team on it, at
-  // locations that cover some nights and at ones that cover none. A null day
-  // is a location with captains but no known night.
-  nights_without_ambassador?: { location: string; day: string | null }[] | null;
-};
-
-async function loadAmbassadorTeams(
-  season: string,
-  locationNames: string[] | null,
-): Promise<AmbassadorFeed | null> {
-  try {
-    const url = new URL("/api/ambassador-teams", PROMO_APP_URL);
-    url.searchParams.set("season", season);
-    const lp = locParam(locationNames);
-    if (lp) url.searchParams.set("location", lp);
-    const res = await promoFetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return null;
-    const k = (await res.json()) as AmbassadorFeed;
-    return k.locations ? k : null;
-  } catch {
-    return null;
-  }
-}
+import { ChipTile as Tile } from "../dashboard/ChipTile";
+import { AmbassadorSummaryTiles, loadAmbassadorTeams, type LocationRow, type TeamRow } from "./AmbassadorSummary";
 
 const GOLD = "var(--glass-gold)";
 const THIN = "var(--glass-yellow)"; // captain-only roster
@@ -133,11 +40,6 @@ export default async function AmbassadorTeamsView({
   };
 
   const t = feed?.totals;
-  // Location-nights with no ambassador team ("Burlington Monday"). Undefined
-  // from an older feed and null when the Promo Tracker couldn't tell; either
-  // way no chips.
-  const missing = feed?.nights_without_ambassador ?? null;
-  const missingLocations = new Set((missing ?? []).map((m) => m.location)).size;
   // Alphabetical, so a location is found by name; the feed ranks them by
   // team count, which moved a location around as teams registered.
   const locations = [...(feed?.locations ?? [])].sort((a, b) => a.location.localeCompare(b.location));
@@ -234,45 +136,7 @@ export default async function AmbassadorTeamsView({
         ) : (
           <>
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
-              <Tile
-                label="Ambassador teams"
-                value={t!.teams.toLocaleString()}
-                accent={GOLD}
-                chips={t!.full_roster != null && t!.three_or_fewer != null
-                  ? [
-                      { text: `${t!.full_roster.toLocaleString()} with 7 or more players`, tone: "yellow" },
-                      { text: `${t!.three_or_fewer.toLocaleString()} with 3 or fewer players`, tone: "red" },
-                    ]
-                  : undefined}
-                stackChips
-                // Players placed belongs with the teams they're placed on: the
-                // count, and how many that comes to per team.
-                // A second figure in the same card, set like the first: its
-                // label, the number at the card's size, then per team.
-                footer={
-                  <div className="mt-5">
-                    <div className="text-xs font-bold text-glass-text-tertiary truncate">Players placed</div>
-                    <div className="mt-1.5 text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>
-                      {t!.players.toLocaleString()}
-                    </div>
-                    {t!.teams > 0 && (
-                      <span className="mt-2 inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 tabular" style={CHIP_STYLE.neutral}>
-                        {(t!.players / t!.teams).toFixed(2)} per team
-                      </span>
-                    )}
-                  </div>
-                }
-              />
-              <Tile
-                label="Locations"
-                value={t!.locations.toLocaleString()}
-                sub={missing
-                  ? (missing.length
-                      ? `${missing.length} ${missing.length === 1 ? "night" : "nights"} at ${missingLocations} ${missingLocations === 1 ? "location" : "locations"} with no ambassador team`
-                      : "every night has an ambassador team")
-                  : undefined}
-                chips={missing?.map((m) => ({ text: m.day ? `${m.location} ${m.day}` : m.location, tone: "red" as const }))}
-              />
+              <AmbassadorSummaryTiles feed={feed} />
               <Tile
                 label="Distinct captains"
                 value={t!.captains.toLocaleString()}
@@ -616,41 +480,5 @@ function Flag({ color, children }: { color: string; children: React.ReactNode })
     >
       {children}
     </span>
-  );
-}
-
-// The dashboard's roster chips: yellow for full rosters, red for what needs work
-// (thin rosters, a location still without an ambassador team).
-const CHIP_STYLE = {
-  yellow: { color: "var(--amber-ink)", borderColor: "transparent", background: "var(--amber-tint)" },
-  red: { color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" },
-  // The Registrations card's "per team" note: informational, not a judgement.
-  neutral: { color: "var(--glass-gold)", borderColor: "transparent", background: "var(--glass-gold-light, var(--fill-3))" },
-};
-type Chip = { text: string; tone: keyof typeof CHIP_STYLE };
-
-function Tile({ label, value, sub, chips, stackChips, accent, footer }: {
-  label: string; value: string; sub?: string; chips?: Chip[]; stackChips?: boolean; accent?: string; footer?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card">
-      <div className="text-xs font-bold text-glass-text-tertiary truncate">{label}</div>
-      <div className="mt-1.5 text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>
-        {value}
-      </div>
-      {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
-      {chips && chips.length > 0 && (
-        <div className={`mt-2 flex gap-1.5 ${stackChips ? "flex-col items-start" : "flex-wrap"}`}>
-          {chips.map((c) => (
-            <span key={c.text}
-              className="text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
-              style={CHIP_STYLE[c.tone]}>
-              {c.text}
-            </span>
-          ))}
-        </div>
-      )}
-      {footer}
-    </div>
   );
 }

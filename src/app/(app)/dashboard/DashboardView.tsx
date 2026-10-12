@@ -16,6 +16,10 @@ import DeadlineBanner, { type DeadlineWeek } from "./DeadlineBanner";
 import type { DiscountRow } from "../discounts/DiscountsView";
 import { discountTone, freeTone } from "../discounts/rates";
 import { promoFetch } from "@/lib/promo-feed";
+import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams/AmbassadorSummary";
+import { loadDropIns } from "../drop-ins/DropInsView";
+import { loadEvents } from "../events/EventsView";
+import { ChipTile, type Chip } from "./ChipTile";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -2249,6 +2253,85 @@ async function OutreachCards({ scope, season, fullTag }: { scope: Scope; season?
   return <Section title="Outreach" scopeTag={fullTag} seasonTag={f ? `${f.season} registration` : undefined}
     href={APP_URL.crm} tiles={tiles} cols={4} />;
 }
+// Ambassador teams are registered for the season being sold, so this reads the
+// registration season, as the Ambassador teams page does by default.
+async function AmbassadorCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
+  const feed = await loadAmbassadorTeams(season, scope.locationNames);
+  const q = new URLSearchParams({ season });
+  const lp = locParam(scope.locationNames);
+  if (lp) q.set("location", lp);
+  return (
+    <Section title="Ambassador teams" scopeTag={fullTag} seasonTag={season} href={`/ambassador-teams?${q}`}
+      tiles={feed ? [] : null}>
+      {feed && (
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+          <AmbassadorSummaryTiles feed={feed} />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// How many drop-ins and events each location has. A drop-in is a game in the
+// season being played; events aren't tied to a season, so that card counts the
+// ones still to come.
+async function DropInEventCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
+  const [dropIns, events] = await Promise.all([
+    loadDropIns(season, scope.locationNames),
+    loadEvents(scope.locationNames),
+  ]);
+  // Most first, then by name, as one chip per location.
+  const perLocation = (counts: Map<string, number>): Chip[] =>
+    [...counts].filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([loc, n]) => ({ text: `${loc} ${n.toLocaleString()}`, tone: "neutral" }));
+  const tally = (pairs: [string, number][]) => {
+    const m = new Map<string, number>();
+    for (const [loc, n] of pairs) m.set(loc, (m.get(loc) ?? 0) + n);
+    return m;
+  };
+  // A location with two currencies has a row for each; a drop-in is a drop-in.
+  const dropInsBy = tally((dropIns?.locations ?? []).map((r) => [r.location, r.dropins]));
+  const dropInTotal = [...dropInsBy.values()].reduce((a, b) => a + b, 0);
+  const dropInLocs = [...dropInsBy.values()].filter((n) => n > 0).length;
+  const upcoming = (events ?? []).filter((e) => e.upcoming);
+  const eventsBy = tally(upcoming.map((e) => [e.location, 1]));
+  const where = (n: number) => `at ${n} ${n === 1 ? "location" : "locations"}`;
+  const q = new URLSearchParams({ season });
+  const lp = locParam(scope.locationNames);
+  if (lp) q.set("location", lp);
+  const link = (href: string, text: string) => (
+    <div className="mt-3 flex justify-end">
+      <a href={href} className="text-[11px] font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
+        {text} →
+      </a>
+    </div>
+  );
+  const unavailable = (what: string) => (
+    <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card text-sm text-glass-text-tertiary">
+      <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>Not connected.</span>{" "}
+      The Promo Tracker didn&apos;t answer for {what}, so no numbers are shown here.
+    </div>
+  );
+  return (
+    <Section title="Drop-ins and events" scopeTag={fullTag} seasonTag={season} tiles={dropIns || events ? [] : null}>
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+        {dropIns ? (
+          <ChipTile label="Drop-ins" value={dropInTotal.toLocaleString()}
+            sub={dropInTotal ? where(dropInLocs) : `none yet in ${season}`}
+            chips={perLocation(dropInsBy)}
+            footer={link(`/drop-ins?${q}`, "View drop-ins")} />
+        ) : unavailable("drop-ins")}
+        {events ? (
+          <ChipTile label="Upcoming events" value={upcoming.length.toLocaleString()}
+            sub={upcoming.length ? where(eventsBy.size) : "none scheduled"}
+            chips={perLocation(eventsBy)}
+            footer={link(`/events${lp ? `?${new URLSearchParams({ location: lp })}` : ""}`, "View events")} />
+        ) : unavailable("events")}
+      </div>
+    </Section>
+  );
+}
 async function SiteVisitCards({ scope, weeks, weekTag }: { scope: Scope; weeks?: string; weekTag?: string }) {
   const d = await loadSiteVisits(scope, weeks);
   return d && d.weeks.length > 0 ? <SiteVisitsSection data={d} titleSuffix={weekTag} /> : null;
@@ -3545,6 +3628,12 @@ export default async function DashboardView({
         )}
         {!isReg && (
           <>
+            <Suspense fallback={<SectionSkeleton title="Ambassador teams" cols={3} count={2} />}>
+              <AmbassadorCards season={regSeason} scope={scope} fullTag={fullTag} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton title="Drop-ins and events" cols={3} count={2} />}>
+              <DropInEventCards season={selectedSeason} scope={scope} fullTag={fullTag} />
+            </Suspense>
             <Section title="Team Confirmed Stories" scopeTag={fullTag} href={`${APP_URL.promo}/team-confirmed-stories`}
               tiles={promoTiles?.tiles ?? null}
               seasonTag={seasonToggle("promoSeason", promoSeason) ? undefined : promoSeasonName}
@@ -3612,10 +3701,14 @@ function ScopeTag({ label }: { label: string }) {
 // Every section's way out to the app behind it. A button rather than a line of
 // gold text: it is the one thing on a heading row you can click, and it was
 // reading as a caption next to the tag beside it.
-function MoreDetails({ href, label = "More details ↗" }: { href: string; label?: string }) {
+function MoreDetails({ href, label }: { href: string; label?: string }) {
+  // A page of League Health itself opens in place; another app opens beside it.
+  if (href.startsWith("/")) {
+    return <a href={href} className="br-btn is-outline is-sm shrink-0">{label ?? "More details →"}</a>;
+  }
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="br-btn is-outline is-sm shrink-0">
-      {label}
+      {label ?? "More details ↗"}
     </a>
   );
 }
@@ -4177,6 +4270,7 @@ function Section({
   scopeTag,
   headerExtra,
   cols = 4,
+  children,
 }: {
   title: string;
   href?: string;
@@ -4197,6 +4291,9 @@ function Section({
   // the row neither wraps nor leaves a hole. Class names are spelled out
   // because Tailwind scans literals.
   cols?: 3 | 4 | 6;
+  // Cards of the section's own, in place of the StatTile grid. tiles still
+  // says whether the source answered (null shows "Not connected").
+  children?: ReactNode;
 }) {
   return (
     <section className="space-y-3">
@@ -4226,6 +4323,8 @@ function Section({
           League Health couldn&apos;t load {title} from its app, so no numbers are shown here.
           {href && <> Open the app for the current figures.</>}
         </div>
+      ) : children ? (
+        children
       ) : tiles.length ? (
         <div className={cols === 6
           ? "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6"
