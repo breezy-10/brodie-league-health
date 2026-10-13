@@ -22,6 +22,9 @@ export interface FilterOptions {
   // When provided, a Week filter (Saturday–Friday) renders between Season and
   // Location. Values are the week's Saturday, "YYYY-MM-DD".
   weeks?: { value: string; label: string }[];
+  // When true, From and To date fields render after Location ("YYYY-MM-DD",
+  // either may be left empty).
+  dates?: boolean;
 }
 
 const sameSet = (a: string[], b: string[]) =>
@@ -38,7 +41,7 @@ export default function Filters({
   keep?: Record<string, string>;
   // Each filter is a list: [] means "all locations", and for season/week means
   // "the default" (the resolved season / current week).
-  current: { seasons: string[]; locations: string[]; weeks?: string[] };
+  current: { seasons: string[]; locations: string[]; weeks?: string[]; from?: string; to?: string };
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -49,10 +52,13 @@ export default function Filters({
   const [seasons, setSeasons] = useState(current.seasons);
   const [weeks, setWeeks] = useState(current.weeks ?? []);
   const [locations, setLocations] = useState(current.locations);
+  const [from, setFrom] = useState(current.from ?? "");
+  const [to, setTo] = useState(current.to ?? "");
 
   const dirty =
     !sameSet(seasons, current.seasons) || !sameSet(locations, current.locations) ||
-    (hasWeeks && !sameSet(weeks, current.weeks ?? []));
+    (hasWeeks && !sameSet(weeks, current.weeks ?? [])) ||
+    (!!options.dates && (from !== (current.from ?? "") || to !== (current.to ?? "")));
 
   function apply() {
     if (!dirty) return;
@@ -61,6 +67,8 @@ export default function Filters({
     if (seasons.length) next.set("season", seasons.join(","));
     if (hasWeeks && weeks.length) next.set("week", weeks.join(","));
     if (locations.length) next.set("location", locations.join(","));
+    if (options.dates && from) next.set("from", from);
+    if (options.dates && to) next.set("to", to);
     const qs = next.toString();
     startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
   }
@@ -100,6 +108,18 @@ export default function Filters({
           searchable
         />
       </Field>
+      {options.dates && (
+        <>
+          <Field label="From">
+            <input type="date" className={SELECT} value={from} max={to || undefined}
+              onChange={(e) => setFrom(e.target.value)} />
+          </Field>
+          <Field label="To">
+            <input type="date" className={SELECT} value={to} min={from || undefined}
+              onChange={(e) => setTo(e.target.value)} />
+          </Field>
+        </>
+      )}
       <button
         onClick={apply}
         disabled={pending || !dirty}

@@ -71,13 +71,19 @@ function whenLabel(at: string | null, tz: string): { day: string; time: string }
 const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "—");
 const CHIP = "inline-block text-[11px] font-semibold rounded-md px-1.5 py-0.5 whitespace-nowrap";
 
-export default async function EventsView({
-  searchParams,
-}: {
-  searchParams: Promise<{ location?: string; when?: string }>;
-}) {
+type EventsParams = { location?: string; when?: string; from?: string; to?: string };
+
+export default async function EventsView({ searchParams }: { searchParams: Promise<EventsParams> }) {
   await requireUser();
-  const { location: locationParam, when: whenParam } = await searchParams;
+  return <EventsBody searchParams={searchParams} />;
+}
+
+// The page itself, apart from the sign-in check.
+export async function EventsBody({ searchParams }: { searchParams: Promise<EventsParams> }) {
+  const { location: locationParam, when: whenParam, from: fromParam, to: toParam } = await searchParams;
+  // An optional date range, on the event's own local date ("YYYY-MM-DD").
+  const isDay = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  const from = isDay(fromParam), to = isDay(toParam);
   const past = whenParam === "past";
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
   const locationNames = selectedLocations.length ? selectedLocations : null;
@@ -89,10 +95,15 @@ export default async function EventsView({
     getActiveLocationKeys([]),
     loadEvents(locationNames),
   ]);
-  const options: FilterOptions = { seasons: [], locations: onlyActive(canonical, active, selectedLocations) };
+  const options: FilterOptions = { seasons: [], locations: onlyActive(canonical, active, selectedLocations), dates: true };
 
   const events = (all ?? [])
     .filter((e) => e.upcoming !== past)
+    .filter((e) => {
+      const day = e.starts_at?.slice(0, 10);
+      if (!day) return !from && !to;
+      return (!from || day >= from) && (!to || day <= to);
+    })
     .sort((a, b) => {
       const x = a.starts_at ?? "", y = b.starts_at ?? "";
       return past ? y.localeCompare(x) : x.localeCompare(y);
@@ -100,14 +111,17 @@ export default async function EventsView({
   const sum = (k: keyof EventRow) => events.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
   const going = sum("going"), rsvps = sum("rsvps"), newPlayers = sum("new_players"), converted = sum("converted");
   const anyPaid = events.some((e) => e.paid > 0);
+  const paid = sum("paid");
+  // The filter bar rebuilds the query string, so it carries what it doesn't own.
+  const keep: Record<string, string> = past ? { when: "past" } : {};
 
   return (
     <main className="brodie-fade-in space-y-6">
       <Filters
-        key={selectedLocations.join(",")}
+        key={`${selectedLocations.join(",")}|${from ?? ""}|${to ?? ""}`}
         options={options}
-        current={{ seasons: [], locations: selectedLocations }}
-        keep={past ? { when: "past" } : undefined}
+        current={{ seasons: [], locations: selectedLocations, from, to }}
+        keep={Object.keys(keep).length ? keep : undefined}
       />
 
       <BasisToggle
@@ -137,6 +151,7 @@ export default async function EventsView({
           {events.length === 0 ? (
             <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
               {past ? "No past events in this scope." : "No upcoming events in this scope."}
+              {(from || to) && " Try widening the dates."}
             </div>
           ) : (
             <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
@@ -198,6 +213,35 @@ export default async function EventsView({
                         </tr>
                       );
                     })}
+                    {/* A total of one row only repeats it. */}
+                    {events.length > 1 && (
+                      <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
+                        <td className="px-4 py-3 font-bold whitespace-nowrap align-top" style={{ color: "var(--glass-text)" }} colSpan={3}>
+                          All events
+                          <span className="ml-2 text-xs font-normal text-glass-text-tertiary">
+                            {events.length.toLocaleString()} {events.length === 1 ? "event" : "events"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
+                          <div className="font-bold" style={{ color: "var(--glass-text)" }}>{going.toLocaleString()}</div>
+                          <div className="text-[11px] text-glass-text-tertiary">of {rsvps.toLocaleString()} RSVPs</div>
+                        </td>
+                        <td className="px-4 py-3 text-right tabular align-top font-bold" style={{ color: "var(--glass-text)" }}>
+                          {newPlayers.toLocaleString()}
+                        </td>
+                        {past && (
+                          <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
+                            <div className="font-bold" style={{ color: "var(--glass-text)" }}>{pct(converted, newPlayers)}</div>
+                            <div className="text-[11px] text-glass-text-tertiary">{converted} of {newPlayers}</div>
+                          </td>
+                        )}
+                        {anyPaid && (
+                          <td className="px-4 py-3 text-right tabular align-top font-bold" style={{ color: "var(--glass-text)" }}>
+                            {paid ? paid.toLocaleString() : "—"}
+                          </td>
+                        )}
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
