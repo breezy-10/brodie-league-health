@@ -69,7 +69,8 @@ export function parseRequest(m: SlackMessage): CityRequest | null {
 }
 
 // Every submission in the channel, newest first. Read through the bot token
-// League Health already uses for its Slack messages; cached for five minutes.
+// League Health already uses for its Slack messages. Not cached: an answer
+// like "missing scope" would otherwise stick around after it's been fixed.
 export async function loadLocationRequests(): Promise<LocationRequests> {
   const token = process.env.SLACK_BOT_TOKEN;
   if (!token) return { ok: false, reason: "League Health's Slack token (SLACK_BOT_TOKEN) isn't set." };
@@ -81,7 +82,7 @@ export async function loadLocationRequests(): Promise<LocationRequests> {
       url.searchParams.set("channel", CHANNEL);
       url.searchParams.set("limit", "200");
       if (cursor) url.searchParams.set("cursor", cursor);
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, next: { revalidate: 300 } });
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
       const body = (await res.json()) as {
         ok: boolean; error?: string; needed?: string;
         messages?: SlackMessage[]; response_metadata?: { next_cursor?: string };
@@ -90,7 +91,9 @@ export async function loadLocationRequests(): Promise<LocationRequests> {
         const why = body.error === "not_in_channel"
           ? "League Health's Slack app isn't in #location-requests. Add it to the channel (channel name, then Integrations, then Add apps)."
           : body.error === "missing_scope"
-            ? `League Health's Slack app needs permission to read channel history (${body.needed ?? "channels:history"}).`
+            // Slack lists every history scope as "needed"; a public channel
+            // only takes channels:history.
+            ? "League Health's Slack app can send messages but not read channels. In Slack's app settings (api.slack.com/apps, the League Health app, OAuth & Permissions), add the channels:history bot token scope, reinstall the app to the workspace, then add the app to #location-requests."
             : body.error === "channel_not_found"
               ? "League Health's Slack app can't see #location-requests. Add it to the channel."
               : `Slack said: ${body.error ?? "unknown error"}.`;
