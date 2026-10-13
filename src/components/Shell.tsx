@@ -14,6 +14,7 @@ const AMBASSADORS: NavItem = { href: "/ambassador-teams", label: "Ambassador tea
 const DROP_INS: NavItem = { href: "/drop-ins", label: "Drop-ins", short: "Drop-ins", icon: "dropins", group: "" };
 const EVENTS: NavItem = { href: "/events", label: "Events", short: "Events", icon: "events", group: "" };
 const WAITLIST: NavItem = { href: "/waitlist", label: "Waitlist", short: "Waitlist", icon: "waitlist", group: "" };
+const CITIES: NavItem = { href: "/requested-cities", label: "Requested cities", short: "Cities", icon: "cities", group: "" };
 const STAFF: NavItem = { href: "/staff-performance", label: "Staff performance", short: "Staff", icon: "staff", group: "People" };
 const MY_DAY: NavItem = { href: "/my-day", label: "My day", short: "My day", icon: "myday", group: "People" };
 const LEADERBOARD: NavItem = { href: "/leaderboard", label: "Leaderboard", short: "Leaderboard", icon: "leaderboard", group: "People" };
@@ -34,7 +35,7 @@ export default async function Shell({ children }: { children: React.ReactNode })
   // Super admins get every page. District and operations managers add Users;
   // staff performance is for admins and district managers.
   const items: NavItem[] = [
-    DASHBOARD, REGISTRATIONS, REFERRALS, DISCOUNTS, AMBASSADORS, DROP_INS, EVENTS, WAITLIST,
+    DASHBOARD, REGISTRATIONS, REFERRALS, DISCOUNTS, AMBASSADORS, DROP_INS, EVENTS, WAITLIST, CITIES,
     ...(STAFF_PERFORMANCE_ROLES.includes(role) ? [STAFF] : []),
     ...(isSuperAdmin ? [MY_DAY, LEADERBOARD, TROPHIES, DISTRICT, DISPUTES] : []),
     ...(isSuperAdmin ? [SETTINGS] : canManageUsers(role) ? [USERS] : []),
