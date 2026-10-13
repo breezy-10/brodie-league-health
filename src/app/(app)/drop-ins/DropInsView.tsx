@@ -39,6 +39,9 @@ export type DropInRow = {
   new_players?: number;
   returning_players?: number;
   converted_players?: number;
+  // Of those, registered for the drop-in's own season, and for another one.
+  converted_same_season?: number;
+  converted_other_season?: number;
   new_charged?: number;
   returning_free?: number;
   given_free?: number;
@@ -59,6 +62,7 @@ export type DropInFeed = {
   // across venues by the feed rather than summed from the rows.
   players_by_currency: Record<string, {
     players: number; repeat_players: number; new_players?: number; returning_players?: number; converted_players?: number;
+    converted_same_season?: number; converted_other_season?: number;
   }>;
   discount_codes: { code: string; currency: string; uses: number; given_up: number }[];
   truncated: boolean;
@@ -176,6 +180,8 @@ export default async function DropInsView({
           const newPlayers = people.new_players ?? sum("new_players");
           const retPlayers = people.returning_players ?? sum("returning_players");
           const converted = people.converted_players ?? sum("converted_players");
+          const convertedSame = people.converted_same_season ?? sum("converted_same_season");
+          const convertedOther = people.converted_other_season ?? sum("converted_other_season");
           const newDropins = sum("new_dropins");
           const retDropins = sum("returning_dropins");
           // The returning players' price, weighted by their drop-ins.
@@ -236,7 +242,7 @@ export default async function DropInsView({
                     </>
                   } />
                 <Tile label="Became registrations" value={pct(converted, newPlayers)} accent={ACCENT}
-                  sub={`${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after`} />
+                  sub={`${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
                 <Tile label="Given free" value={money(sum("given_free"))} sub="the drop-in price, waived" />
               </div>
 
@@ -261,13 +267,14 @@ export default async function DropInsView({
 
               <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1000 }}>
+                  <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1100 }}>
                     <thead>
                       <tr className="text-xs font-bold text-glass-text-tertiary">
                         <Th align="left">Location</Th>
                         <Th>Drop-ins</Th>
                         <Th>New players</Th>
-                        <Th>Became registrations</Th>
+                        <Th>Registered this season</Th>
+                        <Th>Registered another season</Th>
                         <Th>Returning players</Th>
                         <Th>Returning revenue</Th>
                         <Th>Revenue</Th>
@@ -291,7 +298,8 @@ export default async function DropInsView({
                           </td>
                           <Td>{r.dropins.toLocaleString()}</Td>
                           <Td>{(r.new_players ?? 0).toLocaleString()}</Td>
-                          <RateTd count={r.converted_players ?? 0} total={r.new_players ?? 0} />
+                          <RateTd count={r.converted_same_season ?? 0} total={r.new_players ?? 0} />
+                          <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0} />
                           <Td>
                             {(r.returning_players ?? 0).toLocaleString()}
                             {(r.returning_dropins ?? 0) > 0 && (
@@ -319,7 +327,8 @@ export default async function DropInsView({
                           <td className="px-4 py-3 font-bold" style={{ color: "var(--glass-text)" }}>All locations</td>
                           <Td strong>{n.toLocaleString()}</Td>
                           <Td strong>{newPlayers.toLocaleString()}</Td>
-                          <RateTd strong count={converted} total={newPlayers} />
+                          <RateTd strong count={convertedSame} total={newPlayers} />
+                          <RateTd strong count={convertedOther} total={newPlayers} />
                           <Td strong>{retPlayers.toLocaleString()}</Td>
                           <Td strong>{retDropins ? money(sum("returning_revenue")) : "—"}</Td>
                           <Td strong>{money(sum("revenue"))}</Td>
@@ -376,7 +385,9 @@ export default async function DropInsView({
         cancelled. It is by a new player when, before it, they had no roster spot, no completed season registration
         and no earlier drop-in; new players&apos; drop-ins are meant to be free, returning players&apos; charged, so
         the price figures are measured on returning players&apos; drop-ins only. Became registrations is new drop-in
-        players who completed a paid season registration after their drop-in. Showed up is measured on games already
+        players who completed a paid season registration after their drop-in, for any season; the table splits it
+        into registrations for the drop-in&apos;s own season and for another season (usually the next), and a player
+        who did both counts in each. Showed up is measured on games already
         played: the player has a stat line or is marked as played. A no-show is a game whose stats are in for their
         team but not for them; a game with no stats for their team yet waits under awaiting stats.
         Started, not paid is drop-ins left as a draft or with a failed payment. Revenue, overall and for returning
