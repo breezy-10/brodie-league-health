@@ -20,6 +20,7 @@ import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams
 import { loadDropIns } from "../drop-ins/DropInsView";
 import { loadEvents } from "../events/EventsView";
 import { ChipTile, type Chip } from "./ChipTile";
+import { LiveGamesBody, loadLiveGames } from "./LiveGames";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -2253,6 +2254,19 @@ async function OutreachCards({ scope, season, fullTag }: { scope: Scope; season?
   return <Section title="Outreach" scopeTag={fullTag} seasonTag={f ? `${f.season} registration` : undefined}
     href={APP_URL.crm} tiles={tiles} cols={4} />;
 }
+// Games on court right now at each venue, from today's schedule, with what's
+// still to come; read at page load (refresh for the latest).
+async function LiveGamesCards({ scope }: { scope: Scope }) {
+  const games = await loadLiveGames(scope.locationNames);
+  const asOf = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Toronto" })
+    .format(new Date());
+  return (
+    <Section title="Live games" seasonTag={`as of ${asOf} ET`} tiles={games ? [] : null}>
+      {games && <LiveGamesBody games={games} />}
+    </Section>
+  );
+}
+
 // Ambassador teams are registered for the season being sold, so this reads the
 // registration season, as the Ambassador teams page does by default.
 async function AmbassadorCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
@@ -3544,6 +3558,11 @@ export default async function DashboardView({
 
       <div className="space-y-8">
         {!isReg && deadlines.length > 0 && <DeadlineBanner weeks={deadlines} />}
+        {!isReg && (
+          <Suspense fallback={<SectionSkeleton title="Live games" cols={3} />}>
+            <LiveGamesCards scope={scope} />
+          </Suspense>
+        )}
         {!isReg && (
           <Section title="Season Success Checklist" scopeTag={fullTag} href={`${APP_URL.checklist}/checklists?kind=lm`} tiles={checklistTiles} cols={6} />
         )}
