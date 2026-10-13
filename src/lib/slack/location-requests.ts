@@ -84,7 +84,7 @@ export async function loadLocationRequests(): Promise<LocationRequests> {
       if (cursor) url.searchParams.set("cursor", cursor);
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
       const body = (await res.json()) as {
-        ok: boolean; error?: string; needed?: string;
+        ok: boolean; error?: string; needed?: string; provided?: string;
         messages?: SlackMessage[]; response_metadata?: { next_cursor?: string };
       };
       if (!body.ok) {
@@ -97,7 +97,17 @@ export async function loadLocationRequests(): Promise<LocationRequests> {
             : body.error === "channel_not_found"
               ? "League Health's Slack app can't see #location-requests. Add it to the channel."
               : `Slack said: ${body.error ?? "unknown error"}.`;
-        return { ok: false, reason: why };
+        // Which Slack app the token is, so the right one gets fixed: auth.test
+        // needs no scope and names the bot.
+        let who = "";
+        try {
+          const me = (await (await fetch("https://slack.com/api/auth.test", {
+            headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
+          })).json()) as { ok: boolean; user?: string };
+          if (me.ok && me.user) who = ` The token is the @${me.user} bot`;
+        } catch { /* identity is a nicety */ }
+        if (who) who += body.provided ? ` (it can: ${body.provided}).` : ".";
+        return { ok: false, reason: why + who };
       }
       for (const m of body.messages ?? []) {
         const r = parseRequest(m);
