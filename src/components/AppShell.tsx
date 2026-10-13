@@ -7,6 +7,7 @@ import {
   Award,
   CalendarDays,
   Hourglass,
+  MapPin,
   BadgePercent,
   CalendarCheck,
   ClipboardList,
@@ -33,7 +34,7 @@ import { SIDEBAR_COOKIE, type Theme } from "@/lib/theme-shared";
 // instead, because bundle.js toggling classes would be undone by the next render.
 
 export type NavIcon =
-  | "dashboard" | "registrations" | "referrals" | "discounts" | "ambassadors" | "dropins" | "events" | "waitlist" | "staff"
+  | "dashboard" | "registrations" | "referrals" | "discounts" | "ambassadors" | "dropins" | "events" | "waitlist" | "cities" | "staff"
   | "myday" | "leaderboard" | "trophies" | "district" | "disputes" | "settings" | "users";
 
 export interface NavItem {
@@ -64,6 +65,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   dropins: Ticket,
   events: CalendarDays,
   waitlist: Hourglass,
+  cities: MapPin,
   staff: UserCheck,
   myday: CalendarCheck,
   leaderboard: Trophy,
@@ -88,6 +90,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/ambassador-teams/captain", title: "Captain", subtitle: "One captain's ambassador team and roster." },
   { path: "/ambassador-teams", title: "Ambassador teams", subtitle: "Every night's ambassador team, and how full each roster is." },
   { path: "/drop-ins", title: "Drop-ins", subtitle: "Players who came for a single game: who was new, who showed up, and who went on to register." },
+  { path: "/requested-cities", title: "Requested cities", subtitle: "Where people have asked Brodie to open next, from the website's request-a-city form." },
   { path: "/waitlist", title: "Waitlist", subtitle: "People who put down a deposit to be first in when Brodie opens in a new market." },
   { path: "/events", title: "Events", subtitle: "Open runs, Kicks of the Week, opening nights and more: who\u2019s going, who was new, and who went on to register." },
   { path: "/staff-performance", title: "Staff performance", subtitle: "Everyone in the Training app, with their role and locations, rated from 0 to 10." },
