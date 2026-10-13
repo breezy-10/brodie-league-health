@@ -22,6 +22,9 @@ type AvailableRow = {
   dropins: number;
   // Null when the program caps neither drop-ins nor players.
   spots: number | null;
+  // The last day the location's program takes sign-ups (absent from an older
+  // feed, null when it sets no close date).
+  closes_on?: string | null;
 };
 
 async function loadAvailable(season: string, locationNames: string[] | null): Promise<AvailableRow[] | null> {
@@ -148,6 +151,10 @@ export default async function AvailableDropIns({
                 {byLocation ? g.key : <>{g.key === today ? "Today · " : ""}{dayLabel(g.key)}</>}
                 <span className="ml-2 text-xs font-normal text-glass-text-tertiary">
                   {nGames} {nGames === 1 ? "game" : "games"}
+                  {/* By location, when the venue's program stops taking
+                      sign-ups: games after it are listed but can only be
+                      booked until then. */}
+                  {byLocation && g.rows[0].closes_on && <> · sign-ups close {shortDate(g.rows[0].closes_on)}</>}
                 </span>
               </h3>
               <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
@@ -225,7 +232,8 @@ export default async function AvailableDropIns({
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
-        Every upcoming game a drop-in program offers spots on, by the team that takes the drop-in. Each location&apos;s
+        Every upcoming game a drop-in program offers spots on, by the team that takes the drop-in. Only locations whose
+        program is open for sign-ups are listed; a program set up as a draft isn&apos;t offering drop-ins. Each
         program sets which teams take drop-ins (ambassador teams), on which nights and in which divisions, and may cap
         drop-ins or players per team for a game; spots left is the tighter of the two, and no cap means the program
         sets neither. Booked is drop-ins that went through for that team and game. Times are the venue&apos;s own local
