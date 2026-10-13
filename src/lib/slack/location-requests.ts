@@ -1,8 +1,15 @@
+import { readAppSecret } from "@/lib/app-secrets";
+
 // City requests from the website's "request a city" form. The form posts each
 // submission to the #location-requests Slack channel and keeps no copy
 // anywhere else (not in the ops DB), so the channel is the record and this
-// reads it with League Health's Slack bot. Contact details are dropped here:
-// only name, city, region, country and when leave this module.
+// reads it with a Slack bot. Contact details are dropped here: only name,
+// city, region, country and when leave this module.
+//
+// The bot is the "Brodie Registration Alerts" app (channels:history,
+// channels:join), whose token sits in app_secrets as
+// location_requests_slack_token. League Health's own SLACK_BOT_TOKEN is the
+// Brodie CRM app, which can send but not read, and is only the fallback.
 const CHANNEL = process.env.LOCATION_REQUESTS_CHANNEL_ID ?? "C0B5Y6R2YCE";
 
 export type CityRequest = {
@@ -72,8 +79,10 @@ export function parseRequest(m: SlackMessage): CityRequest | null {
 // League Health already uses for its Slack messages. Not cached: an answer
 // like "missing scope" would otherwise stick around after it's been fixed.
 export async function loadLocationRequests(): Promise<LocationRequests> {
-  const token = process.env.SLACK_BOT_TOKEN;
-  if (!token) return { ok: false, reason: "League Health's Slack token (SLACK_BOT_TOKEN) isn't set." };
+  const token = (await readAppSecret("location_requests_slack_token"))
+    ?? process.env.LOCATION_REQUESTS_SLACK_TOKEN ?? process.env.SLACK_BOT_TOKEN;
+  if (!token) return { ok: false, reason: "No Slack token is set for reading #location-requests." };
+  let joined = false;
   const requests: CityRequest[] = [];
   let cursor = "";
   try {
@@ -87,13 +96,24 @@ export async function loadLocationRequests(): Promise<LocationRequests> {
         ok: boolean; error?: string; needed?: string; provided?: string;
         messages?: SlackMessage[]; response_metadata?: { next_cursor?: string };
       };
+      // A bot that may join public channels can let itself in the first time.
+      if (!body.ok && body.error === "not_in_channel" && !joined) {
+        joined = true;
+        const j = (await (await fetch("https://slack.com/api/conversations.join", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify({ channel: CHANNEL }),
+          cache: "no-store",
+        })).json()) as { ok: boolean };
+        if (j.ok) { page--; continue; }
+      }
       if (!body.ok) {
         const why = body.error === "not_in_channel"
           ? "League Health's Slack app isn't in #location-requests. Add it to the channel (channel name, then Integrations, then Add apps)."
           : body.error === "missing_scope"
             // Slack lists every history scope as "needed"; a public channel
             // only takes channels:history.
-            ? "League Health's Slack app can send messages but not read channels. In Slack's app settings (api.slack.com/apps, the League Health app, OAuth & Permissions), add the channels:history bot token scope, reinstall the app to the workspace, then add the app to #location-requests."
+            ? "The Slack app League Health is using can send messages but not read channels. Its token needs the channels:history scope: put the Brodie Registration Alerts bot token in League Health's app_secrets as location_requests_slack_token."
             : body.error === "channel_not_found"
               ? "League Health's Slack app can't see #location-requests. Add it to the channel."
               : `Slack said: ${body.error ?? "unknown error"}.`;
