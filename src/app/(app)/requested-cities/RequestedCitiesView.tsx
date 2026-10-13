@@ -23,8 +23,17 @@ async function loadWaitlistMarkets(): Promise<string[]> {
 // One city however it was typed: "Miami/Broward County", "miami" and
 // "Miami, FL" are all Miami; the country keeps London, England apart from
 // London, Ontario.
-const cityKey = (r: CityRequest) =>
-  `${r.city.split(/[\/,(]/)[0].trim().toLowerCase().replace(/\s+/g, " ")}|${(r.country ?? "").toLowerCase()}`;
+// Spellings of one place: "Tampa Bay" is Tampa, "Saint Louis" is St. Louis,
+// "Chatham" is Chatham-Kent.
+const CITY_ALIASES: Record<string, string> = {
+  "tampa bay": "tampa", "saint louis": "st. louis", "st louis": "st. louis", "st.louis": "st. louis",
+  "chatham": "chatham-kent", "chatham kent": "chatham-kent", "fort worth or dallas": "dallas",
+};
+const cityName = (r: CityRequest) => {
+  const base = r.city.split(/[\/,(]/)[0].trim().toLowerCase().replace(/\s+/g, " ");
+  return CITY_ALIASES[base] ?? base;
+};
+const cityKey = (r: CityRequest) => `${cityName(r)}|${(r.country ?? "").toLowerCase()}`;
 const titleCase = (s: string) => s.toLowerCase().replace(/(^|[\s\-.])([a-z])/g, (_, a, b) => a + b.toUpperCase());
 
 // Toronto date and time of a request.
@@ -76,7 +85,7 @@ export function RequestedCitiesBody({ feed, waitlist }: { feed: LocationRequests
       key: k, names: new Map(), region: r.region, country: r.country,
       people: new Set(), launchers: new Set(), latest: r.at, waitlist: false,
     };
-    const shown = titleCase(r.city.split(/[\/,(]/)[0].trim());
+    const shown = titleCase(cityName(r));
     c.names.set(shown, (c.names.get(shown) ?? 0) + 1);
     c.people.add(r.person);
     if (r.launcher) c.launchers.add(r.person);

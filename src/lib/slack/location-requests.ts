@@ -90,11 +90,21 @@ export function parseRequest(m: SlackMessage): CityRequest | null {
   const f = fields(text);
   const city = (f.city_requested ?? "").trim();
   if (!city) return null;
-  const rawName = (f.full_name ?? "").trim();
-  const launcher = /city\s*launcher/i.test(rawName);
-  const name = rawName.replace(/[-–(]*\s*city\s*launcher\s*\)?/i, "").trim() || "Unknown";
-  const country = f.country ? (COUNTRY[f.country.trim().toLowerCase()] ?? titleCase(f.country.trim())) : null;
   const email = (f.email ?? "").toLowerCase();
+  // Staff trying the form out.
+  if (email.endsWith("@brodierec.com")) return null;
+  const rawName = (f.full_name ?? f.first_name ?? "").trim();
+  // "(City Launcher)", "- City Launcher", "Guelph Launcher": they offered to
+  // launch it.
+  const launcher = /launcher/i.test(rawName);
+  const name = rawName
+    .replace(/[-–(]*\s*"?\s*(?:[A-Za-z]+\s+)?launcher\s*"?\s*\)?/i, "")
+    .replace(/["“”]/g, "").trim() || "Unknown";
+  const rawCountry = (f.country ?? "").trim();
+  const countryKey = rawCountry.toLowerCase().replace(/\s*-\s*us$/, "");
+  const country = rawCountry
+    ? (COUNTRY[countryKey] ?? (countryKey.startsWith("united states") ? "United States" : titleCase(rawCountry)))
+    : null;
   return {
     ts: m.ts,
     at: new Date(Number(m.ts) * 1000).toISOString(),
