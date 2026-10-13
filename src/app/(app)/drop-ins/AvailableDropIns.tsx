@@ -1,10 +1,12 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
-import { TZ_SHORT } from "./ScheduledDropIns";
+import { TZ_SHORT, dateKey, dayLabel, todayKey } from "./ScheduledDropIns";
+import { BasisToggle } from "../dashboard/BasisToggle";
 
-// The Available tab: every upcoming game a drop-in program offers spots on, by
-// location, with the team that takes the drop-in, its division and how many
-// spots are left. The Promo Tracker applies each program's own rules (which
+// The Available tab: every upcoming game a drop-in program offers spots on,
+// with the team that takes the drop-in, its division and how many spots are
+// left. By date (the default) reads like the Scheduled tab, a day at a time;
+// by location gathers each venue's games together. The Promo Tracker applies each program's own rules (which
 // team types, nights, divisions and skill levels, and its caps), the same
 // ones the ops admin shows game by game.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
@@ -40,7 +42,7 @@ async function loadAvailable(season: string, locationNames: string[] | null): Pr
 
 // Read from the string: it is already the venue's own clock, and Date would
 // shift it into the viewer's zone.
-function dateLabel(at: string | null): string {
+function shortDate(at: string | null): string {
   if (!at) return "Date to be set";
   const [y, m, d] = at.slice(0, 10).split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
@@ -63,51 +65,75 @@ function SpotsChip({ spots }: { spots: number | null }) {
   return <span className={CHIP} style={{ color: "var(--green)", background: "var(--green-tint)" }}>{spots} left</span>;
 }
 
-// Column widths shared by every location's table, so the columns line up from
-// one location to the next: date, time, team, division, opponent, booked,
-// spots left.
-const COLS = ["12%", "11%", "22%", "15%", "20%", "9%", "11%"];
+// Column widths shared by every table in a view, so the columns line up from
+// one group to the next. The first two columns are the ones the grouping
+// doesn't already say: time and location by date, date and time by location.
+const COLS = ["11%", "15%", "21%", "14%", "19%", "9%", "11%"];
 
 export default async function AvailableDropIns({
   season,
   locationNames,
+  byLocation,
 }: {
   season: string;
   locationNames: string[] | null;
+  byLocation: boolean;
 }) {
   const rows = await loadAvailable(season, locationNames);
 
+  const toggle = (
+    <BasisToggle
+      param="by"
+      value={byLocation ? "location" : "date"}
+      options={[{ value: "date", label: "By date" }, { value: "location", label: "By location" }]}
+    />
+  );
+
   if (!rows) {
     return (
-      <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
-        Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {season}.
+      <div className="space-y-4">
+        {toggle}
+        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
+          Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {season}.
+        </div>
       </div>
     );
   }
 
-  // Location, then date and time, then team.
+  // By date: day, then location, then time, as the Scheduled tab orders its
+  // drop-ins, soonest day first. By location: location, then date and time.
+  const day = (r: AvailableRow) => dateKey(r.game_at) || "9999";
   const sorted = [...rows].sort((a, b) =>
-    a.location.localeCompare(b.location)
-    || (a.game_at ?? "9999").localeCompare(b.game_at ?? "9999")
+    (byLocation
+      ? a.location.localeCompare(b.location) || day(a).localeCompare(day(b))
+      : day(a).localeCompare(day(b)) || a.location.localeCompare(b.location))
+    || (a.game_at ?? "").localeCompare(b.game_at ?? "")
     || a.team.localeCompare(b.team));
-  const groups: { location: string; rows: AvailableRow[] }[] = [];
+  const groupOf = (r: AvailableRow) => (byLocation ? r.location : dateKey(r.game_at));
+  const groups: { key: string; rows: AvailableRow[] }[] = [];
   for (const r of sorted) {
+    const k = groupOf(r);
     const g = groups[groups.length - 1];
-    if (g && g.location === r.location) g.rows.push(r);
-    else groups.push({ location: r.location, rows: [r] });
+    if (g && g.key === k) g.rows.push(r);
+    else groups.push({ key: k, rows: [r] });
   }
   // A game where both teams take drop-ins is two rows but one game.
   const gameKey = (r: AvailableRow) => `${r.location}|${r.game_at}|${[r.team, r.opponent ?? ""].sort().join("|")}`;
   const games = new Set(rows.map(gameKey)).size;
+  const locations = new Set(rows.map((r) => r.location)).size;
   const full = rows.filter((r) => r.spots !== null && r.spots <= 0).length;
+  const today = todayKey();
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-glass-text-secondary">
-        {games.toLocaleString()} upcoming {games === 1 ? "game takes" : "games take"} drop-ins at{" "}
-        {groups.length.toLocaleString()} {groups.length === 1 ? "location" : "locations"}
-        {full > 0 && <> · {full.toLocaleString()} {full === 1 ? "team is" : "teams are"} full</>}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {toggle}
+        <p className="text-sm text-glass-text-secondary">
+          {games.toLocaleString()} upcoming {games === 1 ? "game takes" : "games take"} drop-ins at{" "}
+          {locations.toLocaleString()} {locations === 1 ? "location" : "locations"}
+          {full > 0 && <> · {full.toLocaleString()} {full === 1 ? "team is" : "teams are"} full</>}
+        </p>
+      </div>
 
       {rows.length === 0 ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
@@ -117,9 +143,9 @@ export default async function AvailableDropIns({
         groups.map((g) => {
           const nGames = new Set(g.rows.map(gameKey)).size;
           return (
-            <section key={g.location} className="space-y-2">
+            <section key={g.key || "unscheduled"} className="space-y-2">
               <h3 className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>
-                {g.location}
+                {byLocation ? g.key : <>{g.key === today ? "Today · " : ""}{dayLabel(g.key)}</>}
                 <span className="ml-2 text-xs font-normal text-glass-text-tertiary">
                   {nGames} {nGames === 1 ? "game" : "games"}
                 </span>
@@ -132,8 +158,17 @@ export default async function AvailableDropIns({
                     </colgroup>
                     <thead>
                       <tr className="text-xs font-bold text-glass-text-tertiary">
-                        <th className="px-4 py-2.5 text-left font-bold">Date</th>
-                        <th className="px-4 py-2.5 text-left font-bold">Time</th>
+                        {byLocation ? (
+                          <>
+                            <th className="px-4 py-2.5 text-left font-bold">Date</th>
+                            <th className="px-4 py-2.5 text-left font-bold">Time</th>
+                          </>
+                        ) : (
+                          <>
+                            <th className="px-4 py-2.5 text-left font-bold">Time</th>
+                            <th className="px-4 py-2.5 text-left font-bold">Location</th>
+                          </>
+                        )}
                         <th className="px-4 py-2.5 text-left font-bold">Team</th>
                         <th className="px-4 py-2.5 text-left font-bold">Division</th>
                         <th className="px-4 py-2.5 text-left font-bold">Opponent</th>
@@ -143,23 +178,32 @@ export default async function AvailableDropIns({
                     </thead>
                     <tbody>
                       {g.rows.map((r, i) => {
-                        const day = (r.game_at ?? "").slice(0, 10);
-                        const newDay = i === 0 || (g.rows[i - 1].game_at ?? "").slice(0, 10) !== day;
+                        const prev = g.rows[i - 1];
+                        // A heavier rule where the venue changes (by date) or
+                        // the day changes (by location), so each block reads
+                        // as one; by location the date shows on its first row.
+                        const newBlock = i > 0 && (byLocation ? dateKey(prev.game_at) !== dateKey(r.game_at) : prev.location !== r.location);
+                        const firstOfDay = i === 0 || dateKey(prev.game_at) !== dateKey(r.game_at);
                         return (
-                          <tr key={`${r.game_at}-${r.team}-${i}`}
-                            style={{
-                              // A heavier rule where the date changes, so each
-                              // night's games read as one block.
-                              borderTop: i > 0 && newDay
-                                ? "2px solid var(--glass-border-light)"
-                                : "1px solid var(--glass-border)",
-                            }}>
-                            <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
-                              {newDay ? dateLabel(r.game_at) : ""}
-                            </td>
-                            <td className="px-4 py-2.5 whitespace-nowrap tabular" style={{ color: "var(--glass-text)" }}>
-                              {timeLabel(r.game_at, r.game_tz)}
-                            </td>
+                          <tr key={`${r.game_at}-${r.location}-${r.team}-${i}`}
+                            style={{ borderTop: newBlock ? "2px solid var(--glass-border-light)" : "1px solid var(--glass-border)" }}>
+                            {byLocation ? (
+                              <>
+                                <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
+                                  {firstOfDay ? shortDate(r.game_at) : ""}
+                                </td>
+                                <td className="px-4 py-2.5 whitespace-nowrap tabular" style={{ color: "var(--glass-text)" }}>
+                                  {timeLabel(r.game_at, r.game_tz)}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-4 py-2.5 whitespace-nowrap tabular" style={{ color: "var(--glass-text)" }}>
+                                  {timeLabel(r.game_at, r.game_tz)}
+                                </td>
+                                <td className="px-4 py-2.5" style={{ color: "var(--glass-text)" }}>{r.location}</td>
+                              </>
+                            )}
                             <td className="px-4 py-2.5 font-semibold" style={{ color: "var(--glass-text)" }}>{r.team}</td>
                             <td className="px-4 py-2.5 text-glass-text-secondary">{r.division ?? "—"}</td>
                             <td className="px-4 py-2.5 text-glass-text-secondary">{r.opponent ?? "—"}</td>

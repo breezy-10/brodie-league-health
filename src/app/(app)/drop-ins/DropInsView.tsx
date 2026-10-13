@@ -86,14 +86,15 @@ const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : 
 export default async function DropInsView({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; tab?: string; when?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; tab?: string; when?: string; by?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam, tab: tabParam, when: whenParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, tab: tabParam, when: whenParam, by: byParam } = await searchParams;
   // Overview is the season in numbers; Scheduled lists each drop-in by game;
   // Available lists the upcoming games that still take drop-ins.
   const isScheduled = tabParam === "scheduled";
   const isAvailable = tabParam === "available";
+  const byLocation = byParam === "location";
   const showPast = whenParam === "past";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
@@ -131,7 +132,7 @@ export default async function DropInsView({
         }}
         keep={isScheduled
           ? { tab: "scheduled", ...(showPast ? { when: "past" } : {}) }
-          : isAvailable ? { tab: "available" } : undefined}
+          : isAvailable ? { tab: "available", ...(byLocation ? { by: "location" } : {}) } : undefined}
       />
 
       <BasisToggle
@@ -147,7 +148,7 @@ export default async function DropInsView({
       {isScheduled ? (
         <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={showPast} />
       ) : isAvailable ? (
-        <AvailableDropIns season={selectedSeason} locationNames={locationNames} />
+        <AvailableDropIns season={selectedSeason} locationNames={locationNames} byLocation={byLocation} />
       ) : !feed ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {selectedSeason}.

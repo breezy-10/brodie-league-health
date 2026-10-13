@@ -47,10 +47,10 @@ export const TZ_SHORT: Record<string, string> = {
 
 // The stored time is already the venue's own clock, so it is read from the
 // string rather than through Date, which would shift it into the viewer's zone.
-function dateKey(gameAt: string | null): string {
+export function dateKey(gameAt: string | null): string {
   return gameAt ? gameAt.slice(0, 10) : "";
 }
-function dayLabel(key: string): string {
+export function dayLabel(key: string): string {
   if (!key) return "Date to be set";
   const [y, m, d] = key.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" })
@@ -63,7 +63,7 @@ function timeLabel(gameAt: string | null, tz: string): string {
   return `${h12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${TZ_SHORT[tz] ? ` ${TZ_SHORT[tz]}` : ""}`;
 }
 // Today as the head office reads it, to mark the day's group.
-function todayKey(): string {
+export function todayKey(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date());
 }
 
