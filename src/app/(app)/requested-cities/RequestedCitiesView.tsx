@@ -8,17 +8,26 @@ import { loadLocationRequests, type CityRequest, type LocationRequests } from "@
 // have a waitlist marked. Contact details stay in Slack.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
-// The open waitlist markets, so a requested city that already has one says so.
-async function loadWaitlistMarkets(): Promise<string[]> {
+// The open waitlist markets and how many signed up for each, so a requested
+// city that already has one says so and shows its sign-ups.
+type WaitlistMarket = { market: string; signed_up: number };
+async function loadWaitlistMarkets(): Promise<WaitlistMarket[]> {
   try {
     const res = await promoFetch(new URL("/api/waitlist", PROMO_APP_URL).toString(), { cache: "no-store" });
     if (!res.ok) return [];
-    const k = (await res.json()) as { markets?: { market: string; status: string }[] };
-    return (k.markets ?? []).filter((m) => m.status === "open").map((m) => m.market);
+    const k = (await res.json()) as { markets?: { market: string; status: string; signed_up: number }[] };
+    return (k.markets ?? []).filter((m) => m.status === "open").map((m) => ({ market: m.market, signed_up: m.signed_up ?? 0 }));
   } catch {
     return [];
   }
 }
+
+// Waitlist markets named for a region rather than a city: the requested
+// cities inside them count toward that waitlist.
+const MARKET_CITIES: Record<string, string[]> = {
+  "bay area": ["san francisco", "oakland", "san jose", "walnut creek", "berkeley", "palo alto"],
+  "dmv": ["washington", "alexandria", "arlington", "tysons", "bethesda", "silver spring"],
+};
 
 // One city however it was typed: "Miami/Broward County", "miami" and
 // "Miami, FL" are all Miami; the country keeps London, England apart from
@@ -56,7 +65,7 @@ export default async function RequestedCitiesView() {
 }
 
 // The page itself, from the requests and the open waitlist markets.
-export function RequestedCitiesBody({ feed, waitlist }: { feed: LocationRequests; waitlist: string[] }) {
+export function RequestedCitiesBody({ feed, waitlist }: { feed: LocationRequests; waitlist: WaitlistMarket[] }) {
 
   if (!feed.ok) {
     return (
@@ -71,7 +80,13 @@ export function RequestedCitiesBody({ feed, waitlist }: { feed: LocationRequests
   }
 
   const requests = feed.requests;
-  const waitlistKeys = new Set(waitlist.map((m) => m.trim().toLowerCase()));
+  // City (lowercase) -> its waitlist market's sign-ups.
+  const waitlistFor = new Map<string, number>();
+  for (const m of waitlist) {
+    const key = m.market.trim().toLowerCase();
+    waitlistFor.set(key, m.signed_up);
+    for (const c of MARKET_CITIES[key] ?? []) waitlistFor.set(c, m.signed_up);
+  }
 
   // Each city once, with the people who asked for it counted once each.
   type City = {
@@ -96,7 +111,8 @@ export function RequestedCitiesBody({ feed, waitlist }: { feed: LocationRequests
   const rows = [...cities.values()].map((c) => {
     const name = [...c.names.entries()].sort((a, b) => b[1] - a[1])[0][0];
     const northAmerica = c.country === "United States" || c.country === "Canada";
-    return { ...c, name, waitlist: northAmerica && waitlistKeys.has(name.toLowerCase()) };
+    const signups = northAmerica ? waitlistFor.get(name.toLowerCase()) : undefined;
+    return { ...c, name, waitlist: signups !== undefined, signups: signups ?? null };
   }).sort((a, b) => b.people.size - a.people.size || b.latest.localeCompare(a.latest) || a.name.localeCompare(b.name));
 
   const people = new Set(requests.map((r) => r.person)).size;
@@ -140,7 +156,7 @@ export function RequestedCitiesBody({ feed, waitlist }: { feed: LocationRequests
                       <Th align="left">Province or state</Th>
                       <Th align="left">Country</Th>
                       <Th>Requests</Th>
-                      <Th>City launchers</Th>
+                      <Th>Waitlist sign-ups</Th>
                       <Th>Latest</Th>
                     </tr>
                   </thead>
@@ -157,8 +173,8 @@ export function RequestedCitiesBody({ feed, waitlist }: { feed: LocationRequests
                           {c.people.size}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular"
-                          style={{ color: c.launchers.size ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
-                          {c.launchers.size}
+                          style={{ color: c.signups ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
+                          {c.signups === null ? "—" : c.signups}
                         </td>
                         <td className="px-4 py-2.5 text-right tabular whitespace-nowrap text-glass-text-secondary">
                           {when(c.latest).day}
@@ -215,7 +231,8 @@ export function RequestedCitiesBody({ feed, waitlist }: { feed: LocationRequests
         Every submission of the website&apos;s request-a-city form, read from the #location-requests Slack channel.
         Each person counts once per city, however the city was spelled. A city launcher is someone who tagged
         themselves as offering to launch Brodie in their city. Waitlist open marks a city that already has an open
-        waitlist. Contact details stay in Slack.
+        waitlist, and waitlist sign-ups is how many have put down its deposit (a region&apos;s waitlist, like the Bay
+        Area or the DMV, covers the cities in it); a dash means no waitlist yet. Contact details stay in Slack.
       </p>
     </main>
   );
