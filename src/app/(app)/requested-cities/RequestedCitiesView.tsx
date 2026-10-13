@@ -111,6 +111,12 @@ export function RequestedCitiesBody({ feed, waitlist }: { feed: LocationRequests
       {requests.length === 0 ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           No city requests yet.
+          {/* Messages read but none parsed means the form's format changed. */}
+          {(feed.scanned ?? 0) > 0 && (
+            <span className="block not-italic mt-1 text-[11px]">
+              Read {feed.scanned} Slack messages and found no form submissions in them.{feed.shape ? ` First bot message: ${feed.shape}.` : ""}
+            </span>
+          )}
         </div>
       ) : (
         <>
