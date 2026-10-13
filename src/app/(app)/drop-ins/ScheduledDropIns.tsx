@@ -38,7 +38,7 @@ async function loadScheduled(season: string, locationNames: string[] | null): Pr
   }
 }
 
-const TZ_SHORT: Record<string, string> = {
+export const TZ_SHORT: Record<string, string> = {
   "America/New_York": "ET", "America/Toronto": "ET", "America/Detroit": "ET",
   "America/Chicago": "CT", "America/Winnipeg": "CT",
   "America/Denver": "MT", "America/Edmonton": "MT", "America/Phoenix": "MT",
