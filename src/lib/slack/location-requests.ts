@@ -24,21 +24,51 @@ export type CityRequest = {
 };
 
 export type LocationRequests =
-  | { ok: true; requests: CityRequest[] }
+  // scanned: messages read; shape: the structure of the first bot message,
+  // for when none of them parse (no content, only keys and block types).
+  | { ok: true; requests: CityRequest[]; scanned?: number; shape?: string }
   | { ok: false; reason: string };
 
-type SlackMessage = { ts: string; text?: string; blocks?: { text?: { text?: string } }[] };
+type SlackMessage = { ts: string; text?: string; bot_id?: string; [k: string]: unknown };
 
-// "*city_requested:* Nashville" -> { city_requested: "Nashville" }
+// Every piece of text in a message, in order: its text, and the text inside
+// blocks and attachments. A rich text section's runs are joined into one
+// string so "full_name:" and its value stay on the same line.
+function collectText(node: unknown, out: string[]): void {
+  if (Array.isArray(node)) { for (const n of node) collectText(n, out); return; }
+  if (!node || typeof node !== "object") return;
+  const o = node as Record<string, unknown>;
+  if (o.type === "rich_text_section" || o.type === "rich_text_preformatted" || o.type === "rich_text_quote") {
+    const runs = (o.elements as Record<string, unknown>[] | undefined) ?? [];
+    out.push(runs.map((e) => (typeof e.text === "string" ? e.text : typeof e.url === "string" ? e.url : "")).join(""));
+    return;
+  }
+  // An attachment field is a title and a value: "city_requested: Nashville".
+  const pair = typeof o.title === "string" && typeof o.value === "string";
+  if (pair) out.push(`${o.title}: ${o.value}`);
+  for (const [k, v] of Object.entries(o)) {
+    if (typeof v === "string") {
+      if (k === "text" || k === "pretext" || (!pair && (k === "title" || k === "value"))) out.push(v);
+    } else {
+      collectText(v, out);
+    }
+  }
+}
+
+// "*city_requested:* Nashville" -> { city_requested: "Nashville" }. A label
+// alone on its line ("*city_requested:*") takes the next line as its value.
 function fields(text: string): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const line of text.split("\n")) {
-    const m = line.match(/^\s*\*?\s*([A-Za-z_ ]+?)\s*:\s*\*?\s*(.*)$/);
+  const lines = text.split(/\r?\n/);
+  const clean = (v: string) => v.replace(/<[^|>]*\|([^>]*)>/g, "$1").replace(/<([^>]*)>/g, "$1").replace(/^\*+|\*+$/g, "").trim();
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*\*?\s*([A-Za-z_ ]+?)\s*:\s*\*?\s*(.*)$/);
     if (!m) continue;
     const key = m[1].trim().toLowerCase().replace(/\s+/g, "_");
     // Slack wraps addresses as <mailto:a@b.c|a@b.c>; keep the label.
-    const value = m[2].replace(/<[^|>]*\|([^>]*)>/g, "$1").replace(/<([^>]*)>/g, "$1").trim();
-    if (value) out[key] = value;
+    let value = clean(m[2]);
+    if (!value && i + 1 < lines.length && !/:\s*\*?\s*$/.test(lines[i + 1])) value = clean(lines[i + 1]);
+    if (value && !(key in out)) out[key] = value;
   }
   return out;
 }
@@ -53,8 +83,10 @@ const COUNTRY: Record<string, string> = {
 const titleCase = (s: string) => s.toLowerCase().replace(/(^|[\s\-/(])([a-z])/g, (_, a, b) => a + b.toUpperCase());
 
 export function parseRequest(m: SlackMessage): CityRequest | null {
-  const text = m.text || (m.blocks ?? []).map((b) => b.text?.text ?? "").join("\n");
-  if (!/request-city/i.test(text)) return null;
+  const parts: string[] = [];
+  if (typeof m.text === "string") parts.push(m.text);
+  collectText({ blocks: m.blocks, attachments: m.attachments }, parts);
+  const text = parts.join("\n");
   const f = fields(text);
   const city = (f.city_requested ?? "").trim();
   if (!city) return null;
@@ -84,6 +116,8 @@ export async function loadLocationRequests(): Promise<LocationRequests> {
   if (!token) return { ok: false, reason: "No Slack token is set for reading #location-requests." };
   let joined = false;
   const requests: CityRequest[] = [];
+  let scanned = 0;
+  let shape = "";
   let cursor = "";
   try {
     for (let page = 0; page < 50; page++) {
@@ -130,8 +164,14 @@ export async function loadLocationRequests(): Promise<LocationRequests> {
         return { ok: false, reason: why + who };
       }
       for (const m of body.messages ?? []) {
+        scanned++;
         const r = parseRequest(m);
         if (r) requests.push(r);
+        else if (!shape && m.bot_id) {
+          const blocks = Array.isArray(m.blocks) ? (m.blocks as { type?: string }[]).map((b) => b.type).join("+") : "none";
+          const atts = Array.isArray(m.attachments) ? (m.attachments as Record<string, unknown>[]).map((a) => Object.keys(a).join("/")).join(" | ") : "none";
+          shape = `keys ${Object.keys(m).join(",")}; text ${typeof m.text === "string" ? m.text.length : 0} chars; blocks ${blocks}; attachments ${atts}`;
+        }
       }
       cursor = body.response_metadata?.next_cursor ?? "";
       if (!cursor) break;
@@ -139,5 +179,5 @@ export async function loadLocationRequests(): Promise<LocationRequests> {
   } catch {
     return { ok: false, reason: "Slack didn't answer." };
   }
-  return { ok: true, requests };
+  return { ok: true, requests, scanned, shape };
 }
