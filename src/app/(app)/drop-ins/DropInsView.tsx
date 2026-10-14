@@ -6,6 +6,7 @@ import { BasisToggle } from "../dashboard/BasisToggle";
 import ScheduledDropIns from "./ScheduledDropIns";
 import AvailableDropIns from "./AvailableDropIns";
 import MissingStatsDropIns from "./MissingStatsDropIns";
+import { redirect } from "next/navigation";
 
 // Drop-ins: players who came for a single game rather than a season. A drop-in
 // is free for a brand-new player (the First-Time Free code) and $50 for a
@@ -95,14 +96,25 @@ export default async function DropInsView({
 }) {
   await requireUser();
   const { season: seasonParam, location: locationParam, tab: tabParam, when: whenParam, by: byParam } = await searchParams;
-  // Overview is the season in numbers; Scheduled lists each drop-in by game;
-  // Available lists the upcoming games that still take drop-ins; Missing stats
-  // lists drop-ins already played that have no stat line.
+  // Past used to be a switch inside Scheduled; a link from then opens the tab.
+  // A redirect rather than reading both, because the tab bar keeps every other
+  // param and a leftover when=past would hold Scheduled on Past.
+  if (tabParam === "scheduled" && whenParam === "past") {
+    const q = new URLSearchParams({ tab: "past" });
+    if (seasonParam) q.set("season", seasonParam);
+    if (locationParam) q.set("location", locationParam);
+    redirect(`/drop-ins?${q}`);
+  }
+  // Overview is the season in numbers; Past lists each drop-in for a game
+  // already played and whether they showed up; Scheduled lists the ones still
+  // to come, by game; Available lists the upcoming games that still take
+  // drop-ins; Missing stats lists drop-ins already played that have no stat
+  // line.
+  const isPast = tabParam === "past";
   const isScheduled = tabParam === "scheduled";
   const isAvailable = tabParam === "available";
   const isMissing = tabParam === "missing-stats";
   const byLocation = byParam === "location";
-  const showPast = whenParam === "past";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
 
@@ -112,8 +124,8 @@ export default async function DropInsView({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "playing" },
   );
-  // The overview's figures aren't needed on the Scheduled tab.
-  const feed = isScheduled || isAvailable || isMissing ? null : await loadDropIns(selectedSeason, locationNames);
+  // The overview's figures are only needed on Overview.
+  const feed = isPast || isScheduled || isAvailable || isMissing ? null : await loadDropIns(selectedSeason, locationNames);
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
@@ -137,25 +149,26 @@ export default async function DropInsView({
           seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
           locations: selectedLocations,
         }}
-        keep={isScheduled
-          ? { tab: "scheduled", ...(showPast ? { when: "past" } : {}) }
+        keep={isPast ? { tab: "past" }
+          : isScheduled ? { tab: "scheduled" }
           : isAvailable ? { tab: "available", ...(byLocation ? { by: "location" } : {}) }
           : isMissing ? { tab: "missing-stats" } : undefined}
       />
 
       <BasisToggle
         param="tab"
-        value={isScheduled ? "scheduled" : isAvailable ? "available" : isMissing ? "missing-stats" : "overview"}
+        value={isPast ? "past" : isScheduled ? "scheduled" : isAvailable ? "available" : isMissing ? "missing-stats" : "overview"}
         options={[
           { value: "overview", label: "Overview" },
+          { value: "past", label: "Past" },
           { value: "scheduled", label: "Scheduled" },
           { value: "available", label: "Available" },
           { value: "missing-stats", label: "Missing stats" },
         ]}
       />
 
-      {isScheduled ? (
-        <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={showPast} />
+      {isPast || isScheduled ? (
+        <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={isPast} />
       ) : isAvailable ? (
         <AvailableDropIns season={selectedSeason} locationNames={locationNames} byLocation={byLocation} />
       ) : isMissing ? (
