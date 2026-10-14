@@ -16,6 +16,8 @@ import DeadlineBanner, { type DeadlineWeek } from "./DeadlineBanner";
 import type { DiscountRow } from "../discounts/DiscountsView";
 import { discountTone, freeTone } from "../discounts/rates";
 import { promoFetch } from "@/lib/promo-feed";
+import { canonLoc, sameLocation } from "@/lib/location-match";
+import { forfeitTeamsHref, loadForfeitRisk } from "@/lib/forfeit-risk";
 import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams/AmbassadorSummary";
 import { loadDropIns } from "../drop-ins/DropInsView";
 import { loadEvents } from "../events/EventsView";
@@ -81,32 +83,6 @@ async function sourceLocationIds(
   if (!scope.locationNames.length) return [];
   const arrs = await Promise.all(scope.locationNames.map((n) => resolveLocationIdsByName(appSlug, n)));
   return [...new Set(arrs.flat())];
-}
-
-// Location names differ in how they mark the sub-venue across apps — the promo
-// list writes "Brooklyn - Bushwick" where the checklist writes
-// "Brooklyn (Bushwick)" — so brackets and dashes are flattened to spaces before
-// comparing. A bare name ("Boston") still matches its only variant
-// ("Boston North") via the shared-first-word rule.
-const flattenLoc = (s: string) =>
-  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[()\-–—]/g, " ").replace(/\s+/g, " ").trim();
-// Where an app names a market after its venue rather than its area. Facilities
-// books "Toronto (Hoopdome)"; registrations and the checklist call the same
-// market "Toronto (Uptown)". Without this they look like two markets, and the
-// real one silently drops out of every cross-app comparison.
-const LOCATION_ALIASES: Record<string, string> = {
-  "toronto hoopdome": "toronto uptown",
-};
-const canonLoc = (s: string) => {
-  const f = flattenLoc(s);
-  return LOCATION_ALIASES[f] ?? f;
-};
-function sameLocation(a: string, b: string): boolean {
-  const x = canonLoc(a), y = canonLoc(b);
-  if (x === y) return true;
-  if (x.includes(y) || y.includes(x)) return x.split(" ")[0] === y.split(" ")[0];
-  return false;
 }
 
 // A booking counts as the venue being lined up once it's past "need to book" —
@@ -1100,27 +1076,15 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
   }
 }
 
-// Teams one no-show from forfeiting: 6 or fewer fully paid players. Same feed
-// and same rule as the overdue app's own Teams board, so the count on the card
-// is the count on that page. The feed is org-wide, so the location filter is
-// applied here rather than asked for.
-const teamsHref = (season: string, location: string | null) => {
-  const u = new URL("/teams", "https://brodie-overdue-payments.vercel.app");
-  u.searchParams.set("season", season);
-  if (location) u.searchParams.set("location", location);
-  return u.toString();
-};
+// The forfeit-risk count, from the overdue app's feed (lib/forfeit-risk), so
+// the count on the card is the count on its Teams board.
 async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | null> {
   try {
-    const url = new URL("/api/all-forfeit-risk", "https://brodie-overdue-payments.vercel.app");
-    url.searchParams.set("season", season);
-    const res = await promoFetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return null;
-    const k = (await res.json()) as { teams?: { location: string }[] };
-    if (!k.teams) return null;
+    const all = await loadForfeitRisk(season);
+    if (!all) return null;
     const teams = scope.locationNames?.length
-      ? k.teams.filter((t) => scope.locationNames!.some((n) => sameLocation(t.location, n)))
-      : k.teams;
+      ? all.filter((t) => scope.locationNames!.some((n) => sameLocation(t.location, n)))
+      : all;
     const byLoc = new Map<string, number>();
     for (const t of teams) byLoc.set(t.location, (byLoc.get(t.location) ?? 0) + 1);
     return {
@@ -1141,7 +1105,7 @@ async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | nul
       // same venue where the filter has come down to exactly one of them. It
       // matches by exact name and has no multi-venue view, so a filter
       // spanning several (Brooklyn, Calgary) opens the cross-location board.
-      link: { href: teamsHref(season, byLoc.size === 1 ? [...byLoc.keys()][0] : null), label: "More details →" },
+      link: { href: forfeitTeamsHref(season, byLoc.size === 1 ? [...byLoc.keys()][0] : null), label: "More details →" },
     };
   } catch {
     return null;
