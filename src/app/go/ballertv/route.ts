@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { ballerTvUrl } from "@/lib/ballertv";
 import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
+import { localToIso } from "@/lib/tz";
 
 // The BallerTV link on the dashboard's live games. Resolved on click, so the
 // dashboard never waits on ballertv.com: finds the game's stream in the
@@ -10,24 +11,6 @@ import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 //
 // ?location=Vaughan&at=2026-10-13T20:00&tz=America/New_York&home=...&away=...
 // `at` is the venue's own wall-clock time, as the schedule stores it.
-
-// A local wall-clock time in a zone, as an ISO instant.
-function localToIso(local: string, tz: string): string | null {
-  const m = local.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  if (!m) return null;
-  const [y, mo, d, h, mi] = m.slice(1).map(Number);
-  const guess = Date.UTC(y, mo - 1, d, h, mi);
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
-    }).formatToParts(new Date(guess));
-    const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-    const shown = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
-    return new Date(guess - (shown - guess)).toISOString();
-  } catch {
-    return null;
-  }
-}
 
 // BallerTV events are named for the season as Stats Health spells it
 // ("Fall 2026"): the season whose dates hold the game.

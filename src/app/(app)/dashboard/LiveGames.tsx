@@ -1,6 +1,7 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
-import { TZ_SHORT } from "../drop-ins/ScheduledDropIns";
+import { localToIso } from "@/lib/tz";
+import GameTime from "./GameTime";
 
 // Live games for the dashboard: the games on court right now at each venue,
 // and what's still to come today. The Promo Tracker reads the schedule from
@@ -35,14 +36,19 @@ export async function loadLiveGames(locationNames: string[] | null): Promise<Gam
   }
 }
 
-// "2026-10-13T19:00" read as the venue's own clock.
-function clock(at: string): string {
-  const [hh, mm] = at.slice(11, 16).split(":").map(Number);
-  return `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, "0")}`;
+// The game's start and end as instants, for GameTime to show in the viewer's
+// zone; the schedule stores the venue's wall-clock time.
+const startIso = (g: Game) => localToIso(g.starts_at, g.tz) ?? `${g.starts_at}:00Z`;
+const endIso = (g: Game) => localToIso(g.ends_at, g.tz) ?? `${g.ends_at}:00Z`;
+const Slot = ({ g }: { g: Game }) => <GameTime start={startIso(g)} end={endIso(g)} tz={g.tz} />;
+// Court, time and division, joined with dots.
+function Detail({ g }: { g: Game }) {
+  return (
+    <div className="text-[11px] text-glass-text-tertiary tabular">
+      {g.court && <>{g.court} · </>}<Slot g={g} />{g.division && <> · {g.division}</>}
+    </div>
+  );
 }
-const ampm = (at: string) => (Number(at.slice(11, 13)) < 12 ? "am" : "pm");
-const tzShort = (tz: string) => TZ_SHORT[tz] ?? "";
-const slot = (g: Game) => `${clock(g.starts_at)}–${clock(g.ends_at)} ${ampm(g.ends_at)}${tzShort(g.tz) ? ` ${tzShort(g.tz)}` : ""}`;
 
 const LIVE_DOT: React.CSSProperties = { background: "var(--red)" };
 
@@ -109,9 +115,7 @@ export function LiveGamesBody({ games }: { games: Game[] }) {
                           <span className="text-glass-text-tertiary"> vs </span>
                           <span className="font-semibold">{g.away ?? "TBD"}</span>
                         </div>
-                        <div className="text-[11px] text-glass-text-tertiary tabular">
-                          {[g.court, slot(g), g.division].filter(Boolean).join(" · ")}
-                        </div>
+                        <Detail g={g} />
                       </div>
                       <BallerTvButton game={g} />
                     </div>
@@ -129,7 +133,7 @@ export function LiveGamesBody({ games }: { games: Game[] }) {
           {laterRows.map((r) => (
             <span key={r.loc} className="font-semibold rounded-full px-2 py-0.5"
               style={{ color: "var(--glass-text-secondary)", background: "var(--fill-3)" }}>
-              {r.loc} · {r.n} {r.n === 1 ? "game" : "games"} from {clock(r.next.starts_at)} {ampm(r.next.starts_at)}{tzShort(r.next.tz) ? ` ${tzShort(r.next.tz)}` : ""}
+              {r.loc} · {r.n} {r.n === 1 ? "game" : "games"} from <GameTime start={startIso(r.next)} tz={r.next.tz} mode="startZone" />
             </span>
           ))}
           {done > 0 && <span className="text-glass-text-tertiary ml-1">{done} done so far today</span>}
@@ -189,7 +193,7 @@ export function AllGamesBody({ games }: { games: Game[] }) {
                 <div className="min-w-0 flex items-start gap-3">
                   <span className="shrink-0 w-[68px] text-[11px] font-semibold rounded-md px-1.5 py-0.5 text-center mt-0.5"
                     style={STATE[g.state].style}>
-                    {g.state === "live" ? "Live" : g.state === "later" ? `${clock(g.starts_at)} ${ampm(g.starts_at)}` : "Done"}
+                    {g.state === "live" ? "Live" : g.state === "later" ? <GameTime start={startIso(g)} tz={g.tz} mode="start" /> : "Done"}
                   </span>
                   <div className="min-w-0">
                     <div className="text-sm" style={{ color: "var(--glass-text)" }}>
@@ -197,9 +201,7 @@ export function AllGamesBody({ games }: { games: Game[] }) {
                       <span className="text-glass-text-tertiary"> vs </span>
                       <span className="font-semibold">{g.away ?? "TBD"}</span>
                     </div>
-                    <div className="text-[11px] text-glass-text-tertiary tabular">
-                      {[g.court, slot(g), g.division].filter(Boolean).join(" · ")}
-                    </div>
+                    <Detail g={g} />
                   </div>
                 </div>
                 <BallerTvButton game={g} />
