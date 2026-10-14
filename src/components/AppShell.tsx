@@ -85,7 +85,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/dashboard", title: "Dashboard", subtitle: "How every league is tracking this season, across every app." },
   { path: "/weekly-review", title: "Weekly review", subtitle: "Each league's week, Saturday to Friday, beside the season so far." },
   { path: "/registrations/location", title: "By day of week", subtitle: "Each night's teams and athletes at one location, against last season and last year." },
-  { path: "/live-games", title: "Live games", subtitle: "Every game on today's schedule: what's on court now, what's next, and what's done." },
+  { path: "/live-games", title: "Live games", subtitle: "Every game on a day's schedule: what's on court now, what's next, and what's done." },
   { path: "/registrations", title: "Registrations", subtitle: "Teams and athletes registered by this day, against last season and last year." },
   { path: "/referrals", title: "Referrals", subtitle: "Who brought players in, and what each referral earned and cost." },
   { path: "/discounts/players", title: "Discounted registrations", subtitle: "Every registration that came with a discount, and what it took off." },
