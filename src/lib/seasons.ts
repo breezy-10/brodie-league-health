@@ -129,6 +129,8 @@ export type Scope = {
   selectedSeason: string;
   /** The season registration/promo work is running for — one ahead of play. */
   regSeason: string;
+  /** The season being played today, whatever the filter is set to. */
+  playingSeason: string;
   /** Locations this view is scoped to. null = all; [] = the filter matches none. */
   locationNames: string[] | null;
 };
@@ -210,6 +212,7 @@ export async function resolveScope(
     promoSeasons,
     selectedSeason,
     regSeason: nextSeasonLabel(selectedSeason),
+    playingSeason,
     locationNames,
   };
 }
