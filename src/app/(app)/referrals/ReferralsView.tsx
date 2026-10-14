@@ -4,6 +4,10 @@ import Filters, { type FilterOptions } from "../dashboard/Filters";
 import RatesEditor, { type CurrencyCounts } from "./RatesEditor";
 import { loadReferralRates } from "./rates";
 import { promoFetch } from "@/lib/promo-feed";
+import { BasisToggle } from "../dashboard/BasisToggle";
+import { StaffBadge } from "@/components/TeamRosterBlock";
+import { loadStaff } from "@/lib/staff";
+import { normName } from "@/lib/names";
 
 // Changing the terms is a money decision — same roles that own app/metric weights.
 const RATE_EDITOR_ROLES = ["dm", "super_admin"];
@@ -53,6 +57,34 @@ async function loadReferrals(season: string, locationNames: string[] | null): Pr
   }
 }
 
+// One referrer's season, from the same feed's referrer view.
+type Referrer = {
+  name: string;
+  location: string;
+  other_locations: number;
+  currency: string;
+  new_athletes: number;
+  returning_athletes: number;
+  total: number;
+  earned: number;
+};
+
+async function loadReferrers(season: string, locationNames: string[] | null): Promise<Referrer[] | null> {
+  try {
+    const url = new URL("/api/referrals", PROMO_APP_URL);
+    url.searchParams.set("season", season);
+    url.searchParams.set("view", "referrers");
+    const lp = locParam(locationNames);
+    if (lp) url.searchParams.set("location", lp);
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as { referrers?: Referrer[] };
+    return Array.isArray(k.referrers) ? k.referrers : null;
+  } catch {
+    return null;
+  }
+}
+
 const GOLD = "var(--glass-gold)";
 const RETURNING = "var(--viz-prev)"; // the grey the registration bars use for "prev season"
 
@@ -61,10 +93,13 @@ const money = (n: number, cur: string) => `$${n.toLocaleString("en-US")} ${cur}`
 export default async function ReferralsView({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; view?: string }>;
 }) {
   const ctx = await requireUser();
-  const { season: seasonParam, location: locationParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, view: viewParam } = await searchParams;
+  // By location (the default) or By referrer: the same referrals, grouped by
+  // where they landed or by who made them.
+  const byReferrer = viewParam === "referrer";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
 
@@ -75,9 +110,11 @@ export default async function ReferralsView({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
-  const [feed, rates] = await Promise.all([
+  const [feed, rates, referrers, staff] = await Promise.all([
     loadReferrals(selectedSeason, locationNames),
     loadReferralRates(selectedSeason),
+    byReferrer ? loadReferrers(selectedSeason, locationNames) : Promise.resolve(null),
+    byReferrer ? loadStaff() : Promise.resolve(null),
   ]);
   const canEditRates = RATE_EDITOR_ROLES.includes(ctx.profile?.role ?? "");
 
@@ -126,6 +163,7 @@ export default async function ReferralsView({
           seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
           locations: selectedLocations,
         }}
+        keep={byReferrer ? { view: "referrer" } : undefined}
       />
 
       {/* Leads the page: the terms are what the numbers below are measured
@@ -144,6 +182,11 @@ export default async function ReferralsView({
             <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
               style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>{selectedSeason}</span>
           </div>
+          <BasisToggle
+            param="view"
+            value={byReferrer ? "referrer" : "location"}
+            options={[{ value: "location", label: "By location" }, { value: "referrer", label: "By referrer" }]}
+          />
         </div>
 
         {!feed ? (
@@ -171,6 +214,9 @@ export default async function ReferralsView({
                 values={currencies.length ? currencies.map((c) => money(t!.earned[c], c)) : ["—"]} />
             </div>
 
+            {byReferrer ? (
+              <ReferrerTable referrers={referrers} staff={staff} discount={rates.registrant_discount} />
+            ) : (
             <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860 }}>
@@ -224,6 +270,7 @@ export default async function ReferralsView({
                 </table>
               </div>
             </div>
+            )}
           </>
         )}
 
@@ -239,6 +286,84 @@ export default async function ReferralsView({
         </p>
       </section>
     </main>
+  );
+}
+
+// The By referrer view: everyone who referred someone this season, most new
+// athletes first, with what they earned and what their referrals cost.
+function ReferrerTable({ referrers, staff, discount }: {
+  referrers: Referrer[] | null; staff: Record<string, string> | null; discount: number;
+}) {
+  if (!referrers) {
+    return (
+      <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
+        Referrer list unavailable: the Promo Tracker didn&apos;t answer.
+      </div>
+    );
+  }
+  if (referrers.length === 0) {
+    return (
+      <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
+        No confirmed referrals in this scope yet.
+      </div>
+    );
+  }
+  const maxTotal = Math.max(...referrers.map((r) => r.total), 1);
+  return (
+    <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 940 }}>
+          <thead>
+            <tr className="text-xs font-bold text-glass-text-tertiary">
+              <Th>#</Th>
+              <Th align="left">Referrer</Th>
+              <Th align="left">Location</Th>
+              <Th>New</Th>
+              <Th>Returning</Th>
+              <Th>Total</Th>
+              <Th>Earned</Th>
+              <Th>Discounts</Th>
+              <Th>Total cost</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {referrers.map((r, i) => {
+              const label = staff?.[normName(r.name)];
+              const disc = r.new_athletes * discount;
+              return (
+                <tr key={`${r.name}|${r.currency}|${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
+                  <td className="px-4 py-2.5 text-right tabular text-glass-text-tertiary w-10">{i + 1}</td>
+                  <td className="px-4 py-2.5 align-middle">
+                    <div className="font-semibold" style={{ color: "var(--glass-text)" }}>
+                      {r.name}{label && <StaffBadge label={label} />}
+                    </div>
+                    {/* Bar length = share of the top referrer; gold is new athletes. */}
+                    <div className="mt-1.5 h-1.5 rounded-full overflow-hidden flex"
+                      style={{ width: `${Math.max((r.total / maxTotal) * 100, 2)}%`, minWidth: 8, maxWidth: 200 }}
+                      title={`${r.new_athletes} new · ${r.returning_athletes} returning`}>
+                      <span style={{ width: `${r.total ? (r.new_athletes / r.total) * 100 : 0}%`, background: GOLD }} />
+                      <span style={{ width: `${r.total ? (r.returning_athletes / r.total) * 100 : 0}%`, background: RETURNING }} />
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-glass-text-secondary">
+                    {r.location}
+                    {r.other_locations > 0 && (
+                      <span className="text-glass-text-tertiary"> +{r.other_locations} more</span>
+                    )}
+                  </td>
+                  <Td strong color={GOLD}>{r.new_athletes.toLocaleString()}</Td>
+                  <Td>{r.returning_athletes.toLocaleString()}</Td>
+                  <Td>{r.total.toLocaleString()}</Td>
+                  <Td>{money(r.earned, r.currency)}</Td>
+                  <Td>{money(disc, r.currency)}</Td>
+                  <Td strong>{money(r.earned + disc, r.currency)}</Td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
