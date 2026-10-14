@@ -7,6 +7,7 @@ import { getTheme } from "@/lib/theme";
 // The pages people open daily first with no heading, then sentence-case
 // groups (kit Sidebar).
 const DASHBOARD: NavItem = { href: "/dashboard", label: "Dashboard", short: "Dashboard", icon: "dashboard", group: "" };
+const LIVE: NavItem = { href: "/live-games", label: "Live games", short: "Live", icon: "live", group: "" };
 const REGISTRATIONS: NavItem = { href: "/registrations", label: "Registrations", short: "Signups", icon: "registrations", group: "" };
 const REFERRALS: NavItem = { href: "/referrals", label: "Referrals", short: "Referrals", icon: "referrals", group: "" };
 const DISCOUNTS: NavItem = { href: "/discounts", label: "Discounts", short: "Discounts", icon: "discounts", group: "" };
@@ -35,7 +36,7 @@ export default async function Shell({ children }: { children: React.ReactNode })
   // Super admins get every page. District and operations managers add Users;
   // staff performance is for admins and district managers.
   const items: NavItem[] = [
-    DASHBOARD, REGISTRATIONS, REFERRALS, DISCOUNTS, AMBASSADORS, DROP_INS, EVENTS, WAITLIST, CITIES,
+    DASHBOARD, LIVE, REGISTRATIONS, REFERRALS, DISCOUNTS, AMBASSADORS, DROP_INS, EVENTS, WAITLIST, CITIES,
     ...(STAFF_PERFORMANCE_ROLES.includes(role) ? [STAFF] : []),
     ...(isSuperAdmin ? [MY_DAY, LEADERBOARD, TROPHIES, DISTRICT, DISPUTES] : []),
     ...(isSuperAdmin ? [SETTINGS] : canManageUsers(role) ? [USERS] : []),

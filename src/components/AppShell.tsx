@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Hourglass,
   MapPin,
+  Radio,
   BadgePercent,
   CalendarCheck,
   ClipboardList,
@@ -34,7 +35,7 @@ import { SIDEBAR_COOKIE, type Theme } from "@/lib/theme-shared";
 // instead, because bundle.js toggling classes would be undone by the next render.
 
 export type NavIcon =
-  | "dashboard" | "registrations" | "referrals" | "discounts" | "ambassadors" | "dropins" | "events" | "waitlist" | "cities" | "staff"
+  | "dashboard" | "live" | "registrations" | "referrals" | "discounts" | "ambassadors" | "dropins" | "events" | "waitlist" | "cities" | "staff"
   | "myday" | "leaderboard" | "trophies" | "district" | "disputes" | "settings" | "users";
 
 export interface NavItem {
@@ -58,6 +59,7 @@ export type SidebarMode = "pinned" | "rail" | "auto";
 
 const ICONS: Record<NavIcon, LucideIcon> = {
   dashboard: LayoutDashboard,
+  live: Radio,
   registrations: ClipboardList,
   referrals: Gift,
   discounts: BadgePercent,
@@ -83,6 +85,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/dashboard", title: "Dashboard", subtitle: "How every league is tracking this season, across every app." },
   { path: "/weekly-review", title: "Weekly review", subtitle: "Each league's week, Saturday to Friday, beside the season so far." },
   { path: "/registrations/location", title: "By day of week", subtitle: "Each night's teams and athletes at one location, against last season and last year." },
+  { path: "/live-games", title: "Live games", subtitle: "Every game on today's schedule: what's on court now, what's next, and what's done." },
   { path: "/registrations", title: "Registrations", subtitle: "Teams and athletes registered by this day, against last season and last year." },
   { path: "/referrals", title: "Referrals", subtitle: "Who brought players in, and what each referral earned and cost." },
   { path: "/discounts/players", title: "Discounted registrations", subtitle: "Every registration that came with a discount, and what it took off." },
