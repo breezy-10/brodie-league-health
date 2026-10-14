@@ -8,7 +8,7 @@ import { TZ_SHORT } from "../drop-ins/ScheduledDropIns";
 // track games in real time.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
-type Game = {
+export type Game = {
   location: string;
   facility: string | null;
   court: string | null;
@@ -51,6 +51,17 @@ const ballerTvHref = (g: Game) => `/go/ballertv?${new URLSearchParams({
   location: g.location, at: g.starts_at, tz: g.tz, home: g.home ?? "", away: g.away ?? "",
 })}`;
 
+export function BallerTvButton({ game }: { game: Game }) {
+  return (
+    <a href={ballerTvHref(game)} target="_blank" rel="noopener noreferrer"
+      className="br-btn is-outline is-sm shrink-0"
+      style={{ height: 26, padding: "0 10px", fontSize: 11 }}
+      title="Watch on BallerTV (opens the game's stream, or its event if the game isn't listed)">
+      BallerTV ↗
+    </a>
+  );
+}
+
 export function LiveGamesBody({ games }: { games: Game[] }) {
   const live = games.filter((g) => g.state === "live");
   const byLocation = new Map<string, Game[]>();
@@ -91,21 +102,18 @@ export function LiveGamesBody({ games }: { games: Game[] }) {
               <div className="mt-2.5 space-y-2">
                 {gs.sort((a, b) => (a.court ?? "").localeCompare(b.court ?? "")).map((g, i) => (
                   <div key={i} className="text-sm leading-snug" style={{ borderTop: i ? "1px solid var(--glass-border)" : undefined, paddingTop: i ? 8 : 0 }}>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <div className="min-w-0" style={{ color: "var(--glass-text)" }}>
-                        <span className="font-semibold">{g.home ?? "TBD"}</span>
-                        <span className="text-glass-text-tertiary"> vs </span>
-                        <span className="font-semibold">{g.away ?? "TBD"}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div style={{ color: "var(--glass-text)" }}>
+                          <span className="font-semibold">{g.home ?? "TBD"}</span>
+                          <span className="text-glass-text-tertiary"> vs </span>
+                          <span className="font-semibold">{g.away ?? "TBD"}</span>
+                        </div>
+                        <div className="text-[11px] text-glass-text-tertiary tabular">
+                          {[g.court, slot(g), g.division].filter(Boolean).join(" · ")}
+                        </div>
                       </div>
-                      <a href={ballerTvHref(g)} target="_blank" rel="noopener noreferrer"
-                        className="shrink-0 text-[11px] font-semibold hover:brightness-110 transition"
-                        style={{ color: "var(--glass-gold)" }}
-                        title="Watch on BallerTV (opens the game's stream, or its event if the game isn't listed)">
-                        BallerTV ↗
-                      </a>
-                    </div>
-                    <div className="text-[11px] text-glass-text-tertiary tabular">
-                      {[g.court, slot(g), g.division].filter(Boolean).join(" · ")}
+                      <BallerTvButton game={g} />
                     </div>
                   </div>
                 ))}
@@ -130,3 +138,82 @@ export function LiveGamesBody({ games }: { games: Game[] }) {
     </div>
   );
 }
+
+const STATE: Record<Game["state"], { label: string; style: React.CSSProperties }> = {
+  live: { label: "Live", style: { color: "var(--red)", background: "var(--red-tint)" } },
+  later: { label: "Upcoming", style: { color: "var(--glass-text-secondary)", background: "var(--fill-3)" } },
+  done: { label: "Done", style: { color: "var(--glass-text-tertiary)", background: "var(--fill-3)" } },
+};
+
+// The Live games page: every game on today's schedule at each venue, live,
+// upcoming and done, earliest first, venues with live games first.
+export function AllGamesBody({ games }: { games: Game[] }) {
+  const byLocation = new Map<string, Game[]>();
+  for (const g of games) byLocation.set(g.location, [...(byLocation.get(g.location) ?? []), g]);
+  const cards = [...byLocation.entries()].map(([loc, gs]) => ({
+    loc,
+    games: [...gs].sort((a, b) => a.starts_at.localeCompare(b.starts_at) || (a.court ?? "").localeCompare(b.court ?? "")),
+    live: gs.filter((g) => g.state === "live").length,
+    later: gs.filter((g) => g.state === "later").length,
+  })).sort((a, b) =>
+    (b.live > 0 ? 1 : 0) - (a.live > 0 ? 1 : 0) || (b.later > 0 ? 1 : 0) - (a.later > 0 ? 1 : 0) || a.loc.localeCompare(b.loc));
+
+  if (cards.length === 0) {
+    return (
+      <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
+        No games on today&apos;s schedule in this scope.
+      </div>
+    );
+  }
+  return (
+    <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+      {cards.map((c) => (
+        <div key={c.loc} className="rounded-2xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="min-w-0">
+              <div className="font-semibold truncate" style={{ color: "var(--glass-text)" }}>{c.loc}</div>
+              {c.games[0].facility && <div className="text-[11px] text-glass-text-tertiary truncate">{c.games[0].facility}</div>}
+            </div>
+            {c.live > 0 && (
+              <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-full px-2 py-0.5"
+                style={{ color: "var(--red)", background: "var(--red-tint)" }}>
+                <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={LIVE_DOT} />
+                {c.live} live
+              </span>
+            )}
+          </div>
+          <div className="mt-2.5">
+            {c.games.map((g, i) => (
+              <div key={i} className="flex items-center justify-between gap-3 py-2"
+                style={{ borderTop: i ? "1px solid var(--glass-border)" : undefined, opacity: g.state === "done" ? 0.72 : 1 }}>
+                <div className="min-w-0 flex items-start gap-3">
+                  <span className="shrink-0 w-[68px] text-[11px] font-semibold rounded-md px-1.5 py-0.5 text-center mt-0.5"
+                    style={STATE[g.state].style}>
+                    {g.state === "live" ? "Live" : g.state === "later" ? `${clock(g.starts_at)} ${ampm(g.starts_at)}` : "Done"}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm" style={{ color: "var(--glass-text)" }}>
+                      <span className="font-semibold">{g.home ?? "TBD"}</span>
+                      <span className="text-glass-text-tertiary"> vs </span>
+                      <span className="font-semibold">{g.away ?? "TBD"}</span>
+                    </div>
+                    <div className="text-[11px] text-glass-text-tertiary tabular">
+                      {[g.court, slot(g), g.division].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                </div>
+                <BallerTvButton game={g} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export const gameCounts = (games: Game[]) => ({
+  live: games.filter((g) => g.state === "live").length,
+  later: games.filter((g) => g.state === "later").length,
+  done: games.filter((g) => g.state === "done").length,
+});

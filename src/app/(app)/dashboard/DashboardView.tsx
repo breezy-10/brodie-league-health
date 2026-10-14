@@ -2261,7 +2261,7 @@ async function LiveGamesCards({ scope }: { scope: Scope }) {
   const asOf = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Toronto" })
     .format(new Date());
   return (
-    <Section title="Live games" seasonTag={`as of ${asOf} ET`} tiles={games ? [] : null}>
+    <Section title="Live games" seasonTag={`as of ${asOf} ET`} href="/live-games" tiles={games ? [] : null}>
       {games && <LiveGamesBody games={games} />}
     </Section>
   );
