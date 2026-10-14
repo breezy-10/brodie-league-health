@@ -5,6 +5,7 @@ import Filters, { type FilterOptions } from "../dashboard/Filters";
 import { BasisToggle } from "../dashboard/BasisToggle";
 import { requireUser } from "@/lib/auth";
 import { promoFetch } from "@/lib/promo-feed";
+import { TZ_SHORT } from "@/lib/tz";
 
 // Events: open runs, Kicks of the Week, opening nights, beginner runs, all-star
 // games and the rest, from the ops events platform via the Promo Tracker. For
@@ -50,12 +51,6 @@ export async function loadEvents(locationNames: string[] | null, season?: string
   }
 }
 
-const TZ_SHORT: Record<string, string> = {
-  "America/New_York": "ET", "America/Toronto": "ET", "America/Detroit": "ET",
-  "America/Chicago": "CT", "America/Winnipeg": "CT",
-  "America/Denver": "MT", "America/Edmonton": "MT", "America/Phoenix": "MT",
-  "America/Los_Angeles": "PT", "America/Vancouver": "PT",
-};
 // Read from the string: it is already the event's own clock, and Date would
 // shift it into the viewer's zone.
 function whenLabel(at: string | null, tz: string): { day: string; time: string } {

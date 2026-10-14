@@ -1,12 +1,13 @@
 // Time zone helpers shared by server and client code (no server imports).
 
-// Short labels for the zones Brodie plays in; anything else falls back to the
-// browser's own abbreviation.
+// Short labels for the zones Brodie plays in, written the way Brodie staff
+// write them (EST, PST) all year; anything else falls back to the browser's
+// own abbreviation.
 export const TZ_SHORT: Record<string, string> = {
-  "America/New_York": "ET", "America/Toronto": "ET", "America/Detroit": "ET", "America/Montreal": "ET",
-  "America/Chicago": "CT", "America/Winnipeg": "CT",
-  "America/Denver": "MT", "America/Edmonton": "MT", "America/Phoenix": "MT",
-  "America/Los_Angeles": "PT", "America/Vancouver": "PT",
+  "America/New_York": "EST", "America/Toronto": "EST", "America/Detroit": "EST", "America/Montreal": "EST",
+  "America/Chicago": "CST", "America/Winnipeg": "CST",
+  "America/Denver": "MST", "America/Edmonton": "MST", "America/Phoenix": "MST",
+  "America/Los_Angeles": "PST", "America/Vancouver": "PST",
 };
 
 // A local wall-clock time in a zone ("2026-10-13T19:00", "America/Vancouver"),
