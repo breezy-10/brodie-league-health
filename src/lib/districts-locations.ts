@@ -54,3 +54,22 @@ export async function getCanonicalLocations(): Promise<string[]> {
   })();
   return inflight;
 }
+
+// Each location's district, from the same feed ("Burlington" -> "Greater
+// Toronto Area"), and every district in use. Null when the feed can't be
+// reached. Locations with no district (markets not open yet) are left out.
+export async function getLocationDistricts(): Promise<{ byLocation: Map<string, string>; districts: string[] } | null> {
+  try {
+    const res = await fetch(DISTRICTS_LOCATIONS_URL, { next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { locations?: { name: string | null; district: string | null }[] };
+    const byLocation = new Map<string, string>();
+    for (const l of body.locations ?? []) {
+      const name = l.name?.trim(), district = l.district?.trim();
+      if (name && district && !EXCLUDE.has(name.toLowerCase())) byLocation.set(name, district);
+    }
+    return { byLocation, districts: [...new Set(byLocation.values())].sort((a, b) => a.localeCompare(b)) };
+  } catch {
+    return null;
+  }
+}

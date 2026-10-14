@@ -1,13 +1,16 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { BasisToggle } from "./BasisToggle";
+import { getLocationDistricts } from "@/lib/districts-locations";
 
 // Registrations > Leaderboard: every location ranked, greatest first, by the
 // measure picked: teams, athletes, average players per team, revenue, average
 // price per player, and the two retention measures. Read from the same registration-pacing feed as the
 // other tabs, at the same day N of registration. Money is never compared
 // across currencies (the feed carries no exchange rate), so revenue and price
-// rank Canada's locations and the US's separately.
+// rank Canada's locations and the US's separately. By district, each
+// district's locations are added together (districts from brodie-districts)
+// and the averages and shares worked out from the sums.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
 type Season = {
@@ -54,6 +57,8 @@ const RANKS: { value: RankBy; label: string }[] = [
 type Share = { n: number; of: number; pct: number } | null;
 type Row = {
   location: string;
+  // By district: the locations it adds up.
+  members?: string[];
   currency: string;
   teams: number;
   athletes: number;
@@ -62,23 +67,34 @@ type Row = {
   price: number | null;
   back: Share;
   kept: Share;
+  // The parts the averages come from, so a district can sum them.
+  priceRev: number;
+  pricePlayers: number;
 };
 const share = (n: number | undefined, of: number | undefined): Share =>
   n != null && of ? { n, of, pct: Math.round((1000 * n) / of) / 10 } : null;
 
 const money = (n: number, cur: string) => `$${Math.round(n).toLocaleString("en-US")} ${cur}`;
 
-export default async function RegLeaderboard({ season, locationNames, rankBy }: {
-  season: string; locationNames: string[] | null; rankBy?: string;
+export default async function RegLeaderboard({ season, locationNames, rankBy, groupBy }: {
+  season: string; locationNames: string[] | null; rankBy?: string; groupBy?: string;
 }) {
   const rank: RankBy = (RANKS.find((r) => r.value === rankBy)?.value) ?? "teams";
-  const [base, kept, back] = await Promise.all([
+  const byDistrict = groupBy === "district";
+  const [base, kept, back, districtMap] = await Promise.all([
     loadLocations(season, locationNames),
     loadLocations(season, locationNames, "retention"),
     loadLocations(season, locationNames, "back"),
+    byDistrict ? getLocationDistricts() : Promise.resolve(null),
   ]);
 
-  const toggle = <BasisToggle param="rank" value={rank} options={RANKS} />;
+  const toggle = (
+    <div className="space-y-2">
+      <BasisToggle param="group" value={byDistrict ? "district" : "location"}
+        options={[{ value: "location", label: "By location" }, { value: "district", label: "By district" }]} />
+      <BasisToggle param="rank" value={rank} options={RANKS} />
+    </div>
+  );
   if (!base) {
     return (
       <div className="space-y-4">
@@ -94,7 +110,7 @@ export default async function RegLeaderboard({ season, locationNames, rankBy }: 
   const current = (l?: Loc) => l?.seasons.find((s) => s.kind === "current");
   const byName = (list: Loc[] | null) => new Map((list ?? []).map((l) => [l.location, l]));
   const keptBy = byName(kept), backBy = byName(back);
-  const rows: Row[] = base.map((l) => {
+  const locationRows: Row[] = base.map((l) => {
     const c = current(l);
     const indiv = c?.athletes_indiv != null;
     const players = indiv ? c!.athletes_indiv! : (c?.athletes ?? 0);
@@ -113,8 +129,54 @@ export default async function RegLeaderboard({ season, locationNames, rankBy }: 
       back: share(b?.ath_prev_here, b?.ath_prev_n),
       // Of this season's athletes here, how many had played Brodie before.
       kept: share(k?.ath_ever ?? k?.ath_any_4, k?.ath_total),
+      priceRev: rev,
+      pricePlayers: players,
     };
   }).filter((r) => r.teams > 0 || r.athletes > 0 || r.back);
+
+  // By district: every district from brodie-districts, its locations summed.
+  // A location the feed names a little differently ("Seattle (Capitol Hill)")
+  // is matched without its bracket when every match is in one district.
+  const districtOf = (name: string): string | null => {
+    if (!districtMap) return null;
+    const exact = districtMap.byLocation.get(name);
+    if (exact) return exact;
+    const norm = (x: string) => x.toLowerCase().replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+    // Every location it could be sits in one district: that's the one.
+    const ds = new Set([...districtMap.byLocation.entries()].filter(([n]) => norm(n) === norm(name)).map(([, d]) => d));
+    return ds.size === 1 ? [...ds][0] : null;
+  };
+  const sumShare = (list: Share[]): Share => {
+    const n = list.reduce((a, x) => a + (x?.n ?? 0), 0), of = list.reduce((a, x) => a + (x?.of ?? 0), 0);
+    return share(n, of);
+  };
+  const districtRows = (): Row[] => {
+    const groups = new Map<string, Row[]>();
+    for (const d of districtMap?.districts ?? []) groups.set(d, []);
+    for (const r of locationRows) {
+      const d = districtOf(r.location) ?? "No district";
+      groups.set(d, [...(groups.get(d) ?? []), r]);
+    }
+    return [...groups.entries()]
+      .filter(([d, rs]) => d !== "No district" || rs.length)
+      .map(([d, rs]) => {
+        const teams = rs.reduce((a, r) => a + r.teams, 0), athletes = rs.reduce((a, r) => a + r.athletes, 0);
+        const priceRev = rs.reduce((a, r) => a + r.priceRev, 0), pricePlayers = rs.reduce((a, r) => a + r.pricePlayers, 0);
+        return {
+          location: d,
+          members: rs.map((r) => r.location).sort((a, b) => a.localeCompare(b)),
+          currency: rs[0]?.currency ?? "",
+          teams, athletes,
+          roster: teams ? athletes / teams : null,
+          revenue: rs.reduce((a, r) => a + r.revenue, 0),
+          price: pricePlayers ? priceRev / pricePlayers : null,
+          back: sumShare(rs.map((r) => r.back)),
+          kept: sumShare(rs.map((r) => r.kept)),
+          priceRev, pricePlayers,
+        };
+      });
+  };
+  const rows: Row[] = byDistrict && districtMap ? districtRows() : locationRows;
 
   const value = (r: Row): number => {
     switch (rank) {
@@ -158,6 +220,11 @@ export default async function RegLeaderboard({ season, locationNames, rankBy }: 
   return (
     <div className="space-y-4">
       {toggle}
+      {byDistrict && !districtMap && (
+        <p className="text-sm text-glass-text-tertiary">
+          Couldn&apos;t load districts from the districts site, so this shows locations.
+        </p>
+      )}
       {groups.length === 0 || rows.length === 0 ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           No registrations for {season} in this scope yet.
@@ -171,7 +238,7 @@ export default async function RegLeaderboard({ season, locationNames, rankBy }: 
                 <thead>
                   <tr className="text-xs font-bold text-glass-text-tertiary">
                     {head(null, "#")}
-                    {head(null, "Location", "left")}
+                    {head(null, byDistrict && districtMap ? "District" : "Location", "left")}
                     {head("teams", "Teams")}
                     {head("athletes", "Athletes")}
                     {head("roster", "Avg players per team")}
@@ -188,7 +255,14 @@ export default async function RegLeaderboard({ season, locationNames, rankBy }: 
                         style={{ color: i < 3 ? "var(--glass-text)" : "var(--glass-text-tertiary)", fontWeight: i < 3 ? 700 : 500 }}>
                         {i + 1}
                       </td>
-                      <td className="px-4 py-2.5 font-semibold align-top" style={{ color: "var(--glass-text)" }}>{r.location}</td>
+                      <td className="px-4 py-2.5 align-top">
+                        <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{r.location}</div>
+                        {r.members && (
+                          <div className="text-[11px] text-glass-text-tertiary leading-snug max-w-[260px]">
+                            {r.members.length ? r.members.join(", ") : "no registrations in scope"}
+                          </div>
+                        )}
+                      </td>
                       {cell("teams", r.teams.toLocaleString())}
                       {cell("athletes", r.athletes.toLocaleString())}
                       {cell("roster", r.roster == null ? "—" : r.roster.toFixed(1))}
@@ -210,7 +284,9 @@ export default async function RegLeaderboard({ season, locationNames, rankBy }: 
         themselves over how many did, team fees left out, as on the Registrations tab. Revenue and price rank Canada
         and the US separately, since the two currencies are never mixed. Retention: past players is the share of last
         season&apos;s athletes at the location who registered there again; retention: registered is the share of this
-        season&apos;s athletes there who had played Brodie before. Ties go to the location with the bigger base.
+        season&apos;s athletes there who had played Brodie before. Ties go to the location with the bigger base. By
+        district adds each district&apos;s locations together, using the districts site&apos;s assignments, and works
+        the averages and shares out from the totals.
       </p>
     </div>
   );

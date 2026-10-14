@@ -2797,7 +2797,7 @@ export default async function DashboardView({
   // still its own page with its own title.
   showViewTabs = false,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; rank?: string;
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; rank?: string; group?: string;
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string;
     tab?: string;
     }>;
@@ -2808,7 +2808,7 @@ export default async function DashboardView({
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
   const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
-    overdueSeason, regsSeason, promoSeason, bookingSeason, tab: tabParam, rank: rankParam } = await searchParams;
+    overdueSeason, regsSeason, promoSeason, bookingSeason, tab: tabParam, rank: rankParam, group: groupParam } = await searchParams;
   // The Registrations page's second tab: who came back, rather than how many.
   const isRetention = isReg && tabParam === "retention";
   // Its third: of last season's players (and the last four seasons'), how
@@ -3526,7 +3526,7 @@ export default async function DashboardView({
           ...(isWeekly ? { weeks: activeWeeks } : {}),
         }}
         keep={isRetention ? { tab: "retention" } : isBack ? { tab: "back" } : isSplit ? { tab: isNewLocs ? "new" : "existing" }
-          : isLeaderboard ? { tab: "leaderboard", ...(rankParam ? { rank: rankParam } : {}) } : undefined}
+          : isLeaderboard ? { tab: "leaderboard", ...(rankParam ? { rank: rankParam } : {}), ...(groupParam ? { group: groupParam } : {}) } : undefined}
       />
       {isReg && (
         <BasisToggle
@@ -3574,7 +3574,7 @@ export default async function DashboardView({
                 style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
             </div>
             <Suspense fallback={<TableSkeleton title="Leaderboard" />}>
-              <RegLeaderboard season={pacingSeason} locationNames={locationNames} rankBy={rankParam} />
+              <RegLeaderboard season={pacingSeason} locationNames={locationNames} rankBy={rankParam} groupBy={groupParam} />
             </Suspense>
           </section>
         ) : isSplit && (!newKeys || !locationNames?.length) ? null : isBack ? backView() : isRetention ? retentionView() : pacing && pacingCurrent ? (
