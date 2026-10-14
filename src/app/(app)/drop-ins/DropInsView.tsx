@@ -7,6 +7,8 @@ import ScheduledDropIns from "./ScheduledDropIns";
 import AvailableDropIns from "./AvailableDropIns";
 import MissingStatsDropIns from "./MissingStatsDropIns";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import { SectionSkeleton } from "../dashboard/Skeletons";
 
 // Drop-ins: players who came for a single game rather than a season. A drop-in
 // is free for a brand-new player (the First-Time Free code) and $50 for a
@@ -69,10 +71,15 @@ export type DropInFeed = {
   truncated: boolean;
 };
 
-export async function loadDropIns(season: string, locationNames: string[] | null): Promise<DropInFeed | null> {
+// when: only drop-ins for games already played, or still to come; every
+// drop-in without it.
+export async function loadDropIns(
+  season: string, locationNames: string[] | null, when?: "past" | "upcoming",
+): Promise<DropInFeed | null> {
   try {
     const url = new URL("/api/drop-ins", PROMO_APP_URL);
     url.searchParams.set("season", season);
+    if (when) url.searchParams.set("when", when);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
     const res = await promoFetch(url.toString(), { cache: "no-store" });
@@ -100,20 +107,20 @@ export default async function DropInsView({
   // A redirect rather than reading both, because the tab bar keeps every other
   // param and a leftover when=past would hold Scheduled on Past.
   if (tabParam === "scheduled" && whenParam === "past") {
-    const q = new URLSearchParams({ tab: "past" });
+    const q = new URLSearchParams();
     if (seasonParam) q.set("season", seasonParam);
     if (locationParam) q.set("location", locationParam);
-    redirect(`/drop-ins?${q}`);
+    redirect(q.size ? `/drop-ins?${q}` : "/drop-ins");
   }
-  // Overview is the season in numbers; Past lists each drop-in for a game
-  // already played and whether they showed up; Scheduled lists the ones still
-  // to come, by game; Available lists the upcoming games that still take
-  // drop-ins; Missing stats lists drop-ins already played that have no stat
-  // line.
-  const isPast = tabParam === "past";
-  const isScheduled = tabParam === "scheduled";
-  const isAvailable = tabParam === "available";
-  const isMissing = tabParam === "missing-stats";
+  // Past (the default) and Scheduled are the season in numbers for drop-ins
+  // whose game has been played, or is still to come, with each drop-in by game
+  // beneath. Available lists the upcoming games that still take drop-ins;
+  // Missing stats lists drop-ins already played that have no stat line. An old
+  // ?tab=overview or ?tab=past link lands on Past.
+  const tab = tabParam === "scheduled" || tabParam === "available" || tabParam === "missing-stats" ? tabParam : "past";
+  const isScheduled = tab === "scheduled";
+  const isAvailable = tab === "available";
+  const isMissing = tab === "missing-stats";
   const byLocation = byParam === "location";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
@@ -124,16 +131,12 @@ export default async function DropInsView({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "playing" },
   );
-  // The overview's figures are only needed on Overview.
-  const feed = isPast || isScheduled || isAvailable || isMissing ? null : await loadDropIns(selectedSeason, locationNames);
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
     locations: filterLocations,
   };
-
-  // Each currency is its own world, never mixed on one scale or summed.
-  const currencies = [...new Set((feed?.locations ?? []).map((r) => r.currency))].sort();
+  const when = isScheduled ? "upcoming" : "past";
 
   return (
     <main className="brodie-fade-in space-y-8">
@@ -149,17 +152,15 @@ export default async function DropInsView({
           seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
           locations: selectedLocations,
         }}
-        keep={isPast ? { tab: "past" }
-          : isScheduled ? { tab: "scheduled" }
+        keep={isScheduled ? { tab: "scheduled" }
           : isAvailable ? { tab: "available", ...(byLocation ? { by: "location" } : {}) }
           : isMissing ? { tab: "missing-stats" } : undefined}
       />
 
       <BasisToggle
         param="tab"
-        value={isPast ? "past" : isScheduled ? "scheduled" : isAvailable ? "available" : isMissing ? "missing-stats" : "overview"}
+        value={tab}
         options={[
-          { value: "overview", label: "Overview" },
           { value: "past", label: "Past" },
           { value: "scheduled", label: "Scheduled" },
           { value: "available", label: "Available" },
@@ -167,19 +168,57 @@ export default async function DropInsView({
         ]}
       />
 
-      {isPast || isScheduled ? (
-        <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={isPast} />
-      ) : isAvailable ? (
+      {isAvailable ? (
         <AvailableDropIns season={selectedSeason} locationNames={locationNames} byLocation={byLocation} />
       ) : isMissing ? (
         <MissingStatsDropIns season={selectedSeason} locationNames={locationNames} />
-      ) : !feed ? (
+      ) : (
+        <>
+          {/* Both stream in on their own, so neither waits on the other's feed. */}
+          <Suspense fallback={<SectionSkeleton title={isScheduled ? "Drop-ins to come" : "Drop-ins played"} />}>
+            <DropInSummary season={selectedSeason} locationNames={locationNames} when={when} />
+          </Suspense>
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>By game</h2>
+            <Suspense fallback={
+              <div className="rounded-2xl bg-glass-surface p-5 space-y-3 shadow-card">
+                {[92, 81, 70, 59].map((w) => <div key={w} className="h-3 rounded skeleton-pulse" style={{ width: `${w}%` }} />)}
+              </div>
+            }>
+              <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={!isScheduled} />
+            </Suspense>
+          </section>
+        </>
+      )}
+    </main>
+  );
+}
+
+// The season in numbers, as the Overview tab had it, for the drop-ins whose
+// game has been played (Past) or is still to come (Scheduled). Attendance only
+// means something once a game is played, so Scheduled leaves it out.
+async function DropInSummary({ season, locationNames, when }: {
+  season: string;
+  locationNames: string[] | null;
+  when: "past" | "upcoming";
+}) {
+  const feed = await loadDropIns(season, locationNames, when);
+  const past = when === "past";
+  const selectedSeason = season;
+  // Each currency is its own world, never mixed on one scale or summed.
+  const currencies = [...new Set((feed?.locations ?? []).map((r) => r.currency))].sort();
+
+  return (
+    <div className="space-y-8">
+      {!feed ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {selectedSeason}.
         </div>
       ) : currencies.length === 0 ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
-          No drop-ins for {selectedSeason} in this scope yet.
+          {past
+            ? `No drop-ins for games played in ${selectedSeason} in this scope yet.`
+            : `No drop-ins for games still to come in ${selectedSeason} in this scope.`}
         </div>
       ) : (
         currencies.map((cur) => {
@@ -216,7 +255,7 @@ export default async function DropInsView({
                 <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
                   style={{ background: "var(--fill-3)", color: "var(--glass-text-secondary)" }}>{cur}</span>
                 <span className="text-xs text-glass-text-tertiary">
-                  {n.toLocaleString()} drop-ins · {selectedSeason}
+                  {n.toLocaleString()} {n === 1 ? "drop-in" : "drop-ins"} for {past ? "games played" : "games still to come"} · {selectedSeason}
                 </span>
               </div>
 
@@ -228,15 +267,17 @@ export default async function DropInsView({
                       <span className="block">{retDropins.toLocaleString()} by returning players</span>
                     </>
                   } />
-                <Tile label="Showed up" value={pct(showed, showed + noShow)}
-                  accent={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined}
-                  sub={
-                    <>
-                      <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} games played</span>
-                      <span className="block">{noShow.toLocaleString()} no-shows</span>
-                      <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats · {sum("upcoming").toLocaleString()} upcoming</span>
-                    </>
-                  } />
+                {past && (
+                  <Tile label="Showed up" value={pct(showed, showed + noShow)}
+                    accent={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined}
+                    sub={
+                      <>
+                        <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} games played</span>
+                        <span className="block">{noShow.toLocaleString()} no-shows</span>
+                        <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats</span>
+                      </>
+                    } />
+                )}
                 <Tile label="Revenue" value={money(sum("revenue"))} accent={ACCENT} sub="drop-in price after any discount, before processing fees" />
                 <Tile label="Started, not paid" value={notPaid.toLocaleString()}
                   accent={notPaid ? "var(--amber-ink)" : undefined}
@@ -280,7 +321,7 @@ export default async function DropInsView({
 
               <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1100 }}>
+                  <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1100 : 980 }}>
                     <thead>
                       <tr className="text-xs font-bold text-glass-text-tertiary">
                         <Th align="left">Location</Th>
@@ -291,7 +332,7 @@ export default async function DropInsView({
                         <Th>Returning players</Th>
                         <Th>Returning revenue</Th>
                         <Th>Revenue</Th>
-                        <Th>Showed up</Th>
+                        {past && <Th>Showed up</Th>}
                         <Th>Not paid</Th>
                       </tr>
                     </thead>
@@ -323,9 +364,11 @@ export default async function DropInsView({
                           </Td>
                           <Td>{r.returning_dropins ? money(r.returning_revenue ?? 0) : "—"}</Td>
                           <Td strong>{money(r.revenue)}</Td>
-                          <RateTd count={r.showed_up ?? 0} total={(r.showed_up ?? 0) + (r.no_show ?? 0)}
-                            color={(r.showed_up ?? 0) + (r.no_show ?? 0)
-                              ? showTone((100 * (r.showed_up ?? 0)) / ((r.showed_up ?? 0) + (r.no_show ?? 0))) : undefined} />
+                          {past && (
+                            <RateTd count={r.showed_up ?? 0} total={(r.showed_up ?? 0) + (r.no_show ?? 0)}
+                              color={(r.showed_up ?? 0) + (r.no_show ?? 0)
+                                ? showTone((100 * (r.showed_up ?? 0)) / ((r.showed_up ?? 0) + (r.no_show ?? 0))) : undefined} />
+                          )}
                           <Td>
                             {r.not_paid.toLocaleString()}
                             {r.cancelled > 0 && (
@@ -345,8 +388,10 @@ export default async function DropInsView({
                           <Td strong>{retPlayers.toLocaleString()}</Td>
                           <Td strong>{retDropins ? money(sum("returning_revenue")) : "—"}</Td>
                           <Td strong>{money(sum("revenue"))}</Td>
-                          <RateTd strong count={showed} total={showed + noShow}
-                            color={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined} />
+                          {past && (
+                            <RateTd strong count={showed} total={showed + noShow}
+                              color={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined} />
+                          )}
                           <Td strong>{notPaid.toLocaleString()}</Td>
                         </tr>
                       )}
@@ -394,20 +439,25 @@ export default async function DropInsView({
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
+        {past
+          ? "Drop-ins for games already played. "
+          : "Drop-ins for games still to come, and any not tied to a game yet. "}
         A drop-in is one player coming for a single game, and counts once it went through: confirmed and not
         cancelled. It is by a new player when, before it, they had no roster spot, no completed season registration
         and no earlier drop-in; new players&apos; drop-ins are meant to be free, returning players&apos; charged, so
         the price figures are measured on returning players&apos; drop-ins only. Became registrations is new drop-in
         players who completed a paid season registration after their drop-in, for any season; the table splits it
         into registrations for the drop-in&apos;s own season and for another season (usually the next), and a player
-        who did both counts in each. Showed up is measured on games already
-        played: the player has a stat line or is marked as played. A no-show is a game whose stats are in for their
-        team but not for them; a game with no stats for their team yet waits under awaiting stats.
-        Started, not paid is drop-ins left as a draft or with a failed payment. Revenue, overall and for returning
-        players, is the drop-in price after any discount and before processing fees. Prices are without sales tax.
-        Drop-ins on a test code are left out. Currencies are never mixed or summed.
+        who did both counts in each.
+        {past && (
+          <> Showed up: the player has a stat line or is marked as played. A no-show is a game whose stats are in for
+          their team but not for them; a game with no stats for their team yet waits under awaiting stats.</>
+        )}
+        {" "}Started, not paid is drop-ins for these games left as a draft or with a failed payment. Revenue, overall
+        and for returning players, is the drop-in price after any discount and before processing fees. Prices are
+        without sales tax. Drop-ins on a test code are left out. Currencies are never mixed or summed.
       </p>
-    </main>
+    </div>
   );
 }
 
