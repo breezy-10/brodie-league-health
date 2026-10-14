@@ -46,6 +46,11 @@ const slot = (g: Game) => `${clock(g.starts_at)}–${clock(g.ends_at)} ${ampm(g.
 
 const LIVE_DOT: React.CSSProperties = { background: "var(--red)" };
 
+// The game on BallerTV, found when clicked (see /go/ballertv).
+const ballerTvHref = (g: Game) => `/go/ballertv?${new URLSearchParams({
+  location: g.location, at: g.starts_at, tz: g.tz, home: g.home ?? "", away: g.away ?? "",
+})}`;
+
 export function LiveGamesBody({ games }: { games: Game[] }) {
   const live = games.filter((g) => g.state === "live");
   const byLocation = new Map<string, Game[]>();
@@ -86,10 +91,18 @@ export function LiveGamesBody({ games }: { games: Game[] }) {
               <div className="mt-2.5 space-y-2">
                 {gs.sort((a, b) => (a.court ?? "").localeCompare(b.court ?? "")).map((g, i) => (
                   <div key={i} className="text-sm leading-snug" style={{ borderTop: i ? "1px solid var(--glass-border)" : undefined, paddingTop: i ? 8 : 0 }}>
-                    <div style={{ color: "var(--glass-text)" }}>
-                      <span className="font-semibold">{g.home ?? "TBD"}</span>
-                      <span className="text-glass-text-tertiary"> vs </span>
-                      <span className="font-semibold">{g.away ?? "TBD"}</span>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="min-w-0" style={{ color: "var(--glass-text)" }}>
+                        <span className="font-semibold">{g.home ?? "TBD"}</span>
+                        <span className="text-glass-text-tertiary"> vs </span>
+                        <span className="font-semibold">{g.away ?? "TBD"}</span>
+                      </div>
+                      <a href={ballerTvHref(g)} target="_blank" rel="noopener noreferrer"
+                        className="shrink-0 text-[11px] font-semibold hover:brightness-110 transition"
+                        style={{ color: "var(--glass-gold)" }}
+                        title="Watch on BallerTV (opens the game's stream, or its event if the game isn't listed)">
+                        BallerTV ↗
+                      </a>
                     </div>
                     <div className="text-[11px] text-glass-text-tertiary tabular">
                       {[g.court, slot(g), g.division].filter(Boolean).join(" · ")}
