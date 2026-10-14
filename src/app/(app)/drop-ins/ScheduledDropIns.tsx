@@ -1,14 +1,13 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
-import { BasisToggle } from "../dashboard/BasisToggle";
 import { TZ_SHORT } from "@/lib/tz";
 
 export { TZ_SHORT };
 
-// The Scheduled tab: each drop-in that went through, by the game it is for,
-// so a league manager can see who is coming to which game. Upcoming games by
-// default, soonest first; Past shows the games already played with whether
-// the player showed up.
+// The Scheduled and Past tabs: each drop-in that went through, by the game it
+// is for. Scheduled is the games still to come, soonest first, so a league
+// manager can see who is coming to which game; Past is the games already
+// played, most recent first, with whether the player showed up.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
 type Attendance = "upcoming" | "showed" | "no_show" | "awaiting";
@@ -86,21 +85,10 @@ export default async function ScheduledDropIns({
 }) {
   const all = await loadScheduled(season, locationNames);
 
-  const toggle = (
-    <BasisToggle
-      param="when"
-      value={past ? "past" : "upcoming"}
-      options={[{ value: "upcoming", label: "Upcoming" }, { value: "past", label: "Past" }]}
-    />
-  );
-
   if (!all) {
     return (
-      <div className="space-y-4">
-        {toggle}
-        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
-          Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {season}.
-        </div>
+      <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
+        Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {season}.
       </div>
     );
   }
@@ -129,14 +117,11 @@ export default async function ScheduledDropIns({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {toggle}
-        <p className="text-sm text-glass-text-secondary">
-          {rows.length.toLocaleString()} {past ? "played" : "upcoming"} {rows.length === 1 ? "drop-in" : "drop-ins"} across{" "}
-          {games.toLocaleString()} {games === 1 ? "game" : "games"} · {newCount.toLocaleString()} new,{" "}
-          {(rows.length - newCount).toLocaleString()} returning
-        </p>
-      </div>
+      <p className="text-sm text-glass-text-secondary">
+        {rows.length.toLocaleString()} {past ? "played" : "upcoming"} {rows.length === 1 ? "drop-in" : "drop-ins"} across{" "}
+        {games.toLocaleString()} {games === 1 ? "game" : "games"} · {newCount.toLocaleString()} new,{" "}
+        {(rows.length - newCount).toLocaleString()} returning
+      </p>
 
       {rows.length === 0 ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
@@ -215,9 +200,18 @@ export default async function ScheduledDropIns({
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
-        Every drop-in that went through, by the game it is for. Times are the venue&apos;s own local time. Past games
-        show whether the player showed up: a stat line or marked as played on the game; a no-show is a game whose stats
-        are in for their team but not for them; awaiting stats is a game with none in for their team yet.
+        {past ? (
+          <>
+            Every drop-in that went through for a game already played, by the game it was for. Showed up is a stat line
+            or marked as played on the game; a no-show is a game whose stats are in for their team but not for them;
+            awaiting stats is a game with none in for their team yet. Times are the venue&apos;s own local time.
+          </>
+        ) : (
+          <>
+            Every drop-in that went through for a game still to come, by the game it is for. Times are the venue&apos;s
+            own local time.
+          </>
+        )}
       </p>
     </div>
   );
