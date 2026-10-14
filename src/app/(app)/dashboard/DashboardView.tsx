@@ -20,6 +20,7 @@ import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams
 import { loadDropIns } from "../drop-ins/DropInsView";
 import { loadEvents } from "../events/EventsView";
 import { ChipTile, type Chip } from "./ChipTile";
+import RegLeaderboard from "./RegLeaderboard";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -2796,7 +2797,7 @@ export default async function DashboardView({
   // still its own page with its own title.
   showViewTabs = false,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string;
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; rank?: string;
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string;
     tab?: string;
     }>;
@@ -2807,12 +2808,14 @@ export default async function DashboardView({
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
   const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
-    overdueSeason, regsSeason, promoSeason, bookingSeason, tab: tabParam } = await searchParams;
+    overdueSeason, regsSeason, promoSeason, bookingSeason, tab: tabParam, rank: rankParam } = await searchParams;
   // The Registrations page's second tab: who came back, rather than how many.
   const isRetention = isReg && tabParam === "retention";
   // Its third: of last season's players (and the last four seasons'), how
   // many are back.
   const isBack = isReg && tabParam === "back";
+  // And the last: every location ranked by the measure picked.
+  const isLeaderboard = isReg && tabParam === "leaderboard";
   // The registrations again, split by whether the location is new this season
   // (its first season with a captain): without the new ones, so a season reads
   // against the last like for like, and the new ones on their own.
@@ -3522,12 +3525,13 @@ export default async function DashboardView({
           locations: selectedLocations,
           ...(isWeekly ? { weeks: activeWeeks } : {}),
         }}
-        keep={isRetention ? { tab: "retention" } : isBack ? { tab: "back" } : isSplit ? { tab: isNewLocs ? "new" : "existing" } : undefined}
+        keep={isRetention ? { tab: "retention" } : isBack ? { tab: "back" } : isSplit ? { tab: isNewLocs ? "new" : "existing" }
+          : isLeaderboard ? { tab: "leaderboard", ...(rankParam ? { rank: rankParam } : {}) } : undefined}
       />
       {isReg && (
         <BasisToggle
           param="tab"
-          value={isBack ? "back" : isRetention ? "retention" : isExisting ? "existing" : isNewLocs ? "new" : "registrations"}
+          value={isLeaderboard ? "leaderboard" : isBack ? "back" : isRetention ? "retention" : isExisting ? "existing" : isNewLocs ? "new" : "registrations"}
           options={[
             { value: "registrations", label: "Registrations" },
             // Every location that ran before this season, like for like.
@@ -3538,6 +3542,8 @@ export default async function DashboardView({
             { value: "retention", label: "Retention: registered" },
             // Of who played before, who registered.
             { value: "back", label: "Retention: past players" },
+            // Every location ranked.
+            { value: "leaderboard", label: "Leaderboard" },
           ]}
         />
       )}
@@ -3560,7 +3566,18 @@ export default async function DashboardView({
                     : `No location in this scope is new in ${selectedSeason}.`)}
           </p>
         )}
-        {isSplit && (!newKeys || !locationNames?.length) ? null : isBack ? backView() : isRetention ? retentionView() : pacing && pacingCurrent ? (
+        {isLeaderboard ? (
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Leaderboard</h2>
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
+            </div>
+            <Suspense fallback={<TableSkeleton title="Leaderboard" />}>
+              <RegLeaderboard season={pacingSeason} locationNames={locationNames} rankBy={rankParam} />
+            </Suspense>
+          </section>
+        ) : isSplit && (!newKeys || !locationNames?.length) ? null : isBack ? backView() : isRetention ? retentionView() : pacing && pacingCurrent ? (
           <section className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2.5">
