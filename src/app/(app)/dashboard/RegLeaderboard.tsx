@@ -89,10 +89,15 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   ]);
 
   const toggle = (
+    // Two rows: what to rank (locations or districts), then by what.
     <div className="space-y-2">
-      <BasisToggle param="group" value={byDistrict ? "district" : "location"}
-        options={[{ value: "location", label: "By location" }, { value: "district", label: "By district" }]} />
-      <BasisToggle param="rank" value={rank} options={RANKS} />
+      <div>
+        <BasisToggle param="group" value={byDistrict ? "district" : "location"}
+          options={[{ value: "location", label: "By location" }, { value: "district", label: "By district" }]} />
+      </div>
+      <div>
+        <BasisToggle param="rank" value={rank} options={RANKS} />
+      </div>
     </div>
   );
   if (!base) {
