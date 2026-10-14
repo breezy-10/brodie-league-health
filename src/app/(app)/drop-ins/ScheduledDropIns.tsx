@@ -1,6 +1,9 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { BasisToggle } from "../dashboard/BasisToggle";
+import { TZ_SHORT } from "@/lib/tz";
+
+export { TZ_SHORT };
 
 // The Scheduled tab: each drop-in that went through, by the game it is for,
 // so a league manager can see who is coming to which game. Upcoming games by
@@ -38,12 +41,6 @@ async function loadScheduled(season: string, locationNames: string[] | null): Pr
   }
 }
 
-export const TZ_SHORT: Record<string, string> = {
-  "America/New_York": "ET", "America/Toronto": "ET", "America/Detroit": "ET",
-  "America/Chicago": "CT", "America/Winnipeg": "CT",
-  "America/Denver": "MT", "America/Edmonton": "MT", "America/Phoenix": "MT",
-  "America/Los_Angeles": "PT", "America/Vancouver": "PT",
-};
 
 // The stored time is already the venue's own clock, so it is read from the
 // string rather than through Date, which would shift it into the viewer's zone.

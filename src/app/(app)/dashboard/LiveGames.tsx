@@ -22,9 +22,10 @@ export type Game = {
   state: "live" | "later" | "done";
 };
 
-export async function loadLiveGames(locationNames: string[] | null): Promise<Game[] | null> {
+export async function loadLiveGames(locationNames: string[] | null, date?: string | null): Promise<Game[] | null> {
   try {
     const url = new URL("/api/live-games", PROMO_APP_URL);
+    if (date) url.searchParams.set("date", date);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
     const res = await promoFetch(url.toString(), { cache: "no-store" });
@@ -90,7 +91,7 @@ export function AllGamesBody({ games }: { games: Game[] }) {
   if (cards.length === 0) {
     return (
       <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
-        No games on today&apos;s schedule in this scope.
+        No games on the schedule that day in this scope.
       </div>
     );
   }
