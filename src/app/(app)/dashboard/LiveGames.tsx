@@ -117,7 +117,7 @@ export function AllGamesBody({ games }: { games: Game[] }) {
               <div key={i} className="flex items-center justify-between gap-3 py-2"
                 style={{ borderTop: i ? "1px solid var(--glass-border)" : undefined, opacity: g.state === "done" ? 0.72 : 1 }}>
                 <div className="min-w-0 flex items-start gap-3">
-                  <span className="shrink-0 w-[68px] text-[11px] font-semibold rounded-md px-1.5 py-0.5 text-center mt-0.5"
+                  <span className="shrink-0 w-[84px] text-[11px] font-semibold rounded-md px-1.5 py-0.5 text-center mt-0.5 whitespace-nowrap"
                     style={STATE[g.state].style}>
                     {g.state === "live" ? "Live" : g.state === "later" ? <GameTime start={startIso(g)} tz={g.tz} mode="start" /> : "Done"}
                   </span>

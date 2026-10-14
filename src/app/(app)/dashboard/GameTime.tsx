@@ -49,7 +49,14 @@ export default function GameTime({ start, end, tz, mode = "slot" }: {
   // Same wall clock and zone label: one time is enough.
   const same = render(start, end, viewer, "slot") === render(start, end, tz, "slot");
   if (same) return <>{venue}</>;
-  // The start chip is narrow: the viewer's time, with the venue's on hover.
-  if (mode === "start") return <span title={`${render(start, end, tz, "startZone")} at the venue`}>{mine}</span>;
+  // The start chip: the viewer's time, and the venue's beneath it, smaller.
+  if (mode === "start") {
+    return (
+      <span className="flex flex-col items-center leading-tight">
+        <span>{mine}</span>
+        <span className="text-[9.5px] font-medium opacity-75 whitespace-nowrap">{render(start, end, tz, "startZone")}</span>
+      </span>
+    );
+  }
   return <>{mine} <span className="opacity-70">({venue})</span></>;
 }

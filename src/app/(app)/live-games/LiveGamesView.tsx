@@ -1,4 +1,6 @@
+import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
+import { TZ_SHORT } from "@/lib/tz";
 import { canonicalLocation, csvParam } from "@/lib/seasons";
 import { getCanonicalLocations } from "@/lib/districts-locations";
 import { getActiveLocationKeys, onlyActive } from "@/lib/active-locations";
@@ -6,12 +8,21 @@ import Filters, { type FilterOptions } from "../dashboard/Filters";
 import { AllGamesBody, gameCounts, loadLiveGames } from "../dashboard/LiveGames";
 import AutoRefresh from "./AutoRefresh";
 import DayPicker from "./DayPicker";
+import ViewerTimeZone, { VIEWER_TZ_COOKIE } from "./ViewerTimeZone";
 
 export default async function LiveGamesView({ searchParams }: { searchParams: Promise<{ location?: string; date?: string }> }) {
   await requireUser();
   const { location: locationParam, date: dateParam } = await searchParams;
-  // Today as the head office reads it; any other day is ?date=YYYY-MM-DD.
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date());
+  // Today is the viewer's own date: their time zone comes from a cookie the
+  // browser writes on first visit (ViewerTimeZone), Eastern until then. Any
+  // other day is ?date=YYYY-MM-DD.
+  const jar = await cookies();
+  const savedTz = jar.get(VIEWER_TZ_COOKIE)?.value ? decodeURIComponent(jar.get(VIEWER_TZ_COOKIE)!.value) : null;
+  const viewerTz = (() => {
+    if (!savedTz) return "America/Toronto";
+    try { new Intl.DateTimeFormat("en-US", { timeZone: savedTz }); return savedTz; } catch { return "America/Toronto"; }
+  })();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: viewerTz }).format(new Date());
   const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) && dateParam !== today ? dateParam : null;
   const day = date ?? today;
   const [y, m, d] = day.split("-").map(Number);
@@ -23,15 +34,18 @@ export default async function LiveGamesView({ searchParams }: { searchParams: Pr
   const [canonical, active, games] = await Promise.all([
     getCanonicalLocations(),
     getActiveLocationKeys([]),
-    loadLiveGames(locationNames, date),
+    loadLiveGames(locationNames, day),
   ]);
   const options: FilterOptions = { seasons: [], locations: onlyActive(canonical, active, selectedLocations) };
-  const asOf = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Toronto" })
+  const asOf = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: viewerTz })
     .format(new Date());
+  const zone = TZ_SHORT[viewerTz] ?? (new Intl.DateTimeFormat("en-US", { timeZone: viewerTz, timeZoneName: "short" })
+    .formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? "");
   const n = games ? gameCounts(games) : null;
 
   return (
     <main className="brodie-fade-in space-y-6">
+      <ViewerTimeZone current={savedTz} />
       {!date && <AutoRefresh />}
       <div className="flex flex-wrap items-end gap-3">
         <Filters key={selectedLocations.join(",")} options={options} current={{ seasons: [], locations: selectedLocations }}
@@ -53,7 +67,7 @@ export default async function LiveGamesView({ searchParams }: { searchParams: Pr
               <>
                 {" · "}<span className="font-semibold" style={{ color: "var(--red)" }}>{n!.live} live</span>
                 {" · "}{n!.later} upcoming · {n!.done} done
-                <span className="text-glass-text-tertiary"> · as of {asOf} EST, refreshes every minute</span>
+                <span className="text-glass-text-tertiary"> · as of {asOf}{zone ? ` ${zone}` : ""}, refreshes every minute</span>
               </>
             )}
           </p>
