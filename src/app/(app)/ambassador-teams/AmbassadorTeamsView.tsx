@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, resolveScope } from "@/lib/seasons";
+import { getLocationDistricts } from "@/lib/districts-locations";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import AmbassadorTable, { type CaptainTeam } from "./AmbassadorTable";
 import { StaffBadge } from "@/components/TeamRosterBlock";
@@ -22,19 +23,30 @@ const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satu
 export default async function AmbassadorTeamsView({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; district?: string; lm?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, district: districtParam } = await searchParams;
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
+  const selectedDistricts = csvParam(districtParam);
 
   // Ambassador teams are registered for the season being sold, not the one
   // being played, so this defaults to the registration season like Referrals.
-  const { filterLocations, promoSeasons, selectedSeason, playingSeason, locationNames } = await resolveScope(
-    { season: selectedSeasons[0], locations: selectedLocations },
-    { defaultSeason: "registration" },
-  );
+  const [scope, districtMap] = await Promise.all([
+    resolveScope({ season: selectedSeasons[0], locations: selectedLocations }, { defaultSeason: "registration" }),
+    getLocationDistricts(),
+  ]);
+  const { filterLocations, promoSeasons, selectedSeason, playingSeason } = scope;
+  // The district filter narrows the location filter: the chosen locations
+  // (every location when none are) that sit in a chosen district, by the
+  // districts app's own assignment. An empty list means nothing matches.
+  const locationNames = selectedDistricts.length && districtMap
+    ? (scope.locationNames ?? scope.promoLocations).filter((n) => {
+        const d = districtMap.byLocation.get(n);
+        return !!d && selectedDistricts.includes(d);
+      })
+    : scope.locationNames;
   const [feed, staff] = await Promise.all([loadAmbassadorTeams(selectedSeason, locationNames), loadStaff()]);
   // Forfeit risk is about games being played, so it follows the season in
   // play, not the registration season this page opens on, until the filter
@@ -44,6 +56,7 @@ export default async function AmbassadorTeamsView({
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
     locations: filterLocations,
+    districts: districtMap?.districts,
   };
 
   const t = feed?.totals;
@@ -111,11 +124,12 @@ export default async function AmbassadorTeamsView({
     <main className="brodie-fade-in space-y-8">
 
       <Filters
-        key={`${selectedSeasons.join(",")}|${selectedLocations.join(",")}`}
+        key={`${selectedSeasons.join(",")}|${selectedLocations.join(",")}|${selectedDistricts.join(",")}`}
         options={options}
         current={{
           seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
           locations: selectedLocations,
+          districts: selectedDistricts,
         }}
       />
 
