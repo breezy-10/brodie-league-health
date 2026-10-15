@@ -54,11 +54,14 @@ type TeamUnit = {
 };
 
 export default function DiscountTable({
-  rows, season, staff, teamView = false, unrostered: unrosteredProp,
+  rows, season, staff, ambassadors, teamView = false, unrostered: unrosteredProp,
 }: {
   rows: DiscountRowData[];
   season: string;
   staff: Record<string, string> | null;
+  // Ops player ids of the season's ambassadors (captains of an ambassador
+  // team), tagged beside Free and Staff.
+  ambassadors?: string[] | null;
   // One row per team instead of per registration, opening the same roster.
   teamView?: boolean;
   // Team view's last block: free agents not on a team yet, discounted or not.
@@ -188,6 +191,8 @@ export default function DiscountTable({
   }
 
   const staffLabel = (name: string) => staff?.[normName(name)];
+  const ambassadorIds = new Set(ambassadors ?? []);
+  const isAmbassador = (r: DiscountRowData) => !!r.player_id && ambassadorIds.has(r.player_id);
 
   return (
     <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
@@ -342,6 +347,7 @@ export default function DiscountTable({
                           style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>Free</span>
                       )}
                       {sLabel && <StaffBadge label={sLabel} />}
+                      {isAmbassador(r) && <AmbassadorBadge />}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{r.location}</td>
@@ -420,6 +426,7 @@ export default function DiscountTable({
                               style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>Free</span>
                           )}
                           {sLabel && <StaffBadge label={sLabel} />}
+                          {isAmbassador(r) && <AmbassadorBadge />}
                         </span>
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{r.location}</td>
@@ -472,5 +479,17 @@ function Td({ children }: { children: React.ReactNode }) {
       style={{ color: "var(--glass-text)", fontWeight: 500 }}>
       {children}
     </td>
+  );
+}
+
+// Beside Free and Staff, in the same size: the player captains an ambassador
+// team this season.
+function AmbassadorBadge() {
+  return (
+    <span className="ml-1.5 text-[11px] font-bold px-1.5 py-0.5 rounded align-middle cursor-help"
+      style={{ background: "var(--fill-3)", color: "var(--glass-text)" }}
+      title="Captains an ambassador team this season">
+      Ambassador
+    </span>
   );
 }
