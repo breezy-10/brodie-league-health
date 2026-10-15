@@ -6,6 +6,7 @@ import { discountTone, freeTone } from "../rates";
 import DiscountTable from "./DiscountTable";
 import { BasisToggle } from "../../dashboard/BasisToggle";
 import { loadStaff } from "@/lib/staff";
+import { loadAmbassadorTeams } from "../../ambassador-teams/AmbassadorSummary";
 import { promoFetch } from "@/lib/promo-feed";
 
 export const dynamic = "force-dynamic";
@@ -121,12 +122,23 @@ export default async function DiscountPlayersPage({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
-  const [feed, totalRegs, staff, teamCount] = await Promise.all([
+  const [feed, totalRegs, staff, teamCount, ambassadorFeed] = await Promise.all([
     loadPlayers(selectedSeason, locationNames, freeOnly, teamView),
     loadTotalRegs(selectedSeason, locationNames, currency),
     loadStaff(),
     loadTeamCount(selectedSeason, locationNames),
+    // Every location, so an ambassador registered somewhere else in scope is
+    // still tagged.
+    loadAmbassadorTeams(selectedSeason, null),
   ]);
+  // The season's ambassadors (captains of an ambassador team), by ops player
+  // id, which is what each discounted registration carries.
+  const ambassadors = ambassadorFeed
+    ? [...new Set([
+        ...Object.keys(ambassadorFeed.captains ?? {}),
+        ...ambassadorFeed.locations.flatMap((l) => l.rows.map((r) => r.captain_id)).filter((id): id is string => !!id),
+      ])]
+    : null;
   // Which groups a row belongs to: by what each group of its codes took off
   // when the feed says, so a returning-player code stacked with an ambassador
   // code counts under both, each for its own part. An older feed falls back to
@@ -259,7 +271,7 @@ export default async function DiscountPlayersPage({
           No {freeOnly ? "free" : kind ? KIND_TITLE[kind].toLowerCase().replace(" discounts", " discounted") : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
-        <DiscountTable key={teamView ? "teams" : "players"} rows={rows} season={selectedSeason} staff={staff} teamView={teamView}
+        <DiscountTable key={teamView ? "teams" : "players"} rows={rows} season={selectedSeason} staff={staff} ambassadors={ambassadors} teamView={teamView}
           unrostered={unrosteredRows} />
       )}
 
