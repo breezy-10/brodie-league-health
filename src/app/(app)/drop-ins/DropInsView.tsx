@@ -253,7 +253,6 @@ async function DropInSummary({ season, locationNames, when }: {
           const noShow = sum("no_show");
           const notPaid = sum("not_paid");
           const cancelled = sum("cancelled");
-          const codes = feed.discount_codes.filter((c) => c.currency === cur);
           const maxRevenue = Math.max(...locs.map((r) => r.revenue), 1);
 
           return (
@@ -429,34 +428,6 @@ async function DropInSummary({ season, locationNames, when }: {
                   </table>
                 </div>
               </div>
-
-              {codes.length > 0 && (
-                <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
-                  <div className="px-4 pt-3.5 pb-2 text-sm font-semibold" style={{ color: "var(--glass-text)" }}>
-                    Discount codes used
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 420 }}>
-                      <thead>
-                        <tr className="text-xs font-bold text-glass-text-tertiary">
-                          <Th align="left">Code</Th>
-                          <Th>Uses</Th>
-                          <Th>Given up</Th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {codes.map((c) => (
-                          <tr key={c.code} style={{ borderTop: "1px solid var(--glass-border)" }}>
-                            <td className="px-4 py-2.5" style={{ color: "var(--glass-text)" }}>{c.code}</td>
-                            <Td>{c.uses.toLocaleString()}</Td>
-                            <Td>{money(c.given_up)}</Td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
             </section>
           );
         })
@@ -467,28 +438,6 @@ async function DropInSummary({ season, locationNames, when }: {
           The ops database returned its row limit, so some drop-ins may be missing from these figures.
         </p>
       )}
-
-      <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
-        {past
-          ? "Drop-ins for games already played. "
-          : "Drop-ins for games still to come, and any not tied to a game yet. "}
-        A drop-in is one player coming for a single game, and counts once it went through: confirmed and not
-        cancelled. It is by a new player when, before it, they had no roster spot, no completed season registration
-        and no earlier drop-in; new players&apos; drop-ins are meant to be free, returning players&apos; charged, so
-        the price figures are measured on returning players&apos; drop-ins only. Became registrations is new drop-in
-        players who completed a paid season registration after their drop-in, for any season; the table splits it
-        into registrations for the drop-in&apos;s own season and for any other, named under the count, and a player
-        who registered for two seasons counts under each.
-        {past && (
-          <> Showed up is out of the drop-ins whose team&apos;s stats are in: the player has a stat line or is marked
-          as played. A no-show is one whose team&apos;s stats are in with nothing for them, so a line entered on a
-          placeholder instead of the player (see Missing stats) also reads as a no-show. A game with no stats for
-          their team yet waits under awaiting stats and is left out of the rate.</>
-        )}
-        {" "}Started, not paid is drop-ins for these games left as a draft or with a failed payment. Revenue, overall
-        and for returning players, is the drop-in price after any discount and before processing fees. Prices are
-        without sales tax. Drop-ins on a test code are left out. Currencies are never mixed or summed.
-      </p>
     </div>
   );
 }
