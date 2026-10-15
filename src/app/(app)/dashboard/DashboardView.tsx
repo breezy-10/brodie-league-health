@@ -1684,12 +1684,15 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
   const max = Math.max(...bars.map((b) => b.value), 1);
   return (
     <div className="h-full flex flex-col rounded-2xl bg-glass-surface p-5 shadow-card">
+      {/* The title takes what the number and its chips leave, and a chip too
+          long for its share wraps inside the card rather than pushing the
+          number off its edge. */}
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold" style={{ color: "var(--glass-text)" }}>{title}</h3>
           <p className="text-xs mt-0.5 text-glass-text-tertiary">{subtitle}</p>
         </div>
-        <div className="text-right shrink-0">
+        <div className="text-right min-w-0 max-w-[60%]">
           <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{fmtBig(current)}</span>
           {/* Chips, as on the location cards. Always two slots, the empty one
               held open, so the bars start at the same height on every card
@@ -1698,7 +1701,7 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
             {[0, 1].map((i) => {
               const n = notes?.[i];
               return (
-                <span key={i} className="text-[11px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+                <span key={i} className="text-[11px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded text-right leading-snug"
                   style={n
                     ? (n.tone === "bad"
                       ? { background: "var(--red-tint)", color: "var(--red)" }
@@ -3157,8 +3160,12 @@ export default async function DashboardView({
     key: "age_median", format: "age",
     title: "Age", barTitle: "Median age",
     barSub: `at season start · ${regBarWhen}`,
+    // Two short chips rather than one long one, which squeezed the title.
     notes: pacingCurrent.age?.coverage_pct != null
-      ? [{ text: `${pacingCurrent.age.coverage_pct}% have a birth date · ${pacingCurrent.age.n.toLocaleString()} of ${pacingCurrent.athletes.toLocaleString()}` }]
+      ? [
+          { text: `${pacingCurrent.age.coverage_pct}% have a birth date` },
+          { text: `${pacingCurrent.age.n.toLocaleString()} of ${pacingCurrent.athletes.toLocaleString()} athletes` },
+        ]
       : undefined,
     roster: false,
     bands: pacingCurrent.age?.bands,
@@ -3575,7 +3582,7 @@ export default async function DashboardView({
                     {/* One column per metric: its season bars, then the two
                         same-day comparisons underneath. */}
                     {row.items.map(({ m, set }) => (
-                      <div key={`${row.key}-${m.key}`} className="h-full flex flex-col gap-4">
+                      <div key={`${row.key}-${m.key}`} className="h-full min-w-0 flex flex-col gap-4">
                         <div className="flex-1">
                           <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
                             current={set.cur[m.key] ?? 0} bars={regBars(set, m.key)} notes={m.notes}
