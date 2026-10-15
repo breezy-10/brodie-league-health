@@ -22,6 +22,8 @@ type ScheduledRow = {
   is_new: boolean;
   paid: number;
   attendance: Attendance;
+  // The ops game id (absent from an older feed).
+  game_id?: string | null;
 };
 
 async function loadScheduled(season: string, locationNames: string[] | null): Promise<ScheduledRow[] | null> {
@@ -70,9 +72,27 @@ const ATTENDANCE: Record<Exclude<Attendance, "upcoming">, { label: string; style
 };
 const CHIP = "inline-block text-[11px] font-semibold rounded-md px-1.5 py-0.5 whitespace-nowrap";
 // Column widths shared by every day's table: time, location, player, team,
-// price, and on Past, attendance.
+// price, and on Past, attendance and the game's BallerTV, admin and stats
+// links.
 const COLS = ["12%", "17%", "27%", "34%", "10%"];
-const COLS_PAST = ["11%", "15%", "25%", "29%", "8%", "12%"];
+const COLS_PAST = ["9%", "11%", "19%", "22%", "6%", "10%", "8%", "7.5%", "7.5%"];
+
+// The game on BallerTV, found when clicked (see /go/ballertv), and on the
+// admin and stats sites by its ops id: the same three links Stats Health
+// gives each game.
+const ballerTvHref = (r: ScheduledRow) => `/go/ballertv?${new URLSearchParams({
+  location: r.location, at: r.game_at ?? "", tz: r.game_tz, home: r.team ?? "", away: r.opponent ?? "",
+})}`;
+const LINK_STYLE: React.CSSProperties = { height: 24, padding: "0 8px", fontSize: 11 };
+function GameLink({ href, label, title }: { href: string | null; label: string; title: string }) {
+  if (!href) return <span className="text-glass-text-tertiary">—</span>;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="br-btn is-outline is-sm whitespace-nowrap"
+      style={LINK_STYLE} title={title}>
+      {label} ↗
+    </a>
+  );
+}
 
 export default async function ScheduledDropIns({
   season,
@@ -140,7 +160,7 @@ export default async function ScheduledDropIns({
               <div className="overflow-x-auto">
                 {/* Fixed layout with the same widths in every day's table, so the
                     columns line up from one day to the next whatever each holds. */}
-                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 760, tableLayout: "fixed" }}>
+                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1120 : 760, tableLayout: "fixed" }}>
                   <colgroup>
                     {(past ? COLS_PAST : COLS).map((w, i) => <col key={i} style={{ width: w }} />)}
                   </colgroup>
@@ -151,7 +171,14 @@ export default async function ScheduledDropIns({
                       <th className="px-4 py-2.5 text-left font-bold">Player</th>
                       <th className="px-4 py-2.5 text-left font-bold">Team</th>
                       <th className="px-4 py-2.5 text-left font-bold">Price</th>
-                      {past && <th className="px-4 py-2.5 text-left font-bold">Attendance</th>}
+                      {past && (
+                        <>
+                          <th className="px-4 py-2.5 text-left font-bold">Attendance</th>
+                          <th className="px-2 py-2.5 text-left font-bold">BallerTV</th>
+                          <th className="px-2 py-2.5 text-left font-bold">Admin</th>
+                          <th className="px-2 py-2.5 text-left font-bold">Stats</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -185,9 +212,23 @@ export default async function ScheduledDropIns({
                           {r.paid > 0 ? "Paid" : "Free"}
                         </td>
                         {past && r.attendance !== "upcoming" && (
-                          <td className="px-4 py-2.5">
-                            <span className={CHIP} style={ATTENDANCE[r.attendance].style}>{ATTENDANCE[r.attendance].label}</span>
-                          </td>
+                          <>
+                            <td className="px-4 py-2.5">
+                              <span className={CHIP} style={ATTENDANCE[r.attendance].style}>{ATTENDANCE[r.attendance].label}</span>
+                            </td>
+                            <td className="px-2 py-2.5">
+                              <GameLink href={r.game_at ? ballerTvHref(r) : null} label="BallerTV"
+                                title="Watch on BallerTV (opens the game's stream, or its event if the game isn't listed)" />
+                            </td>
+                            <td className="px-2 py-2.5">
+                              <GameLink href={r.game_id ? `https://admin.brodierec.com/games/${r.game_id}` : null} label="Admin"
+                                title="Open this game on the admin site" />
+                            </td>
+                            <td className="px-2 py-2.5">
+                              <GameLink href={r.game_id ? `https://stats.brodierec.com/games/${r.game_id}` : null} label="Stats"
+                                title="Open this game on stats.brodierec.com" />
+                            </td>
+                          </>
                         )}
                       </tr>
                     ))}
