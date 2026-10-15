@@ -239,6 +239,12 @@ async function DropInSummary({ season, locationNames, when }: {
           // The returning players' price, weighted by their drop-ins.
           const rw = (k: keyof DropInRow) =>
             retDropins ? locs.reduce((s, r) => s + ((r[k] as number) ?? 0) * (r.returning_dropins ?? 0), 0) / retDropins : 0;
+          // Paid drop-ins: returning players' not let in free, and any new
+          // player's that was charged. Their prices make up Revenue.
+          const newCharged = sum("new_charged");
+          const newFree = newDropins - newCharged;
+          const retPaid = retDropins - sum("returning_free");
+          const paidDropins = retPaid + newCharged;
           const showed = sum("showed_up");
           const noShow = sum("no_show");
           const notPaid = sum("not_paid");
@@ -272,13 +278,23 @@ async function DropInSummary({ season, locationNames, when }: {
                     accent={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined}
                     sub={
                       <>
-                        <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} games played</span>
-                        <span className="block">{noShow.toLocaleString()} no-shows</span>
-                        <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats</span>
+                        {/* Out of the drop-ins whose team's stats are in, so
+                            the three lines add up to the drop-ins tile. */}
+                        <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} drop-ins with stats in</span>
+                        <span className="block">{noShow.toLocaleString()} {noShow === 1 ? "no-show" : "no-shows"}</span>
+                        <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats, not counted</span>
                       </>
                     } />
                 )}
-                <Tile label="Revenue" value={money(sum("revenue"))} accent={ACCENT} sub="drop-in price after any discount, before processing fees" />
+                <Tile label="Revenue" value={money(sum("revenue"))} accent={ACCENT}
+                  sub={
+                    <>
+                      <span className="block">
+                        {paidDropins.toLocaleString()} paid {paidDropins === 1 ? "drop-in" : "drop-ins"}: {retPaid.toLocaleString()} returning, {newCharged.toLocaleString()} new
+                      </span>
+                      <span className="block">price after any discount, before processing fees</span>
+                    </>
+                  } />
                 <Tile label="Started, not paid" value={notPaid.toLocaleString()}
                   accent={notPaid ? "var(--amber-ink)" : undefined}
                   sub={`${cancelled.toLocaleString()} cancelled`} />
@@ -286,26 +302,29 @@ async function DropInSummary({ season, locationNames, when }: {
 
               <SubHead title="New players" note="Free with First-Time Free" />
               <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-                <Tile label="New players" value={newPlayers.toLocaleString()} accent={ACCENT}
+                {/* Drop-ins first, then who made them, as the tile at the top. */}
+                <Tile label="Drop-ins" value={newDropins.toLocaleString()} accent={ACCENT}
                   sub={
                     <>
-                      <span className="block">{newDropins.toLocaleString()} free {newDropins === 1 ? "drop-in" : "drop-ins"}</span>
-                      {sum("new_charged") > 0 && (
-                        <span className="block" style={{ color: "var(--red)" }}>{sum("new_charged")} charged</span>
-                      )}
+                      <span className="block">by {newPlayers.toLocaleString()} new {newPlayers === 1 ? "player" : "players"}</span>
+                      <span className="block">
+                        {newFree.toLocaleString()} free
+                        {newCharged > 0 && <> · <span style={{ color: "var(--red)" }}>{newCharged.toLocaleString()} charged</span></>}
+                      </span>
                     </>
                   } />
                 <Tile label="Became registrations" value={pct(converted, newPlayers)} accent={ACCENT}
                   sub={`${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
-                <Tile label="Given free" value={money(sum("given_free"))} sub="the drop-in price, waived" />
+                <Tile label="Given free" value={money(sum("given_free"))}
+                  sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
               </div>
 
               <SubHead title="Returning players" note="Charged for each drop-in" />
               <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-                <Tile label="Returning players" value={retPlayers.toLocaleString()} accent={ACCENT}
+                <Tile label="Drop-ins" value={retDropins.toLocaleString()} accent={ACCENT}
                   sub={
                     <>
-                      <span className="block">{retDropins.toLocaleString()} {retDropins === 1 ? "drop-in" : "drop-ins"}</span>
+                      <span className="block">by {retPlayers.toLocaleString()} returning {retPlayers === 1 ? "player" : "players"}</span>
                       {sum("returning_free") > 0 && (
                         <span className="block" style={{ color: "var(--red)" }}>{sum("returning_free")} got in free</span>
                       )}
@@ -450,8 +469,10 @@ async function DropInSummary({ season, locationNames, when }: {
         into registrations for the drop-in&apos;s own season and for another season (usually the next), and a player
         who did both counts in each.
         {past && (
-          <> Showed up: the player has a stat line or is marked as played. A no-show is a game whose stats are in for
-          their team but not for them; a game with no stats for their team yet waits under awaiting stats.</>
+          <> Showed up is out of the drop-ins whose team&apos;s stats are in: the player has a stat line or is marked
+          as played. A no-show is one whose team&apos;s stats are in with nothing for them, so a line entered on a
+          placeholder instead of the player (see Missing stats) also reads as a no-show. A game with no stats for
+          their team yet waits under awaiting stats and is left out of the rate.</>
         )}
         {" "}Started, not paid is drop-ins for these games left as a draft or with a failed payment. Revenue, overall
         and for returning players, is the drop-in price after any discount and before processing fees. Prices are
