@@ -377,17 +377,20 @@ async function DropInSummary({ season, locationNames, when }: {
                               <span style={{ width: "100%", background: "var(--glass-text)" }} />
                             </div>
                           </td>
-                          <Td>{r.dropins.toLocaleString()}</Td>
+                          <Td>
+                            {r.dropins.toLocaleString()}
+                            <CountLine n={r.players} one="player" many="players" />
+                          </Td>
                           <Td>
                             {(r.new_players ?? 0).toLocaleString()}
-                            <DropinsLine n={r.new_dropins ?? 0} />
+                            <CountLine one="drop-in" many="drop-ins" n={r.new_dropins ?? 0} />
                           </Td>
                           <RateTd count={r.converted_same_season ?? 0} total={r.new_players ?? 0} />
                           <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0}
                             note={otherSeasons(r.converted_by_season, selectedSeason)} />
                           <Td>
                             {(r.returning_players ?? 0).toLocaleString()}
-                            <DropinsLine n={r.returning_dropins ?? 0} />
+                            <CountLine one="drop-in" many="drop-ins" n={r.returning_dropins ?? 0} />
                           </Td>
                           <Td>{r.returning_dropins ? money(r.returning_revenue ?? 0) : "—"}</Td>
                           <Td strong>{money(r.revenue)}</Td>
@@ -408,17 +411,20 @@ async function DropInSummary({ season, locationNames, when }: {
                       {locs.length > 1 && (
                         <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
                           <td className="px-4 py-3 font-bold" style={{ color: "var(--glass-text)" }}>All locations</td>
-                          <Td strong>{n.toLocaleString()}</Td>
+                          <Td strong>
+                            {n.toLocaleString()}
+                            <CountLine n={people.players} one="player" many="players" />
+                          </Td>
                           <Td strong>
                             {newPlayers.toLocaleString()}
-                            <DropinsLine n={newDropins} />
+                            <CountLine one="drop-in" many="drop-ins" n={newDropins} />
                           </Td>
                           <RateTd strong count={convertedSame} total={newPlayers} />
                           <RateTd strong count={convertedOther} total={newPlayers}
                             note={otherSeasons(people.converted_by_season, selectedSeason)} />
                           <Td strong>
                             {retPlayers.toLocaleString()}
-                            <DropinsLine n={retDropins} />
+                            <CountLine one="drop-in" many="drop-ins" n={retDropins} />
                           </Td>
                           <Td strong>{retDropins ? money(sum("returning_revenue")) : "—"}</Td>
                           <Td strong>{money(sum("revenue"))}</Td>
@@ -496,12 +502,13 @@ function RateTd({ count, total, color, strong = false, note }: {
   );
 }
 
-// The drop-ins under a player count in the location table.
-function DropinsLine({ n }: { n: number }) {
+// The line under a count in the location table: the drop-ins under a player
+// count, the players under a drop-in count.
+function CountLine({ n, one, many }: { n: number; one: string; many: string }) {
   if (n <= 0) return null;
   return (
     <div className="text-[11px] font-normal text-glass-text-tertiary">
-      {n.toLocaleString()} {n === 1 ? "drop-in" : "drop-ins"}
+      {n.toLocaleString()} {n === 1 ? one : many}
     </div>
   );
 }
