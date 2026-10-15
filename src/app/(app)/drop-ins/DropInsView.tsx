@@ -1,4 +1,4 @@
-import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
+import { canonicalLocation, compareSeasons, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import { requireUser } from "@/lib/auth";
 import { promoFetch } from "@/lib/promo-feed";
@@ -45,6 +45,9 @@ export type DropInRow = {
   // Of those, registered for the drop-in's own season, and for another one.
   converted_same_season?: number;
   converted_other_season?: number;
+  // The same players by the season they registered for (absent from an older
+  // feed).
+  converted_by_season?: Record<string, number>;
   new_charged?: number;
   returning_free?: number;
   given_free?: number;
@@ -66,6 +69,7 @@ export type DropInFeed = {
   players_by_currency: Record<string, {
     players: number; repeat_players: number; new_players?: number; returning_players?: number; converted_players?: number;
     converted_same_season?: number; converted_other_season?: number;
+    converted_by_season?: Record<string, number>;
   }>;
   discount_codes: { code: string; currency: string; uses: number; given_up: number }[];
   truncated: boolean;
@@ -314,7 +318,12 @@ async function DropInSummary({ season, locationNames, when }: {
                     </>
                   } />
                 <Tile label="Became registrations" value={pct(converted, newPlayers)} accent={ACCENT}
-                  sub={`${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
+                  sub={converted
+                    ? `${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${
+                        people.converted_by_season
+                          ? seasonCounts(people.converted_by_season)
+                          : `${convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`}`
+                    : `0 of ${newPlayers.toLocaleString()} new players have registered for a season since`} />
                 <Tile label="Given free" value={money(sum("given_free"))}
                   sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
               </div>
@@ -372,7 +381,8 @@ async function DropInSummary({ season, locationNames, when }: {
                           <Td>{r.dropins.toLocaleString()}</Td>
                           <Td>{(r.new_players ?? 0).toLocaleString()}</Td>
                           <RateTd count={r.converted_same_season ?? 0} total={r.new_players ?? 0} />
-                          <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0} />
+                          <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0}
+                            note={otherSeasons(r.converted_by_season, selectedSeason)} />
                           <Td>
                             {(r.returning_players ?? 0).toLocaleString()}
                             {(r.returning_dropins ?? 0) > 0 && (
@@ -403,7 +413,8 @@ async function DropInSummary({ season, locationNames, when }: {
                           <Td strong>{n.toLocaleString()}</Td>
                           <Td strong>{newPlayers.toLocaleString()}</Td>
                           <RateTd strong count={convertedSame} total={newPlayers} />
-                          <RateTd strong count={convertedOther} total={newPlayers} />
+                          <RateTd strong count={convertedOther} total={newPlayers}
+                            note={otherSeasons(people.converted_by_season, selectedSeason)} />
                           <Td strong>{retPlayers.toLocaleString()}</Td>
                           <Td strong>{retDropins ? money(sum("returning_revenue")) : "—"}</Td>
                           <Td strong>{money(sum("revenue"))}</Td>
@@ -466,8 +477,8 @@ async function DropInSummary({ season, locationNames, when }: {
         and no earlier drop-in; new players&apos; drop-ins are meant to be free, returning players&apos; charged, so
         the price figures are measured on returning players&apos; drop-ins only. Became registrations is new drop-in
         players who completed a paid season registration after their drop-in, for any season; the table splits it
-        into registrations for the drop-in&apos;s own season and for another season (usually the next), and a player
-        who did both counts in each.
+        into registrations for the drop-in&apos;s own season and for any other, named under the count, and a player
+        who registered for two seasons counts under each.
         {past && (
           <> Showed up is out of the drop-ins whose team&apos;s stats are in: the player has a stat line or is marked
           as played. A no-show is one whose team&apos;s stats are in with nothing for them, so a line entered on a
@@ -480,6 +491,20 @@ async function DropInSummary({ season, locationNames, when }: {
       </p>
     </div>
   );
+}
+
+// "1 for Fall '26, 2 for Winter '27": each season the converted players
+// registered for, oldest first.
+function seasonCounts(by: Record<string, number>): string {
+  return Object.entries(by)
+    .sort((a, b) => compareSeasons(a[0], b[0]))
+    .map(([season, n]) => `${n.toLocaleString()} for ${season}`)
+    .join(", ");
+}
+// The seasons other than the drop-in's own, for the "another season" column.
+function otherSeasons(by: Record<string, number> | undefined, own: string): string | null {
+  const other = Object.fromEntries(Object.entries(by ?? {}).filter(([season]) => season !== own));
+  return Object.keys(other).length ? seasonCounts(other) : null;
 }
 
 // Played games: most players showing is the point, so a low rate reads red.
@@ -501,8 +526,10 @@ function Th({ children, align = "right" }: { children: React.ReactNode; align?: 
   return <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold`}>{children}</th>;
 }
 
-function RateTd({ count, total, color, strong = false }: {
+function RateTd({ count, total, color, strong = false, note }: {
   count: number; total: number; color?: string; strong?: boolean;
+  // A line under the count, e.g. which seasons.
+  note?: string | null;
 }) {
   return (
     <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
@@ -510,6 +537,7 @@ function RateTd({ count, total, color, strong = false }: {
       <div className="text-[11px] text-glass-text-tertiary leading-snug">
         {count.toLocaleString()} of {total.toLocaleString()}
       </div>
+      {note && <div className="text-[11px] text-glass-text-tertiary leading-snug">{note}</div>}
     </td>
   );
 }
