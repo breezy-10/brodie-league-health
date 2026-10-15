@@ -24,7 +24,13 @@ type ScheduledRow = {
   attendance: Attendance;
   // The ops game id (absent from an older feed).
   game_id?: string | null;
+  // Where the player's stats went on a game already played (absent from an
+  // older feed; null for a game to come), and the placeholders' names when
+  // they went to one.
+  stat_line?: StatLine | null;
+  placeholder_names?: string | null;
 };
+type StatLine = "player" | "placeholder" | "not_recorded" | "awaiting";
 
 async function loadScheduled(season: string, locationNames: string[] | null): Promise<ScheduledRow[] | null> {
   try {
@@ -71,11 +77,21 @@ const ATTENDANCE: Record<Exclude<Attendance, "upcoming">, { label: string; style
   awaiting: { label: "Awaiting stats", style: { color: "var(--glass-text-secondary)", background: "var(--fill-3)" } },
 };
 const CHIP = "inline-block text-[11px] font-semibold rounded-md px-1.5 py-0.5 whitespace-nowrap";
+// Where the stats went: on the player, on a spare (a placeholder profile with
+// no account and no roster spot, like "Spare player" or "6 Player"), not on
+// the team's sheet at all, or no sheet yet. The Missing stats tab lists every
+// drop-in without a line of their own.
+const STAT_LINE: Record<StatLine, { label: string; style: React.CSSProperties }> = {
+  player: { label: "On player", style: { color: "var(--green)", background: "var(--green-tint)" } },
+  placeholder: { label: "On a spare", style: { color: "var(--red)", background: "var(--red-tint)" } },
+  not_recorded: { label: "Not on sheet", style: { color: "var(--amber-ink)", background: "var(--amber-tint)" } },
+  awaiting: { label: "No stats yet", style: { color: "var(--glass-text-secondary)", background: "var(--fill-3)" } },
+};
 // Column widths shared by every day's table: time, location, player, team,
-// price, and on Past, attendance and the game's BallerTV, admin and stats
-// links.
+// price, and on Past, attendance, where the stats went, and the game's
+// BallerTV, admin and stats links.
 const COLS = ["12%", "17%", "27%", "34%", "10%"];
-const COLS_PAST = ["9%", "11%", "19%", "22%", "6%", "10%", "8%", "7.5%", "7.5%"];
+const COLS_PAST = ["8%", "10%", "16%", "19%", "5%", "10%", "11%", "7%", "7%", "7%"];
 
 // The game on BallerTV, found when clicked (see /go/ballertv), and on the
 // admin and stats sites by its ops id: the same three links Stats Health
@@ -160,7 +176,7 @@ export default async function ScheduledDropIns({
               <div className="overflow-x-auto">
                 {/* Fixed layout with the same widths in every day's table, so the
                     columns line up from one day to the next whatever each holds. */}
-                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1120 : 760, tableLayout: "fixed" }}>
+                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1240 : 760, tableLayout: "fixed" }}>
                   <colgroup>
                     {(past ? COLS_PAST : COLS).map((w, i) => <col key={i} style={{ width: w }} />)}
                   </colgroup>
@@ -174,6 +190,7 @@ export default async function ScheduledDropIns({
                       {past && (
                         <>
                           <th className="px-4 py-2.5 text-left font-bold">Attendance</th>
+                          <th className="px-2 py-2.5 text-left font-bold">Stat line</th>
                           <th className="px-2 py-2.5 text-left font-bold">BallerTV</th>
                           <th className="px-2 py-2.5 text-left font-bold">Admin</th>
                           <th className="px-2 py-2.5 text-left font-bold">Stats</th>
@@ -217,6 +234,20 @@ export default async function ScheduledDropIns({
                               <span className={CHIP} style={ATTENDANCE[r.attendance].style}>{ATTENDANCE[r.attendance].label}</span>
                             </td>
                             <td className="px-2 py-2.5">
+                              {r.stat_line ? (
+                                <>
+                                  <span className={CHIP} style={STAT_LINE[r.stat_line].style}>{STAT_LINE[r.stat_line].label}</span>
+                                  {r.stat_line === "placeholder" && r.placeholder_names && (
+                                    <div className="mt-0.5 text-[11px] text-glass-text-tertiary truncate" title={r.placeholder_names}>
+                                      {r.placeholder_names}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-glass-text-tertiary">—</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-2.5">
                               <GameLink href={r.game_at ? ballerTvHref(r) : null} label="BallerTV"
                                 title="Watch on BallerTV (opens the game's stream, or its event if the game isn't listed)" />
                             </td>
@@ -245,7 +276,9 @@ export default async function ScheduledDropIns({
           <>
             Every drop-in that went through for a game already played, by the game it was for. Showed up is a stat line
             or marked as played on the game; a no-show is a game whose stats are in for their team but not for them;
-            awaiting stats is a game with none in for their team yet. Times are the venue&apos;s own local time.
+            awaiting stats is a game with none in for their team yet. Stat line says where their stats went: on the
+            player, on a spare (a placeholder with no account and no roster spot, like &ldquo;Spare player&rdquo;),
+            not on their team&apos;s sheet, or no stats in yet. Times are the venue&apos;s own local time.
           </>
         ) : (
           <>
