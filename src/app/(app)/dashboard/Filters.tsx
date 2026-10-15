@@ -25,6 +25,9 @@ export interface FilterOptions {
   // When true, From and To date fields render after Location ("YYYY-MM-DD",
   // either may be left empty).
   dates?: boolean;
+  // When provided, a District filter renders after Location (param
+  // "district"); the page narrows its locations to the chosen districts.
+  districts?: string[];
 }
 
 const sameSet = (a: string[], b: string[]) =>
@@ -41,23 +44,26 @@ export default function Filters({
   keep?: Record<string, string>;
   // Each filter is a list: [] means "all locations", and for season/week means
   // "the default" (the resolved season / current week).
-  current: { seasons: string[]; locations: string[]; weeks?: string[]; from?: string; to?: string };
+  current: { seasons: string[]; locations: string[]; weeks?: string[]; from?: string; to?: string; districts?: string[] };
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const hasWeeks = !!options.weeks?.length;
+  const hasDistricts = !!options.districts?.length;
 
   // Stage the selections locally; only push to the URL when Apply is clicked.
   const [seasons, setSeasons] = useState(current.seasons);
   const [weeks, setWeeks] = useState(current.weeks ?? []);
   const [locations, setLocations] = useState(current.locations);
+  const [districts, setDistricts] = useState(current.districts ?? []);
   const [from, setFrom] = useState(current.from ?? "");
   const [to, setTo] = useState(current.to ?? "");
 
   const dirty =
     !sameSet(seasons, current.seasons) || !sameSet(locations, current.locations) ||
     (hasWeeks && !sameSet(weeks, current.weeks ?? [])) ||
+    (hasDistricts && !sameSet(districts, current.districts ?? [])) ||
     (!!options.dates && (from !== (current.from ?? "") || to !== (current.to ?? "")));
 
   function apply() {
@@ -67,6 +73,7 @@ export default function Filters({
     if (seasons.length) next.set("season", seasons.join(","));
     if (hasWeeks && weeks.length) next.set("week", weeks.join(","));
     if (locations.length) next.set("location", locations.join(","));
+    if (hasDistricts && districts.length) next.set("district", districts.join(","));
     if (options.dates && from) next.set("from", from);
     if (options.dates && to) next.set("to", to);
     const qs = next.toString();
@@ -108,6 +115,17 @@ export default function Filters({
           searchable
         />
       </Field>
+      {hasDistricts && (
+        <Field label="District">
+          <MultiSelect
+            options={options.districts!.map((d) => ({ value: d, label: d }))}
+            value={districts}
+            onChange={setDistricts}
+            allLabel="All districts"
+            singularNoun="districts"
+          />
+        </Field>
+      )}
       {options.dates && (
         <>
           <Field label="From">
