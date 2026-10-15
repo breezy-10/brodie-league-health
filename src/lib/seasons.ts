@@ -51,6 +51,12 @@ function parseSeason(name: string): { i: number; yy: number } | null {
 const seasonLabel = (i: number, yy: number) =>
   `${SEASON_TERMS[i][0].toUpperCase()}${SEASON_TERMS[i].slice(1)} '${String(yy).padStart(2, "0")}`;
 const seasonRank = (s: { i: number; yy: number }) => s.yy * 4 + s.i;
+// Oldest season first; a name that doesn't parse goes last.
+export function compareSeasons(a: string, b: string): number {
+  const x = parseSeason(a), y = parseSeason(b);
+  if (x && y) return seasonRank(x) - seasonRank(y);
+  return x ? -1 : y ? 1 : a.localeCompare(b);
+}
 
 // Every season from `earliest` through `latest` inclusive, oldest first. The
 // promo tracker only lists the seasons it actively syncs, which is far fewer
