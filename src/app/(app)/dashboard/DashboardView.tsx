@@ -1865,7 +1865,9 @@ const signedPct = (cur: number, base: number): string | null =>
 
 // One metric column inside a location card: count + both same-day deltas.
 function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, money: isMoney }: {
-  label: string; cur: number; prev: number; year: number; prevLabel: string; yearLabel: string;
+  // prev or year is null when that season has nothing to compare against (a
+  // per-athlete figure where it had no athletes yet), and reads "—".
+  label: string; cur: number; prev: number | null; year: number | null; prevLabel: string; yearLabel: string;
   // Read under the deltas — how many of these teams can field a side, and how
   // many have barely started.
   notes?: { text: string; tone?: "gold" | "bad" | "yellow" }[];
@@ -1874,8 +1876,24 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
 }) {
   const fmt = (n: number) => (isMoney ? money(n) : n.toLocaleString());
   const fmtDelta = (n: number) => (isMoney ? `${n > 0 ? "+" : ""}${money(n)}` : signed(n));
-  const dPrev = cur - prev, dYear = cur - year;
-  const pctPrev = signedPct(cur, prev), pctYear = signedPct(cur, year);
+  const delta = (other: number | null, otherLabel: string, first: boolean) => {
+    const cls = `font-semibold leading-snug ${first ? "mt-1 " : ""}${isMoney ? "text-[11px] sm:text-[10px]" : "text-[11px] whitespace-nowrap"}`;
+    if (other === null) {
+      return (
+        <p className={cls} style={{ color: "var(--glass-text-tertiary)" }}>
+          —<span className="font-normal"> vs {otherLabel}</span>
+        </p>
+      );
+    }
+    const d = cur - other, pct = signedPct(cur, other);
+    return (
+      <p className={cls} style={{ color: deltaColor(d) }}>
+        {fmtDelta(d)}
+        <span className="font-normal text-glass-text-tertiary"> vs {otherLabel}</span>
+        {pct && <span className="text-[10px] sm:text-[9px] font-normal"> ({pct})</span>}
+      </p>
+    );
+  };
   return (
     <div className="min-w-0">
       <p className="text-xs font-semibold text-glass-text-tertiary">{label}</p>
@@ -1885,18 +1903,8 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
           and a clipped percentage is worse than a second line. */}
       {/* Money runs to twice the characters of a count, so it sets a size
           down and is free to wrap rather than run into the next column. */}
-      <p className={`font-semibold mt-1 leading-snug ${isMoney ? "text-[11px] sm:text-[10px]" : "text-[11px] whitespace-nowrap"}`}
-        style={{ color: deltaColor(dPrev) }}>
-        {fmtDelta(dPrev)}
-        <span className="font-normal text-glass-text-tertiary"> vs {prevLabel}</span>
-        {pctPrev && <span className="text-[10px] sm:text-[9px] font-normal"> ({pctPrev})</span>}
-      </p>
-      <p className={`font-semibold leading-snug ${isMoney ? "text-[11px] sm:text-[10px]" : "text-[11px] whitespace-nowrap"}`}
-        style={{ color: deltaColor(dYear) }}>
-        {fmtDelta(dYear)}
-        <span className="font-normal text-glass-text-tertiary"> vs {yearLabel}</span>
-        {pctYear && <span className="text-[10px] sm:text-[9px] font-normal"> ({pctYear})</span>}
-      </p>
+      {delta(prev, prevLabel, true)}
+      {delta(year, yearLabel, false)}
       {/* Set as chips rather than more grey lines: they compete with the
           deltas above them and are the numbers worth reading twice. */}
       {!!notes?.length && (
@@ -2394,39 +2402,45 @@ function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; se
   const cents = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const href = (extra: Record<string, string>) =>
     `/discounts/players?${new URLSearchParams({ season, location: row.location, ...extra })}`;
+  // Each kind of discount on its own row, then free. A registration carrying
+  // two kinds (a returning-player discount stacked with a code) counts under
+  // each, for what each took off. An older feed without the split keeps the
+  // single "Got a discount" row.
+  const split = row.returning_discounted != null && row.referral_discounted != null && row.other_discounted != null;
   const items = [
-    { label: "Got a discount", n: row.discounted, cost: row.discount_total ?? 0, tone: discountTone, href: href({}) },
-    ...(row.other_discounted != null ? [{
-      label: "Other discounts", n: row.other_discounted, cost: row.other_discount_total ?? 0, tone: discountTone,
-      href: href({ kind: "other" }),
-    }] : []),
+    ...(split ? [
+      { label: "Returning player discount", n: row.returning_discounted!, cost: row.returning_discount_total ?? 0, tone: discountTone, href: href({ kind: "returning" }) },
+      { label: "Referral discount", n: row.referral_discounted!, cost: row.referral_discount_total ?? 0, tone: discountTone, href: href({ kind: "referral" }) },
+      { label: "Other discount", n: row.other_discounted!, cost: row.other_discount_total ?? 0, tone: discountTone, href: href({ kind: "other" }) },
+    ] : [
+      { label: "Got a discount", n: row.discounted, cost: row.discount_total ?? 0, tone: discountTone, href: href({}) },
+    ]),
     { label: "Free", n: row.free, cost: row.free_value ?? 0, tone: freeTone, href: href({ free: "1" }) },
   ];
   return (
     <div className="mt-2.5 pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
       <div className="flex items-baseline gap-2 text-[11px] font-semibold text-glass-text-tertiary mb-1">
         <span className="flex-1 min-w-0 truncate">Discounts ({row.currency.toUpperCase()})</span>
-        <span className="shrink-0 w-16 text-right">Players</span>
+        <span className="shrink-0 w-14 text-right">Players</span>
         <span className="shrink-0 w-[4.25rem] text-right">Given up</span>
       </div>
       {items.map((it) => {
         const pct = (100 * it.n) / row.regs;
         return (
-          <div key={it.label} className="flex items-baseline gap-2">
-            <a href={it.href} className="flex-1 min-w-0 truncate text-glass-text-secondary hover:text-glass-text hover:underline">
+          // The label wraps rather than truncates: "Returning player discount"
+          // is longer than the card's label column.
+          <div key={it.label} className="flex items-baseline gap-2 py-px">
+            <a href={it.href} className="flex-1 min-w-0 leading-tight text-glass-text-secondary hover:text-glass-text hover:underline">
               {it.label}
             </a>
             <span className="shrink-0 tabular font-semibold" style={{ color: it.tone(pct) }}>{Math.round(pct)}%</span>
-            <span className="shrink-0 w-16 text-right tabular text-glass-text-tertiary">{it.n} of {row.regs}</span>
+            <span className="shrink-0 w-14 text-right tabular text-glass-text-tertiary">{it.n} of {row.regs}</span>
             <span className="shrink-0 w-[4.25rem] text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>{cents(it.cost)}</span>
           </div>
         );
       })}
       {(() => {
-        const notes = [
-          ...(row.other_discounted != null ? ["Other = not returning player or referral"] : []),
-          ...(seasonToDate ? ["season to date"] : []),
-        ];
+        const notes = seasonToDate ? ["season to date"] : [];
         return notes.length ? <p className="mt-1 text-[10px] text-glass-text-tertiary">{notes.join(" · ")}</p> : null;
       })()}
     </div>
@@ -2548,15 +2562,18 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
             l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
           const locCurrency = l.seasons.find((s) => s.kind === "current")?.currency ?? "CAD";
           // What a season's revenue works out to per athlete registered in it,
-          // team fees left out (see PacingSeason.athletes_indiv). Rounded to
-          // the dollar; cents are noise against a season total.
-          const perAthlete = (kind: string) => {
+          // team fees left out (see PacingSeason.athletes_indiv), both counted
+          // as they stood at the same moment of that season's run. Rounded to
+          // the dollar; cents are noise against a season total. Null when the
+          // season had no athletes yet: there is no figure to compare against,
+          // and $0 read as a real one ("+$287 vs W'26" at a venue not open then).
+          const perAthlete = (kind: string): number | null => {
             const x = l.seasons.find((y) => y.kind === kind);
-            if (!x) return 0;
+            if (!x) return null;
             const indiv = x.athletes_indiv != null;
             const a = indiv ? x.athletes_indiv! : x.athletes;
             const rev = (indiv ? x.revenue_indiv_native : x.revenue_native) ?? 0;
-            return a ? Math.round(rev / a) : 0;
+            return a ? Math.round(rev / a) : null;
           };
           const curTeams = get("current", "captains");
           const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
@@ -2708,7 +2725,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   cur={get("current", "revenue_native")} prev={get("prev_season", "revenue_native")} year={get("prev_year", "revenue_native")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
                 <LocationMetric label={`Per athlete (${locCurrency})`} money
-                  cur={perAthlete("current")} prev={perAthlete("prev_season")} year={perAthlete("prev_year")}
+                  cur={perAthlete("current") ?? 0} prev={perAthlete("prev_season")} year={perAthlete("prev_year")}
                   prevLabel={prevLabel} yearLabel={yearLabel} />
               </div>
               {/* What came off the price to get there. Always rendered, even
