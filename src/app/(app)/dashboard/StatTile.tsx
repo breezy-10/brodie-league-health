@@ -37,6 +37,9 @@ type Tile = {
   // Chips in a row per colour, green first, then yellow, red and grey, each
   // row keeping the order given, rather than one list.
   pillsByTone?: boolean;
+  // A second figure read the same way as the first (value, unit, share),
+  // straight under it, with a short caption beside it.
+  value2?: { value: string; unit?: string; suffix?: string; caption?: string; color?: string };
 };
 
 export type { Tile, Tone };
@@ -52,7 +55,7 @@ const PILL_STYLES: Record<string, { color: string; borderColor: string; backgrou
 // orders the chips in its body, and the two have to share a piece of state.
 // Every prop is plain data, so the server components that render it are
 // unaffected.
-export default function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, pillsByTone, corner, below }: Tile) {
+export default function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, pillsByTone, value2, corner, below }: Tile) {
   const [order, setOrder] = useState<"az" | "size">("az");
   // Normalised once: a chip can be given as a bare string.
   const chips = pills?.map((p) => (typeof p === "string" ? { text: p } : p));
@@ -106,6 +109,14 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
           <span className="text-2xl font-bold tabular shrink-0" style={{ color: corner.color ?? "var(--glass-text)" }}>{corner.value}</span>
         )}
       </div>
+      {value2 && (
+        <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
+          <span className="text-2xl font-bold tabular" style={{ color: value2.color ?? "var(--glass-text)" }}>{value2.value}</span>
+          {value2.unit && <span className="text-sm text-glass-text-tertiary">{value2.unit}</span>}
+          {value2.suffix && <span className="text-base font-bold tabular" style={{ color: value2.color ?? "var(--glass-text)" }}>{value2.suffix}</span>}
+          {value2.caption && <span className="text-[11px] text-glass-text-tertiary leading-snug">{value2.caption}</span>}
+        </div>
+      )}
       {below && (
         <>
           {shown.length > 0 && <ChipRow chips={shown} fallback={pillTone ?? tone} />}
