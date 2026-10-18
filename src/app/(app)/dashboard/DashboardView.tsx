@@ -3986,12 +3986,20 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
         <StatTile
           label={teamsRegistered != null ? "Teams registered" : "Teams booked for"}
           value={(teamsRegistered ?? t?.teams_week_one ?? 0).toLocaleString()}
+          // Against the teams booked: every night's capacity added up, the
+          // table's Total below.
+          unit={teamsRegistered != null ? `/ ${totals.booked.toLocaleString()} booked` : undefined}
+          valueSuffix={teamsRegistered != null && totals.booked ? `${Math.round((teamsRegistered / totals.booked) * 100)}%` : undefined}
+          value2={teamsRegistered != null && teamsFullRoster != null ? {
+            value: teamsFullRoster.toLocaleString(),
+            unit: `/ ${totals.booked.toLocaleString()} booked`,
+            suffix: totals.booked ? `${Math.round((teamsFullRoster / totals.booked) * 100)}%` : undefined,
+            caption: "with 7 or more players",
+            // The full-roster colour, as everywhere a 7+ count appears.
+            color: "var(--amber-ink)",
+          } : undefined}
           tone="default"
-          lines={[
-            ...(teamsFullRoster != null ? [{ text: `${teamsFullRoster.toLocaleString()} with 7 or more players`, chip: true }] : []),
-            // What the chips below read, under the chip it would otherwise sit above.
-            ...(teamsRegistered != null ? [{ text: "Each location: teams registered / teams booked" }] : []),
-          ]}
+          lines={teamsRegistered != null ? [{ text: "Each location: teams registered / teams booked" }] : undefined}
           pills={teamsRegistered != null
             ? locFill.map((f) => ({
                 text: `${f.location} ${f.registered}/${f.booked}`,
