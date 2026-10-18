@@ -3799,6 +3799,9 @@ const BOOKING_STATUS_TINT: Record<string, string> = {
   need_to_book: "var(--red-tint)",
 };
 const DOW_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// The roster chips under a night's teams registered: set a size down and at
+// a lighter weight, so the count above them stays the first thing read.
+const ROSTER_CHIP = "inline-block text-[10px] font-medium rounded-full px-1.5 py-px max-w-full sm:whitespace-nowrap";
 // Teams registered against teams booked, both numbers in one colour: green
 // when they match, yellow when more teams registered than were booked (not
 // enough space yet), red when more were booked than registered (spots paid
@@ -4098,21 +4101,21 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                       {/* The average first — it describes the night as a whole; the
                           chips under it are the two tails. */}
                       {(!!reg?.full || !!reg?.low || !!reg?.teams) && (
-                        <div className="mt-1 flex flex-col items-end gap-1">
+                        <div className="mt-1 flex flex-col items-end gap-0.5">
                           {!!reg?.teams && (
-                            <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                            <span className={ROSTER_CHIP}
                               style={rosterChipStyle(reg.players / reg.teams)}>
                               {(reg.players / reg.teams).toFixed(1)} avg players per team
                             </span>
                           )}
                           {!!reg?.full && (
-                            <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                            <span className={ROSTER_CHIP}
                               style={FULL_ROSTER_CHIP}>
                               {reg.full} with 7 or more players
                             </span>
                           )}
                           {!!reg?.low && (
-                            <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                            <span className={ROSTER_CHIP}
                               style={{ color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" }}>
                               {reg.low} with 3 or fewer players
                             </span>
@@ -4154,19 +4157,19 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                     {totals.registered ? totals.registered.toLocaleString() : "—"}
                   </div>
                   {!!totals.registered && (
-                    <div className="mt-1 flex flex-col items-end gap-1">
-                      <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                    <div className="mt-1 flex flex-col items-end gap-0.5">
+                      <span className={ROSTER_CHIP}
                         style={rosterChipStyle(totals.players / totals.registered)}>
                         {(totals.players / totals.registered).toFixed(1)} avg players per team
                       </span>
                       {!!totals.full && (
-                        <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                        <span className={ROSTER_CHIP}
                           style={FULL_ROSTER_CHIP}>
                           {totals.full} with 7 or more players
                         </span>
                       )}
                       {!!totals.low && (
-                        <span className="inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+                        <span className={ROSTER_CHIP}
                           style={{ color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" }}>
                           {totals.low} with 3 or fewer players
                         </span>
