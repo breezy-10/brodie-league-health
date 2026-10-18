@@ -3799,6 +3799,15 @@ const BOOKING_STATUS_TINT: Record<string, string> = {
   need_to_book: "var(--red-tint)",
 };
 const DOW_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// Teams registered against teams booked, both numbers in one colour: green
+// when they match, yellow when more teams registered than were booked (not
+// enough space yet), red when more were booked than registered (spots paid
+// for and empty). Nothing on either side stays neutral.
+const fillColor = (registered: number, booked: number) =>
+  registered === 0 && booked === 0 ? "var(--glass-text-tertiary)"
+    : registered === booked ? "var(--green)"
+      : registered > booked ? "var(--amber-ink)"
+        : "var(--red)";
 const BOOKING_STATUS_TONE: Record<string, Tone> = {
   booked_with_contract: "ok",
   booked_with_flexibility: "ok",
@@ -4056,6 +4065,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 const firm = BOOKING_STATUS_ORDER.find((s) => (n.by_status[s] ?? 0) > 0) ?? "need_to_book";
                 const dayColor = BOOKING_STATUS_COLOR[firm] ?? "var(--glass-text)";
                 const reg = regDays.get(n.day);
+                const fill = fillColor(reg?.teams ?? 0, n.teams_capacity ?? n.teams);
                 return (
                   <tr key={`${l.location}|${n.day}`}
                     className={`align-top border-t ${i === 0 ? "border-glass-border" : "border-glass-border-light"}`}>
@@ -4065,7 +4075,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                     )}
                     <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: dayColor }}>{n.day}</td>
                     <td className="px-5 py-3 text-right tabular align-top">
-                      <div className="font-bold" style={{ color: reg ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
+                      <div className="font-bold" style={{ color: fill }}>
                         {reg ? reg.teams.toLocaleString() : "—"}
                       </div>
                       {/* How many of the night's teams can field a side, and
@@ -4100,8 +4110,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                         still need-to-book. What is secured sits underneath when
                         the two differ. */}
                     <td className="px-5 py-3 text-right tabular align-top">
-                      <div className="font-bold"
-                        style={{ color: n.teams ? "var(--glass-gold)" : "var(--glass-text-tertiary)" }}>
+                      <div className="font-bold" style={{ color: fill }}>
                         {(n.teams_capacity ?? n.teams).toLocaleString()}
                       </div>
                       {(n.teams_capacity ?? 0) > n.teams && (
@@ -4126,7 +4135,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                   {totals.nights} night{totals.nights === 1 ? "" : "s"} · {locations.length} locations
                 </td>
                 <td className="px-5 py-3 text-right tabular align-top">
-                  <div className="font-bold" style={{ color: totals.registered ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
+                  <div className="font-bold" style={{ color: fillColor(totals.registered, totals.booked) }}>
                     {totals.registered ? totals.registered.toLocaleString() : "—"}
                   </div>
                   {!!totals.registered && (
@@ -4151,7 +4160,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                   )}
                 </td>
                 <td className="px-5 py-3 text-right tabular align-top font-bold"
-                  style={{ color: totals.booked ? "var(--glass-gold)" : "var(--glass-text-tertiary)" }}>
+                  style={{ color: fillColor(totals.registered, totals.booked) }}>
                   {totals.booked.toLocaleString()}
                 </td>
                 {/* Nights by their firmest status, which is what the column
