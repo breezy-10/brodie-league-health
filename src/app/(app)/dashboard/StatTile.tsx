@@ -28,8 +28,8 @@ type Tile = {
   // sortValue is what "largest first" means for that chip — a count, a share,
   // a balance, an elapsed time. Without it a chip can only be ordered A-Z,
   // since the number is inside its text.
-  // sub is a second, smaller line inside the chip.
-  pills?: (string | { text: string; tone?: Tone; sortValue?: number; sub?: string })[];
+  // sub is one or more smaller lines inside the chip, under its text.
+  pills?: (string | { text: string; tone?: Tone; sortValue?: number; sub?: string | string[] })[];
   pillsEmpty?: string;
   // Defaults to the card's tone; set when the chips mean something different
   // from the headline (an amber card listing red gaps).
@@ -182,7 +182,7 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
                 return (
                   <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full leading-snug" style={st}>
                     {p.text}
-                    {p.sub && <span className="block text-[10px] opacity-80">{p.sub}</span>}
+                    {subLines(p.sub).map((t) => <span key={t} className="block text-[10px] opacity-80">{t}</span>)}
                   </span>
                 );
               })}
@@ -201,17 +201,20 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
   );
 }
 
+// A chip's sub as its list of lines.
+const subLines = (sub?: string | string[]) => (sub == null ? [] : Array.isArray(sub) ? sub : [sub]);
+
 // The order of pillsByTone's rows.
 const TONE_ROWS: Tone[] = ["ok", "warn", "bad", "default"];
 
-function ChipRow({ chips, fallback, flush = false }: { chips: { text: string; tone?: Tone; sub?: string }[]; fallback: Tone; flush?: boolean }) {
+function ChipRow({ chips, fallback, flush = false }: { chips: { text: string; tone?: Tone; sub?: string | string[] }[]; fallback: Tone; flush?: boolean }) {
   return (
     <div className={`${flush ? "" : "mt-2 "}flex flex-wrap gap-1.5`}>
       {chips.map((p) => (
         <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full leading-snug"
           style={PILL_STYLES[p.tone ?? fallback] ?? PILL_STYLES.default}>
           {p.text}
-          {p.sub && <span className="block text-[10px] opacity-80">{p.sub}</span>}
+          {subLines(p.sub).map((t) => <span key={t} className="block text-[10px] opacity-80">{t}</span>)}
         </span>
       ))}
     </div>
