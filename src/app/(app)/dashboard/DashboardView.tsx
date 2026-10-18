@@ -3904,7 +3904,17 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     },
     { registered: 0, booked: 0, full: 0, low: 0, players: 0, nights: 0, byStatus: {} as Record<string, number> },
   );
-  const secured = locations.filter((l) => locTone(l) === "ok" || locTone(l) === "warn").length;
+  // Every location by its firmest night, one card per colour: green (a
+  // contract or a flexible booking), yellow (a verbal) and red (nothing
+  // booked). In comms and can't-book-yet aren't booked either, so they join
+  // the red card, keeping their grey chip so the two still read apart.
+  const byTone = (pred: (t: Tone) => boolean) => [...locations]
+    .filter((l) => pred(locTone(l)))
+    .sort((a, b) => a.location.localeCompare(b.location));
+  const greenLocs = byTone((t) => t === "ok");
+  const yellowLocs = byTone((t) => t === "warn");
+  const redLocs = [...byTone((t) => t === "bad"), ...byTone((t) => t !== "ok" && t !== "warn" && t !== "bad")];
+  const ofAll = (n: number) => (locations.length ? `${Math.round((n / locations.length) * 100)}%` : undefined);
   const statusPill = (s: string, n?: number) => (
     <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
       style={{
@@ -3932,9 +3942,13 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
         <MoreDetails href={APP_URL.facilities} />
       </div>
 
-      <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+      {/* The teams card keeps the width it had (its booked figures sit in the
+          corner), with the three status cards beside it on a wide screen and
+          in a row of their own beneath it on a narrower one. */}
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-3 xl:grid-cols-5">
         {/* Teams actually registered against the capacity booked for them, so
             the two read side by side rather than needing a second card. */}
+        <div className="md:col-span-3 xl:col-span-2">
         <StatTile
           label={teamsRegistered != null ? "Teams registered" : "Teams booked for"}
           value={(teamsRegistered ?? t?.teams_week_one ?? 0).toLocaleString()}
@@ -3960,17 +3974,25 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
               }
             : undefined}
         />
-        <StatTile label="Locations secured" value={`${secured}`} unit={`/ ${locations.length}`}
-          valueSuffix={locations.length ? `${Math.round((secured / locations.length) * 100)}%` : undefined}
-          sub="a contract or verbal on at least one night"
-          tone={secured === locations.length ? "ok" : "warn"}
-          // The whole roster, each location tinted by its firmest status, so the
-          // red ones are read against everywhere else rather than on their own.
-          // The count above is the green and gold chips, so the two agree.
-          pills={[...locations]
-            .sort((a, b) => a.location.localeCompare(b.location))
-            .map((l) => ({ text: l.location, tone: locTone(l) }))}
-          pillsEmpty="no locations" />
+        </div>
+        <StatTile label="Booked" value={`${greenLocs.length}`} unit={`/ ${locations.length}`}
+          valueSuffix={ofAll(greenLocs.length)}
+          sub="a contract or a flexible booking on at least one night"
+          tone="ok"
+          pills={greenLocs.map((l) => ({ text: l.location, tone: locTone(l) }))}
+          pillsEmpty="none yet" />
+        <StatTile label="Verbal" value={`${yellowLocs.length}`} unit={`/ ${locations.length}`}
+          valueSuffix={ofAll(yellowLocs.length)}
+          sub="promised but not signed: the firmest night is a verbal"
+          tone="warn"
+          pills={yellowLocs.map((l) => ({ text: l.location, tone: locTone(l) }))}
+          pillsEmpty="none" />
+        <StatTile label="Not booked" value={`${redLocs.length}`} unit={`/ ${locations.length}`}
+          valueSuffix={ofAll(redLocs.length)}
+          sub="need to book in red; in comms or can't book yet in grey"
+          tone={redLocs.length ? "bad" : "ok"}
+          pills={redLocs.map((l) => ({ text: l.location, tone: locTone(l) }))}
+          pillsEmpty="every location has a booking" />
       </div>
 
       <div className="rounded-2xl bg-glass-surface shadow-card">
