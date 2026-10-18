@@ -23,7 +23,7 @@ import { loadDropIns } from "../drop-ins/DropInsView";
 import { loadEvents } from "../events/EventsView";
 import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
-import { ScrollUpButton } from "./ScrollUpButton";
+import { BackToTopButton, ScrollUpButton } from "./ScrollUpButton";
 import { SectionJumpBar } from "./SectionJumpBar";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
@@ -4016,7 +4016,10 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
               style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>{season}</span>
           )}
         </div>
-        <MoreDetails href={APP_URL.facilities} />
+        <div className="flex items-center gap-2 shrink-0">
+          <BackToTopButton />
+          <MoreDetails href={APP_URL.facilities} />
+        </div>
       </div>
 
       {/* The teams card is the widest (a chip per location), with the three
@@ -4214,9 +4217,16 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
             })}
             {locations.length > 1 && (
               <tr className="align-top" style={{ borderTop: "2px solid var(--glass-border)" }}>
-                <td className="px-5 py-3 whitespace-nowrap font-bold" style={{ color: "var(--glass-text)" }}>Total</td>
+                {/* The locations sit under Total, in the Location column; the
+                    playing days under it in the Night column. */}
+                <td className="px-5 py-3 whitespace-nowrap">
+                  <div className="font-bold" style={{ color: "var(--glass-text)" }}>Total</div>
+                  <div className="text-xs text-glass-text-tertiary mt-0.5">
+                    {locations.length} location{locations.length === 1 ? "" : "s"}
+                  </div>
+                </td>
                 <td className="px-5 py-3 whitespace-nowrap text-glass-text-tertiary">
-                  {totals.nights} night{totals.nights === 1 ? "" : "s"} · {locations.length} locations
+                  {totals.nights} day{totals.nights === 1 ? "" : "s"}
                 </td>
                 <td className="px-5 py-3 text-right tabular align-top">
                   <div className="font-bold" style={{ color: fillColor(totals.registered, totals.booked) }}>
@@ -4272,7 +4282,10 @@ function SiteVisitsSection({ data, titleSuffix = "" }: { data: SiteVisitsData; t
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Site Visits</h2>
           {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
-        <MoreDetails href={`${APP_URL.feedback}/site-visits`} />
+        <div className="flex items-center gap-2 shrink-0">
+          <BackToTopButton />
+          <MoreDetails href={`${APP_URL.feedback}/site-visits`} />
+        </div>
       </div>
       <div className="rounded-2xl bg-glass-surface overflow-x-auto shadow-card">
         <table className="w-full text-sm">
@@ -4342,7 +4355,10 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Video Reviews</h2>
           {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
-        <MoreDetails href={`${APP_URL.feedback}/video-review`} />
+        <div className="flex items-center gap-2 shrink-0">
+          <BackToTopButton />
+          <MoreDetails href={`${APP_URL.feedback}/video-review`} />
+        </div>
       </div>
       <div className="rounded-2xl bg-glass-surface overflow-x-auto shadow-card">
         <table className="w-full text-sm">
@@ -4477,7 +4493,12 @@ function Section({
           )}
           {headerExtra}
         </div>
-        {href && <MoreDetails href={href} />}
+        {/* Every section offers the way back up to the Jump to row, whether
+            or not it has an app to send you to. */}
+        <div className="flex items-center gap-2 shrink-0">
+          <BackToTopButton />
+          {href && <MoreDetails href={href} />}
+        </div>
       </div>
       {tiles === null ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm text-glass-text-tertiary shadow-card">
