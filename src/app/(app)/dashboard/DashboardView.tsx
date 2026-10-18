@@ -3803,6 +3803,11 @@ const DOW_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // when they match, yellow when more teams registered than were booked (not
 // enough space yet), red when more were booked than registered (spots paid
 // for and empty). Nothing on either side stays neutral.
+const fillTone = (registered: number, booked: number): Tone =>
+  registered === 0 && booked === 0 ? "default"
+    : registered === booked ? "ok"
+      : registered > booked ? "warn"
+        : "bad";
 const fillColor = (registered: number, booked: number) =>
   registered === 0 && booked === 0 ? "var(--glass-text-tertiary)"
     : registered === booked ? "var(--green)"
@@ -3925,6 +3930,15 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
   const yellowLocs = byTone((t) => t === "warn");
   const redLocs = [...byTone((t) => t === "bad"), ...byTone((t) => t !== "ok" && t !== "warn" && t !== "bad")];
   const ofAll = (n: number) => (locations.length ? `${Math.round((n / locations.length) * 100)}%` : undefined);
+  // Each location's teams registered against teams booked, added up over its
+  // nights the same way the table below foots them, for the chips on the teams
+  // card: green when they match, yellow when more registered, red when more
+  // booked (fillTone).
+  const locFill = locations.map((l) => ({
+    location: l.location,
+    registered: [...regDaysFor(l.location).values()].reduce((n, r) => n + r.teams, 0),
+    booked: (l.by_day ?? []).reduce((n, d) => n + (d.teams_capacity ?? d.teams), 0),
+  }));
   const statusPill = (s: string, n?: number) => (
     <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
       style={{
@@ -3952,39 +3966,26 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
         <MoreDetails href={APP_URL.facilities} />
       </div>
 
-      {/* The teams card keeps the width it had (its booked figures sit in the
-          corner), with the three status cards beside it on a wide screen and
-          in a row of their own beneath it on a narrower one. */}
+      {/* The teams card is the widest (a chip per location), with the three
+          status cards beside it on a wide screen and in a row of their own
+          beneath it on a narrower one. */}
       <div className="grid gap-3 grid-cols-1 md:grid-cols-3 xl:grid-cols-5">
-        {/* Teams actually registered against the capacity booked for them, so
-            the two read side by side rather than needing a second card. */}
+        {/* Teams registered, how many can field a side, and every location's
+            registered teams against the teams booked for it. */}
         <div className="md:col-span-3 xl:col-span-2">
         <StatTile
           label={teamsRegistered != null ? "Teams registered" : "Teams booked for"}
           value={(teamsRegistered ?? t?.teams_week_one ?? 0).toLocaleString()}
           tone="default"
-          lines={teamsFullRoster != null
-            ? [{ text: `${teamsFullRoster.toLocaleString()} with 7 or more players`, chip: true }]
+          lines={[
+            ...(teamsFullRoster != null ? [{ text: `${teamsFullRoster.toLocaleString()} with 7 or more players`, chip: true }] : []),
+            // What the chips below read, under the chip it would otherwise sit above.
+            ...(teamsRegistered != null ? [{ text: "Each location: teams registered / teams booked" }] : []),
+          ]}
+          pills={teamsRegistered != null
+            ? locFill.map((f) => ({ text: `${f.location} ${f.registered}/${f.booked}`, tone: fillTone(f.registered, f.booked) }))
             : undefined}
-          corner={teamsRegistered != null
-            ? {
-                // Capacity is per night, so the comparable figure is one week's
-                // worth — week 1 of the regular season, not the season's nights
-                // added together.
-                label: "Teams booked",
-                value: (t?.teams_week_one ?? 0).toLocaleString(),
-                color: "var(--glass-gold)",
-                // How firm week 1 is, not just how big.
-                lines: BOOKING_STATUS_ORDER
-                  .filter((s) => (t?.teams_week_one_by_status?.[s] ?? 0) > 0)
-                  // Chips, tinted like the status pills in the table below.
-                  .map((s) => ({
-                    text: `${(t!.teams_week_one_by_status![s]).toLocaleString()} ${BOOKING_STATUS_LABEL[s]}`,
-                    color: BOOKING_STATUS_COLOR[s],
-                    background: BOOKING_STATUS_TINT[s] ?? "var(--fill-chip)",
-                  })),
-              }
-            : undefined}
+          pillsEmpty="no locations"
         />
         </div>
         <StatTile label="Booked" value={`${greenLocs.length}`} unit={`/ ${locations.length}`}
