@@ -3967,9 +3967,12 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 // How firm week 1 is, not just how big.
                 lines: BOOKING_STATUS_ORDER
                   .filter((s) => (t?.teams_week_one_by_status?.[s] ?? 0) > 0)
+                  // Chips, tinted like the status pills in the table below;
+                  // a contract, which has no tint there, gets the green one.
                   .map((s) => ({
                     text: `${(t!.teams_week_one_by_status![s]).toLocaleString()} ${BOOKING_STATUS_LABEL[s]}`,
                     color: BOOKING_STATUS_COLOR[s],
+                    background: BOOKING_STATUS_TINT[s] ?? (s === "booked_with_contract" ? "var(--green-tint)" : "var(--fill-chip)"),
                   })),
               }
             : undefined}
