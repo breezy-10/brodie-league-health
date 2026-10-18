@@ -24,6 +24,7 @@ import { loadEvents } from "../events/EventsView";
 import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
 import { ScrollUpButton } from "./ScrollUpButton";
+import { SectionJumpBar } from "./SectionJumpBar";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -3537,7 +3538,10 @@ export default async function DashboardView({
         />
       )}
 
-      <div className="space-y-8">
+      {/* Every section on the page, to skip straight to one. */}
+      {!isReg && <SectionJumpBar containerId="dashboard-sections" />}
+
+      <div id="dashboard-sections" className="space-y-8">
         {!isReg && deadlines.length > 0 && <DeadlineBanner weeks={deadlines} />}
         {!isReg && (
           <Section title="Season Success Checklist" scopeTag={fullTag} href={`${APP_URL.checklist}/checklists?kind=lm`} tiles={checklistTiles} cols={6} />
