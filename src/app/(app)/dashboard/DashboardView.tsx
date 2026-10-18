@@ -3770,6 +3770,9 @@ type BookingLoc = {
 type BookingData = {
   season: string | null;
   locations: BookingLoc[];
+  // Each location label's facilities on the facilities app, busiest first
+  // (absent from an older feed).
+  facilities_by_location?: Record<string, { id: string; name: string }[]>;
   totals: {
     nights: number; teams: number; to_book: number; locations: number;
     teams_per_week?: number; teams_week_one?: number; week_one?: string | null;
@@ -3807,6 +3810,7 @@ const BOOKING_STATUS_TINT: Record<string, string> = {
   need_to_book: "var(--red-tint)",
 };
 const DOW_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const FACILITIES_ORIGIN = new URL(APP_URL.facilities).origin;
 // Clear of the page header and the table's sticky header row when a row is
 // scrolled to.
 const ROW_SCROLL_MARGIN = "calc(var(--shell-top) + 52px)";
@@ -3978,6 +3982,25 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
   // counts in both of its cards.
   const locsIn = (chips: { location: string }[]) => new Set(chips.map((c) => c.location)).size;
   const ofAll = (n: number) => (locations.length ? `${Math.round((n / locations.length) * 100)}%` : undefined);
+  // A location's venue on the facilities app: its busiest facility there, by
+  // the feed's own label first and then the loose cross-app match (a market
+  // with signups and nothing booked is named after its registration venue).
+  const facilityOf = (loc: string) => {
+    const by = data.facilities_by_location;
+    if (!by) return null;
+    const list = by[loc] ?? Object.entries(by).find(([k]) => sameLocation(k, loc))?.[1];
+    return list?.[0] ?? null;
+  };
+  const LocationName = ({ loc }: { loc: string }) => {
+    const f = facilityOf(loc);
+    if (!f) return <>{loc}</>;
+    return (
+      <a href={`${FACILITIES_ORIGIN}/facilities/${f.id}`} target="_blank" rel="noopener noreferrer"
+        className="hover:underline" title={`Open ${f.name} on the facilities site`}>
+        {loc}<span className="ml-1 text-[11px] font-normal text-glass-text-tertiary">↗</span>
+      </a>
+    );
+  };
   // Each location's teams registered against teams booked, added up over its
   // nights the same way the table below foots them, for the chips on the teams
   // card: green when they match, yellow when more registered, red when more
@@ -4020,8 +4043,8 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <BackToTopButton />
           <MoreDetails href={APP_URL.facilities} />
+          <BackToTopButton />
         </div>
       </div>
 
@@ -4140,7 +4163,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 return [(
                   <tr key={l.location} id={bookingRowId(l.location)} className="border-t border-glass-border align-top"
                     style={{ scrollMarginTop: ROW_SCROLL_MARGIN }}>
-                    <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
+                    <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}><LocationName loc={l.location} /></td>
                     <td className="px-5 py-3 font-semibold" style={{ color: "var(--red)" }}>none booked</td>
                     <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">—</td>
                     <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">0</td>
@@ -4160,7 +4183,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                     className={`align-top border-t ${i === 0 ? "border-glass-border" : "border-glass-border-light"}`}>
                     {i === 0 && (
                       <td rowSpan={nights.length} className="px-5 py-3 whitespace-nowrap align-top font-semibold"
-                        style={{ color: "var(--glass-text)" }}>{l.location}</td>
+                        style={{ color: "var(--glass-text)" }}><LocationName loc={l.location} /></td>
                     )}
                     {/* Plain text: the status chips beside it carry the colour. */}
                     <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{n.day}</td>
@@ -4286,8 +4309,8 @@ function SiteVisitsSection({ data, titleSuffix = "" }: { data: SiteVisitsData; t
           {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <BackToTopButton />
           <MoreDetails href={`${APP_URL.feedback}/site-visits`} />
+          <BackToTopButton />
         </div>
       </div>
       <div className="rounded-2xl bg-glass-surface overflow-x-auto shadow-card">
@@ -4359,8 +4382,8 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
           {titleSuffix && <ScopeTag label={titleSuffix} />}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <BackToTopButton />
           <MoreDetails href={`${APP_URL.feedback}/video-review`} />
+          <BackToTopButton />
         </div>
       </div>
       <div className="rounded-2xl bg-glass-surface overflow-x-auto shadow-card">
@@ -4499,8 +4522,8 @@ function Section({
         {/* Every section offers the way back up to the Jump to row, whether
             or not it has an app to send you to. */}
         <div className="flex items-center gap-2 shrink-0">
-          <BackToTopButton />
           {href && <MoreDetails href={href} />}
+          <BackToTopButton />
         </div>
       </div>
       {tiles === null ? (
