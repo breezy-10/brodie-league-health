@@ -28,7 +28,8 @@ type Tile = {
   // sortValue is what "largest first" means for that chip — a count, a share,
   // a balance, an elapsed time. Without it a chip can only be ordered A-Z,
   // since the number is inside its text.
-  pills?: (string | { text: string; tone?: Tone; sortValue?: number })[];
+  // sub is a second, smaller line inside the chip.
+  pills?: (string | { text: string; tone?: Tone; sortValue?: number; sub?: string })[];
   pillsEmpty?: string;
   // Defaults to the card's tone; set when the chips mean something different
   // from the headline (an amber card listing red gaps).
@@ -179,8 +180,9 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
               {shown.map((p) => {
                 const st = PILL_STYLES[p.tone ?? pillTone ?? tone ?? "default"] ?? PILL_STYLES.default;
                 return (
-                  <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full" style={st}>
+                  <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full leading-snug" style={st}>
                     {p.text}
+                    {p.sub && <span className="block text-[10px] opacity-80">{p.sub}</span>}
                   </span>
                 );
               })}
@@ -202,13 +204,14 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
 // The order of pillsByTone's rows.
 const TONE_ROWS: Tone[] = ["ok", "warn", "bad", "default"];
 
-function ChipRow({ chips, fallback, flush = false }: { chips: { text: string; tone?: Tone }[]; fallback: Tone; flush?: boolean }) {
+function ChipRow({ chips, fallback, flush = false }: { chips: { text: string; tone?: Tone; sub?: string }[]; fallback: Tone; flush?: boolean }) {
   return (
     <div className={`${flush ? "" : "mt-2 "}flex flex-wrap gap-1.5`}>
       {chips.map((p) => (
-        <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full"
+        <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full leading-snug"
           style={PILL_STYLES[p.tone ?? fallback] ?? PILL_STYLES.default}>
           {p.text}
+          {p.sub && <span className="block text-[10px] opacity-80">{p.sub}</span>}
         </span>
       ))}
     </div>

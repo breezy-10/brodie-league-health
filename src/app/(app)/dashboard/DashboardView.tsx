@@ -3934,11 +3934,16 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
   // nights the same way the table below foots them, for the chips on the teams
   // card: green when they match, yellow when more registered, red when more
   // booked (fillTone).
-  const locFill = locations.map((l) => ({
-    location: l.location,
-    registered: [...regDaysFor(l.location).values()].reduce((n, r) => n + r.teams, 0),
-    booked: (l.by_day ?? []).reduce((n, d) => n + (d.teams_capacity ?? d.teams), 0),
-  }));
+  const locFill = locations.map((l) => {
+    const regs = [...regDaysFor(l.location).values()];
+    return {
+      location: l.location,
+      registered: regs.reduce((n, r) => n + r.teams, 0),
+      // Its teams that can field a side, for the chip's second line.
+      full: regs.reduce((n, r) => n + r.full, 0),
+      booked: (l.by_day ?? []).reduce((n, d) => n + (d.teams_capacity ?? d.teams), 0),
+    };
+  });
   const statusPill = (s: string, n?: number) => (
     <span key={s} className="text-[11px] rounded-md px-1.5 py-0.5 border whitespace-nowrap"
       style={{
@@ -3983,7 +3988,11 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
             ...(teamsRegistered != null ? [{ text: "Each location: teams registered / teams booked" }] : []),
           ]}
           pills={teamsRegistered != null
-            ? locFill.map((f) => ({ text: `${f.location} ${f.registered}/${f.booked}`, tone: fillTone(f.registered, f.booked) }))
+            ? locFill.map((f) => ({
+                text: `${f.location} ${f.registered}/${f.booked}`,
+                sub: `${f.full} with 7+ players`,
+                tone: fillTone(f.registered, f.booked),
+              }))
             : undefined}
           // Grouped by colour: matches first, then short of space, then empty
           // spots, each group alphabetical.
