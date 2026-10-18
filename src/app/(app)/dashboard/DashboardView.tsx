@@ -4116,6 +4116,9 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           sub="need to book in red; in comms or can't book yet in grey"
           tone={redChips.length ? "bad" : "ok"}
           pills={redChips.map((c) => ({ text: c.text, tone: c.tone, href: c.href }))}
+          // Need to book in one group, in comms and can't-book-yet in another,
+          // as the teams card groups its chips by colour.
+          pillsByTone
           pillsEmpty="every night has a booking" />
       </div>
 
