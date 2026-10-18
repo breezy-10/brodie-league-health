@@ -3939,8 +3939,10 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     return {
       location: l.location,
       registered: regs.reduce((n, r) => n + r.teams, 0),
-      // Its teams that can field a side, for the chip's second line.
+      // Its teams that can field a side, and the players on its teams, for
+      // the chip's second and third lines.
       full: regs.reduce((n, r) => n + r.full, 0),
+      players: regs.reduce((n, r) => n + r.players, 0),
       booked: (l.by_day ?? []).reduce((n, d) => n + (d.teams_capacity ?? d.teams), 0),
     };
   });
@@ -3990,7 +3992,10 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           pills={teamsRegistered != null
             ? locFill.map((f) => ({
                 text: `${f.location} ${f.registered}/${f.booked}`,
-                sub: `${f.full} with 7+ players`,
+                sub: [
+                  `${f.full} with 7+ players`,
+                  f.registered ? `${(f.players / f.registered).toFixed(1)} avg players per team` : "no teams yet",
+                ],
                 tone: fillTone(f.registered, f.booked),
               }))
             : undefined}
