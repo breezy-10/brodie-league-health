@@ -3590,7 +3590,10 @@ export default async function DashboardView({
                 )}
               </div>
               {/* No More details here: the Registrations tab is the detail view
-                  for this section, reached from the nav. */}
+                  for this section, reached from the nav. Back to top as every
+                  other dashboard section has; the Registrations page, which
+                  shares this view, has no Jump to row to go back to. */}
+              {!isReg && <BackToTopButton />}
             </div>
             <div className="space-y-5">
               {regRows.map((row) => (
