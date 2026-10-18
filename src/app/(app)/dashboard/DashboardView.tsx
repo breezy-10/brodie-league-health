@@ -3799,6 +3799,9 @@ const BOOKING_STATUS_TINT: Record<string, string> = {
   need_to_book: "var(--red-tint)",
 };
 const DOW_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_FULL: Record<string, string> = {
+  Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday",
+};
 // The roster chips under a night's teams registered: set a size down and at
 // a lighter weight, so the count above them stays the first thing read.
 const ROSTER_CHIP = "inline-block text-[10px] font-medium rounded-full px-1.5 py-px max-w-full sm:whitespace-nowrap";
@@ -3824,10 +3827,6 @@ const BOOKING_STATUS_TONE: Record<string, Tone> = {
   cannot_book_until_later: "default",
   need_to_book: "bad",
 };
-// A location is only as booked as its firmest day: one signed night makes it
-// green even while other nights are still being chased.
-const firmestStatus = (l: BookingLoc) =>
-  BOOKING_STATUS_ORDER.find((s) => (l.by_status[s] ?? 0) > 0) ?? "need_to_book";
 
 async function loadBookings(season: string, scope: Scope): Promise<BookingData | null> {
   try {
@@ -3885,7 +3884,6 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     return m;
   };
   const t = data.totals;
-  const locTone = (l: BookingLoc) => BOOKING_STATUS_TONE[firmestStatus(l)] ?? "default";
   // A market with signups but nothing on the calendar has no row in the
   // bookings feed at all, so it used to drop out of the list entirely — the one
   // case you would most want to see. Ottawa had 26 teams registered for Fall
@@ -3922,16 +3920,38 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     },
     { registered: 0, booked: 0, full: 0, low: 0, players: 0, nights: 0, byStatus: {} as Record<string, number> },
   );
-  // Every location by its firmest night, one card per colour: green (a
-  // contract or a flexible booking), yellow (a verbal) and red (nothing
-  // booked). In comms and can't-book-yet aren't booked either, so they join
-  // the red card, keeping their grey chip so the two still read apart.
-  const byTone = (pred: (t: Tone) => boolean) => [...locations]
-    .filter((l) => pred(locTone(l)))
-    .sort((a, b) => a.location.localeCompare(b.location));
-  const greenLocs = byTone((t) => t === "ok");
-  const yellowLocs = byTone((t) => t === "warn");
-  const redLocs = [...byTone((t) => t === "bad"), ...byTone((t) => t !== "ok" && t !== "warn" && t !== "bad")];
+  // Each night by its own status, one card per colour: green (a contract or a
+  // flexible booking), yellow (a verbal) and red (nothing booked). The nights
+  // are the table's: everything booked plus every night with signups, a
+  // signed-up night with no booking reading as need to book. A location whose
+  // nights all share a colour is one chip; one whose nights differ splits,
+  // each colour's nights on a chip of their own in that colour's card
+  // ("Brampton Sunday" under Booked, "Brampton Tuesday" under Not booked). In
+  // comms and can't-book-yet aren't booked either, so they join the red card,
+  // keeping their grey chip so the two still read apart.
+  const nightTone = (byStatus: Record<string, number>): Tone =>
+    BOOKING_STATUS_TONE[BOOKING_STATUS_ORDER.find((st) => (byStatus[st] ?? 0) > 0) ?? "need_to_book"] ?? "default";
+  const statusChips = locations.flatMap((l) => {
+    const regDays = regDaysFor(l.location);
+    const booked = l.by_day ?? [];
+    const nights = [...new Set([...booked.map((n) => n.day), ...regDays.keys()])]
+      .sort((a, b) => DOW_WEEK.indexOf(a) - DOW_WEEK.indexOf(b))
+      .map((day) => ({ day, tone: nightTone(booked.find((n) => n.day === day)?.by_status ?? {}) }));
+    if (!nights.length) return [{ location: l.location, text: l.location, tone: "bad" as Tone }];
+    const tones = [...new Set(nights.map((n) => n.tone))];
+    if (tones.length === 1) return [{ location: l.location, text: l.location, tone: tones[0] }];
+    return tones.map((tn) => {
+      const days = nights.filter((n) => n.tone === tn).map((n) => DAY_FULL[n.day] ?? n.day);
+      const list = days.length > 1 ? `${days.slice(0, -1).join(", ")} & ${days[days.length - 1]}` : days[0];
+      return { location: l.location, text: `${l.location} ${list}`, tone: tn };
+    });
+  }).sort((a, b) => a.text.localeCompare(b.text));
+  const greenChips = statusChips.filter((c) => c.tone === "ok");
+  const yellowChips = statusChips.filter((c) => c.tone === "warn");
+  const redChips = [...statusChips.filter((c) => c.tone === "bad"), ...statusChips.filter((c) => c.tone === "default")];
+  // Each card counts the locations with a night in it, so a split location
+  // counts in both of its cards.
+  const locsIn = (chips: { location: string }[]) => new Set(chips.map((c) => c.location)).size;
   const ofAll = (n: number) => (locations.length ? `${Math.round((n / locations.length) * 100)}%` : undefined);
   // Each location's teams registered against teams booked, added up over its
   // nights the same way the table below foots them, for the chips on the teams
@@ -4016,24 +4036,24 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           pillsEmpty="no locations"
         />
         </div>
-        <StatTile label="Booked" value={`${greenLocs.length}`} unit={`/ ${locations.length}`}
-          valueSuffix={ofAll(greenLocs.length)}
-          sub="a contract or a flexible booking on at least one night"
+        <StatTile label="Booked" value={`${locsIn(greenChips)}`} unit={`/ ${locations.length}`}
+          valueSuffix={ofAll(locsIn(greenChips))}
+          sub="locations with a contract or flexible night; a location split across cards names its nights"
           tone="ok"
-          pills={greenLocs.map((l) => ({ text: l.location, tone: locTone(l) }))}
+          pills={greenChips.map((c) => ({ text: c.text, tone: c.tone }))}
           pillsEmpty="none yet" />
-        <StatTile label="Verbal" value={`${yellowLocs.length}`} unit={`/ ${locations.length}`}
-          valueSuffix={ofAll(yellowLocs.length)}
-          sub="promised but not signed: the firmest night is a verbal"
+        <StatTile label="Verbal" value={`${locsIn(yellowChips)}`} unit={`/ ${locations.length}`}
+          valueSuffix={ofAll(locsIn(yellowChips))}
+          sub="locations with a night promised but not signed"
           tone="warn"
-          pills={yellowLocs.map((l) => ({ text: l.location, tone: locTone(l) }))}
+          pills={yellowChips.map((c) => ({ text: c.text, tone: c.tone }))}
           pillsEmpty="none" />
-        <StatTile label="Not booked" value={`${redLocs.length}`} unit={`/ ${locations.length}`}
-          valueSuffix={ofAll(redLocs.length)}
+        <StatTile label="Not booked" value={`${locsIn(redChips)}`} unit={`/ ${locations.length}`}
+          valueSuffix={ofAll(locsIn(redChips))}
           sub="need to book in red; in comms or can't book yet in grey"
-          tone={redLocs.length ? "bad" : "ok"}
-          pills={redLocs.map((l) => ({ text: l.location, tone: locTone(l) }))}
-          pillsEmpty="every location has a booking" />
+          tone={redChips.length ? "bad" : "ok"}
+          pills={redChips.map((c) => ({ text: c.text, tone: c.tone }))}
+          pillsEmpty="every night has a booking" />
       </div>
 
       <div className="rounded-2xl bg-glass-surface shadow-card">
