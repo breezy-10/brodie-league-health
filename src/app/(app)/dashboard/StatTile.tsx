@@ -14,6 +14,9 @@ type Tile = {
   valueSuffix?: string;
   // Colours the suffix on its own, when the share is judged and the count isn't.
   valueSuffixColor?: string;
+  // The value's colour when it is judged by something other than the card's
+  // tone (a count coloured by the share beside it).
+  valueColor?: string;
   lines?: { text: string; strong?: boolean; chip?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
@@ -57,7 +60,7 @@ const PILL_STYLES: Record<string, { color: string; borderColor: string; backgrou
 // orders the chips in its body, and the two have to share a piece of state.
 // Every prop is plain data, so the server components that render it are
 // unaffected.
-export default function StatTile({ label, value, unit, valueSuffix, valueSuffixColor, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, pillsByTone, value2, corner, below }: Tile) {
+export default function StatTile({ label, value, unit, valueSuffix, valueSuffixColor, valueColor, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, pillsByTone, value2, corner, below }: Tile) {
   const [order, setOrder] = useState<"az" | "size">("az");
   // Normalised once: a chip can be given as a bare string.
   const chips = pills?.map((p) => (typeof p === "string" ? { text: p } : p));
@@ -67,10 +70,10 @@ export default function StatTile({ label, value, unit, valueSuffix, valueSuffixC
   const shown = order === "size" && sortable
     ? [...chips!].sort((a, b) => (b.sortValue ?? -Infinity) - (a.sortValue ?? -Infinity))
     : chips ?? [];
-  const color =
+  const color = valueColor ?? (
     tone === "ok" ? "var(--green)" :
     tone === "warn" ? "var(--amber-ink)" :
-    tone === "bad" ? "var(--red)" : "var(--glass-text)";
+    tone === "bad" ? "var(--red)" : "var(--glass-text)");
   return (
     // h-full + column, so a card carrying a button can push it to the floor
     // rather than leaving it wherever the content above happened to end.
