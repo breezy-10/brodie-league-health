@@ -4015,8 +4015,6 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
             unit: `/ ${totals.booked.toLocaleString()} booked`,
             suffix: totals.booked ? `${Math.round((teamsFullRoster / totals.booked) * 100)}%` : undefined,
             caption: "with 7 or more players",
-            // The full-roster colour, as everywhere a 7+ count appears.
-            color: "var(--amber-ink)",
           } : undefined}
           tone="default"
           lines={teamsRegistered != null ? [{ text: "Each location: teams registered / teams booked" }] : undefined}
