@@ -3774,7 +3774,7 @@ const BOOKING_STATUS_LABEL: Record<string, string> = {
   cannot_book_until_later: "Cannot book yet",
   booked_with_contract: "Contract",
   booked_with_flexibility: "Flexible",
-  verbal_confirmation: "Verbal",
+  verbal_confirmation: "Verbal confirmation",
   in_communication: "In comms",
   need_to_book: "Need to book",
 };
