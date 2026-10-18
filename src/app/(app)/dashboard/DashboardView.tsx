@@ -4060,10 +4060,6 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 )];
               }
               return nights.map((n, i) => {
-                // The night takes the colour of the firmest thing booked on it,
-                // so an unsecured Friday reads red inside an otherwise fine venue.
-                const firm = BOOKING_STATUS_ORDER.find((s) => (n.by_status[s] ?? 0) > 0) ?? "need_to_book";
-                const dayColor = BOOKING_STATUS_COLOR[firm] ?? "var(--glass-text)";
                 const reg = regDays.get(n.day);
                 const fill = fillColor(reg?.teams ?? 0, n.teams_capacity ?? n.teams);
                 return (
@@ -4073,7 +4069,8 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                       <td rowSpan={nights.length} className="px-5 py-3 whitespace-nowrap align-top font-semibold"
                         style={{ color: "var(--glass-text)" }}>{l.location}</td>
                     )}
-                    <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: dayColor }}>{n.day}</td>
+                    {/* Plain text: the status chips beside it carry the colour. */}
+                    <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{n.day}</td>
                     <td className="px-5 py-3 text-right tabular align-top">
                       <div className="font-bold" style={{ color: fill }}>
                         {reg ? reg.teams.toLocaleString() : "—"}
