@@ -33,6 +33,9 @@ type Tile = {
   // Defaults to the card's tone; set when the chips mean something different
   // from the headline (an amber card listing red gaps).
   pillTone?: Tone;
+  // Chips in a row per colour, green first, then yellow, red and grey, each
+  // row keeping the order given, rather than one list.
+  pillsByTone?: boolean;
 };
 
 export type { Tile, Tone };
@@ -48,7 +51,7 @@ const PILL_STYLES: Record<string, { color: string; borderColor: string; backgrou
 // orders the chips in its body, and the two have to share a piece of state.
 // Every prop is plain data, so the server components that render it are
 // unaffected.
-export default function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, corner, below }: Tile) {
+export default function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, pillsByTone, corner, below }: Tile) {
   const [order, setOrder] = useState<"az" | "size">("az");
   // Normalised once: a chip can be given as a bare string.
   const chips = pills?.map((p) => (typeof p === "string" ? { text: p } : p));
@@ -162,7 +165,16 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
       {chips && !below && (
         chips.length === 0
           ? (pillsEmpty ? <div className="mt-2 text-[11px] italic text-glass-text-tertiary">{pillsEmpty}</div> : null)
-          : (
+          : pillsByTone
+            ? (
+              <div className="mt-2 space-y-1.5">
+                {TONE_ROWS
+                  .map((t) => shown.filter((p) => (p.tone ?? pillTone ?? tone ?? "default") === t))
+                  .filter((row) => row.length > 0)
+                  .map((row, i) => <ChipRow key={i} chips={row} fallback={pillTone ?? tone} flush />)}
+              </div>
+            )
+            : (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {shown.map((p) => {
                 const st = PILL_STYLES[p.tone ?? pillTone ?? tone ?? "default"] ?? PILL_STYLES.default;
@@ -187,9 +199,12 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
   );
 }
 
-function ChipRow({ chips, fallback }: { chips: { text: string; tone?: Tone }[]; fallback: Tone }) {
+// The order of pillsByTone's rows.
+const TONE_ROWS: Tone[] = ["ok", "warn", "bad", "default"];
+
+function ChipRow({ chips, fallback, flush = false }: { chips: { text: string; tone?: Tone }[]; fallback: Tone; flush?: boolean }) {
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <div className={`${flush ? "" : "mt-2 "}flex flex-wrap gap-1.5`}>
       {chips.map((p) => (
         <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full"
           style={PILL_STYLES[p.tone ?? fallback] ?? PILL_STYLES.default}>

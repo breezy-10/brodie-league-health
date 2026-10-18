@@ -3985,6 +3985,9 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           pills={teamsRegistered != null
             ? locFill.map((f) => ({ text: `${f.location} ${f.registered}/${f.booked}`, tone: fillTone(f.registered, f.booked) }))
             : undefined}
+          // Grouped by colour: matches first, then short of space, then empty
+          // spots, each group alphabetical.
+          pillsByTone
           pillsEmpty="no locations"
         />
         </div>
