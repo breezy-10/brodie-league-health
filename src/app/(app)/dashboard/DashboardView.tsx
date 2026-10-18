@@ -4015,12 +4015,13 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           // table's Total below.
           unit={teamsRegistered != null ? `/ ${totals.booked.toLocaleString()} booked` : undefined}
           valueSuffix={teamsRegistered != null && totals.booked ? `${Math.round((teamsRegistered / totals.booked) * 100)}%` : undefined}
-          valueSuffixColor={teamsRegistered != null && totals.booked ? fillPctColor(Math.round((teamsRegistered / totals.booked) * 100)) : undefined}
+          // The count takes its share's colour, as the status cards' counts do.
+          valueColor={teamsRegistered != null && totals.booked ? fillPctColor(Math.round((teamsRegistered / totals.booked) * 100)) : undefined}
           value2={teamsRegistered != null && teamsFullRoster != null ? {
             value: teamsFullRoster.toLocaleString(),
             unit: `/ ${totals.booked.toLocaleString()} booked`,
             suffix: totals.booked ? `${Math.round((teamsFullRoster / totals.booked) * 100)}%` : undefined,
-            suffixColor: totals.booked ? fillPctColor(Math.round((teamsFullRoster / totals.booked) * 100)) : undefined,
+            color: totals.booked ? fillPctColor(Math.round((teamsFullRoster / totals.booked) * 100)) : undefined,
             caption: "with 7 or more players",
           } : undefined}
           tone="default"
