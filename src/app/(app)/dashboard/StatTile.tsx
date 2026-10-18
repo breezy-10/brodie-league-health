@@ -33,8 +33,9 @@ type Tile = {
   // sortValue is what "largest first" means for that chip — a count, a share,
   // a balance, an elapsed time. Without it a chip can only be ordered A-Z,
   // since the number is inside its text.
-  // sub is one or more smaller lines inside the chip, under its text.
-  pills?: (string | { text: string; tone?: Tone; sortValue?: number; sub?: string | string[] })[];
+  // sub is one or more smaller lines inside the chip, under its text. href
+  // ("#row-id") makes the chip scroll to that element on the page.
+  pills?: (string | { text: string; tone?: Tone; sortValue?: number; sub?: string | string[]; href?: string })[];
   pillsEmpty?: string;
   // Defaults to the card's tone; set when the chips mean something different
   // from the headline (an amber card listing red gaps).
@@ -196,10 +197,10 @@ export default function StatTile({ label, value, unit, valueSuffix, valueSuffixC
               {shown.map((p) => {
                 const st = PILL_STYLES[p.tone ?? pillTone ?? tone ?? "default"] ?? PILL_STYLES.default;
                 return (
-                  <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full leading-snug" style={st}>
+                  <Chip key={p.text} href={p.href} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full leading-snug" style={st}>
                     {p.text}
                     {subLines(p.sub).map((t) => <span key={t} className="block text-[10px] opacity-80">{t}</span>)}
-                  </span>
+                  </Chip>
                 );
               })}
             </div>
@@ -217,21 +218,42 @@ export default function StatTile({ label, value, unit, valueSuffix, valueSuffixC
   );
 }
 
+// A chip, or with href a link that scrolls smoothly to that element on the
+// page and flashes it, so the eye lands on the row it went to. The URL's hash
+// is left alone: the dashboard's filters live in its query string.
+function Chip({ href, className, style, children }: {
+  href?: string; className: string; style?: React.CSSProperties; children: React.ReactNode;
+}) {
+  if (!href) return <span className={className} style={style}>{children}</span>;
+  return (
+    <a href={href} className={`${className} cursor-pointer hover:brightness-125 transition-[filter]`} style={style}
+      onClick={(e) => {
+        const el = document.getElementById(href.replace(/^#/, ""));
+        if (!el) return;
+        e.preventDefault();
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.animate([{ backgroundColor: "var(--fill-3)" }, { backgroundColor: "transparent" }], { duration: 1600, easing: "ease-out" });
+      }}>
+      {children}
+    </a>
+  );
+}
+
 // A chip's sub as its list of lines.
 const subLines = (sub?: string | string[]) => (sub == null ? [] : Array.isArray(sub) ? sub : [sub]);
 
 // The order of pillsByTone's rows.
 const TONE_ROWS: Tone[] = ["ok", "warn", "bad", "default"];
 
-function ChipRow({ chips, fallback, flush = false }: { chips: { text: string; tone?: Tone; sub?: string | string[] }[]; fallback: Tone; flush?: boolean }) {
+function ChipRow({ chips, fallback, flush = false }: { chips: { text: string; tone?: Tone; sub?: string | string[]; href?: string }[]; fallback: Tone; flush?: boolean }) {
   return (
     <div className={`${flush ? "" : "mt-2 "}flex flex-wrap gap-1.5`}>
       {chips.map((p) => (
-        <span key={p.text} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full leading-snug"
+        <Chip key={p.text} href={p.href} className="text-[11px] rounded-md px-1.5 py-0.5 border max-w-full leading-snug"
           style={PILL_STYLES[p.tone ?? fallback] ?? PILL_STYLES.default}>
           {p.text}
           {subLines(p.sub).map((t) => <span key={t} className="block text-[10px] opacity-80">{t}</span>)}
-        </span>
+        </Chip>
       ))}
     </div>
   );
