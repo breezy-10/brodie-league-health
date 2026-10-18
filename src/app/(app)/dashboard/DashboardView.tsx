@@ -3773,6 +3773,9 @@ type BookingData = {
   // Each location label's facilities on the facilities app, busiest first
   // (absent from an older feed).
   facilities_by_location?: Record<string, { id: string; name: string }[]>;
+  // The facilities app's own id for the season shown (absent from an older
+  // feed), for its /bookings filters.
+  season_id?: string | null;
   totals: {
     nights: number; teams: number; to_book: number; locations: number;
     teams_per_week?: number; teams_week_one?: number; week_one?: string | null;
@@ -3991,12 +3994,17 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     const list = by[loc] ?? Object.entries(by).find(([k]) => sameLocation(k, loc))?.[1];
     return list?.[0] ?? null;
   };
+  // Its bookings on the facilities app, filtered to this season and that
+  // facility; the facility's own page when the feed doesn't name the season.
   const LocationName = ({ loc }: { loc: string }) => {
     const f = facilityOf(loc);
     if (!f) return <>{loc}</>;
+    const href = data.season_id
+      ? `${FACILITIES_ORIGIN}/bookings?${new URLSearchParams({ season: data.season_id, facility: f.id })}`
+      : `${FACILITIES_ORIGIN}/facilities/${f.id}`;
     return (
-      <a href={`${FACILITIES_ORIGIN}/facilities/${f.id}`} target="_blank" rel="noopener noreferrer"
-        className="hover:underline" title={`Open ${f.name} on the facilities site`}>
+      <a href={href} target="_blank" rel="noopener noreferrer"
+        className="hover:underline" title={`Open ${f.name}'s ${season} bookings on the facilities site`}>
         {loc}<span className="ml-1 text-[11px] font-normal text-glass-text-tertiary">↗</span>
       </a>
     );
