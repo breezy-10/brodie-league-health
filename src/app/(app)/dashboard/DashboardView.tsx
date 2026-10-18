@@ -3799,6 +3799,13 @@ const BOOKING_STATUS_TINT: Record<string, string> = {
   need_to_book: "var(--red-tint)",
 };
 const DOW_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// Clear of the page header and the table's sticky header row when a row is
+// scrolled to.
+const ROW_SCROLL_MARGIN = "calc(var(--shell-top) + 52px)";
+// The table row a chip on the cards above jumps to: a location's first row,
+// or one night's row.
+const bookingRowId = (location: string, day?: string) =>
+  `booking-${location.toLowerCase().replace(/[^a-z0-9]+/g, "-")}${day ? `-${day.toLowerCase()}` : ""}`;
 const DAY_FULL: Record<string, string> = {
   Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday",
 };
@@ -3942,13 +3949,18 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     const nights = [...new Set([...booked.map((n) => n.day), ...regDays.keys()])]
       .sort((a, b) => DOW_WEEK.indexOf(a) - DOW_WEEK.indexOf(b))
       .map((day) => ({ day, tone: nightTone(booked.find((n) => n.day === day)?.by_status ?? {}) }));
-    if (!nights.length) return [{ location: l.location, text: l.location, tone: "bad" as Tone }];
+    const toLoc = `#${bookingRowId(l.location)}`;
+    if (!nights.length) return [{ location: l.location, text: l.location, tone: "bad" as Tone, href: toLoc }];
     const tones = [...new Set(nights.map((n) => n.tone))];
-    if (tones.length === 1) return [{ location: l.location, text: l.location, tone: tones[0] }];
+    if (tones.length === 1) return [{ location: l.location, text: l.location, tone: tones[0], href: toLoc }];
     return tones.map((tn) => {
-      const days = nights.filter((n) => n.tone === tn).map((n) => DAY_FULL[n.day] ?? n.day);
+      const own = nights.filter((n) => n.tone === tn);
+      const days = own.map((n) => DAY_FULL[n.day] ?? n.day);
       const list = days.length > 1 ? `${days.slice(0, -1).join(", ")} & ${days[days.length - 1]}` : days[0];
-      return { location: l.location, text: `${l.location} ${list}`, tone: tn };
+      // A split chip jumps to the first of its own nights (the location's id
+      // when that night is the location's first row).
+      const target = own[0].day === nights[0].day ? bookingRowId(l.location) : bookingRowId(l.location, own[0].day);
+      return { location: l.location, text: `${l.location} ${list}`, tone: tn, href: `#${target}` };
     });
   }).sort((a, b) => a.text.localeCompare(b.text));
   const greenChips = statusChips.filter((c) => c.tone === "ok");
@@ -4029,6 +4041,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           pills={teamsRegistered != null
             ? locFill.map((f) => ({
                 text: `${f.location} ${f.registered}/${f.booked}`,
+                href: `#${bookingRowId(f.location)}`,
                 sub: [
                   `${f.full} with 7+ players`,
                   f.registered ? `${(f.players / f.registered).toFixed(1)} avg players per team` : "no teams yet",
@@ -4046,19 +4059,19 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           valueSuffix={ofAll(locsIn(greenChips))}
           sub="locations with a contract or flexible night; a location split across cards names its nights"
           tone="ok"
-          pills={greenChips.map((c) => ({ text: c.text, tone: c.tone }))}
+          pills={greenChips.map((c) => ({ text: c.text, tone: c.tone, href: c.href }))}
           pillsEmpty="none yet" />
         <StatTile label="Verbal" value={`${locsIn(yellowChips)}`} unit={`/ ${locations.length}`}
           valueSuffix={ofAll(locsIn(yellowChips))}
           sub="locations with a night promised but not signed"
           tone="warn"
-          pills={yellowChips.map((c) => ({ text: c.text, tone: c.tone }))}
+          pills={yellowChips.map((c) => ({ text: c.text, tone: c.tone, href: c.href }))}
           pillsEmpty="none" />
         <StatTile label="Not booked" value={`${locsIn(redChips)}`} unit={`/ ${locations.length}`}
           valueSuffix={ofAll(locsIn(redChips))}
           sub="need to book in red; in comms or can't book yet in grey"
           tone={redChips.length ? "bad" : "ok"}
-          pills={redChips.map((c) => ({ text: c.text, tone: c.tone }))}
+          pills={redChips.map((c) => ({ text: c.text, tone: c.tone, href: c.href }))}
           pillsEmpty="every night has a booking" />
       </div>
 
@@ -4105,7 +4118,8 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 .map((day) => booked.find((n) => n.day === day) ?? { day, teams: 0, teams_capacity: 0, by_status: {} });
               if (!nights.length) {
                 return [(
-                  <tr key={l.location} className="border-t border-glass-border align-top">
+                  <tr key={l.location} id={bookingRowId(l.location)} className="border-t border-glass-border align-top"
+                    style={{ scrollMarginTop: ROW_SCROLL_MARGIN }}>
                     <td className="px-5 py-3 whitespace-nowrap font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</td>
                     <td className="px-5 py-3 font-semibold" style={{ color: "var(--red)" }}>none booked</td>
                     <td className="px-5 py-3 text-right tabular text-glass-text-tertiary">—</td>
@@ -4119,6 +4133,10 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 const fill = fillColor(reg?.teams ?? 0, n.teams_capacity ?? n.teams);
                 return (
                   <tr key={`${l.location}|${n.day}`}
+                    // The location's first row answers for the location, every
+                    // row for its night: what the chips above jump to.
+                    id={i === 0 ? bookingRowId(l.location) : bookingRowId(l.location, n.day)}
+                    style={{ scrollMarginTop: ROW_SCROLL_MARGIN }}
                     className={`align-top border-t ${i === 0 ? "border-glass-border" : "border-glass-border-light"}`}>
                     {i === 0 && (
                       <td rowSpan={nights.length} className="px-5 py-3 whitespace-nowrap align-top font-semibold"
