@@ -17,7 +17,8 @@ type Tile = {
   link?: { href: string; label: string };
   // A second headline number on the right of the same card, set at the same
   // size as the main value, with its own small label and follow-up lines.
-  corner?: { label: string; value: string; color?: string; lines?: { text: string; color?: string }[] };
+  // A corner line with a background reads as a chip in that tint.
+  corner?: { label: string; value: string; color?: string; lines?: { text: string; color?: string; background?: string }[] };
   // A second headline number stacked under the first, at the same size — for
   // a card that answers one question two ways ("4 set up / 0 not set up").
   // With `below`, the card's own chips sit right under the first number and
@@ -147,9 +148,11 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
                 <span className="font-normal" style={{ color: l.afterColor ?? "var(--glass-text-tertiary)" }}>{l.after}</span>
               )}
             </div>
-            {c && (
-              <span className="ml-auto text-xs tabular whitespace-nowrap shrink-0"
-                style={{ color: c.color ?? "var(--glass-text-tertiary)" }}>{c.text}</span>
+            {c && (c.background
+              ? <span className="ml-auto text-[11px] font-semibold tabular whitespace-nowrap shrink-0 rounded-full px-2 py-0.5"
+                  style={{ color: c.color ?? "var(--glass-text-secondary)", background: c.background }}>{c.text}</span>
+              : <span className="ml-auto text-xs tabular whitespace-nowrap shrink-0"
+                  style={{ color: c.color ?? "var(--glass-text-tertiary)" }}>{c.text}</span>
             )}
             </div>
             );
