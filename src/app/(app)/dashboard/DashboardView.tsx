@@ -23,6 +23,7 @@ import { loadDropIns } from "../drop-ins/DropInsView";
 import { loadEvents } from "../events/EventsView";
 import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
+import { ScrollUpButton } from "./ScrollUpButton";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -4000,7 +4001,8 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     </span>
   );
   return (
-    <section className="space-y-3">
+    // The table's up arrow comes back here, clear of the page header.
+    <section id="facility-bookings" className="space-y-3" style={{ scrollMarginTop: "calc(var(--shell-top) + 12px)" }}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2.5">
           <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Facility Bookings</h2>
@@ -4101,7 +4103,15 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                     background: "color-mix(in srgb, var(--glass-text) 9%, var(--glass-surface))",
                     boxShadow: "inset 0 -1px 0 var(--glass-border), 0 10px 14px -10px rgba(0,0,0,0.55)",
                   }}>
-                  {h.label}
+                  {/* The last heading carries the way back up to the cards,
+                      at the bar's far right, so it stays in reach wherever a
+                      chip has dropped you in the table. */}
+                  {h.label === "Booking status" ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{h.label}</span>
+                      <ScrollUpButton targetId="facility-bookings" label="Back up to the booking cards" />
+                    </div>
+                  ) : h.label}
                 </th>
               ))}
             </tr>
