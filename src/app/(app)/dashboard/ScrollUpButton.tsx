@@ -15,3 +15,14 @@ export function ScrollUpButton({ targetId, label }: { targetId: string; label: s
     </button>
   );
 }
+
+// "Back to top", beside a dashboard section's More details: scrolls smoothly
+// to the very top of the page, where the Jump to row is.
+export function BackToTopButton() {
+  return (
+    <button type="button" className="br-btn is-outline is-sm shrink-0"
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+      Back to top ↑
+    </button>
+  );
+}
