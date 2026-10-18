@@ -12,6 +12,8 @@ type Tile = {
   subInline?: boolean;
   // Sits just after the unit, in the value's own colour — a ratio read as a share.
   valueSuffix?: string;
+  // Colours the suffix on its own, when the share is judged and the count isn't.
+  valueSuffixColor?: string;
   lines?: { text: string; strong?: boolean; chip?: boolean; pill?: { text: string; ok: boolean }; after?: string; color?: string; afterColor?: string }[];
   tone?: Tone;
   link?: { href: string; label: string };
@@ -39,7 +41,7 @@ type Tile = {
   pillsByTone?: boolean;
   // A second figure read the same way as the first (value, unit, share),
   // straight under it at caption size, with a short caption beside it.
-  value2?: { value: string; unit?: string; suffix?: string; caption?: string; color?: string };
+  value2?: { value: string; unit?: string; suffix?: string; caption?: string; color?: string; suffixColor?: string };
 };
 
 export type { Tile, Tone };
@@ -55,7 +57,7 @@ const PILL_STYLES: Record<string, { color: string; borderColor: string; backgrou
 // orders the chips in its body, and the two have to share a piece of state.
 // Every prop is plain data, so the server components that render it are
 // unaffected.
-export default function StatTile({ label, value, unit, valueSuffix, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, pillsByTone, value2, corner, below }: Tile) {
+export default function StatTile({ label, value, unit, valueSuffix, valueSuffixColor, sub, subInline, lines, tone = "default", link, pills, pillsEmpty, pillTone, pillsByTone, value2, corner, below }: Tile) {
   const [order, setOrder] = useState<"az" | "size">("az");
   // Normalised once: a chip can be given as a bare string.
   const chips = pills?.map((p) => (typeof p === "string" ? { text: p } : p));
@@ -102,7 +104,7 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
         <div className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold tabular" style={{ color }}>{value}</span>
           {unit && <span className="text-sm text-glass-text-tertiary">{unit}</span>}
-          {valueSuffix && <span className="text-base font-bold tabular" style={{ color }}>{valueSuffix}</span>}
+          {valueSuffix && <span className="text-base font-bold tabular" style={{ color: valueSuffixColor ?? color }}>{valueSuffix}</span>}
           {sub && subInline && <span className="text-[11px] text-glass-text-tertiary leading-snug">{sub}</span>}
         </div>
         {corner && (
@@ -113,7 +115,7 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
         <div className="mt-1 flex items-baseline gap-1 flex-wrap text-[11px] leading-snug">
           <span className="font-bold tabular" style={{ color: value2.color ?? "var(--glass-text)" }}>{value2.value}</span>
           {value2.unit && <span className="text-glass-text-tertiary">{value2.unit}</span>}
-          {value2.suffix && <span className="font-bold tabular" style={{ color: value2.color ?? "var(--glass-text)" }}>{value2.suffix}</span>}
+          {value2.suffix && <span className="font-bold tabular" style={{ color: value2.suffixColor ?? value2.color ?? "var(--glass-text)" }}>{value2.suffix}</span>}
           {value2.caption && <span className="text-glass-text-tertiary">{value2.caption}</span>}
         </div>
       )}

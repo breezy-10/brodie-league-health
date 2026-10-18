@@ -3814,6 +3814,11 @@ const fillTone = (registered: number, booked: number): Tone =>
     : registered === booked ? "ok"
       : registered > booked ? "warn"
         : "bad";
+// A share of the teams booked that are filled: red under 80%, yellow from
+// 80 to 99, green at 100. Over 100 means more registered than booked, short
+// of space, which reads yellow as it does on the location chips.
+const fillPctColor = (pct: number) =>
+  pct < 80 ? "var(--red)" : pct === 100 ? "var(--green)" : "var(--amber-ink)";
 const fillColor = (registered: number, booked: number) =>
   registered === 0 && booked === 0 ? "var(--glass-text-tertiary)"
     : registered === booked ? "var(--green)"
@@ -4010,10 +4015,12 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           // table's Total below.
           unit={teamsRegistered != null ? `/ ${totals.booked.toLocaleString()} booked` : undefined}
           valueSuffix={teamsRegistered != null && totals.booked ? `${Math.round((teamsRegistered / totals.booked) * 100)}%` : undefined}
+          valueSuffixColor={teamsRegistered != null && totals.booked ? fillPctColor(Math.round((teamsRegistered / totals.booked) * 100)) : undefined}
           value2={teamsRegistered != null && teamsFullRoster != null ? {
             value: teamsFullRoster.toLocaleString(),
             unit: `/ ${totals.booked.toLocaleString()} booked`,
             suffix: totals.booked ? `${Math.round((teamsFullRoster / totals.booked) * 100)}%` : undefined,
+            suffixColor: totals.booked ? fillPctColor(Math.round((teamsFullRoster / totals.booked) * 100)) : undefined,
             caption: "with 7 or more players",
           } : undefined}
           tone="default"
