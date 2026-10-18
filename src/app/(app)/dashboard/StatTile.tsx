@@ -38,7 +38,7 @@ type Tile = {
   // row keeping the order given, rather than one list.
   pillsByTone?: boolean;
   // A second figure read the same way as the first (value, unit, share),
-  // straight under it, with a short caption beside it.
+  // straight under it at caption size, with a short caption beside it.
   value2?: { value: string; unit?: string; suffix?: string; caption?: string; color?: string };
 };
 
@@ -110,11 +110,11 @@ export default function StatTile({ label, value, unit, valueSuffix, sub, subInli
         )}
       </div>
       {value2 && (
-        <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
-          <span className="text-2xl font-bold tabular" style={{ color: value2.color ?? "var(--glass-text)" }}>{value2.value}</span>
-          {value2.unit && <span className="text-sm text-glass-text-tertiary">{value2.unit}</span>}
-          {value2.suffix && <span className="text-base font-bold tabular" style={{ color: value2.color ?? "var(--glass-text)" }}>{value2.suffix}</span>}
-          {value2.caption && <span className="text-[11px] text-glass-text-tertiary leading-snug">{value2.caption}</span>}
+        <div className="mt-1 flex items-baseline gap-1 flex-wrap text-[11px] leading-snug">
+          <span className="font-bold tabular" style={{ color: value2.color ?? "var(--glass-text)" }}>{value2.value}</span>
+          {value2.unit && <span className="text-glass-text-tertiary">{value2.unit}</span>}
+          {value2.suffix && <span className="font-bold tabular" style={{ color: value2.color ?? "var(--glass-text)" }}>{value2.suffix}</span>}
+          {value2.caption && <span className="text-glass-text-tertiary">{value2.caption}</span>}
         </div>
       )}
       {below && (
