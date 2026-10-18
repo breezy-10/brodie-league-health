@@ -3792,6 +3792,7 @@ const BOOKING_STATUS_COLOR: Record<string, string> = {
   need_to_book: "var(--red)",
 };
 const BOOKING_STATUS_TINT: Record<string, string> = {
+  booked_with_contract: "var(--green-tint)",
   booked_with_flexibility: "var(--tag-blue-bg)",
   verbal_confirmation: "var(--amber-tint)",
   in_communication: "var(--tag-orange-bg)",
@@ -3920,9 +3921,9 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
       style={{
         color: BOOKING_STATUS_COLOR[s] ?? "var(--glass-text-secondary)",
         borderColor: "transparent",
-        // Everything short of a contract sits on a tint: blue for flexible,
-        // yellow for a verbal to be signed, orange while still talking, red
-        // for nothing yet.
+        // Every status sits on its tint: green for a contract, blue for
+        // flexible, yellow for a verbal to be signed, orange while still
+        // talking, red for nothing yet.
         background: BOOKING_STATUS_TINT[s] ?? "transparent",
       }}>
       {BOOKING_STATUS_LABEL[s] ?? s}{n != null && <> <span className="font-bold tabular">{n}</span></>}
@@ -3967,12 +3968,11 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 // How firm week 1 is, not just how big.
                 lines: BOOKING_STATUS_ORDER
                   .filter((s) => (t?.teams_week_one_by_status?.[s] ?? 0) > 0)
-                  // Chips, tinted like the status pills in the table below;
-                  // a contract, which has no tint there, gets the green one.
+                  // Chips, tinted like the status pills in the table below.
                   .map((s) => ({
                     text: `${(t!.teams_week_one_by_status![s]).toLocaleString()} ${BOOKING_STATUS_LABEL[s]}`,
                     color: BOOKING_STATUS_COLOR[s],
-                    background: BOOKING_STATUS_TINT[s] ?? (s === "booked_with_contract" ? "var(--green-tint)" : "var(--fill-chip)"),
+                    background: BOOKING_STATUS_TINT[s] ?? "var(--fill-chip)",
                   })),
               }
             : undefined}
