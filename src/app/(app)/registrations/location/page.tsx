@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getAssignableLocations, getRegistrationSeasons } from "@/lib/locations";
 import { getActiveLocationKeys, onlyActive } from "@/lib/active-locations";
+import { compareSeasonsDesc } from "@/lib/seasons";
 import { DetailFilters } from "./DetailFilters";
 import { promoFetch } from "@/lib/promo-feed";
 
@@ -229,7 +230,7 @@ export default async function LocationDetailPage({
   // aren't in the promo location list.
   const allLocations = onlyActive(assignable, active);
   const locations = allLocations.includes(loc) ? allLocations : [loc, ...allLocations];
-  const seasons = allSeasons.includes(season) ? allSeasons : [season, ...allSeasons];
+  const seasons = [...new Set([season, ...allSeasons])].sort(compareSeasonsDesc);
   const prevLabel = shortSeason(data?.seasons.prev_season ?? "");
   const yearLabel = shortSeason(data?.seasons.prev_year ?? "");
 

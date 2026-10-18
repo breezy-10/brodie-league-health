@@ -15,9 +15,8 @@ export function BasisToggle({
   value: string;
   options: { value: string; label: string }[];
   // The value that stays out of the URL. Defaults to the first option, which is
-  // usually also the default state — but not always: Facility Bookings reads
-  // the season being booked FOR, while its toggle keeps the seasons in the same
-  // left-to-right order as every other one.
+  // usually also the default state, but not always: season toggles list the
+  // newer season first whichever one the section opens on.
   defaultValue?: string;
 }) {
   const router = useRouter();

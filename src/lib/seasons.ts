@@ -57,6 +57,10 @@ export function compareSeasons(a: string, b: string): number {
   if (x && y) return seasonRank(x) - seasonRank(y);
   return x ? -1 : y ? 1 : a.localeCompare(b);
 }
+// Newest season first, for pickers; a name that doesn't parse still goes last.
+export function compareSeasonsDesc(a: string, b: string): number {
+  return parseSeason(a) && parseSeason(b) ? compareSeasons(b, a) : compareSeasons(a, b);
+}
 
 // Every season from `earliest` through `latest` inclusive, oldest first. The
 // promo tracker only lists the seasons it actively syncs, which is far fewer
