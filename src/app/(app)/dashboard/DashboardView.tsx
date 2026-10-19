@@ -2379,7 +2379,8 @@ async function OverdueCards({ season, scope, fullTag, weekly = false, nextSeason
         param="overdueSeason"
         value={onNext ? "next" : "current"}
         defaultValue="current"
-        options={[{ value: "next", label: nextSeason }, { value: "current", label: season }]}
+        // Earlier season on the left, as on every season toggle.
+        options={[{ value: "current", label: season }, { value: "next", label: nextSeason }]}
       />
     ) : undefined} />;
 }
@@ -2888,7 +2889,9 @@ export default async function DashboardView({
         param={param}
         value={p === "current" ? "current" : "next"}
         defaultValue="next"
-        options={[{ value: "next", label: regSeason }, { value: "current", label: selectedSeason }]}
+        // Earlier season on the left (Fall '26, then Winter '27); the season
+        // being registered for stays the default.
+        options={[{ value: "current", label: selectedSeason }, { value: "next", label: regSeason }]}
       />
     ) : undefined;
   const promoSeasonName = isReg ? selectedSeason : prepSeason(promoSeason);
