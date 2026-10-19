@@ -25,6 +25,7 @@ import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
 import { BackToTopButton, ScrollUpButton } from "./ScrollUpButton";
 import { SectionJumpBar } from "./SectionJumpBar";
+import { loadRefereeBookings, RefereeBookingsSection } from "./RefereeBookings";
 
 // Promo Tracker location name -> League Health league_managers.location_name,
 // so selecting a location still matches the roster in the live sections.
@@ -2399,6 +2400,17 @@ async function BookingCards({ season, scope, fullTag, promo, promoSeason, locati
     venueRegs={p?.byVenue} scopeLocations={locationNames} headerExtra={headerExtra} /> : null;
 }
 
+// Referee Bookings, under Facility Bookings: whether referees are booked for
+// each game night, from the referee payroll app (RefereeBookings.tsx). Its
+// own season toggle, as each section here has.
+async function RefereeCards({ season, scope, fullTag, headerExtra }: {
+  season: string; scope: Scope; fullTag?: string; headerExtra?: ReactNode;
+}) {
+  const data = await loadRefereeBookings(season, scope.locationNames);
+  return <RefereeBookingsSection data={data} season={season}
+    titleSuffix={fullTag ? <ScopeTag label={fullTag} /> : undefined} headerExtra={headerExtra} />;
+}
+
 // The Discounts tab's three rates for one venue, in its own currency and on
 // its own colour rules. Each label opens that venue's drill-down.
 function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; season: string; seasonToDate: boolean }) {
@@ -2785,7 +2797,7 @@ export default async function DashboardView({
   showViewTabs = false,
 }: {
   searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; rank?: string; group?: string;
-    overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string;
+    overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string; refereeSeason?: string;
     tab?: string;
     }>;
   mode?: "full" | "registrations" | "weekly";
@@ -2795,7 +2807,7 @@ export default async function DashboardView({
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
   const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
-    overdueSeason, regsSeason, promoSeason, bookingSeason, tab: tabParam, rank: rankParam, group: groupParam } = await searchParams;
+    overdueSeason, regsSeason, promoSeason, bookingSeason, refereeSeason, tab: tabParam, rank: rankParam, group: groupParam } = await searchParams;
   // The Registrations page's second tab: who came back, rather than how many.
   const isRetention = isReg && tabParam === "retention";
   // Its third: of last season's players (and the last four seasons'), how
@@ -2881,6 +2893,7 @@ export default async function DashboardView({
     ) : undefined;
   const promoSeasonName = isReg ? selectedSeason : prepSeason(promoSeason);
   const bookingSeasonName = isReg ? selectedSeason : prepSeason(bookingSeason);
+  const refereeSeasonName = isReg ? selectedSeason : prepSeason(refereeSeason);
   const pacingSeason = isReg ? selectedSeason : prepSeason(regsSeason);
 
   // Live, season + location/LM scoped section cards (fall back to sample if unwired).
@@ -3696,6 +3709,10 @@ export default async function DashboardView({
               <BookingCards season={bookingSeasonName} scope={scope} fullTag={fullTag}
                 promo={promoTiles} promoSeason={promoSeasonName} locationNames={locationNames}
                 headerExtra={seasonToggle("bookingSeason", bookingSeason)} />
+            </Suspense>
+            <Suspense fallback={<TableSkeleton title="Referee Bookings" rows={6} />}>
+              <RefereeCards season={refereeSeasonName} scope={scope} fullTag={fullTag}
+                headerExtra={seasonToggle("refereeSeason", refereeSeason)} />
             </Suspense>
           </>
         )}
