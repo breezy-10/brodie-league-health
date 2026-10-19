@@ -173,8 +173,10 @@ export default async function DiscountPlayersPage({
   const free = rows.filter((r) => r.free).length;
   const returning = rows.filter(isReturning).length;
   const referral = rows.filter(isReferral).length;
-  // Every discount that isn't the returning-player discount or a referral.
-  const other = rows.filter(isOther).length;
+  // Every discount that isn't the returning-player discount, a referral or a
+  // free registration (free has its own card).
+  const isOtherPaid = (r: DiscountPlayer) => isOther(r) && !r.free;
+  const other = rows.filter(isOtherPaid).length;
   // What each programme cost, reported per currency like the Given up card —
   // a CAD figure and a USD figure are never added together.
   const givenUp = (pred: (r: DiscountPlayer) => boolean, k: "returning" | "referral" | "other") => {
@@ -254,7 +256,7 @@ export default async function DiscountPlayersPage({
                   cost={givenUp(isReferral, "referral")} />} />
               <Tile label="Other discounts" value={other.toLocaleString()}
                 sub={<Sub pct={totalRegs ? <Pct n={other} of={totalRegs} tone={discountTone} /> : null}
-                  cost={givenUp(isOther, "other")} />} />
+                  cost={givenUp(isOtherPaid, "other")} />} />
             </>
           )}
           {!freeOnly && (
