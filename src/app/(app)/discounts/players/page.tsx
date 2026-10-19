@@ -173,9 +173,11 @@ export default async function DiscountPlayersPage({
   const free = rows.filter((r) => r.free).length;
   const returning = rows.filter(isReturning).length;
   const referral = rows.filter(isReferral).length;
+  // Every discount that isn't the returning-player discount or a referral.
+  const other = rows.filter(isOther).length;
   // What each programme cost, reported per currency like the Given up card —
   // a CAD figure and a USD figure are never added together.
-  const givenUp = (pred: (r: DiscountPlayer) => boolean, k: "returning" | "referral") => {
+  const givenUp = (pred: (r: DiscountPlayer) => boolean, k: "returning" | "referral" | "other") => {
     const m = new Map<string, number>();
     for (const r of rows) if (pred(r)) m.set(r.currency, (m.get(r.currency) ?? 0) + partOf(r, k));
     return [...m.entries()].sort().map(([c, v]) => `${money(v)} ${c}`).join(" \u00b7 ");
@@ -236,7 +238,7 @@ export default async function DiscountPlayersPage({
 
       {rows.length > 0 && (
         <div className={`grid gap-3 grid-cols-2 ${
-          freeOnly ? "md:grid-cols-3" : kind ? "md:grid-cols-4" : "md:grid-cols-3 lg:grid-cols-6"}`}>
+          freeOnly ? "md:grid-cols-3" : kind ? "md:grid-cols-4" : "md:grid-cols-4 lg:grid-cols-7"}`}>
           <Tile label="Total registrations" value={totalRegs === null ? "—" : totalRegs.toLocaleString()}
             sub={teamCount === null ? undefined : `${teamCount.toLocaleString()} team${teamCount === 1 ? "" : "s"}`} />
           <Tile label={freeOnly ? "Free registrations" : kind ? KIND_TITLE[kind] : "Discounted registrations"}
@@ -250,6 +252,9 @@ export default async function DiscountPlayersPage({
               <Tile label="Referral" value={referral.toLocaleString()}
                 sub={<Sub pct={totalRegs ? <Pct n={referral} of={totalRegs} tone={discountTone} /> : null}
                   cost={givenUp(isReferral, "referral")} />} />
+              <Tile label="Other discounts" value={other.toLocaleString()}
+                sub={<Sub pct={totalRegs ? <Pct n={other} of={totalRegs} tone={discountTone} /> : null}
+                  cost={givenUp(isOther, "other")} />} />
             </>
           )}
           {!freeOnly && (
