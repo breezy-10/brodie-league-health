@@ -2537,8 +2537,10 @@ function ShareStrip({ locations, blocks, head, byNight = false, prevLabel, yearL
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
-function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, venue, discounts, discountsSeasonToDate = false }: {
+function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, venue, discounts, discountsSeasonToDate = false, showAge = true }: {
   locations: PacingLocation[];
+  // Each card's Age block; the Registrations page shows it, the dashboard not.
+  showAge?: boolean;
   // The one venue the by-night cards are nights of.
   venue?: string;
   // The Discounts tab's rows — per venue, or per night on the by-night cards;
@@ -2723,7 +2725,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                   })}
                 </div>
               )}</div>
-              <div className="px-3.5">{(() => {
+              <div className="px-3.5">{showAge && (() => {
                 const at = (k: string) => l.seasons.find((s) => s.kind === k)?.age ?? null;
                 const cur = at("current");
                 return cur ? <LocationAge age={cur} prev={at("prev_season")} year={at("prev_year")}
@@ -3134,7 +3136,7 @@ export default async function DashboardView({
         showAvgPerTeam={!regOnWeek}
         byNight={locationNames?.length === 1}
         venue={locationNames?.length === 1 ? locationNames[0] : undefined}
-        discounts={locDiscounts} discountsSeasonToDate={regOnWeek} />
+        discounts={locDiscounts} discountsSeasonToDate={regOnWeek} showAge={isReg} />
     </div>
   ) : null;
   // The Registrations columns. Teams and athletes appear for the whole scope
@@ -3480,7 +3482,9 @@ export default async function DashboardView({
   const regRows: { key: string; heading: string | null; items: { m: RegMetric; set: RegSet }[] }[] = !allSet ? [] : [
     {
       key: "all", heading: null,
-      items: [teamsMetric(allSet), athletesMetric(allSet), ...(ageMetric ? [ageMetric] : [])].map((m) => ({ m, set: allSet })),
+      // Median age (and its Under 24 comparisons) lives on the Registrations
+      // page only, not the cross-app dashboard.
+      items: [teamsMetric(allSet), athletesMetric(allSet), ...(ageMetric && isReg ? [ageMetric] : [])].map((m) => ({ m, set: allSet })),
     },
     ...placeSets.map(({ place, set }) => ({
       key: place.code, heading: place.heading,
