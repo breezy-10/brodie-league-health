@@ -123,9 +123,10 @@ function PriceTable({ week }: { week: DeadlineWeek }) {
     if (last && last.country === c) last.rows.push(t);
     else countries.push({ country: c, rows: [t] });
   }
-  // A Numbers-style table: hairlines between rows, none around the cells.
-  const cell = { borderBottom: "1px solid var(--divider)" };
-  const head = "text-xs font-medium text-glass-text-tertiary px-2 py-1";
+  // Every cell boxed in, the way the Promo Tracker draws it: hairlines only
+  // between rows were too faint to read as a table.
+  const cell = { border: "1px solid var(--hairline-strong)" };
+  const head = "text-xs font-semibold px-2 py-1";
   return (
     <div>
       {week.tier_label && (
@@ -144,9 +145,9 @@ function PriceTable({ week }: { week: DeadlineWeek }) {
             <table className="w-fit" style={{ borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th className={`${head} text-left`} style={{ ...cell, color: "var(--glass-text-secondary)" }}>Location</th>
-                  <th className={`${head} text-right`} style={{ ...cell, color: "var(--glass-text-secondary)" }}>Price</th>
-                  <th className={`${head} text-right`} style={{ ...cell, color: "var(--glass-text-secondary)" }}>Team fee</th>
+                  <th className={`${head} text-left`} style={{ ...cell, color: "var(--text-sub)" }}>Location</th>
+                  <th className={`${head} text-right`} style={{ ...cell, color: "var(--text-sub)" }}>Price</th>
+                  <th className={`${head} text-right`} style={{ ...cell, color: "var(--text-sub)" }}>Team fee</th>
                 </tr>
               </thead>
               <tbody>
