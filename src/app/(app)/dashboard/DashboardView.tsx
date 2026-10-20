@@ -168,15 +168,35 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   // Kick off the independent reads together — the operating-locations lookup
   // hits other apps entirely and used to wait behind the checklist queries.
   const operatingPromise = loadOperatingLocations(season, expectedLocations);
-  const [locIds, { data: seasons }, { data: clLocs }] = await Promise.all([
+  const [locIds, { data: seasons }, { data: clLocs }, { data: calendar }] = await Promise.all([
     sourceLocationIds("checklist", scope),
-    sb.from("seasons").select("id, name, kind, location_id"),
+    sb.from("seasons").select("id, name, kind, location_id, season_calendar_id"),
     sb.from("locations").select("id, name"),
+    sb.from("season_calendar").select("id, name"),
   ]);
   const locSet = locIds ? new Set(locIds) : null;
   const want = seasonKey(season);
-  const seasonRows = ((seasons ?? []) as { id: string; name: string | null; kind: string | null; location_id: string | null }[])
+  const seasonRows = ((seasons ?? []) as { id: string; name: string | null; kind: string | null; location_id: string | null; season_calendar_id: string | null }[])
     .filter((s) => s.name && seasonKey(s.name) === want);
+  // Every chip opens that location's checklist for this season. Its season
+  // checklist comes first when a location has more than one (onboarding).
+  const checklistUrl = (id: string) => `${APP_URL.checklist}/checklists/${id}`;
+  const lmFirst = (a: { kind: string | null }, b: { kind: string | null }) =>
+    (a.kind === "lm" ? 0 : 1) - (b.kind === "lm" ? 0 : 1);
+  const checklistAt = (locationId: string) =>
+    seasonRows.filter((s) => s.location_id === locationId).sort(lmFirst)[0] ?? null;
+  // A location with no checklist yet has nothing to open, so its chip goes to
+  // the checklist list filtered to it and the season, where one is created.
+  const calendarId =
+    ((calendar ?? []) as { id: string; name: string | null }[]).find((c) => c.name && seasonKey(c.name) === want)?.id
+    ?? seasonRows.find((s) => s.season_calendar_id)?.season_calendar_id
+    ?? null;
+  const listUrl = (locationId: string | null) => {
+    const q = new URLSearchParams({ kind: "lm" });
+    if (calendarId) q.set("season", calendarId);
+    if (locationId) q.set("location", locationId);
+    return `${APP_URL.checklist}/checklists?${q}`;
+  };
   const ids = seasonRows
     .filter((s) => !locSet || (s.location_id != null && locSet.has(s.location_id)))
     .map((s) => s.id);
@@ -187,8 +207,8 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   const withChecklist = new Set(seasonRows.map((s) => s.location_id).filter(Boolean) as string[]);
   let missingLocations: string[] = [];
   let setUpLocations: string[] = [];
+  const rows = (clLocs ?? []) as { id: string; name: string }[];
   if (expectedLocations.length) {
-    const rows = (clLocs ?? []) as { id: string; name: string }[];
     const inScope = scope.locationNames ? new Set(scope.locationNames) : null;
     // Only markets actually running this season are expected to have one. When
     // that can't be determined, fall back to every candidate rather than
@@ -219,11 +239,29 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
     s.id,
     (s.location_id ? clName.get(s.location_id) : null) ?? (s.kind === "operations" ? "Operations" : "No location"),
   ]));
-  const overdueByLoc = new Map<string, number>();
+  const seasonKind = new Map(seasonRows.map((s) => [s.id, s.kind]));
+  const overdueByLoc = new Map<string, { n: number; bySeason: Map<string, number> }>();
   for (const t of overdueRows) {
     const name = seasonLoc.get(t.season_id) ?? "No location";
-    overdueByLoc.set(name, (overdueByLoc.get(name) ?? 0) + 1);
+    const e = overdueByLoc.get(name) ?? { n: 0, bySeason: new Map<string, number>() };
+    e.n += 1;
+    e.bySeason.set(t.season_id, (e.bySeason.get(t.season_id) ?? 0) + 1);
+    overdueByLoc.set(name, e);
   }
+  // The checklist an overdue chip opens: the season checklist if the late work
+  // is on it, otherwise whichever checklist holds the most of it.
+  const overdueChecklist = (name: string, bySeason: Map<string, number>) => {
+    if (name === "No location") return undefined;
+    const [id] = [...bySeason.entries()]
+      .sort((a, b) => lmFirst({ kind: seasonKind.get(a[0]) ?? null }, { kind: seasonKind.get(b[0]) ?? null }) || b[1] - a[1])[0];
+    return checklistUrl(id);
+  };
+  const setUpUrl = (n: string) => {
+    const loc = rows.find((l) => sameLocation(n, l.name) && withChecklist.has(l.id));
+    const cl = loc ? checklistAt(loc.id) : null;
+    return cl ? checklistUrl(cl.id) : undefined;
+  };
+  const missingUrl = (n: string) => listUrl(rows.find((l) => sameLocation(n, l.name))?.id ?? null);
   // Setup comes before progress: a location with no checklist isn't counted in
   // the percentages beside it, so it reads first.
   return [
@@ -242,11 +280,11 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
         value: missingLocations.length.toLocaleString(),
         sub: "not set up",
         color: missingLocations.length > 0 ? "var(--red)" : "var(--glass-text-tertiary)",
-        pills: missingLocations.map((n) => ({ text: n, tone: "bad" as const })),
+        pills: missingLocations.map((n) => ({ text: n, tone: "bad" as const, href: missingUrl(n) })),
       },
       // Each group under its own count, A-Z — no sort control, since the
       // grouping already says which is which.
-      pills: setUpLocations.map((n) => ({ text: n, tone: "ok" as const })),
+      pills: setUpLocations.map((n) => ({ text: n, tone: "ok" as const, href: setUpUrl(n) })),
     },
     { label: `Tasks complete · ${season}`, value: `${pct}%`, sub: `${done.toLocaleString()} / ${total.toLocaleString()}`, tone: pct >= 100 ? "ok" : pct > 0 ? "warn" : "bad" },
     {
@@ -259,7 +297,7 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
           const rank = (n: string) => (n === "Operations" || n === "No location" ? 1 : 0);
           return rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]);
         })
-        .map(([name, n]) => ({ text: `${name} (${n})`, tone: "bad" as const, sortValue: n })),
+        .map(([name, { n, bySeason }]) => ({ text: `${name} (${n})`, tone: "bad" as const, sortValue: n, href: overdueChecklist(name, bySeason) })),
       pillsEmpty: "nothing past due",
     },
   ];

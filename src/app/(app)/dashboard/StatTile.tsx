@@ -28,13 +28,14 @@ type Tile = {
   // a card that answers one question two ways ("4 set up / 0 not set up").
   // With `below`, the card's own chips sit right under the first number and
   // these under the second, so each group of names reads with its count.
-  below?: { value: string; sub: string; color?: string; pills?: { text: string; tone?: Tone }[] };
+  below?: { value: string; sub: string; color?: string; pills?: { text: string; tone?: Tone; href?: string }[] };
   // Named items behind the number — rendered as wrapped chips, tinted by tone.
   // sortValue is what "largest first" means for that chip — a count, a share,
   // a balance, an elapsed time. Without it a chip can only be ordered A-Z,
   // since the number is inside its text.
   // sub is one or more smaller lines inside the chip, under its text. href
-  // ("#row-id") makes the chip scroll to that element on the page.
+  // ("#row-id") makes the chip scroll to that element on the page; a full URL
+  // opens that page in another app, in a new tab.
   pills?: (string | { text: string; tone?: Tone; sortValue?: number; sub?: string | string[]; href?: string })[];
   pillsEmpty?: string;
   // Defaults to the card's tone; set when the chips mean something different
@@ -220,11 +221,21 @@ export default function StatTile({ label, value, unit, valueSuffix, valueSuffixC
 
 // A chip, or with href a link that scrolls smoothly to that element on the
 // page and flashes it, so the eye lands on the row it went to. The URL's hash
-// is left alone: the dashboard's filters live in its query string.
+// is left alone: the dashboard's filters live in its query string. A chip
+// pointing at another app opens it in a new tab, like every other link out
+// of the dashboard.
 function Chip({ href, className, style, children }: {
   href?: string; className: string; style?: React.CSSProperties; children: React.ReactNode;
 }) {
   if (!href) return <span className={className} style={style}>{children}</span>;
+  if (!href.startsWith("#")) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer"
+        className={`${className} cursor-pointer hover:brightness-125 transition-[filter]`} style={style}>
+        {children}
+      </a>
+    );
+  }
   return (
     <a href={href} className={`${className} cursor-pointer hover:brightness-125 transition-[filter]`} style={style}
       onClick={(e) => {
