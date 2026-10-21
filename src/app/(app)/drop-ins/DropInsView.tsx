@@ -126,6 +126,9 @@ export default async function DropInsView({
   const isAvailable = tab === "available";
   const isMissing = tab === "missing-stats";
   const byLocation = byParam === "location";
+  // Past and Scheduled list drop-ins by game unless asked for the day each
+  // was registered.
+  const byRegistered = !isAvailable && !isMissing && byParam === "registered";
   const selectedSeasons = csvParam(seasonParam);
   const selectedLocations = csvParam(locationParam).map(canonicalLocation);
 
@@ -156,9 +159,10 @@ export default async function DropInsView({
           seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
           locations: selectedLocations,
         }}
-        keep={isScheduled ? { tab: "scheduled" }
+        keep={isScheduled ? { tab: "scheduled", ...(byRegistered ? { by: "registered" } : {}) }
           : isAvailable ? { tab: "available", ...(byLocation ? { by: "location" } : {}) }
-          : isMissing ? { tab: "missing-stats" } : undefined}
+          : isMissing ? { tab: "missing-stats" }
+          : byRegistered ? { by: "registered" } : undefined}
       />
 
       <BasisToggle
@@ -183,13 +187,22 @@ export default async function DropInsView({
             <DropInSummary season={selectedSeason} locationNames={locationNames} when={when} />
           </Suspense>
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>By game</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>
+                {byRegistered ? "By registration date" : "By game"}
+              </h2>
+              <BasisToggle
+                param="by"
+                value={byRegistered ? "registered" : "game"}
+                options={[{ value: "game", label: "By game" }, { value: "registered", label: "By registration date" }]}
+              />
+            </div>
             <Suspense fallback={
               <div className="rounded-2xl bg-glass-surface p-5 space-y-3 shadow-card">
                 {[92, 81, 70, 59].map((w) => <div key={w} className="h-3 rounded skeleton-pulse" style={{ width: `${w}%` }} />)}
               </div>
             }>
-              <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={!isScheduled} />
+              <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={!isScheduled} byRegistered={byRegistered} />
             </Suspense>
           </section>
         </>
