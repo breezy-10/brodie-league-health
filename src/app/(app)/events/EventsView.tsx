@@ -34,6 +34,10 @@ export type EventRow = {
   paid: number;
   new_players: number;
   converted: number;
+  // Checked in at the door, and of those, with a confirmed RSVP (absent from
+  // an older feed).
+  checked_in?: number;
+  checked_in_going?: number;
 };
 
 export async function loadEvents(locationNames: string[] | null, season?: string): Promise<EventRow[] | null> {
