@@ -7,7 +7,8 @@ export { TZ_SHORT };
 // The Scheduled and Past tabs: each drop-in that went through, by the game it
 // is for. Scheduled is the games still to come, soonest first, so a league
 // manager can see who is coming to which game; Past is the games already
-// played, most recent first, with whether the player showed up.
+// played, most recent first, with whether the player showed up. Either can
+// instead be read by the day each drop-in was registered, newest first.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
 type Attendance = "upcoming" | "showed" | "no_show" | "awaiting";
@@ -24,6 +25,9 @@ type ScheduledRow = {
   attendance: Attendance;
   // The ops game id (absent from an older feed).
   game_id?: string | null;
+  // When the drop-in went through, as a UTC ISO instant (absent from an
+  // older feed).
+  registered_at?: string | null;
   // Where the player's stats went on a game already played (absent from an
   // older feed; null for a game to come), and the placeholders' names when
   // they went to one.
@@ -66,6 +70,31 @@ function timeLabel(gameAt: string | null, tz: string): string {
   const h12 = hh % 12 === 0 ? 12 : hh % 12;
   return `${h12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${TZ_SHORT[tz] ? ` ${TZ_SHORT[tz]}` : ""}`;
 }
+// An instant as the venue's own wall-clock time, in the same form as game_at
+// ("2026-10-20T18:31"), so a registration reads in the zone its game does.
+function venueLocal(iso: string | null | undefined, tz: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    }).formatToParts(d);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+    return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+  } catch {
+    return null;
+  }
+}
+// The game's day and time on one line, for the registration view, where the
+// day heading is the registration's rather than the game's.
+function gameLabel(gameAt: string | null, tz: string): string {
+  if (!gameAt) return "Date to be set";
+  const [y, m, d] = gameAt.slice(0, 10).split("-").map(Number);
+  const day = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(y, m - 1, d)));
+  return `${day} · ${timeLabel(gameAt, tz)}`;
+}
 // Today as the head office reads it, to mark the day's group.
 export function todayKey(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date());
@@ -92,6 +121,9 @@ const STAT_LINE: Record<StatLine, { label: string; style: React.CSSProperties }>
 // BallerTV, admin and stats links.
 const COLS = ["12%", "17%", "27%", "34%", "10%"];
 const COLS_PAST = ["8%", "10%", "16%", "19%", "5%", "10%", "11%", "7%", "7%", "7%"];
+// By registration date: the registration time, then the game's day and time.
+const COLS_REG = ["10%", "17%", "14%", "23%", "28%", "8%"];
+const COLS_PAST_REG = ["7%", "11%", "9%", "14%", "16%", "5%", "9%", "10%", "6%", "6%", "7%"];
 
 // The game on BallerTV, found when clicked (see /go/ballertv), and on the
 // admin and stats sites by its ops id: the same three links Stats Health
@@ -114,10 +146,12 @@ export default async function ScheduledDropIns({
   season,
   locationNames,
   past,
+  byRegistered = false,
 }: {
   season: string;
   locationNames: string[] | null;
   past: boolean;
+  byRegistered?: boolean;
 }) {
   const all = await loadScheduled(season, locationNames);
 
@@ -133,7 +167,17 @@ export default async function ScheduledDropIns({
   // Day, then location, then time: each day's drop-ins sit together by venue,
   // in the order the games are played there. Upcoming days soonest first, past
   // days most recent first; within a day it is always earliest game first.
+  // By registration date it is the day each drop-in went through, in its
+  // venue's own time, newest day first and newest first within it, so the
+  // latest sign-ups lead.
+  const regAt = new Map(rows.map((r) => [r, venueLocal(r.registered_at, r.game_tz)]));
+  const groupKey = (r: ScheduledRow) => dateKey(byRegistered ? regAt.get(r) ?? null : r.game_at);
   const sorted = [...rows].sort((a, b) => {
+    if (byRegistered) {
+      return (groupKey(b) || "0000").localeCompare(groupKey(a) || "0000")
+        || (b.registered_at ?? "").localeCompare(a.registered_at ?? "")
+        || a.player.localeCompare(b.player);
+    }
     const da = dateKey(a.game_at) || "9999", db = dateKey(b.game_at) || "9999";
     return (past ? db.localeCompare(da) : da.localeCompare(db))
       || a.location.localeCompare(b.location)
@@ -142,7 +186,7 @@ export default async function ScheduledDropIns({
   });
   const groups: { key: string; rows: ScheduledRow[] }[] = [];
   for (const r of sorted) {
-    const k = dateKey(r.game_at);
+    const k = groupKey(r);
     const g = groups[groups.length - 1];
     if (g && g.key === k) g.rows.push(r);
     else groups.push({ key: k, rows: [r] });
@@ -167,7 +211,8 @@ export default async function ScheduledDropIns({
         groups.map((g) => (
           <section key={g.key || "unscheduled"} className="space-y-2">
             <h3 className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>
-              {g.key === today ? "Today · " : ""}{dayLabel(g.key)}
+              {g.key === today ? "Today · " : ""}
+              {!g.key && byRegistered ? "Registration date unknown" : dayLabel(g.key)}
               <span className="ml-2 text-xs font-normal text-glass-text-tertiary">
                 {g.rows.length} {g.rows.length === 1 ? "drop-in" : "drop-ins"}
               </span>
@@ -176,13 +221,22 @@ export default async function ScheduledDropIns({
               <div className="overflow-x-auto">
                 {/* Fixed layout with the same widths in every day's table, so the
                     columns line up from one day to the next whatever each holds. */}
-                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1240 : 760, tableLayout: "fixed" }}>
+                <table className="w-full text-sm"
+                  style={{ borderCollapse: "collapse", minWidth: (past ? 1240 : 760) + (byRegistered ? 140 : 0), tableLayout: "fixed" }}>
                   <colgroup>
-                    {(past ? COLS_PAST : COLS).map((w, i) => <col key={i} style={{ width: w }} />)}
+                    {(byRegistered ? (past ? COLS_PAST_REG : COLS_REG) : (past ? COLS_PAST : COLS))
+                      .map((w, i) => <col key={i} style={{ width: w }} />)}
                   </colgroup>
                   <thead>
                     <tr className="text-xs font-bold text-glass-text-tertiary">
-                      <th className="px-4 py-2.5 text-left font-bold">Time</th>
+                      {byRegistered ? (
+                        <>
+                          <th className="px-4 py-2.5 text-left font-bold">Registered</th>
+                          <th className="px-4 py-2.5 text-left font-bold">Game</th>
+                        </>
+                      ) : (
+                        <th className="px-4 py-2.5 text-left font-bold">Time</th>
+                      )}
                       <th className="px-4 py-2.5 text-left font-bold">Location</th>
                       <th className="px-4 py-2.5 text-left font-bold">Player</th>
                       <th className="px-4 py-2.5 text-left font-bold">Team</th>
@@ -203,14 +257,26 @@ export default async function ScheduledDropIns({
                       <tr key={`${r.game_at}-${r.player}-${i}`}
                         style={{
                           // A heavier rule where the venue changes, so each
-                          // location's drop-ins read as one block.
-                          borderTop: i > 0 && g.rows[i - 1].location !== r.location
+                          // location's drop-ins read as one block. By
+                          // registration the rows run by time, not venue.
+                          borderTop: !byRegistered && i > 0 && g.rows[i - 1].location !== r.location
                             ? "2px solid var(--glass-border-light)"
                             : "1px solid var(--glass-border)",
                         }}>
-                        <td className="px-4 py-2.5 whitespace-nowrap tabular" style={{ color: "var(--glass-text)" }}>
-                          {timeLabel(r.game_at, r.game_tz)}
-                        </td>
+                        {byRegistered ? (
+                          <>
+                            <td className="px-4 py-2.5 whitespace-nowrap tabular" style={{ color: "var(--glass-text)" }}>
+                              {timeLabel(regAt.get(r) ?? null, r.game_tz)}
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap tabular" style={{ color: "var(--glass-text)" }}>
+                              {gameLabel(r.game_at, r.game_tz)}
+                            </td>
+                          </>
+                        ) : (
+                          <td className="px-4 py-2.5 whitespace-nowrap tabular" style={{ color: "var(--glass-text)" }}>
+                            {timeLabel(r.game_at, r.game_tz)}
+                          </td>
+                        )}
                         <td className="px-4 py-2.5" style={{ color: "var(--glass-text)" }}>{r.location}</td>
                         <td className="px-4 py-2.5">
                           <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{r.player}</span>
@@ -274,16 +340,21 @@ export default async function ScheduledDropIns({
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
         {past ? (
           <>
-            Every drop-in that went through for a game already played, by the game it was for. Showed up is a stat line
+            Every drop-in that went through for a game already played, {byRegistered
+              ? "by the day it was registered, newest first"
+              : "by the game it was for"}. Showed up is a stat line
             or marked as played on the game; a no-show is a game whose stats are in for their team but not for them;
             awaiting stats is a game with none in for their team yet. Stat line says where their stats went: on the
             player, on a spare (a placeholder with no account and no roster spot, like &ldquo;Spare player&rdquo;),
             not on their team&apos;s sheet, or no stats in yet. Times are the venue&apos;s own local time.
+            {byRegistered && " Registered is when the drop-in went through (paid, or confirmed when free)."}
           </>
         ) : (
           <>
-            Every drop-in that went through for a game still to come, by the game it is for. Times are the venue&apos;s
-            own local time.
+            Every drop-in that went through for a game still to come, {byRegistered
+              ? "by the day it was registered, newest first"
+              : "by the game it is for"}. Times are the venue&apos;s own local time.
+            {byRegistered && " Registered is when the drop-in went through (paid, or confirmed when free)."}
           </>
         )}
       </p>
