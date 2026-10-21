@@ -80,17 +80,22 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
     locations: filterLocations,
   };
 
-  // The window opens on the first night anyone was checked in anywhere this
-  // season, so a location that has not started reads as nights missed rather
-  // than dropping out. A scoped view still needs every location's nights for
-  // that, so it reads the whole season too.
+  // The window opens on the first night two or more locations checked players
+  // in, which is when check-ins started for real: before it there was one test
+  // check-in at Burlington (Sep 28) and a trial at Toronto (Uptown) (Oct 14),
+  // and counting from those buried the rollout under weeks of nights nobody
+  // was asked to check in. From then on a location that has not started reads
+  // as nights missed rather than dropping out. A scoped view still needs every
+  // location's nights for that, so it reads the whole season too.
   const [scoped, everywhere, events] = await Promise.all([
     loadNights(selectedSeason, locationNames),
     locationNames ? loadNights(selectedSeason, null) : Promise.resolve(null),
     loadEvents(locationNames, selectedSeason),
   ]);
   const all = everywhere ?? scoped;
-  const since = (all ?? []).filter((n) => n.checked_in > 0).map((n) => n.night).sort()[0] ?? null;
+  const locsByNight = new Map<string, number>();
+  for (const n of all ?? []) if (n.checked_in > 0) locsByNight.set(n.night, (locsByNight.get(n.night) ?? 0) + 1);
+  const since = [...locsByNight.entries()].filter(([, k]) => k >= 2).map(([d]) => d).sort()[0] ?? null;
   const nights = (scoped ?? []).filter((n) => since && n.night >= since);
 
   // Events already held this season from the first event check-in in scope
@@ -167,7 +172,7 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
       ) : (
         <>
           <p className="text-sm text-glass-text-secondary">
-            Counting from {dayLabel(since)}, the first night anyone was checked in this {selectedSeason}.
+            Counting from {dayLabel(since)}, the first night check-ins ran at more than one location this {selectedSeason}.
           </p>
 
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -346,8 +351,8 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
         From the ops check-ins: staff at the front table check each player in to their game, to the venue, or to an
-        event. A game night is one location&apos;s games on one local date, from the first night anyone was checked
-        in this season. Played is everyone with a stat line or marked as played on that night&apos;s games, so a night
+        event. A game night is one location&apos;s games on one local date, from the first night two or more
+        locations checked players in this season. Played is everyone with a stat line or marked as played on that night&apos;s games, so a night
         whose stats aren&apos;t in yet reads awaiting stats. Of those who played is how many of them were checked in:
         green when all were, yellow from 80%, red below. Checked in can run above played: spares, drop-ins and anyone
         checked in without a stat line count there. Events count against everyone with a confirmed RSVP.
