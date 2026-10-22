@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { canManageUsers, getCurrentUser } from "@/lib/auth";
 import AppShell, { type NavItem, type SidebarMode } from "@/components/AppShell";
 import { SIDEBAR_COOKIE } from "@/lib/theme-shared";
+import { CITY_LAUNCHER_ROLES } from "@/lib/city-launchers";
 import { getTheme } from "@/lib/theme";
 
 // The pages people open daily first with no heading, then sentence-case
@@ -17,6 +18,7 @@ const EVENTS: NavItem = { href: "/events", label: "Events", short: "Events", ico
 const CHECK_INS: NavItem = { href: "/check-ins", label: "Check-ins", short: "Check-ins", icon: "checkins", group: "" };
 const WAITLIST: NavItem = { href: "/waitlist", label: "Waitlist", short: "Waitlist", icon: "waitlist", group: "" };
 const CITIES: NavItem = { href: "/requested-cities", label: "Requested cities", short: "Cities", icon: "cities", group: "" };
+const LAUNCHERS: NavItem = { href: "/city-launchers", label: "City launchers", short: "Launchers", icon: "launchers", group: "" };
 const STAFF: NavItem = { href: "/staff-performance", label: "Staff performance", short: "Staff", icon: "staff", group: "People" };
 const MY_DAY: NavItem = { href: "/my-day", label: "My day", short: "My day", icon: "myday", group: "People" };
 const LEADERBOARD: NavItem = { href: "/leaderboard", label: "Leaderboard", short: "Leaderboard", icon: "leaderboard", group: "People" };
@@ -38,6 +40,7 @@ export default async function Shell({ children }: { children: React.ReactNode })
   // staff performance is for admins and district managers.
   const items: NavItem[] = [
     DASHBOARD, LIVE, REGISTRATIONS, REFERRALS, DISCOUNTS, AMBASSADORS, DROP_INS, EVENTS, CHECK_INS, WAITLIST, CITIES,
+    ...((CITY_LAUNCHER_ROLES as readonly string[]).includes(role) ? [LAUNCHERS] : []),
     ...(STAFF_PERFORMANCE_ROLES.includes(role) ? [STAFF] : []),
     ...(isSuperAdmin ? [MY_DAY, LEADERBOARD, TROPHIES, DISTRICT, DISPUTES] : []),
     ...(isSuperAdmin ? [SETTINGS] : canManageUsers(role) ? [USERS] : []),
