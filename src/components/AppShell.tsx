@@ -10,6 +10,7 @@ import {
   MapPin,
   Radio,
   ScanLine,
+  Rocket,
   BadgePercent,
   CalendarCheck,
   ClipboardList,
@@ -36,7 +37,7 @@ import { SIDEBAR_COOKIE, type Theme } from "@/lib/theme-shared";
 // instead, because bundle.js toggling classes would be undone by the next render.
 
 export type NavIcon =
-  | "dashboard" | "live" | "registrations" | "referrals" | "discounts" | "ambassadors" | "dropins" | "events" | "checkins" | "waitlist" | "cities" | "staff"
+  | "dashboard" | "live" | "registrations" | "referrals" | "discounts" | "ambassadors" | "dropins" | "events" | "checkins" | "waitlist" | "cities" | "launchers" | "staff"
   | "myday" | "leaderboard" | "trophies" | "district" | "disputes" | "settings" | "users";
 
 export interface NavItem {
@@ -70,6 +71,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   checkins: ScanLine,
   waitlist: Hourglass,
   cities: MapPin,
+  launchers: Rocket,
   staff: UserCheck,
   myday: CalendarCheck,
   leaderboard: Trophy,
@@ -96,6 +98,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/ambassador-teams", title: "Ambassador teams", subtitle: "Every night's ambassador team, and how full each roster is." },
   { path: "/drop-ins", title: "Drop-ins", subtitle: "Players who came for a single game: who was new, who showed up, and who went on to register." },
   { path: "/check-ins", title: "Check-ins", subtitle: "Who the front table checked in each game night and event, against who played." },
+  { path: "/city-launchers", title: "City launchers", subtitle: "What each launcher\u2019s new-market registrations cost, and their credit for their own code." },
   { path: "/requested-cities", title: "Requested cities", subtitle: "Where people have asked Brodie to open next, from the website's request-a-city form." },
   { path: "/waitlist", title: "Waitlist", subtitle: "People who put down a deposit to be first in when Brodie opens in a new market." },
   { path: "/events", title: "Events", subtitle: "Open runs, Kicks of the Week, opening nights and more: who\u2019s going, who was new, and who went on to register." },
