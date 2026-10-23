@@ -6,7 +6,7 @@ import { BasisToggle } from "../dashboard/BasisToggle";
 import { requireUser } from "@/lib/auth";
 import { promoFetch } from "@/lib/promo-feed";
 import { TZ_SHORT } from "@/lib/tz";
-import { STICKY_TH, STICKY_TH_STYLE, tableScrollBox } from "../dashboard/stickyTable";
+import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
 // Events: open runs, Kicks of the Week, opening nights, beginner runs, all-star
 // games and the rest, from the ops events platform via the Promo Tracker. For
@@ -265,7 +265,7 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
 
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${stickyTh(860)}`} style={STICKY_TH_STYLE}>
       {children}
     </th>
   );

@@ -9,7 +9,7 @@ import MissingStatsDropIns from "./MissingStatsDropIns";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SectionSkeleton } from "../dashboard/Skeletons";
-import { STICKY_TH, STICKY_TH_STYLE, tableScrollBox } from "../dashboard/stickyTable";
+import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
 // Drop-ins: players who came for a single game rather than a season. A drop-in
 // is free for a brand-new player (the First-Time Free code) and $50 for a
@@ -498,7 +498,7 @@ function SubHead({ title, note }: { title: string; note: string }) {
 
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${stickyTh(1100)}`} style={STICKY_TH_STYLE}>
       {children}
     </th>
   );
