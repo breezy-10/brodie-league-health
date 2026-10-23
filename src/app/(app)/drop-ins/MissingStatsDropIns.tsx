@@ -1,7 +1,7 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { TZ_SHORT, dateKey, dayLabel, todayKey } from "./ScheduledDropIns";
-import { STICKY_TH, STICKY_TH_STYLE, tableScrollBox } from "../dashboard/stickyTable";
+import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
 // The Missing stats tab: drop-ins for games already played where the player
 // has no stat line, and what the game's stats show instead, so their stats
@@ -144,11 +144,11 @@ export default async function MissingStatsDropIns({
                   </colgroup>
                   <thead>
                     <tr className="text-xs font-bold text-glass-text-tertiary">
-                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Time</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Location</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Player</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Team</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>What the stats show</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Time</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Location</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Player</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Team</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>What the stats show</th>
                     </tr>
                   </thead>
                   <tbody>

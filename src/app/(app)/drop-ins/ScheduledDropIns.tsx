@@ -1,7 +1,7 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { TZ_SHORT } from "@/lib/tz";
-import { STICKY_TH, STICKY_TH_STYLE, tableScrollBox } from "../dashboard/stickyTable";
+import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
 export { TZ_SHORT };
 
@@ -233,23 +233,23 @@ export default async function ScheduledDropIns({
                     <tr className="text-xs font-bold text-glass-text-tertiary">
                       {byRegistered ? (
                         <>
-                          <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Registered</th>
-                          <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Game</th>
+                          <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Registered</th>
+                          <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Game</th>
                         </>
                       ) : (
-                        <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Time</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Time</th>
                       )}
-                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Location</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Player</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Team</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Price</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Location</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Player</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Team</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Price</th>
                       {past && (
                         <>
-                          <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Attendance</th>
-                          <th className={`px-2 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Stat line</th>
-                          <th className={`px-2 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>BallerTV</th>
-                          <th className={`px-2 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Admin</th>
-                          <th className={`px-2 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Stats</th>
+                          <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Attendance</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Stat line</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>BallerTV</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Admin</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Stats</th>
                         </>
                       )}
                     </tr>
