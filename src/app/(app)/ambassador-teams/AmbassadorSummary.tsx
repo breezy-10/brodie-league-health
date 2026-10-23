@@ -1,6 +1,7 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { ChipTile as Tile, CHIP_STYLE } from "../dashboard/ChipTile";
+import type { JoinedVia } from "@/components/TeamRosterBlock";
 
 // The Promo Tracker owns the ops-DB (Metabase) connection, so the ambassador
 // roster comes from its feed rather than being re-derived here — same pattern
@@ -21,12 +22,8 @@ export type RosterEntry = {
   discount?: number;
   discount_names?: string | null;
   no_registration: boolean;
-  // How they got onto this team (absent from an older feed): as its captain,
-  // with the captain's team code or roster invite, as a free agent who picked
-  // the team in the "join an ambassador team" step of the free-agent sign-up,
-  // with a team registration that had neither, or null with no registration
-  // on the team.
-  joined_via?: "captain" | "team_code" | "free_agent" | "no_code" | null;
+  // How they got onto this team (absent from an older feed); see JoinedVia.
+  joined_via?: JoinedVia;
 };
 export type TeamRow = {
   team: string;

@@ -3,8 +3,9 @@ import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, resolveScope } from "@/lib/seasons";
 import { getLocationDistricts } from "@/lib/districts-locations";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
-import AmbassadorTable, { type CaptainTeam } from "./AmbassadorTable";
-import { StaffBadge } from "@/components/TeamRosterBlock";
+import AmbassadorTable, { type CaptainRow, type CaptainTeam } from "./AmbassadorTable";
+import { sameLocation } from "@/lib/location-match";
+import { JoinedTag, StaffBadge, pickedTeam, placedOnTeam } from "@/components/TeamRosterBlock";
 import { loadStaff } from "@/lib/staff";
 import { normName } from "@/lib/names";
 import { shortDiscount } from "@/lib/discount-names";
@@ -74,9 +75,42 @@ export default async function AmbassadorTeamsView({
   // captains are most of the programme. Keyed by ops player id where the feed
   // supplies it, since two captains can share a name; an older feed falls back
   // to the name-keyed maps and simply doesn't link through.
-  const captainRows = (feed?.captains
+  // Each location's district, by the districts app's own assignment, matched
+  // by name since the two apps write some venues differently.
+  const districtOf = (loc: string): string | null => {
+    if (!districtMap) return null;
+    const exact = districtMap.byLocation.get(loc);
+    if (exact) return exact;
+    for (const [name, d] of districtMap.byLocation) if (sameLocation(name, loc)) return d;
+    return null;
+  };
+  // Each ambassador's teams, keyed as the rows are (ops player id, falling
+  // back to the name on an older feed), for the expander under their name and
+  // the districts they cover. Built from the already-scoped feed, so it holds
+  // the teams inside the current location filter and nothing else.
+  const teamsByKey: Record<string, CaptainTeam[]> = {};
+  const teamsByLocation: Record<string, CaptainTeam[]> = {};
+  for (const loc of locations) {
+    for (const r of loc.rows) {
+      const team: CaptainTeam = {
+        team: r.team,
+        location: loc.location,
+        day: r.day,
+        division: r.division,
+        players: r.players,
+        roster: r.roster ?? [],
+      };
+      (teamsByLocation[loc.location] ??= []).push(team);
+      const key = r.captain_id ?? r.captain;
+      if (key) (teamsByKey[key] ??= []).push(team);
+    }
+  }
+  const districtsOf = (teams: CaptainTeam[]) =>
+    [...new Set(teams.map((t) => districtOf(t.location)).filter((d): d is string => !!d))].sort((a, b) => a.localeCompare(b));
+  const captainRows: CaptainRow[] = (feed?.captains
     ? Object.entries(feed.captains).map(([id, c]) => ({
-        key: id, id, name: c.name, teams: c.teams, fullRoster: c.full_roster ?? null,
+        key: id, id, name: c.name, districts: districtsOf(teamsByKey[id] ?? []),
+        teams: c.teams, fullRoster: c.full_roster ?? null,
         teammates: c.teammates ?? null,
         // Teammates per team, so the column is the two beside it divided.
         // players/teams counted the ambassador themselves on every roster,
@@ -86,7 +120,8 @@ export default async function AmbassadorTeamsView({
         avgPaid: c.teams && c.paid_teammates != null ? c.paid_teammates / c.teams : null,
       }))
     : Object.entries(captainTeams).map(([name, teams]) => ({
-        key: name, id: null as string | null, name, teams, fullRoster: null as number | null,
+        key: name, id: null as string | null, name, districts: districtsOf(teamsByKey[name] ?? []),
+        teams, fullRoster: null as number | null,
         teammates: null as number | null,
         avg: teams ? (captainPlayers?.[name] ?? 0) / teams : null,
         paid: null as number | null, avgPaid: null as number | null,
@@ -99,25 +134,26 @@ export default async function AmbassadorTeamsView({
   const hasFullRoster = captainRows.some((c) => c.fullRoster !== null);
   const hasPaid = captainRows.some((c) => c.paid !== null);
   const multiTeam = captainRows.filter((c) => c.teams > 1).length;
-  // Each ambassador's own teams, for the expander under their name. Keyed the
-  // same way the rows are (ops player id, falling back to the name on an older
-  // feed) so the two line up. Built from the already-scoped feed, so expanding
-  // a row shows the teams inside the current location filter and nothing else.
-  const teamsByKey: Record<string, CaptainTeam[]> = {};
-  for (const loc of locations) {
-    for (const r of loc.rows) {
-      const key = r.captain_id ?? r.captain;
-      if (!key) continue;
-      (teamsByKey[key] ??= []).push({
-        team: r.team,
-        location: loc.location,
-        day: r.day,
-        division: r.division,
-        players: r.players,
-        roster: r.roster ?? [],
-      });
-    }
-  }
+  // The same board by location: every ambassador team there, counted the way
+  // the ambassador rows are. Teammates are the roster spots other than the
+  // captain's, paid teammates those who have paid anything this season.
+  const FULL = 7;
+  const locationRows: CaptainRow[] = locations.map((loc) => {
+    const teams = teamsByLocation[loc.location] ?? [];
+    const mates = teams.reduce((n, t) => n + (t.roster.length
+      ? t.roster.filter((x) => !x.is_captain).length
+      : Math.max(t.players - 1, 0)), 0);
+    const paidMates = teams.reduce((n, t) => n + t.roster.filter((x) => !x.is_captain && x.paid_ok).length, 0);
+    return {
+      key: loc.location, id: null, name: loc.location, districts: districtsOf(teams),
+      teams: teams.length,
+      fullRoster: teams.filter((t) => t.players >= FULL).length,
+      teammates: mates,
+      avg: teams.length ? mates / teams.length : null,
+      paid: paidMates,
+      avgPaid: teams.length ? paidMates / teams.length : null,
+    };
+  }).sort((a, b) => (b.teammates ?? 0) - (a.teammates ?? 0) || b.teams - a.teams || a.name.localeCompare(b.name));
 
 
   return (
@@ -166,7 +202,6 @@ export default async function AmbassadorTeamsView({
             </div>
 
             {captainRows.length > 0 && (
-              <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
                 <AmbassadorTable
                   header={<>
                   <div className="text-xs font-bold text-glass-text-tertiary mb-1">
@@ -181,7 +216,20 @@ export default async function AmbassadorTeamsView({
                     teams and who has paid on each; select the name for their full page.
                   </p>
                   </>}
+                  locationsHeader={<>
+                  <div className="text-xs font-bold text-glass-text-tertiary mb-1">
+                    Locations
+                  </div>
+                  <p className="text-xs text-glass-text-tertiary">
+                    Every location with an ambassador team in the current filter, counted the same way: teammates
+                    are the roster spots other than the captain&apos;s, teams with 7+ the ones that can field a
+                    side, paid teammates the ones who have paid any amount this season. Open the arrow beside a
+                    location for its teams and who has paid on each.
+                  </p>
+                  </>}
                   rows={captainRows}
+                  locationRows={locationRows}
+                  teamsByLocation={teamsByLocation}
                   staff={staff}
                   teamsByKey={teamsByKey}
                   season={selectedSeason}
@@ -189,7 +237,6 @@ export default async function AmbassadorTeamsView({
                   hasTeammates={hasTeammates}
                   hasPaid={hasPaid}
                 />
-              </div>
             )}
 
             <div className="space-y-3">
@@ -373,7 +420,8 @@ function TeamChip({
   // has players but no free agent at all, everyone on the captain's code, may
   // have been marked an ambassador team by mistake.
   const knowsJoins = roster.some((r) => r.joined_via !== undefined);
-  const freeAgents = roster.filter((r) => r.joined_via === "free_agent").length;
+  const picked = roster.filter((r) => pickedTeam(r.joined_via)).length;
+  const placed = roster.filter((r) => placedOnTeam(r.joined_via)).length;
   const viaCode = roster.filter((r) => r.joined_via === "team_code").length;
   // Captain first, then whoever has paid least — the chase list surfaces
   // without having to read the whole roster.
@@ -429,10 +477,21 @@ function TeamChip({
 
       {knowsJoins && roster.length > 1 && (
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-glass-text-tertiary">
-          {freeAgents > 0 ? (
-            <span className="font-semibold" style={{ color: "var(--green)" }}>
-              {freeAgents} free {freeAgents === 1 ? "agent" : "agents"}
-            </span>
+          {picked + placed > 0 ? (
+            <>
+              {picked > 0 && (
+                <span className="font-semibold" style={{ color: "var(--green)" }}
+                  title="Free agents who chose this team in the free-agent sign-up">
+                  {picked} free {picked === 1 ? "agent" : "agents"} picked the team
+                </span>
+              )}
+              {placed > 0 && (
+                <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}
+                  title="Free agents staff put on this team after they registered">
+                  {placed} placed by staff
+                </span>
+              )}
+            </>
           ) : (
             <span title="Nobody joined through the free-agent sign-up: every player came in with the captain's team code. Check this team should be an ambassador team.">
               <Flag color={THIN}>no free agents</Flag>
@@ -496,9 +555,7 @@ function TeamChip({
                   {r.player}
                   {r.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
                   {staffOf(r.player) && <StaffBadge label={staffOf(r.player)!} />}
-                  {r.joined_via === "free_agent" && <span style={{ color: "var(--green)" }}> · Free agent</span>}
-                  {r.joined_via === "team_code" && <span className="text-glass-text-tertiary"> · Captain&apos;s code</span>}
-                  {r.joined_via === "no_code" && <span className="text-glass-text-tertiary"> · Joined without a code</span>}
+                  {!r.is_captain && <JoinedTag via={r.joined_via} />}
                 </div>
                 <div className="truncate tabular text-[11px]" title={r.discount_names ?? (r.no_registration ? "No registration on file" : undefined)}>
                   {r.no_registration ? (

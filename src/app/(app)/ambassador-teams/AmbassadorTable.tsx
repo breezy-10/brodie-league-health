@@ -11,10 +11,14 @@ const GOLD = "var(--glass-gold)";
 export type TableRosterEntry = RosterLine;
 export type CaptainTeam = RosterTeam;
 
+// One row of the board: an ambassador, or a location. id links an ambassador
+// to their own page; a location has none.
 export type CaptainRow = {
   key: string;
   id: string | null;
   name: string;
+  // The districts this row's teams sit in, from the districts app.
+  districts: string[];
   teams: number;
   fullRoster: number | null;
   teammates: number | null;
@@ -29,20 +33,30 @@ const dayRank = (d: string | null) => {
   return i === -1 ? 99 : i;
 };
 
+type Mode = "ambassadors" | "locations";
+
+// The board, by ambassador or by location: a toggle above the card switches
+// which, and each row opens onto its teams and who has paid on each.
 export default function AmbassadorTable({
   rows,
   teamsByKey,
+  locationRows,
+  teamsByLocation,
   season,
   staff,
   hasFullRoster,
   hasTeammates,
   hasPaid,
   header,
+  locationsHeader,
 }: {
-  // The card's title and explanation, drawn beside the Expand all toggle.
+  // Each view's title and explanation, drawn beside the Expand all toggle.
   header?: React.ReactNode;
+  locationsHeader?: React.ReactNode;
   rows: CaptainRow[];
   teamsByKey: Record<string, CaptainTeam[]>;
+  locationRows: CaptainRow[];
+  teamsByLocation: Record<string, CaptainTeam[]>;
   season: string;
   // Normalised name -> role label (training roster + League Health users).
   staff: Record<string, string> | null;
@@ -50,77 +64,89 @@ export default function AmbassadorTable({
   hasTeammates: boolean;
   hasPaid: boolean;
 }) {
+  const [mode, setMode] = useState<Mode>("ambassadors");
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const colCount = 3 + (hasFullRoster ? 1 : 0) + (hasTeammates ? 1 : 0) + (hasPaid ? 2 : 0);
-  // Only captains with teams to show can open, and the toggle's label names
-  // what a click does: Collapse all once every one of them is open.
-  const openable = rows.filter((c) => (teamsByKey[c.key] ?? []).length > 0).map((c) => c.key);
-  const allOpen = openable.length > 0 && openable.every((k) => open[k]);
+  const byLocation = mode === "locations";
+  const shown = byLocation ? locationRows : rows;
+  const teamsOf = byLocation ? teamsByLocation : teamsByKey;
+  const colCount = 4 + (hasFullRoster ? 1 : 0) + (hasTeammates ? 1 : 0) + (hasPaid ? 2 : 0);
+  // Only rows with teams to show can open, and the toggle's label names what a
+  // click does: Collapse all once every one of them is open.
+  const openable = shown.filter((c) => (teamsOf[c.key] ?? []).length > 0).map((c) => c.key);
+  const allOpen = openable.length > 0 && openable.every((k) => open[`${mode}:${k}`]);
+  const th = "px-4 py-2.5 font-bold sticky top-0 z-[2] bg-glass-surface";
+  const thStyle = { borderBottom: "1px solid var(--glass-border)" };
 
   return (
-    <>
-    <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
-      <div className="min-w-0 flex-1">{header}</div>
-      <button
-        type="button"
-        onClick={() => setOpen(allOpen ? {} : Object.fromEntries(openable.map((k) => [k, true])))}
-        disabled={openable.length === 0}
-        className={TOOL_BTN}
-      >
-        {allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
-        {allOpen ? "Collapse all" : "Expand all"}
-      </button>
+    <div className="space-y-3">
+      <div className="br-seg items-center">
+        {(["ambassadors", "locations"] as const).map((m) => (
+          <button key={m} type="button" onClick={() => setMode(m)} className={mode === m ? "is-on" : undefined}
+            aria-pressed={mode === m} style={{ cursor: mode === m ? "default" : "pointer" }}>
+            {m === "ambassadors" ? "Ambassadors" : "Locations"}
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
+        <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
+          <div className="min-w-0 flex-1">{byLocation ? locationsHeader : header}</div>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => {
+              const next = { ...o };
+              for (const k of openable) next[`${mode}:${k}`] = !allOpen;
+              return next;
+            })}
+            disabled={openable.length === 0}
+            className={TOOL_BTN}
+          >
+            {allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+            {allOpen ? "Collapse all" : "Expand all"}
+          </button>
+        </div>
+        {/* The table scrolls inside this box, not the window, so its header
+            sticks at the box's top (top-0). The page's --shell-top offset would
+            pin it a header-height down, over the rows. */}
+        <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
+          <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 560 }}>
+            <thead>
+              <tr className="text-xs font-bold text-glass-text-tertiary">
+                <th className={`${th} text-left`} style={thStyle}>{byLocation ? "Location" : "Ambassador"}</th>
+                <th className={`${th} text-left`} style={thStyle}>District</th>
+                <th className={`${th} text-right`} style={thStyle}>Teams</th>
+                {hasFullRoster && <th className={`${th} text-right`} style={thStyle}>Teams with 7+</th>}
+                {hasTeammates && <th className={`${th} text-right`} style={thStyle}>Teammates</th>}
+                <th className={`${th} text-right`} style={thStyle}>Avg teammates per team</th>
+                {hasPaid && (
+                  <>
+                    <th className={`${th} text-right`} style={thStyle}>Paid teammates</th>
+                    <th className={`${th} text-right`} style={thStyle}>Avg paid per team</th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((c) => {
+                const teams = [...(teamsOf[c.key] ?? [])].sort(
+                  (a, b) =>
+                    a.location.localeCompare(b.location) ||
+                    dayRank(a.day) - dayRank(b.day) ||
+                    a.team.localeCompare(b.team),
+                );
+                const k = `${mode}:${c.key}`;
+                return (
+                  <Row key={k} c={c} teams={teams} isOpen={!!open[k]} colCount={colCount} season={season}
+                    staff={staff}
+                    hasFullRoster={hasFullRoster} hasTeammates={hasTeammates} hasPaid={hasPaid}
+                    toggle={() => setOpen((o) => ({ ...o, [k]: !o[k] }))} />
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
-    {/* The table scrolls inside this box, not the window, so its header sticks
-        at the box's top (top-0). The page's --shell-top offset would pin it a
-        header-height down, over the rows. */}
-    <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
-      <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 420 }}>
-        <thead>
-          <tr className="text-xs font-bold text-glass-text-tertiary">
-            <th className="px-4 py-2.5 text-left font-bold sticky top-0 z-[2] bg-glass-surface"
-              style={{ borderBottom: "1px solid var(--glass-border)" }}>Ambassador</th>
-            <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
-              style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams</th>
-            {hasFullRoster && (
-              <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
-                style={{ borderBottom: "1px solid var(--glass-border)" }}>Teams with 7+</th>
-            )}
-            {hasTeammates && (
-              <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
-                style={{ borderBottom: "1px solid var(--glass-border)" }}>Teammates</th>
-            )}
-            <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
-              style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg teammates per team</th>
-            {hasPaid && (
-              <>
-                <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
-                  style={{ borderBottom: "1px solid var(--glass-border)" }}>Paid teammates</th>
-                <th className="px-4 py-2.5 text-right font-bold sticky top-0 z-[2] bg-glass-surface"
-                  style={{ borderBottom: "1px solid var(--glass-border)" }}>Avg paid per team</th>
-              </>
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((c) => {
-            const teams = [...(teamsByKey[c.key] ?? [])].sort(
-              (a, b) =>
-                a.location.localeCompare(b.location) ||
-                dayRank(a.day) - dayRank(b.day) ||
-                a.team.localeCompare(b.team),
-            );
-            const isOpen = !!open[c.key];
-            return (
-              <Row key={c.key} c={c} teams={teams} isOpen={isOpen} colCount={colCount} season={season} staff={staff}
-                hasFullRoster={hasFullRoster} hasTeammates={hasTeammates} hasPaid={hasPaid}
-                toggle={() => setOpen((o) => ({ ...o, [c.key]: !o[c.key] }))} />
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-    </>
   );
 }
 
@@ -176,12 +202,15 @@ function Row({
             {staff?.[normName(c.name)] && <StaffBadge label={staff[normName(c.name)]} />}
           </span>
         </td>
+        <td className="px-4 py-2.5" style={{ color: c.districts.length ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
+          {c.districts.length ? c.districts.join(", ") : "—"}
+        </td>
         <td className="px-4 py-2.5 text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
           {c.teams}
         </td>
         {hasFullRoster && (
-          /* Green once every one of their teams can field a side, so a finished
-             ambassador reads at a glance instead of by comparing two columns. */
+          /* Green once every one of the row's teams can field a side, so a
+             finished one reads at a glance instead of by comparing columns. */
           <td className="px-4 py-2.5 text-right tabular"
             style={{ color: c.fullRoster != null && c.fullRoster === c.teams
               ? "var(--green)" : "var(--glass-text-secondary)" }}>
