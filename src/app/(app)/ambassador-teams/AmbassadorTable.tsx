@@ -49,6 +49,7 @@ export default function AmbassadorTable({
   hasPaid,
   header,
   locationsHeader,
+  locationCards,
 }: {
   // Each view's title and explanation, drawn beside the Expand all toggle.
   header?: React.ReactNode;
@@ -63,6 +64,9 @@ export default function AmbassadorTable({
   hasFullRoster: boolean;
   hasTeammates: boolean;
   hasPaid: boolean;
+  // Each location's nights and team cards, drawn under the table in the
+  // Locations view only.
+  locationCards?: React.ReactNode;
 }) {
   const [mode, setMode] = useState<Mode>("ambassadors");
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -146,6 +150,8 @@ export default function AmbassadorTable({
           </table>
         </div>
       </div>
+
+      {byLocation && locationCards}
     </div>
   );
 }
