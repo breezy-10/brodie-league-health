@@ -19,7 +19,33 @@ export type RosterLine = {
   // older feed without them still renders.
   discount?: number;
   discount_names?: string | null;
+  // How they got onto the team (absent from an older feed).
+  joined_via?: JoinedVia;
 };
+
+// How a player got onto an ambassador team, from their registration: as its
+// captain; with the captain's team code or roster invite; as a free agent who
+// picked the team in the "join an ambassador team" step of the free-agent
+// sign-up, or one placed on it by staff; moved over by staff from the team
+// they signed up for; or a team registration with no code. "free_agent" is
+// what the feed sent before it told picked from placed.
+export type JoinedVia =
+  | "captain" | "team_code" | "free_agent" | "free_agent_picked" | "free_agent_placed" | "moved" | "no_code" | null;
+const JOINED: Partial<Record<NonNullable<JoinedVia>, { label: string; color: string }>> = {
+  free_agent: { label: "Free agent", color: "var(--green)" },
+  free_agent_picked: { label: "Free agent, picked the team", color: "var(--green)" },
+  free_agent_placed: { label: "Free agent, placed by staff", color: "var(--glass-text-secondary)" },
+  moved: { label: "Moved here by staff", color: "var(--glass-text-tertiary)" },
+  team_code: { label: "Captain's code", color: "var(--glass-text-tertiary)" },
+  no_code: { label: "Joined without a code", color: "var(--glass-text-tertiary)" },
+};
+export function JoinedTag({ via }: { via?: JoinedVia }) {
+  const j = via ? JOINED[via] : undefined;
+  return j ? <span style={{ color: j.color }}> · {j.label}</span> : null;
+}
+// Free agents who chose the team themselves, and those staff put there.
+export const pickedTeam = (v?: JoinedVia) => v === "free_agent_picked" || v === "free_agent";
+export const placedOnTeam = (v?: JoinedVia) => v === "free_agent_placed";
 
 export type RosterTeam = {
   team: string;
@@ -105,6 +131,7 @@ export default function TeamRosterBlock({
                 {x.player}
                 {x.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
                 {staff?.[normName(x.player)] && <StaffBadge label={staff[normName(x.player)]} />}
+                {!x.is_captain && <JoinedTag via={x.joined_via} />}
               </span>
               <span
                 className="tabular shrink-0 w-[128px] text-right"
