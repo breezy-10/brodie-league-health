@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, resolveScope } from "@/lib/seasons";
 import { getLocationDistricts } from "@/lib/districts-locations";
@@ -11,8 +10,6 @@ import { normName } from "@/lib/names";
 import { shortDiscount } from "@/lib/discount-names";
 import { ChipTile as Tile } from "../dashboard/ChipTile";
 import { AmbassadorSummaryTiles, loadAmbassadorTeams, type LocationRow, type TeamRow } from "./AmbassadorSummary";
-import ForfeitRisk from "./ForfeitRisk";
-import { TableSkeleton } from "../dashboard/Skeletons";
 
 const GOLD = "var(--glass-gold)";
 const THIN = "var(--glass-yellow)"; // captain-only roster
@@ -38,7 +35,7 @@ export default async function AmbassadorTeamsView({
     resolveScope({ season: selectedSeasons[0], locations: selectedLocations }, { defaultSeason: "registration" }),
     getLocationDistricts(),
   ]);
-  const { filterLocations, promoSeasons, selectedSeason, playingSeason } = scope;
+  const { filterLocations, promoSeasons, selectedSeason } = scope;
   // The district filter narrows the location filter: the chosen locations
   // (every location when none are) that sit in a chosen district, by the
   // districts app's own assignment. An empty list means nothing matches.
@@ -49,10 +46,6 @@ export default async function AmbassadorTeamsView({
       })
     : scope.locationNames;
   const [feed, staff] = await Promise.all([loadAmbassadorTeams(selectedSeason, locationNames), loadStaff()]);
-  // Forfeit risk is about games being played, so it follows the season in
-  // play, not the registration season this page opens on, until the filter
-  // names a season.
-  const forfeitSeason = selectedSeasons.length ? selectedSeason : playingSeason;
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
@@ -261,16 +254,6 @@ export default async function AmbassadorTeamsView({
           )}
         </p>
       </section>
-
-      {/* Streams in after the rest: the overdue app checks every location's
-          rosters to answer. */}
-      <Suspense fallback={<TableSkeleton title="Forfeit risk" rows={5} />}>
-        <ForfeitRisk
-          season={forfeitSeason}
-          locationNames={locationNames}
-          ambassadors={forfeitSeason === selectedSeason ? feed : undefined}
-        />
-      </Suspense>
     </main>
   );
 }

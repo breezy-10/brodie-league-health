@@ -11,6 +11,7 @@ import {
   Radio,
   ScanLine,
   Rocket,
+  ShieldAlert,
   BadgePercent,
   CalendarCheck,
   ClipboardList,
@@ -37,7 +38,7 @@ import { SIDEBAR_COOKIE, type Theme } from "@/lib/theme-shared";
 // instead, because bundle.js toggling classes would be undone by the next render.
 
 export type NavIcon =
-  | "dashboard" | "live" | "registrations" | "referrals" | "discounts" | "ambassadors" | "dropins" | "events" | "checkins" | "waitlist" | "cities" | "launchers" | "staff"
+  | "dashboard" | "live" | "registrations" | "referrals" | "discounts" | "ambassadors" | "forfeit" | "dropins" | "events" | "checkins" | "waitlist" | "cities" | "launchers" | "staff"
   | "myday" | "leaderboard" | "trophies" | "district" | "disputes" | "settings" | "users";
 
 export interface NavItem {
@@ -66,6 +67,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   referrals: Gift,
   discounts: BadgePercent,
   ambassadors: Star,
+  forfeit: ShieldAlert,
   dropins: Ticket,
   events: CalendarDays,
   checkins: ScanLine,
@@ -96,6 +98,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/discounts", title: "Price and discounting", subtitle: "What a registration is advertised at, what comes off, and what actually lands." },
   { path: "/ambassador-teams/captain", title: "Captain", subtitle: "One captain's ambassador team and roster." },
   { path: "/ambassador-teams", title: "Ambassador teams", subtitle: "Every night's ambassador team, and how full each roster is." },
+  { path: "/forfeit-risk", title: "Forfeit risk", subtitle: "Teams one no-show from forfeiting: 6 or fewer fully paid players, with the ambassador teams among them marked." },
   { path: "/drop-ins", title: "Drop-ins", subtitle: "Players who came for a single game: who was new, who showed up, and who went on to register." },
   { path: "/check-ins", title: "Check-ins", subtitle: "Who the front table checked in each game night and event, against who played." },
   { path: "/city-launchers", title: "City launchers", subtitle: "What each launcher\u2019s new-market registrations cost, and their credit for their own code." },
