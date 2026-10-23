@@ -49,6 +49,12 @@ export type DropInRow = {
   // The same players by the season they registered for (absent from an older
   // feed).
   converted_by_season?: Record<string, number>;
+  // Returning players who made a season registration after their drop-in,
+  // split the same way (absent from an older feed).
+  returning_converted_players?: number;
+  returning_converted_same_season?: number;
+  returning_converted_other_season?: number;
+  returning_converted_by_season?: Record<string, number>;
   new_charged?: number;
   returning_free?: number;
   given_free?: number;
@@ -71,6 +77,8 @@ export type DropInFeed = {
     players: number; repeat_players: number; new_players?: number; returning_players?: number; converted_players?: number;
     converted_same_season?: number; converted_other_season?: number;
     converted_by_season?: Record<string, number>;
+    returning_converted_players?: number;
+    returning_converted_by_season?: Record<string, number>;
   }>;
   discount_codes: { code: string; currency: string; uses: number; given_up: number }[];
   truncated: boolean;
@@ -252,6 +260,9 @@ async function DropInSummary({ season, locationNames, when }: {
           const converted = people.converted_players ?? sum("converted_players");
           const convertedSame = people.converted_same_season ?? sum("converted_same_season");
           const convertedOther = people.converted_other_season ?? sum("converted_other_season");
+          // A returning player is one who had already played or registered;
+          // this is the ones who registered for a season after their drop-in.
+          const retConverted = people.returning_converted_players ?? sum("returning_converted_players");
           const newDropins = sum("new_dropins");
           const retDropins = sum("returning_dropins");
           // The returning players' price, weighted by their drop-ins.
@@ -342,7 +353,7 @@ async function DropInSummary({ season, locationNames, when }: {
               </div>
 
               <SubHead title="Returning players" note="Charged for each drop-in" />
-              <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
                 <Tile label="Drop-ins" value={retDropins.toLocaleString()} accent={ACCENT}
                   sub={
                     <>
@@ -358,11 +369,16 @@ async function DropInSummary({ season, locationNames, when }: {
                     returning players brought in, summed. */}
                 <Tile label="Revenue" value={money(sum("returning_revenue"))} accent={ACCENT}
                   sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
+                <Tile label="Registered after" value={pct(retConverted, retPlayers)} accent={ACCENT}
+                  sub={retConverted
+                    ? `${retConverted.toLocaleString()} of ${retPlayers.toLocaleString()} returning players registered for a season after their drop-in${
+                        people.returning_converted_by_season ? `: ${seasonCounts(people.returning_converted_by_season)}` : ""}`
+                    : `none of ${retPlayers.toLocaleString()} returning players has registered for a season since`} />
               </div>
 
               <div className="rounded-2xl bg-glass-surface shadow-card">
-                <div className={tableScrollBox(past ? 1100 : 980)}>
-                  <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1100 : 980 }}>
+                <div className={tableScrollBox(past ? 1200 : 1080)}>
+                  <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1200 : 1080 }}>
                     <thead>
                       <tr className="text-xs font-bold text-glass-text-tertiary">
                         <Th align="left">Location</Th>
@@ -371,6 +387,7 @@ async function DropInSummary({ season, locationNames, when }: {
                         <Th>Registered this season</Th>
                         <Th>Registered another season</Th>
                         <Th>Returning players</Th>
+                        <Th>Returning who registered after</Th>
                         <Th>Returning revenue</Th>
                         <Th>Revenue</Th>
                         {past && <Th>Showed up</Th>}
@@ -406,6 +423,9 @@ async function DropInSummary({ season, locationNames, when }: {
                             {(r.returning_players ?? 0).toLocaleString()}
                             <CountLine one="drop-in" many="drop-ins" n={r.returning_dropins ?? 0} />
                           </Td>
+                          <RateTd count={r.returning_converted_players ?? 0} total={r.returning_players ?? 0}
+                            note={r.returning_converted_by_season && Object.keys(r.returning_converted_by_season).length
+                              ? seasonCounts(r.returning_converted_by_season) : null} />
                           <Td>{r.returning_dropins ? money(r.returning_revenue ?? 0) : "—"}</Td>
                           <Td strong>{money(r.revenue)}</Td>
                           {past && (
@@ -440,6 +460,9 @@ async function DropInSummary({ season, locationNames, when }: {
                             {retPlayers.toLocaleString()}
                             <CountLine one="drop-in" many="drop-ins" n={retDropins} />
                           </Td>
+                          <RateTd strong count={retConverted} total={retPlayers}
+                            note={people.returning_converted_by_season && Object.keys(people.returning_converted_by_season).length
+                              ? seasonCounts(people.returning_converted_by_season) : null} />
                           <Td strong>{retDropins ? money(sum("returning_revenue")) : "—"}</Td>
                           <Td strong>{money(sum("revenue"))}</Td>
                           {past && (
@@ -498,7 +521,7 @@ function SubHead({ title, note }: { title: string; note: string }) {
 
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${stickyTh(1100)}`} style={STICKY_TH_STYLE}>
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${stickyTh(1200)}`} style={STICKY_TH_STYLE}>
       {children}
     </th>
   );
