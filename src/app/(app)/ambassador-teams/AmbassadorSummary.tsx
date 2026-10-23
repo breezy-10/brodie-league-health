@@ -21,6 +21,12 @@ export type RosterEntry = {
   discount?: number;
   discount_names?: string | null;
   no_registration: boolean;
+  // How they got onto this team (absent from an older feed): as its captain,
+  // with the captain's team code or roster invite, as a free agent who picked
+  // the team in the "join an ambassador team" step of the free-agent sign-up,
+  // with a team registration that had neither, or null with no registration
+  // on the team.
+  joined_via?: "captain" | "team_code" | "free_agent" | "no_code" | null;
 };
 export type TeamRow = {
   team: string;
