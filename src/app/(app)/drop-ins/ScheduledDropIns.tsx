@@ -1,6 +1,7 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { TZ_SHORT } from "@/lib/tz";
+import { STICKY_TH, STICKY_TH_STYLE, tableScrollBox } from "../dashboard/stickyTable";
 
 export { TZ_SHORT };
 
@@ -194,6 +195,7 @@ export default async function ScheduledDropIns({
   const games = new Set(rows.map((r) => `${r.game_at}|${r.location}|${r.team}|${r.opponent}`)).size;
   const newCount = rows.filter((r) => r.is_new).length;
   const today = todayKey();
+  const tableMin = (past ? 1240 : 760) + (byRegistered ? 140 : 0);
 
   return (
     <div className="space-y-4">
@@ -217,12 +219,12 @@ export default async function ScheduledDropIns({
                 {g.rows.length} {g.rows.length === 1 ? "drop-in" : "drop-ins"}
               </span>
             </h3>
-            <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
-              <div className="overflow-x-auto">
+            <div className="rounded-2xl bg-glass-surface shadow-card">
+              <div className={tableScrollBox(tableMin)}>
                 {/* Fixed layout with the same widths in every day's table, so the
                     columns line up from one day to the next whatever each holds. */}
                 <table className="w-full text-sm"
-                  style={{ borderCollapse: "collapse", minWidth: (past ? 1240 : 760) + (byRegistered ? 140 : 0), tableLayout: "fixed" }}>
+                  style={{ borderCollapse: "collapse", minWidth: tableMin, tableLayout: "fixed" }}>
                   <colgroup>
                     {(byRegistered ? (past ? COLS_PAST_REG : COLS_REG) : (past ? COLS_PAST : COLS))
                       .map((w, i) => <col key={i} style={{ width: w }} />)}
@@ -231,23 +233,23 @@ export default async function ScheduledDropIns({
                     <tr className="text-xs font-bold text-glass-text-tertiary">
                       {byRegistered ? (
                         <>
-                          <th className="px-4 py-2.5 text-left font-bold">Registered</th>
-                          <th className="px-4 py-2.5 text-left font-bold">Game</th>
+                          <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Registered</th>
+                          <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Game</th>
                         </>
                       ) : (
-                        <th className="px-4 py-2.5 text-left font-bold">Time</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Time</th>
                       )}
-                      <th className="px-4 py-2.5 text-left font-bold">Location</th>
-                      <th className="px-4 py-2.5 text-left font-bold">Player</th>
-                      <th className="px-4 py-2.5 text-left font-bold">Team</th>
-                      <th className="px-4 py-2.5 text-left font-bold">Price</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Location</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Player</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Team</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Price</th>
                       {past && (
                         <>
-                          <th className="px-4 py-2.5 text-left font-bold">Attendance</th>
-                          <th className="px-2 py-2.5 text-left font-bold">Stat line</th>
-                          <th className="px-2 py-2.5 text-left font-bold">BallerTV</th>
-                          <th className="px-2 py-2.5 text-left font-bold">Admin</th>
-                          <th className="px-2 py-2.5 text-left font-bold">Stats</th>
+                          <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Attendance</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Stat line</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>BallerTV</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Admin</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Stats</th>
                         </>
                       )}
                     </tr>

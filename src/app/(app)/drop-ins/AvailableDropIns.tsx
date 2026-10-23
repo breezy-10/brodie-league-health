@@ -2,6 +2,7 @@ import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { TZ_SHORT, dateKey, dayLabel, todayKey } from "./ScheduledDropIns";
 import { BasisToggle } from "../dashboard/BasisToggle";
+import { STICKY_TH, STICKY_TH_STYLE, tableScrollBox } from "../dashboard/stickyTable";
 
 // The Available tab: every upcoming game a drop-in program offers spots on,
 // with the team that takes the drop-in, its division and how many spots are
@@ -157,8 +158,8 @@ export default async function AvailableDropIns({
                   {byLocation && g.rows[0].closes_on && <> · sign-ups close {shortDate(g.rows[0].closes_on)}</>}
                 </span>
               </h3>
-              <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
-                <div className="overflow-x-auto">
+              <div className="rounded-2xl bg-glass-surface shadow-card">
+                <div className={tableScrollBox(820)}>
                   <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 820, tableLayout: "fixed" }}>
                     <colgroup>
                       {COLS.map((w, i) => <col key={i} style={{ width: w }} />)}
@@ -167,20 +168,20 @@ export default async function AvailableDropIns({
                       <tr className="text-xs font-bold text-glass-text-tertiary">
                         {byLocation ? (
                           <>
-                            <th className="px-4 py-2.5 text-left font-bold">Date</th>
-                            <th className="px-4 py-2.5 text-left font-bold">Time</th>
+                            <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Date</th>
+                            <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Time</th>
                           </>
                         ) : (
                           <>
-                            <th className="px-4 py-2.5 text-left font-bold">Time</th>
-                            <th className="px-4 py-2.5 text-left font-bold">Location</th>
+                            <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Time</th>
+                            <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Location</th>
                           </>
                         )}
-                        <th className="px-4 py-2.5 text-left font-bold">Team</th>
-                        <th className="px-4 py-2.5 text-left font-bold">Division</th>
-                        <th className="px-4 py-2.5 text-left font-bold">Opponent</th>
-                        <th className="px-4 py-2.5 text-right font-bold">Booked</th>
-                        <th className="px-4 py-2.5 text-left font-bold">Spots</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Team</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Division</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Opponent</th>
+                        <th className={`px-4 py-2.5 text-right font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Booked</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>Spots</th>
                       </tr>
                     </thead>
                     <tbody>

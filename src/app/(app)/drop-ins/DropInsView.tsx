@@ -9,6 +9,7 @@ import MissingStatsDropIns from "./MissingStatsDropIns";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SectionSkeleton } from "../dashboard/Skeletons";
+import { STICKY_TH, STICKY_TH_STYLE, tableScrollBox } from "../dashboard/stickyTable";
 
 // Drop-ins: players who came for a single game rather than a season. A drop-in
 // is free for a brand-new player (the First-Time Free code) and $50 for a
@@ -359,8 +360,8 @@ async function DropInSummary({ season, locationNames, when }: {
                   sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
               </div>
 
-              <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
-                <div className="overflow-x-auto">
+              <div className="rounded-2xl bg-glass-surface shadow-card">
+                <div className={tableScrollBox(past ? 1100 : 980)}>
                   <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1100 : 980 }}>
                     <thead>
                       <tr className="text-xs font-bold text-glass-text-tertiary">
@@ -496,7 +497,11 @@ function SubHead({ title, note }: { title: string; note: string }) {
 }
 
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
-  return <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold`}>{children}</th>;
+  return (
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${STICKY_TH}`} style={STICKY_TH_STYLE}>
+      {children}
+    </th>
+  );
 }
 
 function RateTd({ count, total, color, strong = false, note }: {
