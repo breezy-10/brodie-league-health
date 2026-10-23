@@ -138,6 +138,15 @@ export default async function AmbassadorTeamsView({
   // the ambassador rows are. Teammates are the roster spots other than the
   // captain's, paid teammates those who have paid anything this season.
   const FULL = 7;
+  // Each location's nights, divisions and team cards. They belong to the
+  // board's Locations view, so the board shows them only there.
+  const locationCards = (
+    <div className="space-y-3">
+      {locations.map((loc) => (
+        <LocationCard key={loc.location} loc={loc} slots={slots} captainTeams={captainTeams} staff={staff} />
+      ))}
+    </div>
+  );
   const locationRows: CaptainRow[] = locations.map((loc) => {
     const teams = teamsByLocation[loc.location] ?? [];
     const mates = teams.reduce((n, t) => n + (t.roster.length
@@ -201,7 +210,7 @@ export default async function AmbassadorTeamsView({
               />
             </div>
 
-            {captainRows.length > 0 && (
+            {captainRows.length > 0 ? (
                 <AmbassadorTable
                   header={<>
                   <div className="text-xs font-bold text-glass-text-tertiary mb-1">
@@ -236,14 +245,9 @@ export default async function AmbassadorTeamsView({
                   hasFullRoster={hasFullRoster}
                   hasTeammates={hasTeammates}
                   hasPaid={hasPaid}
+                  locationCards={locationCards}
                 />
-            )}
-
-            <div className="space-y-3">
-              {locations.map((loc) => (
-                <LocationCard key={loc.location} loc={loc} slots={slots} captainTeams={captainTeams} staff={staff} />
-              ))}
-            </div>
+            ) : locationCards}
           </>
         )}
 
