@@ -1,11 +1,11 @@
 import { forfeitTeamsHref, loadForfeitRisk, type ForfeitTeam } from "@/lib/forfeit-risk";
 import { sameLocation } from "@/lib/location-match";
-import { loadAmbassadorTeams, type AmbassadorFeed } from "./AmbassadorSummary";
+import { loadAmbassadorTeams, type AmbassadorFeed } from "../ambassador-teams/AmbassadorSummary";
 
-// The bottom of the Ambassador teams page: every team one no-show from
-// forfeiting (6 or fewer fully paid players), from the overdue app's Teams
-// board, with the ambassador teams among them marked. It's about games being
-// played, so it reads the season in play unless the filter names one.
+// The Forfeit risk page: every team one no-show from forfeiting (6 or fewer
+// fully paid players), from the overdue app's Teams board, with the
+// ambassador teams among them marked. It's about games being played, so it
+// reads the season in play unless the filter names one.
 
 const CHIP = "inline-block text-[11px] font-semibold rounded-md px-1.5 py-0.5 whitespace-nowrap";
 
