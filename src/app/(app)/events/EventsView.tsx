@@ -153,8 +153,11 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
               {(from || to) && " Try widening the dates."}
             </div>
           ) : (
-            <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
-              <div className="overflow-x-auto">
+            <div className="rounded-2xl bg-glass-surface shadow-card">
+              {/* The header sticks to the window, which an overflow box would
+                  trap, so the table only scrolls sideways where it can't fit
+                  (below xl). */}
+              <div className="overflow-x-auto xl:overflow-visible">
                 <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860 }}>
                   <thead>
                     <tr className="text-xs font-bold text-glass-text-tertiary">
@@ -259,8 +262,20 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
   );
 }
 
+// Sticky per cell, under the kit's header, with the same darker bar as the
+// dashboard's booking table so it reads as sitting above the rows it covers.
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
-  return <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold`}>{children}</th>;
+  return (
+    <th
+      className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold sticky top-[var(--shell-top)] z-[5] first:rounded-tl-2xl last:rounded-tr-2xl`}
+      style={{
+        background: "color-mix(in srgb, var(--glass-text) 9%, var(--glass-surface))",
+        boxShadow: "inset 0 -1px 0 var(--glass-border), 0 10px 14px -10px rgba(0,0,0,0.55)",
+      }}
+    >
+      {children}
+    </th>
+  );
 }
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
