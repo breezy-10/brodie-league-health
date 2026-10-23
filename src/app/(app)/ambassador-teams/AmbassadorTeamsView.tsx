@@ -368,6 +368,13 @@ function TeamChip({
   const edge = row.players === 0 ? EMPTY : row.players === 1 ? THIN : GOLD;
   const roster = row.roster ?? [];
   const paid = roster.filter((r) => r.paid_ok).length;
+  // How the roster got there. Free agents reach an ambassador team through the
+  // "join an ambassador team" step of the free-agent sign-up, so a team that
+  // has players but no free agent at all, everyone on the captain's code, may
+  // have been marked an ambassador team by mistake.
+  const knowsJoins = roster.some((r) => r.joined_via !== undefined);
+  const freeAgents = roster.filter((r) => r.joined_via === "free_agent").length;
+  const viaCode = roster.filter((r) => r.joined_via === "team_code").length;
   // Captain first, then whoever has paid least — the chase list surfaces
   // without having to read the whole roster.
   const ordered = [...roster].sort(
@@ -419,6 +426,21 @@ function TeamChip({
         {row.players === 0 && <Flag color={EMPTY}>no roster</Flag>}
         {row.players === 1 && <Flag color={THIN}>captain only</Flag>}
       </div>
+
+      {knowsJoins && roster.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-glass-text-tertiary">
+          {freeAgents > 0 ? (
+            <span className="font-semibold" style={{ color: "var(--green)" }}>
+              {freeAgents} free {freeAgents === 1 ? "agent" : "agents"}
+            </span>
+          ) : (
+            <span title="Nobody joined through the free-agent sign-up: every player came in with the captain's team code. Check this team should be an ambassador team.">
+              <Flag color={THIN}>no free agents</Flag>
+            </span>
+          )}
+          {viaCode > 0 && <span>{viaCode} with the captain&apos;s code</span>}
+        </div>
+      )}
 
       <div className="flex gap-0.5" title={`${row.players} of ${slots} roster slots filled`}>
         {Array.from({ length: slots }, (_, i) => (
@@ -474,6 +496,9 @@ function TeamChip({
                   {r.player}
                   {r.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
                   {staffOf(r.player) && <StaffBadge label={staffOf(r.player)!} />}
+                  {r.joined_via === "free_agent" && <span style={{ color: "var(--green)" }}> · Free agent</span>}
+                  {r.joined_via === "team_code" && <span className="text-glass-text-tertiary"> · Captain&apos;s code</span>}
+                  {r.joined_via === "no_code" && <span className="text-glass-text-tertiary"> · Joined without a code</span>}
                 </div>
                 <div className="truncate tabular text-[11px]" title={r.discount_names ?? (r.no_registration ? "No registration on file" : undefined)}>
                   {r.no_registration ? (
