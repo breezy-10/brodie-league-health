@@ -111,8 +111,10 @@ export default function AmbassadorTable({
         </div>
         {/* The table scrolls inside this box, not the window, so its header
             sticks at the box's top (top-0). The page's --shell-top offset would
-            pin it a header-height down, over the rows. */}
-        <div className="overflow-x-auto" style={{ maxHeight: 460 }}>
+            pin it a header-height down, over the rows. The box is as tall as
+            the window allows under the kit's header, leaving room for the
+            card's own heading, and never shorter than it used to be. */}
+        <div className="overflow-x-auto" style={{ maxHeight: "max(460px, calc(100vh - var(--shell-top) - 190px))" }}>
           <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 560 }}>
             <thead>
               <tr className="text-xs font-bold text-glass-text-tertiary">
