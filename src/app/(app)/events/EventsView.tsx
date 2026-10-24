@@ -3,6 +3,7 @@ import { getCanonicalLocations } from "@/lib/districts-locations";
 import { getActiveLocationKeys, onlyActive } from "@/lib/active-locations";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import { BasisToggle } from "../dashboard/BasisToggle";
+import { dayLabel, todayKey } from "../drop-ins/ScheduledDropIns";
 import { requireUser } from "@/lib/auth";
 import { promoFetch } from "@/lib/promo-feed";
 import { TZ_SHORT } from "@/lib/tz";
@@ -121,10 +122,22 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
       // keeps that order within each location, A-Z.
       return (byLocation ? a.location.localeCompare(b.location) : 0) || (past ? y.localeCompare(x) : x.localeCompare(y));
     });
+  // A section per day, or per location, in the order the list is sorted.
+  const groups: { key: string; label: string; events: EventRow[] }[] = [];
+  for (const e of events) {
+    const day = e.starts_at?.slice(0, 10) ?? "";
+    const key = byLocation ? e.location : day;
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.events.push(e);
+    else groups.push({
+      key,
+      label: byLocation ? e.location : `${day === todayKey() ? "Today · " : ""}${dayLabel(day)}`,
+      events: [e],
+    });
+  }
   const sum = (k: keyof EventRow) => events.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
   const going = sum("going"), rsvps = sum("rsvps"), newPlayers = sum("new_players"), converted = sum("converted");
   const anyPaid = events.some((e) => e.paid > 0);
-  const paid = sum("paid");
   // The filter bar rebuilds the query string, so it carries what it doesn't own.
   const keep: Record<string, string> = {
     ...(past ? { when: "past" } : live ? { when: "live" } : {}),
@@ -182,130 +195,17 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
               value={byLocation ? "location" : "date"}
               options={[{ value: "date", label: "By date" }, { value: "location", label: "By location" }]}
             />
-            <div className="rounded-2xl bg-glass-surface shadow-card">
-              {/* The header sticks to the window, which an overflow box would
-                  trap, so the table only scrolls sideways where it can't fit
-                  (below xl). */}
-              <div className={tableScrollBox(860)}>
-                <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860 }}>
-                  <thead>
-                    <tr className="text-xs font-bold text-glass-text-tertiary">
-                      <Th align="left">Date</Th>
-                      <Th align="left">Event</Th>
-                      <Th align="left">Location</Th>
-                      <Th>Going</Th>
-                      {past && <Th>Became registrations</Th>}
-                      {anyPaid && <Th>Paid</Th>}
-                      <Th>Checked in</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {events.map((e) => {
-                      const w = whenLabel(e.starts_at, e.timezone);
-                      return (
-                        <tr key={e.id} style={{ borderTop: "1px solid var(--glass-border)" }}>
-                          <td className="px-4 py-2.5 whitespace-nowrap align-top">
-                            <div style={{ color: "var(--glass-text)" }}>{w.day}</div>
-                            <div className="text-[11px] text-glass-text-tertiary tabular">
-                              {w.time}
-                              {live && e.ends_at && <> to {whenLabel(e.ends_at, e.timezone).time.replace(/ [A-Z]{3}$/, "")}</>}
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5 align-top">
-                            <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{e.name}</div>
-                            <div className="mt-1 flex flex-wrap gap-1.5">
-                              <span className={CHIP} style={{ color: "var(--glass-text-secondary)", background: "var(--fill-3)" }}>{e.kind}</span>
-                              {e.is_private && (
-                                <span className={CHIP} style={{ color: "var(--glass-text-secondary)", background: "var(--fill-3)" }}>Private</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5 align-top">
-                            <div style={{ color: "var(--glass-text)" }}>{e.location}</div>
-                            {e.venue && e.venue !== e.location && (
-                              <div className="text-[11px] text-glass-text-tertiary">{e.venue}</div>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
-                            <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{e.going.toLocaleString()}</div>
-                            <div className="text-[11px] text-glass-text-tertiary">of {e.rsvps.toLocaleString()} RSVPs</div>
-                            <div className="text-[11px]" style={{ color: e.new_players ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
-                              {e.new_players.toLocaleString()} new to Brodie
-                            </div>
-                          </td>
-                          {past && (
-                            <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
-                              <div style={{ color: "var(--glass-text)" }}>{pct(e.converted, e.new_players)}</div>
-                              <div className="text-[11px] text-glass-text-tertiary">{e.converted} of {e.new_players}</div>
-                            </td>
-                          )}
-                          {anyPaid && (
-                            <td className="px-4 py-2.5 text-right tabular align-top" style={{ color: "var(--glass-text)" }}>
-                              {e.paid ? e.paid.toLocaleString() : "—"}
-                            </td>
-                          )}
-                          {/* Nobody is checked in to an event that hasn't started. */}
-                          <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
-                            {e.upcoming ? (
-                              <span className="text-glass-text-tertiary">—</span>
-                            ) : (
-                              <>
-                                <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{(e.checked_in ?? 0).toLocaleString()}</div>
-                                <div className="text-[11px] text-glass-text-tertiary">
-                                  <CheckinNote going={e.going} checkedInGoing={e.checked_in_going ?? 0} checkedIn={e.checked_in ?? 0}
-                                    checkedInNew={e.checked_in_new} />
-                                </div>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {/* A total of one row only repeats it. */}
-                    {events.length > 1 && (
-                      <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
-                        <td className="px-4 py-3 font-bold whitespace-nowrap align-top" style={{ color: "var(--glass-text)" }} colSpan={3}>
-                          All events
-                          <span className="ml-2 text-xs font-normal text-glass-text-tertiary">
-                            {events.length.toLocaleString()} {events.length === 1 ? "event" : "events"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
-                          <div className="font-bold" style={{ color: "var(--glass-text)" }}>{going.toLocaleString()}</div>
-                          <div className="text-[11px] text-glass-text-tertiary">of {rsvps.toLocaleString()} RSVPs</div>
-                          <div className="text-[11px]" style={{ color: newPlayers ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
-                            {newPlayers.toLocaleString()} new to Brodie
-                          </div>
-                        </td>
-                        {past && (
-                          <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
-                            <div className="font-bold" style={{ color: "var(--glass-text)" }}>{pct(converted, newPlayers)}</div>
-                            <div className="text-[11px] text-glass-text-tertiary">{converted} of {newPlayers}</div>
-                          </td>
-                        )}
-                        {anyPaid && (
-                          <td className="px-4 py-3 text-right tabular align-top font-bold" style={{ color: "var(--glass-text)" }}>
-                            {paid ? paid.toLocaleString() : "—"}
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
-                          {past || live ? (
-                            <>
-                              <div className="font-bold" style={{ color: "var(--glass-text)" }}>{checkedIn.toLocaleString()}</div>
-                              <div className="text-[11px] text-glass-text-tertiary">
-                                <CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} checkedInNew={checkedInNew} />
-                              </div>
-                            </>
-                          ) : (
-                            <span className="text-glass-text-tertiary">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            {groups.map((g) => (
+              <section key={g.key} className="space-y-2">
+                <h3 className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>
+                  {g.label}
+                  <span className="ml-2 text-xs font-normal text-glass-text-tertiary">
+                    {g.events.length.toLocaleString()} {g.events.length === 1 ? "event" : "events"}
+                  </span>
+                </h3>
+                <EventsTable events={g.events} past={past} live={live} anyPaid={anyPaid} />
+              </section>
+            ))}
             </>
           )}
         </>
@@ -319,6 +219,143 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
         local time. The type is read from the event&apos;s name.
       </p>
     </main>
+  );
+}
+
+// One section's events, with its own total. Every section of the page shares
+// the columns (anyPaid comes from the whole list) so they line up.
+function EventsTable({ events, past, live, anyPaid }: {
+  events: EventRow[]; past: boolean; live: boolean; anyPaid: boolean;
+}) {
+  const sum = (k: keyof EventRow) => events.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
+  const going = sum("going"), rsvps = sum("rsvps"), newPlayers = sum("new_players"), converted = sum("converted");
+  const paid = sum("paid");
+  const checkedIn = sum("checked_in"), checkedInGoing = sum("checked_in_going"), checkedInNew = sum("checked_in_new");
+  return (
+    <div className="rounded-2xl bg-glass-surface shadow-card">
+      {/* The header sticks to the window, which an overflow box would
+          trap, so the table only scrolls sideways where it can't fit
+          (below xl). */}
+      <div className={tableScrollBox(860)}>
+        <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860 }}>
+          <thead>
+            <tr className="text-xs font-bold text-glass-text-tertiary">
+              <Th align="left">Date</Th>
+              <Th align="left">Event</Th>
+              <Th align="left">Location</Th>
+              <Th>Going</Th>
+              {past && <Th>Became registrations</Th>}
+              {anyPaid && <Th>Paid</Th>}
+              <Th>Checked in</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((e) => {
+              const w = whenLabel(e.starts_at, e.timezone);
+              return (
+                <tr key={e.id} style={{ borderTop: "1px solid var(--glass-border)" }}>
+                  <td className="px-4 py-2.5 whitespace-nowrap align-top">
+                    <div style={{ color: "var(--glass-text)" }}>{w.day}</div>
+                    <div className="text-[11px] text-glass-text-tertiary tabular">
+                      {w.time}
+                      {live && e.ends_at && <> to {whenLabel(e.ends_at, e.timezone).time.replace(/ [A-Z]{3}$/, "")}</>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 align-top">
+                    <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{e.name}</div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <span className={CHIP} style={{ color: "var(--glass-text-secondary)", background: "var(--fill-3)" }}>{e.kind}</span>
+                      {e.is_private && (
+                        <span className={CHIP} style={{ color: "var(--glass-text-secondary)", background: "var(--fill-3)" }}>Private</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 align-top">
+                    <div style={{ color: "var(--glass-text)" }}>{e.location}</div>
+                    {e.venue && e.venue !== e.location && (
+                      <div className="text-[11px] text-glass-text-tertiary">{e.venue}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
+                    <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{e.going.toLocaleString()}</div>
+                    <div className="text-[11px] text-glass-text-tertiary">of {e.rsvps.toLocaleString()} RSVPs</div>
+                    <div className="text-[11px]" style={{ color: e.new_players ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
+                      {e.new_players.toLocaleString()} new to Brodie
+                    </div>
+                  </td>
+                  {past && (
+                    <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
+                      <div style={{ color: "var(--glass-text)" }}>{pct(e.converted, e.new_players)}</div>
+                      <div className="text-[11px] text-glass-text-tertiary">{e.converted} of {e.new_players}</div>
+                    </td>
+                  )}
+                  {anyPaid && (
+                    <td className="px-4 py-2.5 text-right tabular align-top" style={{ color: "var(--glass-text)" }}>
+                      {e.paid ? e.paid.toLocaleString() : "—"}
+                    </td>
+                  )}
+                  {/* Nobody is checked in to an event that hasn't started. */}
+                  <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
+                    {e.upcoming ? (
+                      <span className="text-glass-text-tertiary">—</span>
+                    ) : (
+                      <>
+                        <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{(e.checked_in ?? 0).toLocaleString()}</div>
+                        <div className="text-[11px] text-glass-text-tertiary">
+                          <CheckinNote going={e.going} checkedInGoing={e.checked_in_going ?? 0} checkedIn={e.checked_in ?? 0}
+                            checkedInNew={e.checked_in_new} />
+                        </div>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {/* A total of one row only repeats it. */}
+            {events.length > 1 && (
+              <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
+                <td className="px-4 py-3 font-bold whitespace-nowrap align-top" style={{ color: "var(--glass-text)" }} colSpan={3}>
+                  Total
+                  <span className="ml-2 text-xs font-normal text-glass-text-tertiary">
+                    {events.length.toLocaleString()} {events.length === 1 ? "event" : "events"}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
+                  <div className="font-bold" style={{ color: "var(--glass-text)" }}>{going.toLocaleString()}</div>
+                  <div className="text-[11px] text-glass-text-tertiary">of {rsvps.toLocaleString()} RSVPs</div>
+                  <div className="text-[11px]" style={{ color: newPlayers ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
+                    {newPlayers.toLocaleString()} new to Brodie
+                  </div>
+                </td>
+                {past && (
+                  <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
+                    <div className="font-bold" style={{ color: "var(--glass-text)" }}>{pct(converted, newPlayers)}</div>
+                    <div className="text-[11px] text-glass-text-tertiary">{converted} of {newPlayers}</div>
+                  </td>
+                )}
+                {anyPaid && (
+                  <td className="px-4 py-3 text-right tabular align-top font-bold" style={{ color: "var(--glass-text)" }}>
+                    {paid ? paid.toLocaleString() : "—"}
+                  </td>
+                )}
+                <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
+                  {past || live ? (
+                    <>
+                      <div className="font-bold" style={{ color: "var(--glass-text)" }}>{checkedIn.toLocaleString()}</div>
+                      <div className="text-[11px] text-glass-text-tertiary">
+                        <CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} checkedInNew={checkedInNew} />
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-glass-text-tertiary">—</span>
+                  )}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
