@@ -179,10 +179,9 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                       <Th align="left">Event</Th>
                       <Th align="left">Location</Th>
                       <Th>Going</Th>
-                      {live && <Th>Checked in</Th>}
-                      <Th>New to Brodie</Th>
                       {past && <Th>Became registrations</Th>}
                       {anyPaid && <Th>Paid</Th>}
+                      <Th>Checked in</Th>
                     </tr>
                   </thead>
                   <tbody>
@@ -215,17 +214,9 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                           <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
                             <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{e.going.toLocaleString()}</div>
                             <div className="text-[11px] text-glass-text-tertiary">of {e.rsvps.toLocaleString()} RSVPs</div>
-                          </td>
-                          {live && (
-                            <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
-                              <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{(e.checked_in ?? 0).toLocaleString()}</div>
-                              <div className="text-[11px] text-glass-text-tertiary">
-                                {(e.checked_in_going ?? 0).toLocaleString()} of {e.going.toLocaleString()} going
-                              </div>
-                            </td>
-                          )}
-                          <td className="px-4 py-2.5 text-right tabular align-top" style={{ color: "var(--glass-text)" }}>
-                            {e.new_players.toLocaleString()}
+                            <div className="text-[11px]" style={{ color: e.new_players ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
+                              {e.new_players.toLocaleString()} new to Brodie
+                            </div>
                           </td>
                           {past && (
                             <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
@@ -238,6 +229,19 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                               {e.paid ? e.paid.toLocaleString() : "—"}
                             </td>
                           )}
+                          {/* Nobody is checked in to an event that hasn't started. */}
+                          <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
+                            {e.upcoming ? (
+                              <span className="text-glass-text-tertiary">—</span>
+                            ) : (
+                              <>
+                                <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{(e.checked_in ?? 0).toLocaleString()}</div>
+                                <div className="text-[11px] text-glass-text-tertiary">
+                                  {(e.checked_in_going ?? 0).toLocaleString()} of {e.going.toLocaleString()} going
+                                </div>
+                              </>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -253,15 +257,9 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                         <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
                           <div className="font-bold" style={{ color: "var(--glass-text)" }}>{going.toLocaleString()}</div>
                           <div className="text-[11px] text-glass-text-tertiary">of {rsvps.toLocaleString()} RSVPs</div>
-                        </td>
-                        {live && (
-                          <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
-                            <div className="font-bold" style={{ color: "var(--glass-text)" }}>{checkedIn.toLocaleString()}</div>
-                            <div className="text-[11px] text-glass-text-tertiary">{checkedInGoing.toLocaleString()} of {going.toLocaleString()} going</div>
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-right tabular align-top font-bold" style={{ color: "var(--glass-text)" }}>
-                          {newPlayers.toLocaleString()}
+                          <div className="text-[11px]" style={{ color: newPlayers ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
+                            {newPlayers.toLocaleString()} new to Brodie
+                          </div>
                         </td>
                         {past && (
                           <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
@@ -274,6 +272,16 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                             {paid ? paid.toLocaleString() : "—"}
                           </td>
                         )}
+                        <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
+                          {past || live ? (
+                            <>
+                              <div className="font-bold" style={{ color: "var(--glass-text)" }}>{checkedIn.toLocaleString()}</div>
+                              <div className="text-[11px] text-glass-text-tertiary">{checkedInGoing.toLocaleString()} of {going.toLocaleString()} going</div>
+                            </>
+                          ) : (
+                            <span className="text-glass-text-tertiary">—</span>
+                          )}
+                        </td>
                       </tr>
                     )}
                   </tbody>
