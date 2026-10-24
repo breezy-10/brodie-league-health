@@ -44,6 +44,8 @@ export type EventRow = {
   // an older feed).
   checked_in?: number;
   checked_in_going?: number;
+  // Of those checked in, how many were new to Brodie.
+  checked_in_new?: number;
 };
 
 export async function loadEvents(locationNames: string[] | null, season?: string): Promise<EventRow[] | null> {
@@ -129,7 +131,7 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
     ...(byLocation ? { sort: "location" } : {}),
   };
   // Who has been let in so far, for the events on right now.
-  const checkedIn = sum("checked_in"), checkedInGoing = sum("checked_in_going");
+  const checkedIn = sum("checked_in"), checkedInGoing = sum("checked_in_going"), checkedInNew = sum("checked_in_new");
 
   return (
     <main className="brodie-fade-in space-y-6">
@@ -160,7 +162,7 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
               sub={`${pct(newPlayers, going)} of those going had never played`} />
             {live && (
               <Tile label="Checked in" value={checkedIn.toLocaleString()}
-                sub={<CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} />} />
+                sub={<CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} checkedInNew={checkedInNew} />} />
             )}
             {past && (
               <Tile label="Became registrations" value={pct(converted, newPlayers)}
@@ -250,7 +252,8 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                               <>
                                 <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{(e.checked_in ?? 0).toLocaleString()}</div>
                                 <div className="text-[11px] text-glass-text-tertiary">
-                                  <CheckinNote going={e.going} checkedInGoing={e.checked_in_going ?? 0} checkedIn={e.checked_in ?? 0} />
+                                  <CheckinNote going={e.going} checkedInGoing={e.checked_in_going ?? 0} checkedIn={e.checked_in ?? 0}
+                                    checkedInNew={e.checked_in_new} />
                                 </div>
                               </>
                             )}
@@ -290,7 +293,7 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                             <>
                               <div className="font-bold" style={{ color: "var(--glass-text)" }}>{checkedIn.toLocaleString()}</div>
                               <div className="text-[11px] text-glass-text-tertiary">
-                                <CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} />
+                                <CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} checkedInNew={checkedInNew} />
                               </div>
                             </>
                           ) : (
@@ -319,15 +322,25 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
   );
 }
 
-// Under a check-in count: the people going who haven't been checked in, and
+// Under a check-in count: the people going who haven't been checked in, how
+// many of those in were new to Brodie (as Going shows for its count), and
 // anyone checked in without an RSVP. A person is in or not, so the count above
-// already says how many are; this says who is missing.
-function CheckinNote({ going, checkedInGoing, checkedIn }: { going: number; checkedInGoing: number; checkedIn: number }) {
+// already says how many are; this says who is missing and who they were.
+function CheckinNote({ going, checkedInGoing, checkedIn, checkedInNew }: {
+  going: number; checkedInGoing: number; checkedIn: number;
+  // Absent from an older feed.
+  checkedInNew?: number;
+}) {
   const missing = Math.max(going - checkedInGoing, 0);
   const walkIns = Math.max(checkedIn - checkedInGoing, 0);
   return (
     <>
       <span className="block">{missing ? `${missing.toLocaleString()} going not checked in` : "everyone going is in"}</span>
+      {checkedInNew !== undefined && (
+        <span className="block" style={{ color: checkedInNew ? "var(--glass-text-secondary)" : undefined }}>
+          {checkedInNew.toLocaleString()} new to Brodie
+        </span>
+      )}
       {walkIns > 0 && <span className="block">{walkIns.toLocaleString()} without an RSVP</span>}
     </>
   );
