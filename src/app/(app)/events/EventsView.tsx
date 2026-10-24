@@ -153,7 +153,7 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
               sub={`${pct(newPlayers, going)} of those going had never played`} />
             {live && (
               <Tile label="Checked in" value={checkedIn.toLocaleString()}
-                sub={`${checkedInGoing.toLocaleString()} of ${going.toLocaleString()} going are in`} />
+                sub={<CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} />} />
             )}
             {past && (
               <Tile label="Became registrations" value={pct(converted, newPlayers)}
@@ -237,7 +237,7 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                               <>
                                 <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{(e.checked_in ?? 0).toLocaleString()}</div>
                                 <div className="text-[11px] text-glass-text-tertiary">
-                                  {(e.checked_in_going ?? 0).toLocaleString()} of {e.going.toLocaleString()} going
+                                  <CheckinNote going={e.going} checkedInGoing={e.checked_in_going ?? 0} checkedIn={e.checked_in ?? 0} />
                                 </div>
                               </>
                             )}
@@ -276,7 +276,9 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                           {past || live ? (
                             <>
                               <div className="font-bold" style={{ color: "var(--glass-text)" }}>{checkedIn.toLocaleString()}</div>
-                              <div className="text-[11px] text-glass-text-tertiary">{checkedInGoing.toLocaleString()} of {going.toLocaleString()} going</div>
+                              <div className="text-[11px] text-glass-text-tertiary">
+                                <CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} />
+                              </div>
                             </>
                           ) : (
                             <span className="text-glass-text-tertiary">—</span>
@@ -303,6 +305,20 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
   );
 }
 
+// Under a check-in count: the people going who haven't been checked in, and
+// anyone checked in without an RSVP. A person is in or not, so the count above
+// already says how many are; this says who is missing.
+function CheckinNote({ going, checkedInGoing, checkedIn }: { going: number; checkedInGoing: number; checkedIn: number }) {
+  const missing = Math.max(going - checkedInGoing, 0);
+  const walkIns = Math.max(checkedIn - checkedInGoing, 0);
+  return (
+    <>
+      <span className="block">{missing ? `${missing.toLocaleString()} going not checked in` : "everyone going is in"}</span>
+      {walkIns > 0 && <span className="block">{walkIns.toLocaleString()} without an RSVP</span>}
+    </>
+  );
+}
+
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return (
     <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${stickyTh(860)}`} style={STICKY_TH_STYLE}>
@@ -311,7 +327,7 @@ function Th({ children, align = "right" }: { children: React.ReactNode; align?: 
   );
 }
 
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Tile({ label, value, sub }: { label: string; value: string; sub?: React.ReactNode }) {
   return (
     <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 flex flex-col shadow-card">
       <div className="text-xs font-bold text-glass-text-tertiary truncate">{label}</div>
