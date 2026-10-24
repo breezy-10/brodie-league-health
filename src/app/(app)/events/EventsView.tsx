@@ -76,7 +76,7 @@ function whenLabel(at: string | null, tz: string): { day: string; time: string }
 const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "—");
 const CHIP = "inline-block text-[11px] font-semibold rounded-md px-1.5 py-0.5 whitespace-nowrap";
 
-type EventsParams = { location?: string; when?: string; from?: string; to?: string };
+type EventsParams = { location?: string; when?: string; from?: string; to?: string; sort?: string };
 
 export default async function EventsView({ searchParams }: { searchParams: Promise<EventsParams> }) {
   await requireUser();
@@ -85,7 +85,9 @@ export default async function EventsView({ searchParams }: { searchParams: Promi
 
 // The page itself, apart from the sign-in check.
 export async function EventsBody({ searchParams }: { searchParams: Promise<EventsParams> }) {
-  const { location: locationParam, when: whenParam, from: fromParam, to: toParam } = await searchParams;
+  const { location: locationParam, when: whenParam, from: fromParam, to: toParam, sort: sortParam } = await searchParams;
+  // The list runs by date unless asked to group it by location.
+  const byLocation = sortParam === "location";
   // An optional date range, on the event's own local date ("YYYY-MM-DD").
   const isDay = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
   const from = isDay(fromParam), to = isDay(toParam);
@@ -113,14 +115,19 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
     })
     .sort((a, b) => {
       const x = a.starts_at ?? "", y = b.starts_at ?? "";
-      return past ? y.localeCompare(x) : x.localeCompare(y);
+      // Past runs newest first, upcoming and live soonest first; by location
+      // keeps that order within each location, A-Z.
+      return (byLocation ? a.location.localeCompare(b.location) : 0) || (past ? y.localeCompare(x) : x.localeCompare(y));
     });
   const sum = (k: keyof EventRow) => events.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
   const going = sum("going"), rsvps = sum("rsvps"), newPlayers = sum("new_players"), converted = sum("converted");
   const anyPaid = events.some((e) => e.paid > 0);
   const paid = sum("paid");
   // The filter bar rebuilds the query string, so it carries what it doesn't own.
-  const keep: Record<string, string> = past ? { when: "past" } : live ? { when: "live" } : {};
+  const keep: Record<string, string> = {
+    ...(past ? { when: "past" } : live ? { when: "live" } : {}),
+    ...(byLocation ? { sort: "location" } : {}),
+  };
   // Who has been let in so far, for the events on right now.
   const checkedIn = sum("checked_in"), checkedInGoing = sum("checked_in_going");
 
@@ -167,6 +174,12 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
               {(from || to) && " Try widening the dates."}
             </div>
           ) : (
+            <>
+            <BasisToggle
+              param="sort"
+              value={byLocation ? "location" : "date"}
+              options={[{ value: "date", label: "By date" }, { value: "location", label: "By location" }]}
+            />
             <div className="rounded-2xl bg-glass-surface shadow-card">
               {/* The header sticks to the window, which an overflow box would
                   trap, so the table only scrolls sideways where it can't fit
@@ -290,6 +303,7 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
                 </table>
               </div>
             </div>
+            </>
           )}
         </>
       )}
