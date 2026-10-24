@@ -231,13 +231,26 @@ function EventsTable({ events, past, live, anyPaid }: {
   const going = sum("going"), rsvps = sum("rsvps"), newPlayers = sum("new_players"), converted = sum("converted");
   const paid = sum("paid");
   const checkedIn = sum("checked_in"), checkedInGoing = sum("checked_in_going"), checkedInNew = sum("checked_in_new");
+  // Fixed widths, the same in every section, so the columns line up from one
+  // table to the next whatever each holds. Past and Paid add a column to every
+  // section alike, so the shares are worked out from the columns shown.
+  const cols: [string, number][] = [
+    ["date", 15], ["event", 27], ["location", 18], ["going", 12],
+    ...(past ? [["became", 11] as [string, number]] : []),
+    ...(anyPaid ? [["paid", 6] as [string, number]] : []),
+    ["checked", 13],
+  ];
+  const totalWeight = cols.reduce((n, [, w]) => n + w, 0);
   return (
     <div className="rounded-2xl bg-glass-surface shadow-card">
       {/* The header sticks to the window, which an overflow box would
           trap, so the table only scrolls sideways where it can't fit
           (below xl). */}
       <div className={tableScrollBox(860)}>
-        <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860 }}>
+        <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860, tableLayout: "fixed" }}>
+          <colgroup>
+            {cols.map(([k, w]) => <col key={k} style={{ width: `${((100 * w) / totalWeight).toFixed(2)}%` }} />)}
+          </colgroup>
           <thead>
             <tr className="text-xs font-bold text-glass-text-tertiary">
               <Th align="left">Date</Th>
