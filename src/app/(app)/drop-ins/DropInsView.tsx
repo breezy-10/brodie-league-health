@@ -466,9 +466,9 @@ async function DropInSummary({ season, locationNames, when, players }: {
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             {newDropinsTile}
             {showedTile}
-            {revenueTile}
-            {notPaidTile}
             {becameTile}
+            {notPaidTile}
+            {revenueTile}
             {givenFreeTile}
           </div>
         ) : (
