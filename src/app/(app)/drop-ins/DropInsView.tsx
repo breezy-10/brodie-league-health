@@ -77,8 +77,12 @@ export type DropInFeed = {
     players: number; repeat_players: number; new_players?: number; returning_players?: number; converted_players?: number;
     converted_same_season?: number; converted_other_season?: number;
     converted_by_season?: Record<string, number>;
+    // Players who registered for two or more seasons, so counted under each
+    // in the by-season counts (absent from an older feed).
+    converted_multi_season?: number;
     returning_converted_players?: number;
     returning_converted_by_season?: Record<string, number>;
+    returning_converted_multi_season?: number;
   }>;
   discount_codes: { code: string; currency: string; uses: number; given_up: number }[];
   truncated: boolean;
@@ -342,12 +346,12 @@ async function DropInSummary({ season, locationNames, when }: {
                     </>
                   } />
                 <Tile label="Became registrations" value={pct(converted, newPlayers)} accent={ACCENT}
-                  sub={converted
-                    ? `${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${
-                        people.converted_by_season
-                          ? seasonCounts(people.converted_by_season)
-                          : `${convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`}`
-                    : `0 of ${newPlayers.toLocaleString()} new players have registered for a season since`} />
+                  sub={!converted
+                    ? `0 of ${newPlayers.toLocaleString()} new players have registered for a season since`
+                    : people.converted_by_season
+                      ? convertedLines(converted, newPlayers, "new", people.converted_by_season, people.converted_multi_season)
+                      : `${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${
+                          convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
                 <Tile label="Given free" value={money(sum("given_free"))}
                   sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
               </div>
@@ -371,8 +375,7 @@ async function DropInSummary({ season, locationNames, when }: {
                   sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
                 <Tile label="Registered after" value={pct(retConverted, retPlayers)} accent={ACCENT}
                   sub={retConverted
-                    ? `${retConverted.toLocaleString()} of ${retPlayers.toLocaleString()} returning players registered for a season after their drop-in${
-                        people.returning_converted_by_season ? `: ${seasonCounts(people.returning_converted_by_season)}` : ""}`
+                    ? convertedLines(retConverted, retPlayers, "returning", people.returning_converted_by_season, people.returning_converted_multi_season)
                     : `none of ${retPlayers.toLocaleString()} returning players has registered for a season since`} />
               </div>
 
@@ -492,11 +495,31 @@ async function DropInSummary({ season, locationNames, when }: {
 
 // "1 for Fall '26, 2 for Winter '27": each season the converted players
 // registered for, oldest first.
-function seasonCounts(by: Record<string, number>): string {
+// The lines under a "registered after" tile: how many of how many, each
+// season's own count of players, and how many registered for more than one
+// season (they're in every season they registered for, so the season counts
+// can add up to more than the players).
+function convertedLines(
+  converted: number, players: number, kind: string, bySeason: Record<string, number> | undefined, multi: number | undefined,
+): React.ReactNode {
+  const seasons = Object.keys(bySeason ?? {}).length;
+  return (
+    <>
+      <span className="block">{converted.toLocaleString()} of {players.toLocaleString()} {kind} players registered for a season after</span>
+      {bySeason && seasons > 0 && <span className="block">{seasonCounts(bySeason, " · ")}</span>}
+      {!!multi && (
+        <span className="block">
+          {multi.toLocaleString()} registered for {seasons === 2 ? "both" : "more than one season"}
+        </span>
+      )}
+    </>
+  );
+}
+function seasonCounts(by: Record<string, number>, sep = ", "): string {
   return Object.entries(by)
     .sort((a, b) => compareSeasons(a[0], b[0]))
     .map(([season, n]) => `${n.toLocaleString()} for ${season}`)
-    .join(", ");
+    .join(sep);
 }
 // The seasons other than the drop-in's own, for the "another season" column.
 function otherSeasons(by: Record<string, number> | undefined, own: string): string | null {
