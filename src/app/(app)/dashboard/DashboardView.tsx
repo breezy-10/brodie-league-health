@@ -221,13 +221,20 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
     setUpLocations = running.filter(hasChecklist);
     missingLocations = running.filter((n) => !hasChecklist(n));
   }
-  const list = await readSeasonTasks<{ season_id: string; status: string; due_date: string | null }>(
-    sb, "season_id, status, due_date", ids);
-  const total = list.length;
-  const done = list.filter((t) => t.status === "done").length;
+  // Done is "done" alone here; overdue is not started and past due.
   const today = ymd(new Date());
-  const overdueRows = list.filter((t) => t.due_date && t.due_date < today && t.status === "not_started");
-  const overdue = overdueRows.length;
+  const [doneCounts, startedCounts] = await Promise.all([
+    countSeasonTasks(sb, ids, ["done"], today),
+    countSeasonTasks(sb, ids, STARTED_STATUSES, today),
+  ]);
+  if (!doneCounts || !startedCounts) return null;
+  let total = 0;
+  let done = 0;
+  for (const c of doneCounts.values()) { total += c.total; done += c.inSet; }
+  const overdueBySeason = [...startedCounts.entries()]
+    .map(([id, c]) => [id, c.pastDueOutside] as const)
+    .filter(([, n]) => n > 0);
+  const overdue = overdueBySeason.reduce((sum, [, n]) => sum + n, 0);
   const pct = total ? Math.round((100 * done) / total) : 0;
   // Which locations the overdue work is at, the way the card beside it names
   // the ones with no checklist. A single number over twenty markets says how
@@ -241,11 +248,11 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   ]));
   const seasonKind = new Map(seasonRows.map((s) => [s.id, s.kind]));
   const overdueByLoc = new Map<string, { n: number; bySeason: Map<string, number> }>();
-  for (const t of overdueRows) {
-    const name = seasonLoc.get(t.season_id) ?? "No location";
+  for (const [id, n] of overdueBySeason) {
+    const name = seasonLoc.get(id) ?? "No location";
     const e = overdueByLoc.get(name) ?? { n: 0, bySeason: new Map<string, number>() };
-    e.n += 1;
-    e.bySeason.set(t.season_id, (e.bySeason.get(t.season_id) ?? 0) + 1);
+    e.n += n;
+    e.bySeason.set(id, (e.bySeason.get(id) ?? 0) + n);
     overdueByLoc.set(name, e);
   }
   // The checklist an overdue chip opens: the season checklist if the late work
@@ -319,38 +326,33 @@ async function seasonStartDate(season: string): Promise<string | null> {
   }
 }
 
-// Supabase returns at most 1,000 rows from a select and says nothing about it,
-// so both checklist cards were reporting a slice of their own season: the game
-// day card read 607 of 1,871 tasks across 37 of 69 nights, and the season
-// checklist 491 of 1,533 — each landing on a suspiciously round 1,000 total.
-// Every figure downstream (the percentage, the per-night chips, blocked,
-// nights not started) was computed off whichever thousand rows came back.
+// Task counts per checklist, worked out in the Season Success database by its
+// season_task_progress function (its migration 0125) rather than reading every
+// task: a season is over 12,000 of them, which held the first paint here for
+// seconds. For the statuses given, `inSet` counts the tasks in them and
+// `pastDueOutside` the past-due tasks in none of them; `blocked` is always the
+// blocked tasks. Asking with different sets gives each count a card needs.
+// One row per checklist comes back and PostgREST stops at 1,000, so the ids go
+// 500 to a call. Null when a call fails, so a card is left out rather than
+// showing part of the season.
+type TaskCounts = { total: number; inSet: number; pastDueOutside: number; blocked: number };
+// Every status but not_started: asked as the set, `pastDueOutside` is the
+// not-started tasks past due and `inSet` the tasks anyone has touched.
+const STARTED_STATUSES = ["in_progress", "done", "blocked", "skipped"];
 /* eslint-disable @typescript-eslint/no-explicit-any */
-async function readSeasonTasks<T>(sb: any, cols: string, ids: string[]): Promise<T[]> {
-  // The id list is chunked too: a season's worth of nights makes an .in() long
-  // enough to strain the query string. Chunks, and the pages after each chunk's
-  // first (which also counts its rows), are read side by side: one after
-  // another they held the dashboard's first paint for about 2.5s.
+async function countSeasonTasks(sb: any, ids: string[], statuses: string[], today: string): Promise<Map<string, TaskCounts> | null> {
   const chunks: string[][] = [];
-  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
-  const parts = await Promise.all(chunks.map(async (chunk) => {
-    const page = (from: number, count: boolean) =>
-      sb.from("season_tasks").select(cols, count ? { count: "exact" } : undefined)
-        .in("season_id", chunk).order("id").range(from, from + 999);
-    const first = await page(0, true);
-    if (first.error || !first.data) return [] as T[];
-    const rows = [...(first.data as T[])];
-    const total: number = first.count ?? rows.length;
-    if (rows.length < 1000 || total <= 1000) return rows;
-    const starts: number[] = [];
-    for (let from = 1000; from < Math.min(total, 100_000); from += 1000) starts.push(from);
-    for (const r of await Promise.all(starts.map((from) => page(from, false)))) {
-      if (r.error || !r.data) break;
-      rows.push(...(r.data as T[]));
+  for (let i = 0; i < ids.length; i += 500) chunks.push(ids.slice(i, i + 500));
+  const results = await Promise.all(chunks.map((chunk) =>
+    sb.rpc("season_task_progress", { p_season_ids: chunk, p_today: today, p_week_end: today, p_completed: statuses })));
+  const out = new Map<string, TaskCounts>();
+  for (const { data, error } of results) {
+    if (error || !data) return null;
+    for (const r of data as { season_id: string; total: number; done: number; overdue: number; blocked: number }[]) {
+      out.set(r.season_id, { total: r.total, inSet: r.done, pastDueOutside: r.overdue, blocked: r.blocked });
     }
-    return rows;
-  }));
-  return parts.flat();
+  }
+  return out;
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -394,15 +396,28 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
   const recent = nights;
   const ids = [...new Set(recent.map((n) => n.id))];
 
-  // Only the nights in play, and read in pages: a checklist per night per venue
-  // runs past the 1,000-row cap several times over in a season.
-  const tasks = await readSeasonTasks<{ season_id: string; status: string }>(sb, "season_id, status", ids);
+  // Only the nights in play. Complete is done or skipped here; skipped and
+  // touched (anything but not started) are asked for separately.
+  const [completeCounts, skippedCounts, startedCounts] = await Promise.all([
+    countSeasonTasks(sb, ids, ["done", "skipped"], today),
+    countSeasonTasks(sb, ids, ["skipped"], today),
+    countSeasonTasks(sb, ids, STARTED_STATUSES, today),
+  ]);
+  if (!completeCounts || !skippedCounts || !startedCounts) return null;
+  const night = (id: string) => ({
+    total: completeCounts.get(id)?.total ?? 0,
+    done: completeCounts.get(id)?.inSet ?? 0,
+    blocked: completeCounts.get(id)?.blocked ?? 0,
+    skipped: skippedCounts.get(id)?.inSet ?? 0,
+    started: startedCounts.get(id)?.inSet ?? 0,
+  });
+  const sumOf = (list: Night[], pick: (c: ReturnType<typeof night>) => number) =>
+    list.reduce((sum, n) => sum + pick(night(n.id)), 0);
 
   const doneOf = (list: Night[]) => {
-    const set = new Set(list.map((n) => n.id));
-    const rows = tasks.filter((t) => set.has(t.season_id));
-    const done = rows.filter((t) => t.status === "done" || t.status === "skipped").length;
-    return { done, total: rows.length, pct: rows.length ? Math.round((100 * done) / rows.length) : 0 };
+    const done = sumOf(list, (c) => c.done);
+    const total = sumOf(list, (c) => c.total);
+    return { done, total, pct: total ? Math.round((100 * done) / total) : 0 };
   };
 
   const weekStats = doneOf(recent);
@@ -411,13 +426,12 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
   // denominator. Named where it is blocked, not just how much: a blocked task
   // is someone stuck waiting on something, and the venue and night are what
   // make that chaseable.
-  const recentIds = new Set(recent.map((n) => n.id));
-  const blockedRows = tasks.filter((t) => recentIds.has(t.season_id) && t.status === "blocked");
-  const blockedPct = weekStats.total ? Math.round((1000 * blockedRows.length) / weekStats.total) / 10 : 0;
+  const blockedCount = sumOf(recent, (c) => c.blocked);
+  const blockedPct = weekStats.total ? Math.round((1000 * blockedCount) / weekStats.total) / 10 : 0;
   // Skipped counts as complete on the card beside it, so this says how much of
   // that completion is skipping rather than doing.
-  const skippedRows = tasks.filter((t) => recentIds.has(t.season_id) && t.status === "skipped");
-  const skippedPct = weekStats.total ? Math.round((1000 * skippedRows.length) / weekStats.total) / 10 : 0;
+  const skippedCount = sumOf(recent, (c) => c.skipped);
+  const skippedPct = weekStats.total ? Math.round((1000 * skippedCount) / weekStats.total) / 10 : 0;
 
   // Completion venue by venue AND night by night. A venue is not one job: a
   // manager works Monday's checklist and Wednesday's separately, and rolling
@@ -436,12 +450,12 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
     const loc = nameById.get(n.location_id ?? "") ?? "Unknown";
     const day = dayOf(n.opening_night);
     const key = `${loc} ${day}`;
-    const rows = tasks.filter((t) => t.season_id === n.id);
+    const c = night(n.id);
     const cur = byNight.get(key) ?? { loc, day, done: 0, blocked: 0, skipped: 0, total: 0 };
-    cur.done += rows.filter((t) => t.status === "done" || t.status === "skipped").length;
-    cur.blocked += rows.filter((t) => t.status === "blocked").length;
-    cur.skipped += rows.filter((t) => t.status === "skipped").length;
-    cur.total += rows.length;
+    cur.done += c.done;
+    cur.blocked += c.blocked;
+    cur.skipped += c.skipped;
+    cur.total += c.total;
     byNight.set(key, cur);
   }
   // Venue and night, worst first by share — the same grouping the completion
@@ -454,7 +468,7 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
   // A night that finished with nothing ticked is the thing worth chasing.
   const untouched = recent
     .filter((n) => n.opening_night < today)
-    .filter((n) => !tasks.some((t) => t.season_id === n.id && t.status !== "not_started"))
+    .filter((n) => night(n.id).started === 0)
     .map((n) => `${nameById.get(n.location_id ?? "") ?? "Unknown"} · ${n.opening_night}`)
     .sort();
 
@@ -487,8 +501,8 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
       // a whole percent, and zero is exactly what this card must not say while
       // anything is stuck.
       value: recent.length ? `${blockedPct.toFixed(1)}%` : "—",
-      sub: recent.length ? `${blockedRows.length} / ${weekStats.total} tasks · ${nightsSub}` : none,
-      tone: !recent.length || !blockedRows.length ? "ok" : blockedPct >= 5 ? "bad" : "warn",
+      sub: recent.length ? `${blockedCount} / ${weekStats.total} tasks · ${nightsSub}` : none,
+      tone: !recent.length || !blockedCount ? "ok" : blockedPct >= 5 ? "bad" : "warn",
       pills: [...byNight.values()]
         .filter((v) => v.blocked > 0)
         .sort(nightOrder)
@@ -506,8 +520,8 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
       // call; a night skipping a tenth or more of its list is the one to ask
       // about.
       value: recent.length ? `${skippedPct.toFixed(1)}%` : "—",
-      sub: recent.length ? `${skippedRows.length} / ${weekStats.total} tasks · ${nightsSub}` : none,
-      tone: !recent.length || !skippedRows.length ? "ok" : skippedPct >= 10 ? "bad" : "warn",
+      sub: recent.length ? `${skippedCount} / ${weekStats.total} tasks · ${nightsSub}` : none,
+      tone: !recent.length || !skippedCount ? "ok" : skippedPct >= 10 ? "bad" : "warn",
       pills: [...byNight.values()]
         .filter((v) => v.skipped > 0)
         .sort(nightOrder)
