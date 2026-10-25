@@ -5,6 +5,7 @@ import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import TeamRosterBlock, { StaffBadge, type RosterTeam } from "@/components/TeamRosterBlock";
 import { normName } from "@/lib/names";
 import { shortDiscount } from "@/lib/discount-names";
+import { useTeamSearch } from "./TeamSearch";
 
 const GOLD = "var(--glass-gold)";
 const COLS = 10;
@@ -67,6 +68,7 @@ type TeamUnit = {
 
 export default function DiscountTable({
   rows, season, staff, ambassadors, teamView = false, unrostered: unrosteredProp, scopeTeams, listNone = true,
+  sort = "share",
 }: {
   rows: DiscountRowData[];
   season: string;
@@ -83,6 +85,9 @@ export default function DiscountTable({
   // Whether to list the teams with no discount (only on the full list, not
   // one narrowed to free registrations or one kind of discount).
   listNone?: boolean;
+  // How team view ranks the discounted teams: by the discount's share of the
+  // team's list price, or by dollars given up.
+  sort?: "share" | "volume";
 }) {
   // Teams in scope, most given up first. A registration with no team has
   // nothing to group under; the footer of the page counts it in player view.
@@ -116,7 +121,9 @@ export default function DiscountTable({
         u.total = t.paid_total;
       }
     }
-    const discounted = [...m.values()].sort((a, b) => b.discount - a.discount);
+    const share = (u: TeamUnit) => (u.list ? u.discount / u.list : 0);
+    const discounted = [...m.values()].sort((a, b) =>
+      sort === "share" ? share(b) - share(a) || b.discount - a.discount : b.discount - a.discount);
     // Teams with no discounted registration, by location then name. Their
     // row opens the roster like any other; no player is named, so the
     // roster lookup takes the team as it is now.
@@ -150,6 +157,20 @@ export default function DiscountTable({
   const [teams, setTeams] = useState<Record<string, Team>>({});
 
   const openable = units.map((r) => !!r.season_team_id);
+  // The search box beside the view toggle: team names in team view, team or
+  // player names in player view. Rows keep their index in units, so open
+  // state survives a search being typed and cleared.
+  const q = useTeamSearch();
+  const matches = (i: number) => {
+    if (!q) return true;
+    const hay = teamView ? teamUnits[i]?.team ?? "" : `${units[i].team ?? ""} ${units[i].player}`;
+    return hay.toLowerCase().includes(q);
+  };
+  const shownIn = (from: number, to: number) => {
+    const out: number[] = [];
+    for (let i = from; i < to; i++) if (matches(i)) out.push(i);
+    return out;
+  };
 
   async function load(list: DiscountRowData[]) {
     const want = new Map<string, DiscountRowData>();
@@ -442,11 +463,13 @@ export default function DiscountTable({
   // player view has one. Rows keep their index in units, so each card's
   // toggle opens and closes only its own rows.
   const card = (key: string, title: string | null, from: number, to: number, extra?: React.ReactNode) => {
-    const idx: number[] = [];
-    for (let i = from; i < to; i++) if (openable[i]) idx.push(i);
+    // The rows this card shows under the current search; Expand all opens
+    // only those.
+    const shown = shownIn(from, to);
+    const idx = shown.filter((i) => openable[i]);
     // Every openable row already open: the toggle then offers Collapse all.
     const allOpen = idx.length > 0 && idx.every((i) => open[i]);
-    const loading = units.slice(from, to).some((r) => r.season_team_id && resolved[pairKey(r)]?.state === "loading");
+    const loading = shown.some((i) => units[i].season_team_id && resolved[pairKey(units[i])]?.state === "loading");
     return (
       <div key={key} className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5"
@@ -497,7 +520,7 @@ export default function DiscountTable({
                   <Th align="left">Code</Th>
                   <Th align="left">Discount type</Th>
                   <Th>List price</Th>
-                  <Th>Discount</Th>
+                  <Th>{sort === "share" ? "Discount, % ↓" : "Discount ↓"}</Th>
                   <Th>Total price</Th>
                   <Th>Registered</Th>
                 </tr>
@@ -523,7 +546,12 @@ export default function DiscountTable({
               )}
             </thead>
             <tbody>
-              {units.slice(from, to).map((r, j) => renderUnit(r, from + j))}
+              {shown.map((i) => renderUnit(units[i], i))}
+              {q && shown.length === 0 && !extra && (
+                <tr><td colSpan={teamView ? TEAM_COLS.length : COLS} className="px-4 py-4 text-sm italic text-glass-text-tertiary">
+                  Nothing matches &ldquo;{q}&rdquo;.
+                </td></tr>
+              )}
               {extra}
             </tbody>
           </table>
@@ -534,14 +562,15 @@ export default function DiscountTable({
 
   const teamCount = (n: number) => `${n} team${n === 1 ? "" : "s"}`;
   // Team view's last block, under the discounted teams: free agents not on a team yet.
-  const freeAgents = unrostered.length > 0 && (
+  const agents = q ? unrostered.filter((r) => r.player.toLowerCase().includes(q)) : unrostered;
+  const freeAgents = agents.length > 0 && (
     <>
       <tr style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
         <td colSpan={TEAM_COLS.length} className="px-4 py-2 text-xs font-bold text-glass-text-tertiary">
-          Not on a team yet · {unrostered.length} free agent{unrostered.length === 1 ? "" : "s"}
+          Not on a team yet · {agents.length} free agent{agents.length === 1 ? "" : "s"}
         </td>
       </tr>
-      {unrostered.map((r, i) => {
+      {agents.map((r, i) => {
         const sLabel = staffLabel(r.player);
         return (
           <tr key={`fa-${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
@@ -591,12 +620,17 @@ export default function DiscountTable({
   );
 
   if (!teamView) return card("players", null, 0, units.length, freeAgents);
+  // While searching, a title says how many of its teams match.
+  const titleCount = (from: number, to: number) => {
+    const n = shownIn(from, to).length, all = to - from;
+    return q ? `${n} of ${teamCount(all)}` : teamCount(all);
+  };
   return (
     <div className="space-y-4">
       {(discountedCount > 0 || unrostered.length > 0)
-        && card("discounts", `Discounts · ${teamCount(discountedCount)}`, 0, discountedCount, freeAgents)}
+        && card("discounts", `Discounts · ${titleCount(0, discountedCount)}`, 0, discountedCount, freeAgents)}
       {firstNone !== -1
-        && card("none", `No discounts · ${teamCount(units.length - discountedCount)}`, discountedCount, units.length)}
+        && card("none", `No discounts · ${titleCount(discountedCount, units.length)}`, discountedCount, units.length)}
     </div>
   );
 }
