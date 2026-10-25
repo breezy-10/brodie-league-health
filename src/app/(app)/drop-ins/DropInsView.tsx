@@ -69,7 +69,11 @@ export type DropInRow = {
   no_show?: number;
   awaiting_stats?: number;
   upcoming?: number;
+  // The season registrations made after a drop-in at this venue and what they
+  // brought in (absent from an older feed).
+  conversion_revenue?: ConversionRevenue;
 };
+type ConversionRevenue = Record<"new" | "returning", { registrations: number; by_currency: Record<string, number> }>;
 export type DropInPeople = {
   players: number; repeat_players: number; new_players?: number; returning_players?: number; converted_players?: number;
   converted_same_season?: number; converted_other_season?: number;
@@ -93,7 +97,7 @@ export type DropInFeed = {
   // What the players who registered for a season after a drop-in brought in:
   // their season registrations, full price before tax, per currency, split by
   // new and returning drop-ins (absent from an older feed).
-  conversion_revenue?: Record<"new" | "returning", { registrations: number; by_currency: Record<string, number> }>;
+  conversion_revenue?: ConversionRevenue;
   discount_codes: { code: string; currency: string; uses: number; given_up: number }[];
   truncated: boolean;
 };
@@ -343,6 +347,27 @@ async function DropInSummary({ season, locationNames, when, players }: {
     if (!past) q.set("tab", "scheduled");
     return `/drop-ins?${q}`;
   };
+  // Season registration revenue for the players shown: new, returning, or both
+  // added together.
+  const convFor = (c?: ConversionRevenue) => {
+    const by: Record<string, number> = {};
+    let registrations = 0;
+    for (const g of [...(showNew ? ["new"] as const : []), ...(showRet ? ["returning"] as const : [])]) {
+      registrations += c?.[g]?.registrations ?? 0;
+      for (const [cur, v] of Object.entries(c?.[g]?.by_currency ?? {})) by[cur] = (by[cur] ?? 0) + v;
+    }
+    return { registrations, by };
+  };
+  const convTotal = convFor(feed.conversion_revenue);
+  // A venue's: in its own currency, plus any other a registration was paid in.
+  const venueConv = (r: DropInRow) => {
+    const c = convFor(r.conversion_revenue);
+    const others = Object.entries(c.by).filter(([cur, v]) => cur !== r.currency && v > 0);
+    return {
+      registrations: c.registrations,
+      amounts: [[c.by[r.currency] ?? 0, r.currency] as [number, string], ...others.map(([cur, v]) => [v, cur] as [number, string])],
+    };
+  };
   // Right after the players column, so attendance reads before what they went on to do.
   const showedTd = (count: number, total: number, strong = false) => past && (
     <RateTd strong={strong} count={count} total={total}
@@ -519,8 +544,8 @@ async function DropInSummary({ season, locationNames, when, players }: {
         )}
 
         <div className="rounded-2xl bg-glass-surface shadow-card">
-          <div className={tableScrollBox(past ? 1200 : 1080)}>
-            <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1200 : 1080 }}>
+          <div className={tableScrollBox(past ? 1400 : 1280)}>
+            <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1400 : 1280 }}>
               <thead>
                 <tr className="text-xs font-bold text-glass-text-tertiary">
                   <Th align="left">Location</Th>
@@ -541,8 +566,9 @@ async function DropInSummary({ season, locationNames, when, players }: {
                       <Th>Returning revenue</Th>
                     </>
                   )}
-                  <Th>Revenue</Th>
+                  <Th>Drop-in revenue</Th>
                   <Th>Not paid</Th>
+                  <Th>Season registration revenue</Th>
                 </tr>
               </thead>
               <tbody>
@@ -596,6 +622,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
                         <div className="text-[11px] font-normal text-glass-text-tertiary">{r.cancelled} cancelled</div>
                       )}
                     </Td>
+                    <ConvRevenueTd {...venueConv(r)} />
                   </tr>
                 ))}
                 {/* A total of one row only repeats it. */}
@@ -633,6 +660,8 @@ async function DropInSummary({ season, locationNames, when, players }: {
                     )}
                     <Td strong><MoneyLines amounts={currencies.map((cur) => [sum("revenue", cur), cur])} /></Td>
                     <Td strong>{notPaid.toLocaleString()}</Td>
+                    <ConvRevenueTd strong registrations={convTotal.registrations}
+                      amounts={currencies.map((cur) => [convTotal.by[cur] ?? 0, cur])} />
                   </tr>
                 )}
               </tbody>
@@ -653,6 +682,19 @@ async function DropInSummary({ season, locationNames, when, players }: {
 // A total cell's amounts, one currency per line.
 function MoneyLines({ amounts }: { amounts: [number, string][] }) {
   return <>{amounts.map(([v, cur]) => <div key={cur}>{moneyIn(v, cur)}</div>)}</>;
+}
+
+// What the season registrations made after the drop-ins brought in, full
+// price before tax, with how many registrations under it.
+function ConvRevenueTd({ amounts, registrations, strong = false }: {
+  amounts: [number, string][]; registrations: number; strong?: boolean;
+}) {
+  return (
+    <Td strong={strong}>
+      <MoneyLines amounts={amounts} />
+      <CountLine n={registrations} one="registration" many="registrations" />
+    </Td>
+  );
 }
 
 // The counts of several currencies' players added together, for an older feed
