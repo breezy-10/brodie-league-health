@@ -1,5 +1,6 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
+import { type PlayersFilter, matchesPlayers } from "./players";
 import { TZ_SHORT } from "@/lib/tz";
 import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
@@ -148,11 +149,13 @@ export default async function ScheduledDropIns({
   locationNames,
   past,
   byRegistered = false,
+  players = "both",
 }: {
   season: string;
   locationNames: string[] | null;
   past: boolean;
   byRegistered?: boolean;
+  players?: PlayersFilter;
 }) {
   const all = await loadScheduled(season, locationNames);
 
@@ -164,7 +167,8 @@ export default async function ScheduledDropIns({
     );
   }
 
-  const rows = all.filter((r) => (past ? r.attendance !== "upcoming" : r.attendance === "upcoming"));
+  const rows = all.filter((r) => (past ? r.attendance !== "upcoming" : r.attendance === "upcoming")
+    && matchesPlayers(r.is_new, players));
   // Day, then location, then time: each day's drop-ins sit together by venue,
   // in the order the games are played there. Upcoming days soonest first, past
   // days most recent first; within a day it is always earliest game first.
