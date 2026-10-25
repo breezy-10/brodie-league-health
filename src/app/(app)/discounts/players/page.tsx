@@ -103,7 +103,9 @@ export default async function DiscountPlayersPage({
   const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam, view: viewParam, currency: currencyParam, sort: sortParam, player: playerParam, name: nameParam } = await searchParams;
   // The Discounts tab's cards are per currency (Canada, United States), so
   // their links carry it and this list narrows to match the card's count.
-  const currency = currencyParam === "CAD" || currencyParam === "USD" ? currencyParam : null;
+  // The leaderboard always compares both countries, so it ignores a currency
+  // left in the URL (a card link, a bookmark) rather than hiding Canada.
+  const currency = viewParam !== "leaderboard" && (currencyParam === "CAD" || currencyParam === "USD") ? currencyParam : null;
   const COUNTRY = { CAD: "Canada", USD: "United States" } as const;
   // Team view (the default) shows the teams; player view lists each
   // registration; the leaderboard ranks locations by discount, by volume or
