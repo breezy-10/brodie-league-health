@@ -89,6 +89,10 @@ export type DropInFeed = {
   // The same across both countries: someone who dropped in in Canada and the
   // US is one player (absent from an older feed).
   players_all?: DropInPeople;
+  // What the players who registered for a season after a drop-in brought in:
+  // their season registrations, full price before tax, per currency, split by
+  // new and returning drop-ins (absent from an older feed).
+  conversion_revenue?: Record<"new" | "returning", { registrations: number; by_currency: Record<string, number> }>;
   discount_codes: { code: string; currency: string; uses: number; given_up: number }[];
   truncated: boolean;
 };
@@ -346,7 +350,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
       } />
   );
   const revenueTile = (
-    <Tile label="Revenue" value={byCurrency((cur) => sum("revenue", cur))} accent={ACCENT}
+    <Tile label="Drop-in revenue" value={byCurrency((cur) => sum("revenue", cur))} accent={ACCENT}
       sub={
         <>
           <span className="block">
@@ -383,8 +387,23 @@ async function DropInSummary({ season, locationNames, when, players }: {
               convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
   );
   const givenFreeTile = (
-    <Tile label="Given free" value={byCurrency((cur) => sum("given_free", cur))}
+    <Tile label="Drop-ins given free" value={byCurrency((cur) => sum("given_free", cur))}
       sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
+  );
+  // The season registrations new players made after their drop-in, and what
+  // they brought in: the money the drop-ins led to.
+  const newConv = feed.conversion_revenue?.new;
+  const convRevenueTile = newConv && (
+    <Tile label="Season registration revenue" value={byCurrency((cur) => newConv.by_currency[cur] ?? 0)} accent={ACCENT}
+      sub={
+        <>
+          <span className="block">
+            {newConv.registrations.toLocaleString()} season {newConv.registrations === 1 ? "registration" : "registrations"} by
+            the {converted.toLocaleString()} new {converted === 1 ? "player" : "players"} who registered
+          </span>
+          <span className="block">full price before tax</span>
+        </>
+      } />
   );
   const retDropinsTile = (
     <Tile label="Drop-ins" value={retDropins.toLocaleString()} accent={ACCENT}
@@ -408,7 +427,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
   // Before processing fees, like Revenue: the drop-in price returning players
   // brought in, summed.
   const retRevenueTile = (
-    <Tile label="Revenue" value={byCurrency((cur) => sum("returning_revenue", cur))} accent={ACCENT}
+    <Tile label="Drop-in revenue" value={byCurrency((cur) => sum("returning_revenue", cur))} accent={ACCENT}
       sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
   );
   const regAfterTile = (
@@ -451,6 +470,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
               {newDropinsTile}
               {becameTile}
+              {convRevenueTile}
               {givenFreeTile}
             </div>
             <SubHead title="Returning players" note="Charged for each drop-in" />
@@ -467,9 +487,10 @@ async function DropInSummary({ season, locationNames, when, players }: {
             {newDropinsTile}
             {showedTile}
             {becameTile}
-            {notPaidTile}
+            {convRevenueTile}
             {revenueTile}
             {givenFreeTile}
+            {notPaidTile}
           </div>
         ) : (
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
