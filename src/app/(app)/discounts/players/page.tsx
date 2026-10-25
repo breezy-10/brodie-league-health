@@ -5,6 +5,7 @@ import Filters, { type FilterOptions } from "../../dashboard/Filters";
 import { discountTone, freeTone } from "../rates";
 import DiscountTable, { type ScopeTeamData } from "./DiscountTable";
 import DiscountLeaderboard, { type LeaderRow, type LeaderSort } from "./DiscountLeaderboard";
+import { SearchProvider, TeamSearchBox } from "./TeamSearch";
 import { BasisToggle } from "../../dashboard/BasisToggle";
 import { loadStaff } from "@/lib/staff";
 import { loadAmbassadorTeams } from "../../ambassador-teams/AmbassadorSummary";
@@ -251,13 +252,18 @@ export default async function DiscountPlayersPage({
         // Changing a filter must not quietly widen a free-only list back out,
         // or drop back to team view from the player view or the leaderboard.
         // The currency isn't kept: it belongs to the card link that set it.
-        keep={freeOnly || kind || playerView || leaderboardView
+        keep={freeOnly || kind || playerView || leaderboardView || (teamView && sort === "volume")
           ? { ...(freeOnly ? { free: "1" } : {}), ...(kind ? { kind } : {}), ...(playerView ? { view: "players" } : {}),
-              ...(leaderboardView ? { view: "leaderboard", ...(sort === "volume" ? { sort } : {}) } : {}) }
+              ...(leaderboardView ? { view: "leaderboard" } : {}),
+              ...((leaderboardView || teamView) && sort === "volume" ? { sort } : {}) }
           : undefined}
       />
 
+      {/* The search box and the table share a search through this provider,
+          which renders no element of its own, so main's spacing still applies. */}
+      <SearchProvider>
       <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
         <BasisToggle
           param="view"
           value={leaderboardView ? "leaderboard" : teamView ? "teams" : "players"}
@@ -270,7 +276,13 @@ export default async function DiscountPlayersPage({
             { value: "leaderboard", label: "Leaderboard" },
           ]}
         />
-        {leaderboardView && (
+        {!leaderboardView && (
+          <TeamSearchBox placeholder={teamView ? "Search teams" : "Search teams or players"} />
+        )}
+        </div>
+        {/* Teams and locations rank the same two ways, by share of list
+            price (the default) or by dollars given up. */}
+        {(leaderboardView || teamView) && (
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-semibold text-glass-text-tertiary">Rank by</span>
             <BasisToggle
@@ -366,9 +378,12 @@ export default async function DiscountPlayersPage({
           // and the teams with no discount are listed only on the full list,
           // not one narrowed to free registrations or one kind of discount.
           scopeTeams={teamView ? (feed.teams ?? []).filter((t) => !currency || t.currency === currency) : undefined}
-          listNone={!freeOnly && !kind} />
+          listNone={!freeOnly && !kind}
+          sort={sort} />
         </>
       )}
+
+      </SearchProvider>
 
       {leaderboardView ? (
         <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
@@ -428,11 +443,18 @@ function Tile({ label, value, values, sub, accent }: {
     <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 shadow-card">
       <div className="text-xs font-bold text-glass-text-tertiary truncate">{label}</div>
       <div className="mt-1.5 space-y-0.5">
-        {(figures.length ? figures : ["—"]).map((f, i) => (
-          <div key={i} className="text-2xl font-bold tabular leading-tight" style={{ color: accent ?? "var(--glass-text)" }}>
-            {f}
-          </div>
-        ))}
+        {(figures.length ? figures : ["—"]).map((f, i) => {
+          // "$75,110.67 CAD": the amount and its currency stay on one line,
+          // the currency in smaller type, and two currencies at once take a
+          // smaller size so both fit the card.
+          const m = f.match(/^(.*?)\s+([A-Z]{3})$/);
+          return (
+            <div key={i} className={`${figures.length > 1 ? "text-xl" : "text-2xl"} font-bold tabular leading-tight whitespace-nowrap`}
+              style={{ color: accent ?? "var(--glass-text)" }}>
+              {m ? <>{m[1]} <span className="text-sm font-semibold">{m[2]}</span></> : f}
+            </div>
+          );
+        })}
       </div>
       {sub && <div className="text-[11px] text-glass-text-tertiary mt-1 leading-snug">{sub}</div>}
     </div>
