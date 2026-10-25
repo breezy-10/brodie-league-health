@@ -105,7 +105,12 @@ export default async function DiscountPlayersPage({
   // their links carry it and this list narrows to match the card's count.
   // The leaderboard always compares both countries, so it ignores a currency
   // left in the URL (a card link, a bookmark) rather than hiding Canada.
-  const currency = viewParam !== "leaderboard" && (currencyParam === "CAD" || currencyParam === "USD") ? currencyParam : null;
+  // A currency only narrows the all-locations list (a Discounts tab country
+  // card links here with one). Each location has a single currency, so with
+  // a location picked it's redundant or, left over from that card, empties the
+  // page (USD with Burlington). The leaderboard always shows both countries.
+  const currency = viewParam !== "leaderboard" && csvParam(locationParam).length === 0
+    && (currencyParam === "CAD" || currencyParam === "USD") ? currencyParam : null;
   const COUNTRY = { CAD: "Canada", USD: "United States" } as const;
   // Team view (the default) shows the teams; player view lists each
   // registration; the leaderboard ranks locations by discount, by volume or
@@ -245,10 +250,10 @@ export default async function DiscountPlayersPage({
         }}
         // Changing a filter must not quietly widen a free-only list back out,
         // or drop back to team view from the player view or the leaderboard.
-        keep={freeOnly || kind || playerView || leaderboardView || currency
+        // The currency isn't kept: it belongs to the card link that set it.
+        keep={freeOnly || kind || playerView || leaderboardView
           ? { ...(freeOnly ? { free: "1" } : {}), ...(kind ? { kind } : {}), ...(playerView ? { view: "players" } : {}),
-              ...(leaderboardView ? { view: "leaderboard", ...(sort === "volume" ? { sort } : {}) } : {}),
-              ...(currency ? { currency } : {}) }
+              ...(leaderboardView ? { view: "leaderboard", ...(sort === "volume" ? { sort } : {}) } : {}) }
           : undefined}
       />
 
