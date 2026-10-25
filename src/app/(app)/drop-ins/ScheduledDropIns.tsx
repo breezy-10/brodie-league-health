@@ -122,10 +122,10 @@ const STAT_LINE: Record<StatLine, { label: string; style: React.CSSProperties }>
   awaiting: { label: "No stats yet", style: { color: "var(--glass-text-secondary)", background: "var(--fill-3)" } },
 };
 // Column widths shared by every day's table: time, location, player, team,
-// price, the seasons they registered for, and on Past, attendance, where the
-// stats went, and the game's BallerTV, admin and stats links.
+// price, on Past attendance and where the stats went, the seasons they
+// registered for, and on Past the game's BallerTV, admin and stats links.
 const COLS = ["11%", "15%", "24%", "24%", "8%", "18%"];
-const COLS_PAST = ["8%", "10%", "15%", "15%", "5%", "10%", "9%", "9%", "6%", "6%", "7%"];
+const COLS_PAST = ["8%", "10%", "15%", "15%", "5%", "9%", "9%", "10%", "6%", "6%", "7%"];
 // By registration date: the registration time, then the game's day and time.
 const COLS_REG = ["9%", "15%", "12%", "20%", "20%", "7%", "17%"];
 const COLS_PAST_REG = ["7%", "10%", "8%", "13%", "13%", "5%", "9%", "9%", "9%", "6%", "5%", "6%"];
@@ -144,6 +144,27 @@ function GameLink({ href, label, title }: { href: string | null; label: string; 
       style={LINK_STYLE} title={title}>
       {label} ↗
     </a>
+  );
+}
+
+// Each season the player registered for after the drop-in, the season being
+// viewed as "This season"; says so when they haven't.
+function RegisteredFor({ r, season, className }: { r: ScheduledRow; season: string; className: string }) {
+  const seasons = [...(r.registered_seasons ?? [])].sort(compareSeasons);
+  return (
+    <td className={className}>
+      {seasons.length ? (
+        <div className="flex flex-wrap gap-1">
+          {seasons.map((s) => (
+            <span key={s} className={CHIP} style={{ color: "var(--green)", background: "var(--green-tint)" }}>
+              {s === season ? "This season" : s}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className={CHIP} style={{ color: "var(--glass-text-secondary)", background: "var(--fill-3)" }}>Not registered</span>
+      )}
+    </td>
   );
 }
 
@@ -250,11 +271,14 @@ export default async function ScheduledDropIns({
                       <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Player</th>
                       <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Team</th>
                       <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Price</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Registered for</th>
+                      {!past && (
+                        <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Registered for</th>
+                      )}
                       {past && (
                         <>
                           <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Attendance</th>
                           <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Stat line</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Registered for</th>
                           <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>BallerTV</th>
                           <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Admin</th>
                           <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Stats</th>
@@ -304,19 +328,7 @@ export default async function ScheduledDropIns({
                         <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-secondary">
                           {r.paid > 0 ? "Paid" : "Free"}
                         </td>
-                        <td className="px-4 py-2.5">
-                          {r.registered_seasons?.length ? (
-                            <div className="flex flex-wrap gap-1">
-                              {[...r.registered_seasons].sort(compareSeasons).map((s) => (
-                                <span key={s} className={CHIP} style={{ color: "var(--green)", background: "var(--green-tint)" }}>
-                                  {s === season ? "This season" : s}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-glass-text-tertiary">—</span>
-                          )}
-                        </td>
+                        {!past && <RegisteredFor r={r} season={season} className="px-4 py-2.5" />}
                         {past && r.attendance !== "upcoming" && (
                           <>
                             <td className="px-4 py-2.5">
@@ -336,6 +348,7 @@ export default async function ScheduledDropIns({
                                 <span className="text-glass-text-tertiary">—</span>
                               )}
                             </td>
+                            <RegisteredFor r={r} season={season} className="px-2 py-2.5" />
                             <td className="px-2 py-2.5">
                               <GameLink href={r.game_at ? ballerTvHref(r) : null} label="BallerTV"
                                 title="Watch on BallerTV (opens the game's stream, or its event if the game isn't listed)" />
