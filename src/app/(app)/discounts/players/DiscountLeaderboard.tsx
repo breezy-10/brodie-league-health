@@ -193,8 +193,8 @@ function Th({ children, align = "right", on = false, tight = false }: { children
 
 // A cell of the totals row: sticky at the bottom of the window, with the
 // dollars given up under a count where there are any.
-function Foot({ children, align = "right", sub, note, gold = false, tight = false }: {
-  children?: React.ReactNode; align?: "left" | "right"; sub?: number; note?: string; gold?: boolean; tight?: boolean;
+function Foot({ children, align = "right", sub, gold = false, tight = false }: {
+  children?: React.ReactNode; align?: "left" | "right"; sub?: number; gold?: boolean; tight?: boolean;
 }) {
   return (
     <td className={`${tight ? "px-2.5" : "px-4"} py-2.5 ${align === "left" ? "text-left" : "text-right"} tabular whitespace-nowrap align-middle ${STICK_FOOT} first:rounded-bl-2xl last:rounded-br-2xl`}
@@ -203,22 +203,21 @@ function Foot({ children, align = "right", sub, note, gold = false, tight = fals
       {sub !== undefined && sub > 0.004 && (
         <div className="text-[11px] font-normal text-glass-text-tertiary leading-snug">−{money(sub)}</div>
       )}
-      {note && <div className="text-[11px] font-normal text-glass-text-tertiary leading-snug">{note}</div>}
     </td>
   );
 }
 
-// A kind of discount for one location: how many of its registrations used it,
-// that share, and the dollars it gave up.
-const kindSub = (n: number, of: number, amount: number) =>
-  [of ? pct(n, of) : null, amount > 0.004 ? `−${money(amount)}` : null].filter(Boolean).join(" · ");
+// A kind of discount for one location: how many of its registrations used it
+// with that share beside it, and the dollars it gave up underneath.
+const Share = ({ n, of }: { n: number; of: number }) =>
+  of ? <span className="text-[11px] font-normal text-glass-text-tertiary"> · {pct(n, of)}</span> : null;
 function Kind({ n, of, amount }: { n: number; of: number; amount: number }) {
   return (
     <td className="px-2.5 py-2.5 text-right tabular whitespace-nowrap align-middle">
       <div style={{ color: n > 0 ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
-        {n.toLocaleString()} of {of.toLocaleString()}
+        {n.toLocaleString()} of {of.toLocaleString()}<Share n={n} of={of} />
       </div>
-      <div className="text-[11px] text-glass-text-tertiary leading-snug">{kindSub(n, of, amount)}</div>
+      {amount > 0.004 && <div className="text-[11px] text-glass-text-tertiary leading-snug">−{money(amount)}</div>}
     </td>
   );
 }
@@ -226,7 +225,7 @@ function Kind({ n, of, amount }: { n: number; of: number; amount: number }) {
 // The totals row's version of a kind cell.
 function FootKind({ n, of, amount }: { n: number; of: number; amount: number }) {
   return (
-    <Foot tight note={kindSub(n, of, amount)}>{n.toLocaleString()} of {of.toLocaleString()}</Foot>
+    <Foot tight sub={amount}>{n.toLocaleString()} of {of.toLocaleString()}<Share n={n} of={of} /></Foot>
   );
 }
 
