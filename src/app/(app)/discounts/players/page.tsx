@@ -113,7 +113,8 @@ export default async function DiscountPlayersPage({
   const teamView = !leaderboardView && !playerView;
   // A player's name in a team roster opens player view narrowed to them.
   const playerFilter = playerView && playerParam ? playerParam : null;
-  const sort: LeaderSort = sortParam === "share" ? "share" : "volume";
+  // The leaderboard ranks by share of list price unless asked for volume.
+  const sort: LeaderSort = sortParam === "volume" ? "volume" : "share";
   const freeOnly = freeParam === "1";
   // kind narrows the list to one group, matching a tile on the Discounts tab:
   // "referral" and "returning" are the two flat programmes, "other" is every
@@ -244,12 +245,12 @@ export default async function DiscountPlayersPage({
         // or drop back to team view from the player view or the leaderboard.
         keep={freeOnly || kind || playerView || leaderboardView || currency
           ? { ...(freeOnly ? { free: "1" } : {}), ...(kind ? { kind } : {}), ...(playerView ? { view: "players" } : {}),
-              ...(leaderboardView ? { view: "leaderboard", ...(sort === "share" ? { sort } : {}) } : {}),
+              ...(leaderboardView ? { view: "leaderboard", ...(sort === "volume" ? { sort } : {}) } : {}),
               ...(currency ? { currency } : {}) }
           : undefined}
       />
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="space-y-3">
         <BasisToggle
           param="view"
           value={leaderboardView ? "leaderboard" : teamView ? "teams" : "players"}
@@ -263,14 +264,14 @@ export default async function DiscountPlayersPage({
           ]}
         />
         {leaderboardView && (
-          <>
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-semibold text-glass-text-tertiary">Rank by</span>
             <BasisToggle
               param="sort"
               value={sort}
-              options={[{ value: "volume", label: "Discount volume" }, { value: "share", label: "% of list price" }]}
+              options={[{ value: "share", label: "% of list price" }, { value: "volume", label: "Discount volume" }]}
             />
-          </>
+          </div>
         )}
       </div>
 
