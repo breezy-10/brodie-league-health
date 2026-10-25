@@ -136,11 +136,6 @@ export default function DiscountTable({
   const [teams, setTeams] = useState<Record<string, Team>>({});
 
   const openable = units.map((r) => !!r.season_team_id);
-  const openCount = units.reduce((n, _, i) => n + (openable[i] && open[i] ? 1 : 0), 0);
-  const totalOpenable = openable.filter(Boolean).length;
-  // Every openable row already open — the toggle then offers Collapse all.
-  const allOpen = totalOpenable > 0 && openCount === totalOpenable;
-  const loading = Object.values(resolved).filter((v) => v.state === "loading").length;
 
   async function load(list: DiscountRowData[]) {
     const want = new Map<string, DiscountRowData>();
@@ -218,11 +213,14 @@ export default function DiscountTable({
     if (next) void load([r]);
   }
 
-  function expandAll() {
-    const all: Record<number, boolean> = {};
-    units.forEach((_, i) => { if (openable[i]) all[i] = true; });
-    setOpen(all);
-    void load(units);
+  // Expand or collapse the rows of one card, leaving the other card alone.
+  function setAll(idx: number[], to: boolean) {
+    setOpen((o) => {
+      const next = { ...o };
+      for (const i of idx) next[i] = to;
+      return next;
+    });
+    if (to) void load(idx.map((i) => units[i]));
   }
 
   const staffLabel = (name: string) => staff?.[normName(name)];
@@ -401,138 +399,155 @@ export default function DiscountTable({
               ];
             };
 
-  return (
-    <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
-      <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-2.5"
-        style={{ borderBottom: "1px solid var(--glass-border)" }}>
-        {loading > 0 && (
-          <span className="mr-auto inline-flex items-center gap-2 text-xs text-glass-text-tertiary">
-            <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-            Loading rosters…
-          </span>
-        )}
-        {/* One toggle rather than a disabled pair: the label always names
-            the action the click performs, so there is nothing dimmed to
-            decode. Matches the check-in panel in overdue-payments. */}
-        <button
-          type="button"
-          onClick={() => (allOpen ? setOpen({}) : expandAll())}
-          disabled={totalOpenable === 0}
-          className={TOOL_BTN}
-        >
-          {allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
-          {allOpen ? "Collapse all" : "Expand all"}
-        </button>
-      </div>
-      {/* The table scrolls inside this box, not the window, so its header row
-          stays at the box's top (top-0) however far down the list you are, as
-          on the Ambassadors table. The box is as tall as the window allows
-          under the kit's header and this card's toolbar. */}
-      <div className="overflow-x-auto" style={{ maxHeight: "max(460px, calc(100vh - var(--shell-top) - 120px))" }}>
-        <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1120 }}>
-          <thead>
-            {teamView ? (
+  // One card: a toolbar (the section's name on the left, Expand all on the
+  // right) over a table that scrolls in its own box under a sticky header.
+  // Team view has two, the teams with a discount and the teams with none;
+  // player view has one. Rows keep their index in units, so each card's
+  // toggle opens and closes only its own rows.
+  const card = (key: string, title: string | null, from: number, to: number, extra?: React.ReactNode) => {
+    const idx: number[] = [];
+    for (let i = from; i < to; i++) if (openable[i]) idx.push(i);
+    // Every openable row already open: the toggle then offers Collapse all.
+    const allOpen = idx.length > 0 && idx.every((i) => open[i]);
+    const loading = units.slice(from, to).some((r) => r.season_team_id && resolved[pairKey(r)]?.state === "loading");
+    return (
+      <div key={key} className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5"
+          style={{ borderBottom: "1px solid var(--glass-border)" }}>
+          {title && <span className="text-sm font-bold" style={{ color: "var(--glass-text)" }}>{title}</span>}
+          {loading && (
+            <span className="inline-flex items-center gap-2 text-xs text-glass-text-tertiary">
+              <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+              Loading rosters…
+            </span>
+          )}
+          {/* One toggle rather than a disabled pair: the label always names
+              the action the click performs, so there is nothing dimmed to
+              decode. Matches the check-in panel in overdue-payments. */}
+          <button
+            type="button"
+            onClick={() => setAll(idx, !allOpen)}
+            disabled={idx.length === 0}
+            className={`${TOOL_BTN} ml-auto`}
+          >
+            {allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+            {allOpen ? "Collapse all" : "Expand all"}
+          </button>
+        </div>
+        {/* The table scrolls inside this box, not the window, so its header row
+            stays at the box's top (top-0) however far down the list you are, as
+            on the Ambassadors table. The box is as tall as the window allows
+            under the kit's header and this card's toolbar. */}
+        <div className="overflow-x-auto" style={{ maxHeight: "max(460px, calc(100vh - var(--shell-top) - 120px))" }}>
+          <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1120 }}>
+            <thead>
+              {teamView ? (
+                <tr className="text-xs font-bold text-glass-text-tertiary">
+                  <Th align="left">Team</Th>
+                  <Th align="left">Location</Th>
+                  {/* How many on the team carried a discount, out of everyone
+                      on its roster, and that share. */}
+                  <Th align="left">Discounted</Th>
+                  <Th align="left">Code</Th>
+                  <Th align="left">Discount type</Th>
+                  <Th>List price</Th>
+                  <Th>Discount</Th>
+                  <Th>Total price</Th>
+                  <Th>Registered</Th>
+                </tr>
+              ) : (
               <tr className="text-xs font-bold text-glass-text-tertiary">
-                <Th align="left">Team</Th>
+                <Th align="left">Player</Th>
                 <Th align="left">Location</Th>
-                {/* How many on the team carried a discount, out of everyone
-                    on its roster, and that share. */}
-                <Th align="left">Discounted</Th>
+                {/* Captain or player — the kind of registration, not the kind of
+                    discount, which the Code column beside it names. */}
+                <Th align="left">Reg type</Th>
+                <Th align="left">Team</Th>
                 <Th align="left">Code</Th>
+                {/* What the code is for. The ops DB's own discount "type" is
+                    'coupon' on all but a handful of rows system-wide, so the
+                    discount's name is the field that actually separates an
+                    ambassador comp from a referral from a returning player. */}
                 <Th align="left">Discount type</Th>
                 <Th>List price</Th>
                 <Th>Discount</Th>
                 <Th>Total price</Th>
                 <Th>Registered</Th>
               </tr>
-            ) : (
-            <tr className="text-xs font-bold text-glass-text-tertiary">
-              <Th align="left">Player</Th>
-              <Th align="left">Location</Th>
-              {/* Captain or player — the kind of registration, not the kind of
-                  discount, which the Code column beside it names. */}
-              <Th align="left">Reg type</Th>
-              <Th align="left">Team</Th>
-              <Th align="left">Code</Th>
-              {/* What the code is for. The ops DB's own discount "type" is
-                  'coupon' on all but a handful of rows system-wide, so the
-                  discount's name is the field that actually separates an
-                  ambassador comp from a referral from a returning player. */}
-              <Th align="left">Discount type</Th>
-              <Th>List price</Th>
-              <Th>Discount</Th>
-              <Th>Total price</Th>
-              <Th>Registered</Th>
-            </tr>
-            )}
-          </thead>
-          <tbody>
-            {(teamView ? units.slice(0, discountedCount) : units).map((r, i) => renderUnit(r, i))}
-            {unrostered.length > 0 && (
-              <>
-                <tr style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
-                  <td colSpan={COLS - 1} className="px-4 py-2 text-xs font-bold text-glass-text-tertiary">
-                    Not on a team yet · {unrostered.length} free agent{unrostered.length === 1 ? "" : "s"}
-                  </td>
-                </tr>
-                {unrostered.map((r, i) => {
-                  const sLabel = staffLabel(r.player);
-                  return (
-                    <tr key={`fa-${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
-                      <td className="px-4 py-2.5 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
-                        <span className="flex items-center gap-1.5">
-                          {/* No roster to open; the gap keeps names aligned with the teams. */}
-                          <span className="shrink-0 -ml-1 inline-block" style={{ width: 18 }} aria-hidden />
-                          <span>{r.player}</span>
-                          {r.free && (
-                            <span className="ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded"
-                              style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>Free</span>
-                          )}
-                          {sLabel && <StaffBadge label={sLabel} />}
-                          {isAmbassador(r) && <AmbassadorBadge />}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{r.location}</td>
-                      <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-tertiary">{TYPE_LABEL[r.type] ?? r.type}</td>
-                      <td className="px-4 py-2.5 font-mono text-[12px] max-w-[200px] truncate text-glass-text-tertiary" title={r.codes}>{r.codes}</td>
-                      <td className="px-4 py-2.5 max-w-[240px] truncate" style={{ color: "var(--glass-text-secondary)" }}
-                        title={r.discount_names ?? ""}>
-                        {r.discount_names ? shortDiscount(r.discount_names) : "—"}
-                      </td>
-                      <Td>{money(r.list_price)}</Td>
-                      <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
-                        {r.discount > 0 ? (
-                          <>
-                            <div style={{ color: GOLD, fontWeight: 700 }}>−{money(r.discount)}</div>
-                            <div className="text-[11px] text-glass-text-tertiary leading-snug">
-                              {r.list_price ? `${Math.round((100 * r.discount) / r.list_price)}%` : "—"}
-                            </div>
-                          </>
-                        ) : (
-                          // Full price: nothing came off.
-                          <span className="text-glass-text-tertiary">—</span>
-                        )}
-                      </td>
-                      <Td>{money(r.total_paid)}</Td>
-                      <Td>{day(r.registered_on)}</Td>
-                    </tr>
-                  );
-                })}
-              </>
-            )}
-            {teamView && firstNone !== -1 && (
-              <>
-                <tr style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
-                  <td colSpan={COLS - 1} className="px-4 py-2 text-xs font-bold text-glass-text-tertiary">
-                    No discounts · {units.length - discountedCount} team{units.length - discountedCount === 1 ? "" : "s"}
-                  </td>
-                </tr>
-                {units.slice(discountedCount).map((r, j) => renderUnit(r, discountedCount + j))}
-              </>
-            )}
-          </tbody>
-        </table>
+              )}
+            </thead>
+            <tbody>
+              {units.slice(from, to).map((r, j) => renderUnit(r, from + j))}
+              {extra}
+            </tbody>
+          </table>
+        </div>
       </div>
+    );
+  };
+
+  const teamCount = (n: number) => `${n} team${n === 1 ? "" : "s"}`;
+  // Team view's last block, under the discounted teams: free agents not on a team yet.
+  const freeAgents = unrostered.length > 0 && (
+    <>
+      <tr style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
+        <td colSpan={COLS - 1} className="px-4 py-2 text-xs font-bold text-glass-text-tertiary">
+          Not on a team yet · {unrostered.length} free agent{unrostered.length === 1 ? "" : "s"}
+        </td>
+      </tr>
+      {unrostered.map((r, i) => {
+        const sLabel = staffLabel(r.player);
+        return (
+          <tr key={`fa-${i}`} style={{ borderTop: "1px solid var(--glass-border)" }}>
+            <td className="px-4 py-2.5 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
+              <span className="flex items-center gap-1.5">
+                {/* No roster to open; the gap keeps names aligned with the teams. */}
+                <span className="shrink-0 -ml-1 inline-block" style={{ width: 18 }} aria-hidden />
+                <span>{r.player}</span>
+                {r.free && (
+                  <span className="ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>Free</span>
+                )}
+                {sLabel && <StaffBadge label={sLabel} />}
+                {isAmbassador(r) && <AmbassadorBadge />}
+              </span>
+            </td>
+            <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{r.location}</td>
+            <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-tertiary">{TYPE_LABEL[r.type] ?? r.type}</td>
+            <td className="px-4 py-2.5 font-mono text-[12px] max-w-[200px] truncate text-glass-text-tertiary" title={r.codes}>{r.codes}</td>
+            <td className="px-4 py-2.5 max-w-[240px] truncate" style={{ color: "var(--glass-text-secondary)" }}
+              title={r.discount_names ?? ""}>
+              {r.discount_names ? shortDiscount(r.discount_names) : "—"}
+            </td>
+            <Td>{money(r.list_price)}</Td>
+            <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
+              {r.discount > 0 ? (
+                <>
+                  <div style={{ color: GOLD, fontWeight: 700 }}>−{money(r.discount)}</div>
+                  <div className="text-[11px] text-glass-text-tertiary leading-snug">
+                    {r.list_price ? `${Math.round((100 * r.discount) / r.list_price)}%` : "—"}
+                  </div>
+                </>
+              ) : (
+                // Full price: nothing came off.
+                <span className="text-glass-text-tertiary">—</span>
+              )}
+            </td>
+            <Td>{money(r.total_paid)}</Td>
+            <Td>{day(r.registered_on)}</Td>
+          </tr>
+        );
+      })}
+    </>
+  );
+
+  if (!teamView) return card("players", null, 0, units.length, freeAgents);
+  return (
+    <div className="space-y-4">
+      {(discountedCount > 0 || unrostered.length > 0)
+        && card("discounts", `Discounts · ${teamCount(discountedCount)}`, 0, discountedCount, freeAgents)}
+      {firstNone !== -1
+        && card("none", `No discounts · ${teamCount(units.length - discountedCount)}`, discountedCount, units.length)}
     </div>
   );
 }
