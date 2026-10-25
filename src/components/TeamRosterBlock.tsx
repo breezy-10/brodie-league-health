@@ -1,6 +1,7 @@
 // One team's roster with what each player has paid — the block the Ambassadors
 // expander and the discount drill-down both open, so the two read identically.
 
+import Link from "next/link";
 import { normName } from "@/lib/names";
 import { shortDiscount } from "@/lib/discount-names";
 
@@ -9,6 +10,8 @@ const THIN = "var(--glass-yellow)";
 
 export type RosterLine = {
   player: string;
+  // Ops player id (absent from an older feed).
+  player_id?: string;
   is_captain: boolean;
   paid: number;
   total: number;
@@ -81,12 +84,15 @@ export function StaffBadge({ label }: { label: string }) {
 }
 
 export default function TeamRosterBlock({
-  team: t, note, staff,
+  team: t, note, staff, hrefFor,
 }: {
   team: RosterTeam;
   note?: string;
   // Normalised name -> role label, from the training roster. Omit to show no tags.
   staff?: Record<string, string>;
+  // Where a player's name links, if anywhere (the discounts team view opens
+  // the player in its player view).
+  hrefFor?: (x: RosterLine) => string | null;
 }) {
   // Captain first, then whoever has paid least, so the chase list is on top.
   const ordered = [...t.roster].sort(
@@ -129,7 +135,10 @@ export default function TeamRosterBlock({
             <li key={`${x.player}-${i}`} className="flex items-baseline gap-3 text-[12px]" style={{ maxWidth: lineWidth }}>
               <span className="truncate flex-1"
                 style={{ color: owes(x) ? "var(--glass-text)" : "var(--glass-text-secondary)" }}>
-                {x.player}
+                {(() => {
+                  const href = hrefFor?.(x);
+                  return href ? <Link href={href} className="hover:underline">{x.player}</Link> : x.player;
+                })()}
                 {x.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
                 {staff?.[normName(x.player)] && <StaffBadge label={staff[normName(x.player)]} />}
                 {!x.is_captain && <JoinedTag via={x.joined_via} />}
