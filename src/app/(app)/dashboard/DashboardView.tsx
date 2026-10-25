@@ -327,20 +327,30 @@ async function seasonStartDate(season: string): Promise<string | null> {
 // nights not started) was computed off whichever thousand rows came back.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 async function readSeasonTasks<T>(sb: any, cols: string, ids: string[]): Promise<T[]> {
-  const out: T[] = [];
   // The id list is chunked too: a season's worth of nights makes an .in() long
-  // enough to strain the query string.
-  for (let i = 0; i < ids.length; i += 100) {
-    const chunk = ids.slice(i, i + 100);
-    for (let from = 0; from < 100_000; from += 1000) {
-      const { data, error } = await sb.from("season_tasks").select(cols)
+  // enough to strain the query string. Chunks, and the pages after each chunk's
+  // first (which also counts its rows), are read side by side: one after
+  // another they held the dashboard's first paint for about 2.5s.
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+  const parts = await Promise.all(chunks.map(async (chunk) => {
+    const page = (from: number, count: boolean) =>
+      sb.from("season_tasks").select(cols, count ? { count: "exact" } : undefined)
         .in("season_id", chunk).order("id").range(from, from + 999);
-      if (error || !data) break;
-      out.push(...(data as T[]));
-      if (data.length < 1000) break;
+    const first = await page(0, true);
+    if (first.error || !first.data) return [] as T[];
+    const rows = [...(first.data as T[])];
+    const total: number = first.count ?? rows.length;
+    if (rows.length < 1000 || total <= 1000) return rows;
+    const starts: number[] = [];
+    for (let from = 1000; from < Math.min(total, 100_000); from += 1000) starts.push(from);
+    for (const r of await Promise.all(starts.map((from) => page(from, false)))) {
+      if (r.error || !r.data) break;
+      rows.push(...(r.data as T[]));
     }
-  }
-  return out;
+    return rows;
+  }));
+  return parts.flat();
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
