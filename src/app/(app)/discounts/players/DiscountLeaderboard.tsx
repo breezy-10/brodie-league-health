@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { STICKY_TH_STYLE } from "../../dashboard/stickyTable";
 
 // One location's discounts for the season, from the Promo Tracker's
 // /api/discounts (the Discounts tab's own feed, so the numbers agree).
@@ -27,6 +28,16 @@ type Kind = "returning" | "referral" | "other" | null;
 
 const GOLD = "var(--glass-gold)";
 const COUNTRY: Record<string, string> = { CAD: "Canada", USD: "United States" };
+
+// The page scrolls the window. Each card's title row sticks under the kit's
+// header; the column headers stick under the title row and the totals row to
+// the bottom of the window, but only on screens wide enough that the table
+// doesn't scroll sideways (a sideways box would trap them; see stickyTable.ts).
+// The title row is a fixed height so the headers know where to sit.
+const BAR_H = 46;
+const BOX = "overflow-x-auto min-[1440px]:overflow-visible";
+const STICK_TH = "min-[1440px]:sticky min-[1440px]:top-[calc(var(--shell-top)_+_46px)] z-[4]";
+const STICK_FOOT = "min-[1440px]:sticky min-[1440px]:bottom-0 z-[4]";
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const pct = (n: number, of: number, digits = 0) => (of ? `${((100 * n) / of).toFixed(digits)}%` : "—");
 
@@ -78,20 +89,22 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
           .sort((a, b) => key(b) - key(a) || given(b).amount - given(a).amount || a.location.localeCompare(b.location));
         const totalGiven = ranked.reduce((n, r) => n + given(r).amount, 0);
         const totalList = ranked.reduce((n, r) => n + listOf(r), 0);
+        const sum = (f: (r: LeaderRow) => number) => ranked.reduce((n, r) => n + f(r), 0);
+        // Other leaves out the free registrations, as on the rows and the cards.
+        const otherN = (r: LeaderRow) => Math.max(0, r.other_discounted - r.free);
+        const otherAmt = (r: LeaderRow) => Math.max(0, r.other_discount_total - r.free_value);
         return (
-          <div key={cur} className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5"
-              style={{ borderBottom: "1px solid var(--glass-border)" }}>
-              <span className="text-sm font-bold" style={{ color: "var(--glass-text)" }}>
+          <div key={cur} className="rounded-2xl bg-glass-surface shadow-card">
+            <div className="sticky top-[var(--shell-top)] z-[6] flex items-center gap-3 px-4 rounded-t-2xl bg-glass-surface"
+              style={{ height: BAR_H, borderBottom: "1px solid var(--glass-border)" }}>
+              <span className="text-sm font-bold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
                 {COUNTRY[cur] ?? cur} · {ranked.length} location{ranked.length === 1 ? "" : "s"}
               </span>
-              <span className="ml-auto text-xs text-glass-text-tertiary tabular">
+              <span className="ml-auto min-w-0 truncate text-xs text-glass-text-tertiary tabular">
                 {money(totalGiven)} {cur} given up · {pct(totalGiven, totalList, 1)} of {money(totalList)} list price
               </span>
             </div>
-            {/* Scrolls in its own box so the header row stays in view, like the
-                team view's cards. */}
-            <div className="overflow-x-auto" style={{ maxHeight: "max(460px, calc(100vh - var(--shell-top) - 120px))" }}>
+            <div className={`${BOX} rounded-b-2xl`}>
               <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1100, tableLayout: "fixed" }}>
                 <colgroup>
                   {COLS.map(([k, w]) => <col key={k} style={{ width: `${w}%` }} />)}
@@ -128,7 +141,7 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                             own column. */}
                         <Kind n={r.returning_discounted} amount={r.returning_discount_total} />
                         <Kind n={r.referral_discounted} amount={r.referral_discount_total} />
-                        <Kind n={Math.max(0, r.other_discounted - r.free)} amount={Math.max(0, r.other_discount_total - r.free_value)} />
+                        <Kind n={otherN(r)} amount={otherAmt(r)} />
                         <Kind n={r.free} amount={r.free_value} />
                         <Num>{money(listOf(r))}</Num>
                         <td className="px-4 py-2.5 text-right tabular whitespace-nowrap"
@@ -143,6 +156,22 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                     );
                   })}
                 </tbody>
+                {/* The country's totals, held at the bottom of the window
+                    while the card is in view, the way the header holds the top. */}
+                <tfoot>
+                  <tr className="font-bold">
+                    <Foot align="left" />
+                    <Foot align="left">Total</Foot>
+                    <Foot>{sum((r) => r.regs).toLocaleString()}</Foot>
+                    <Foot sub={sum((r) => r.returning_discount_total)}>{sum((r) => r.returning_discounted).toLocaleString()}</Foot>
+                    <Foot sub={sum((r) => r.referral_discount_total)}>{sum((r) => r.referral_discounted).toLocaleString()}</Foot>
+                    <Foot sub={sum(otherAmt)}>{sum(otherN).toLocaleString()}</Foot>
+                    <Foot sub={sum((r) => r.free_value)}>{sum((r) => r.free).toLocaleString()}</Foot>
+                    <Foot>{money(totalList)}</Foot>
+                    <Foot gold>{totalGiven > 0 ? `−${money(totalGiven)}` : "—"}</Foot>
+                    <Foot>{pct(totalGiven, totalList, 1)}</Foot>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -155,10 +184,26 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
 // Sticky header cell; the column the board is sorted by reads bright with an arrow.
 function Th({ children, align = "right", on = false }: { children: React.ReactNode; align?: "left" | "right"; on?: boolean }) {
   return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold whitespace-nowrap sticky top-0 z-[2] bg-glass-surface`}
-      style={{ borderBottom: "1px solid var(--glass-border)", color: on ? "var(--glass-text)" : undefined }}>
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold whitespace-nowrap ${STICK_TH}`}
+      style={{ ...STICKY_TH_STYLE, color: on ? "var(--glass-text)" : undefined }}>
       {children}{on ? " ↓" : ""}
     </th>
+  );
+}
+
+// A cell of the totals row: sticky at the bottom of the window, with the
+// dollars given up under a count where there are any.
+function Foot({ children, align = "right", sub, gold = false }: {
+  children?: React.ReactNode; align?: "left" | "right"; sub?: number; gold?: boolean;
+}) {
+  return (
+    <td className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} tabular whitespace-nowrap align-middle ${STICK_FOOT} first:rounded-bl-2xl last:rounded-br-2xl`}
+      style={{ ...STICKY_TH_STYLE, boxShadow: "inset 0 1px 0 var(--glass-border), 0 -10px 14px -10px rgba(0,0,0,0.55)", color: gold ? GOLD : "var(--glass-text)" }}>
+      <div>{children}</div>
+      {sub !== undefined && sub > 0.004 && (
+        <div className="text-[11px] font-normal text-glass-text-tertiary leading-snug">−{money(sub)}</div>
+      )}
+    </td>
   );
 }
 
