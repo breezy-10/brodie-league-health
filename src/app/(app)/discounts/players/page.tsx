@@ -370,7 +370,8 @@ export default async function DiscountPlayersPage({
           Every location in {selectedSeason}, ranked by {sort === "share" ? "discount as a share of its total list price" : "how much it gave up in discounts"}
           {freeOnly ? " on free registrations" : kind ? ` (${KIND_TITLE[kind].toLowerCase()} only)` : ""}, the same registrations the
           Discounts tab counts. Canada and the United States are ranked separately, since dollars in two currencies
-          aren&apos;t compared. A location&apos;s name opens its team view.
+          aren&apos;t compared. Avg per player is the list price less every discount, divided by registrations,
+          before tax and card fees. A location&apos;s name opens its team view.
         </p>
       ) : (
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">

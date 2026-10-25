@@ -35,18 +35,20 @@ const COUNTRY: Record<string, string> = { CAD: "Canada", USD: "United States" };
 // doesn't scroll sideways (a sideways box would trap them; see stickyTable.ts).
 // The title row is a fixed height so the headers know where to sit.
 const BAR_H = 46;
-const BOX = "overflow-x-auto min-[1440px]:overflow-visible";
-const STICK_TH = "min-[1440px]:sticky min-[1440px]:top-[calc(var(--shell-top)_+_46px)] z-[4]";
-const STICK_FOOT = "min-[1440px]:sticky min-[1440px]:bottom-0 z-[4]";
+// The table needs 1360px, which the content column has from a 1720px window
+// (less the sidebar and padding), the widest tier in stickyTable.ts.
+const BOX = "overflow-x-auto min-[1720px]:overflow-visible";
+const STICK_TH = "min-[1720px]:sticky min-[1720px]:top-[calc(var(--shell-top)_+_46px)] z-[4]";
+const STICK_FOOT = "min-[1720px]:sticky min-[1720px]:bottom-0 z-[4]";
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const pct = (n: number, of: number, digits = 0) => (of ? `${((100 * n) / of).toFixed(digits)}%` : "—");
 
 // Column widths in percent, the same in every currency's card so they line up:
 // rank, location, registrations, the four kinds (returning, referral, other,
-// free), list price, discount, share.
+// free), list price, discount, share, average price per player.
 const COLS: [string, number][] = [
-  ["rank", 3], ["location", 14], ["regs", 8], ["returning", 11], ["referral", 11], ["other", 11],
-  ["free", 11], ["list", 10], ["discount", 11], ["share", 10],
+  ["rank", 3], ["location", 10.5], ["regs", 8.5], ["returning", 10], ["referral", 10], ["other", 10],
+  ["free", 10], ["list", 9.5], ["discount", 9.5], ["share", 10], ["avg", 9],
 ];
 
 // Locations ranked from the most discount to the least, one card per currency
@@ -105,7 +107,7 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
               </span>
             </div>
             <div className={`${BOX} rounded-b-2xl`}>
-              <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1100, tableLayout: "fixed" }}>
+              <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1360, tableLayout: "fixed" }}>
                 <colgroup>
                   {COLS.map(([k, w]) => <col key={k} style={{ width: `${w}%` }} />)}
                 </colgroup>
@@ -121,6 +123,9 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                     <Th>List price</Th>
                     <Th on={sort === "volume"}>Discount</Th>
                     <Th on={sort === "share"}>% of list price</Th>
+                    {/* What a player pays on average: list price less every
+                        discount, before tax and card fees. */}
+                    <Th>Avg per player</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -152,6 +157,7 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                           style={{ color: "var(--glass-text)", fontWeight: sort === "share" ? 700 : 500 }}>
                           {pct(g.amount, listOf(r), 1)}
                         </td>
+                        <Num>{r.regs ? money((listOf(r) - r.discount_total) / r.regs) : "—"}</Num>
                       </tr>
                     );
                   })}
@@ -170,6 +176,7 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                     <Foot>{money(totalList)}</Foot>
                     <Foot gold>{totalGiven > 0 ? `−${money(totalGiven)}` : "—"}</Foot>
                     <Foot>{pct(totalGiven, totalList, 1)}</Foot>
+                    <Foot>{sum((r) => r.regs) ? money((totalList - sum((r) => r.discount_total)) / sum((r) => r.regs)) : "—"}</Foot>
                   </tr>
                 </tfoot>
               </table>
