@@ -6,6 +6,7 @@ import { BasisToggle } from "../dashboard/BasisToggle";
 import ScheduledDropIns from "./ScheduledDropIns";
 import AvailableDropIns from "./AvailableDropIns";
 import MissingStatsDropIns from "./MissingStatsDropIns";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { type PlayersFilter, playersFilter } from "./players";
@@ -335,6 +336,18 @@ async function DropInSummary({ season, locationNames, when, players }: {
   const cancelled = sum("cancelled");
   // Each venue's bar is against the highest venue in its own currency.
   const maxRevenue = new Map(currencies.map((cur) => [cur, Math.max(...locs.filter((r) => r.currency === cur).map((r) => r.revenue), 1)]));
+  // A venue's name filters the page to it, keeping the season, players and tab.
+  const locationHref = (location: string) => {
+    const q = new URLSearchParams({ season, location });
+    if (players !== "new") q.set("players", players);
+    if (!past) q.set("tab", "scheduled");
+    return `/drop-ins?${q}`;
+  };
+  // Right after the players column, so attendance reads before what they went on to do.
+  const showedTd = (count: number, total: number, strong = false) => past && (
+    <RateTd strong={strong} count={count} total={total}
+      color={total ? showTone((100 * count) / total) : undefined} />
+  );
 
   const showedTile = past && (
     <Tile label="Showed up" value={pct(showed, showed + noShow)}
@@ -515,6 +528,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
                   {showNew && (
                     <>
                       <Th>New players</Th>
+                      {past && <Th>Showed up</Th>}
                       <Th>Registered this season</Th>
                       <Th>Registered another season</Th>
                     </>
@@ -522,12 +536,12 @@ async function DropInSummary({ season, locationNames, when, players }: {
                   {showRet && (
                     <>
                       <Th>Returning players</Th>
+                      {past && !showNew && <Th>Showed up</Th>}
                       <Th>Returning who registered after</Th>
                       <Th>Returning revenue</Th>
                     </>
                   )}
                   <Th>Revenue</Th>
-                  {past && <Th>Showed up</Th>}
                   <Th>Not paid</Th>
                 </tr>
               </thead>
@@ -535,9 +549,10 @@ async function DropInSummary({ season, locationNames, when, players }: {
                 {locs.map((r) => (
                   <tr key={r.location} style={{ borderTop: "1px solid var(--glass-border)" }}>
                     <td className="px-4 py-2.5 align-middle">
-                      <div className="font-semibold truncate" style={{ color: "var(--glass-text)" }} title={r.location}>
+                      <Link href={locationHref(r.location)} className="block font-semibold truncate hover:underline"
+                        style={{ color: "var(--glass-text)" }} title={`Show only ${r.location}`}>
                         {r.location}
-                      </div>
+                      </Link>
                       {/* Bar length = revenue against the highest venue in its currency. */}
                       <div className="mt-1.5 h-1.5 rounded-full overflow-hidden flex"
                         style={{ width: `${Math.max((r.revenue / (maxRevenue.get(r.currency) ?? 1)) * 100, 2)}%`, minWidth: 8 }}
@@ -555,6 +570,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
                           {(r.new_players ?? 0).toLocaleString()}
                           <CountLine one="drop-in" many="drop-ins" n={r.new_dropins ?? 0} />
                         </Td>
+                        {showedTd(r.showed_up ?? 0, (r.showed_up ?? 0) + (r.no_show ?? 0))}
                         <RateTd count={r.converted_same_season ?? 0} total={r.new_players ?? 0} />
                         <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0}
                           note={otherSeasons(r.converted_by_season, selectedSeason)} />
@@ -566,6 +582,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
                           {(r.returning_players ?? 0).toLocaleString()}
                           <CountLine one="drop-in" many="drop-ins" n={r.returning_dropins ?? 0} />
                         </Td>
+                        {!showNew && showedTd(r.showed_up ?? 0, (r.showed_up ?? 0) + (r.no_show ?? 0))}
                         <RateTd count={r.returning_converted_players ?? 0} total={r.returning_players ?? 0}
                           note={r.returning_converted_by_season && Object.keys(r.returning_converted_by_season).length
                             ? seasonCounts(r.returning_converted_by_season) : null} />
@@ -573,11 +590,6 @@ async function DropInSummary({ season, locationNames, when, players }: {
                       </>
                     )}
                     <Td strong>{moneyIn(r.revenue, r.currency)}</Td>
-                    {past && (
-                      <RateTd count={r.showed_up ?? 0} total={(r.showed_up ?? 0) + (r.no_show ?? 0)}
-                        color={(r.showed_up ?? 0) + (r.no_show ?? 0)
-                          ? showTone((100 * (r.showed_up ?? 0)) / ((r.showed_up ?? 0) + (r.no_show ?? 0))) : undefined} />
-                    )}
                     <Td>
                       {r.not_paid.toLocaleString()}
                       {r.cancelled > 0 && (
@@ -600,6 +612,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
                           {newPlayers.toLocaleString()}
                           <CountLine one="drop-in" many="drop-ins" n={newDropins} />
                         </Td>
+                        {showedTd(showed, showed + noShow, true)}
                         <RateTd strong count={convertedSame} total={newPlayers} />
                         <RateTd strong count={convertedOther} total={newPlayers}
                           note={otherSeasons(people.converted_by_season, selectedSeason)} />
@@ -611,6 +624,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
                           {retPlayers.toLocaleString()}
                           <CountLine one="drop-in" many="drop-ins" n={retDropins} />
                         </Td>
+                        {!showNew && showedTd(showed, showed + noShow, true)}
                         <RateTd strong count={retConverted} total={retPlayers}
                           note={people.returning_converted_by_season && Object.keys(people.returning_converted_by_season).length
                             ? seasonCounts(people.returning_converted_by_season) : null} />
@@ -618,10 +632,6 @@ async function DropInSummary({ season, locationNames, when, players }: {
                       </>
                     )}
                     <Td strong><MoneyLines amounts={currencies.map((cur) => [sum("revenue", cur), cur])} /></Td>
-                    {past && (
-                      <RateTd strong count={showed} total={showed + noShow}
-                        color={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined} />
-                    )}
                     <Td strong>{notPaid.toLocaleString()}</Td>
                   </tr>
                 )}
