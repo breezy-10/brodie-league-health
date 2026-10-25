@@ -4,6 +4,7 @@ import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seaso
 import Filters, { type FilterOptions } from "../../dashboard/Filters";
 import { discountTone, freeTone } from "../rates";
 import DiscountTable, { type ScopeTeamData } from "./DiscountTable";
+import DiscountLeaderboard, { type LeaderRow, type LeaderSort } from "./DiscountLeaderboard";
 import { BasisToggle } from "../../dashboard/BasisToggle";
 import { loadStaff } from "@/lib/staff";
 import { loadAmbassadorTeams } from "../../ambassador-teams/AmbassadorSummary";
@@ -35,11 +36,12 @@ type DiscountPlayer = {
 // for in team view only).
 // teams: every registered team in scope, discounted or not (team view only).
 type Feed = { season: string; players: DiscountPlayer[]; truncated: boolean; unrostered?: DiscountPlayer[]; teams?: ScopeTeamData[] };
-type TotalsFeed = { locations: { currency: string; regs: number }[] };
+type TotalsFeed = { locations: (LeaderRow & { currency: string; regs: number })[] };
 
-// Total registrations in scope — the denominator the players feed can't supply,
-// since it only returns rows that carried a discount.
-async function loadTotalRegs(season: string, locationNames: string[] | null, currency: string | null): Promise<number | null> {
+// Every location in scope with its discounts, from the Discounts tab's feed:
+// the leaderboard's rows, and the total registrations the players feed can't
+// supply (it only returns rows that carried a discount).
+async function loadLocations(season: string, locationNames: string[] | null): Promise<TotalsFeed["locations"] | null> {
   try {
     const url = new URL("/api/discounts", PROMO_APP_URL);
     url.searchParams.set("season", season);
@@ -48,7 +50,7 @@ async function loadTotalRegs(season: string, locationNames: string[] | null, cur
     const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
     const k = (await res.json()) as TotalsFeed;
-    return (k.locations ?? []).filter((r) => !currency || r.currency === currency).reduce((n, r) => n + (r.regs ?? 0), 0);
+    return k.locations ?? [];
   } catch {
     return null;
   }
@@ -95,16 +97,19 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 export default async function DiscountPlayersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; free?: string; kind?: string; view?: string; currency?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; free?: string; kind?: string; view?: string; currency?: string; sort?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam, view: viewParam, currency: currencyParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam, view: viewParam, currency: currencyParam, sort: sortParam } = await searchParams;
   // The Discounts tab's cards are per currency (Canada, United States), so
   // their links carry it and this list narrows to match the card's count.
   const currency = currencyParam === "CAD" || currencyParam === "USD" ? currencyParam : null;
   const COUNTRY = { CAD: "Canada", USD: "United States" } as const;
   // Player view lists registrations; team view shows the teams they're on.
   const teamView = viewParam === "teams";
+  // Leaderboard: locations ranked by discount, by volume or by share of list price.
+  const leaderboardView = viewParam === "leaderboard";
+  const sort: LeaderSort = sortParam === "share" ? "share" : "volume";
   const freeOnly = freeParam === "1";
   // kind narrows the list to one group, matching a tile on the Discounts tab:
   // "referral" and "returning" are the two flat programmes, "other" is every
@@ -127,9 +132,9 @@ export default async function DiscountPlayersPage({
     { season: selectedSeasons[0], locations: selectedLocations },
     { defaultSeason: "registration" },
   );
-  const [feed, totalRegs, staff, teamCount, ambassadorFeed] = await Promise.all([
+  const [feed, locationRows, staff, teamCount, ambassadorFeed] = await Promise.all([
     loadPlayers(selectedSeason, locationNames, freeOnly, teamView),
-    loadTotalRegs(selectedSeason, locationNames, currency),
+    loadLocations(selectedSeason, locationNames),
     loadStaff(),
     loadTeamCount(selectedSeason, locationNames),
     // Every location, so an ambassador registered somewhere else in scope is
@@ -138,6 +143,8 @@ export default async function DiscountPlayersPage({
   ]);
   // The season's ambassadors (captains of an ambassador team), by ops player
   // id, which is what each discounted registration carries.
+  const leaderRows = (locationRows ?? []).filter((r) => !currency || r.currency === currency);
+  const totalRegs = locationRows === null ? null : leaderRows.reduce((n, r) => n + (r.regs ?? 0), 0);
   const ambassadors = ambassadorFeed
     ? [...new Set([
         ...Object.keys(ambassadorFeed.captains ?? {}),
@@ -230,18 +237,35 @@ export default async function DiscountPlayersPage({
           locations: selectedLocations,
         }}
         // Changing a filter must not quietly widen a free-only list back out,
-        // or drop back to player view.
-        keep={freeOnly || kind || teamView || currency
+        // or drop back to player view or the leaderboard's sort.
+        keep={freeOnly || kind || teamView || leaderboardView || currency
           ? { ...(freeOnly ? { free: "1" } : {}), ...(kind ? { kind } : {}), ...(teamView ? { view: "teams" } : {}),
+              ...(leaderboardView ? { view: "leaderboard", ...(sort === "share" ? { sort } : {}) } : {}),
               ...(currency ? { currency } : {}) }
           : undefined}
       />
 
-      <BasisToggle
-        param="view"
-        value={teamView ? "teams" : "players"}
-        options={[{ value: "players", label: "Player view" }, { value: "teams", label: "Team view" }]}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <BasisToggle
+          param="view"
+          value={leaderboardView ? "leaderboard" : teamView ? "teams" : "players"}
+          options={[
+            { value: "players", label: "Player view" },
+            { value: "teams", label: "Team view" },
+            { value: "leaderboard", label: "Leaderboard" },
+          ]}
+        />
+        {leaderboardView && (
+          <>
+            <span className="text-xs font-semibold text-glass-text-tertiary">Rank by</span>
+            <BasisToggle
+              param="sort"
+              value={sort}
+              options={[{ value: "volume", label: "Discount volume" }, { value: "share", label: "% of list price" }]}
+            />
+          </>
+        )}
+      </div>
 
       {rows.length > 0 && (
         <div className={`grid gap-3 grid-cols-2 ${
@@ -274,7 +298,26 @@ export default async function DiscountPlayersPage({
         </div>
       )}
 
-      {!feed ? (
+      {leaderboardView ? (
+        locationRows === null ? (
+          <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
+            Discount feed unavailable — the Promo Tracker didn&apos;t answer for {selectedSeason}.
+          </div>
+        ) : (
+          <DiscountLeaderboard rows={leaderRows} sort={sort} kind={kind} freeOnly={freeOnly}
+            linkFor={(loc, cur) => {
+              // A location's name opens its own team view, same season and filters.
+              const q = new URLSearchParams();
+              if (seasonParam) q.set("season", seasonParam);
+              q.set("location", loc);
+              q.set("currency", cur);
+              q.set("view", "teams");
+              if (freeOnly) q.set("free", "1");
+              if (kind) q.set("kind", kind);
+              return `/discounts/players?${q}`;
+            }} />
+        )
+      ) : !feed ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           Discount feed unavailable — the Promo Tracker didn&apos;t answer for {selectedSeason}.
         </div>
@@ -292,6 +335,14 @@ export default async function DiscountPlayersPage({
           listNone={!freeOnly && !kind} />
       )}
 
+      {leaderboardView ? (
+        <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
+          Every location in {selectedSeason}, ranked by {sort === "share" ? "discount as a share of its total list price" : "how much it gave up in discounts"}
+          {freeOnly ? " on free registrations" : kind ? ` (${KIND_TITLE[kind].toLowerCase()} only)` : ""}, the same registrations the
+          Discounts tab counts. Canada and the United States are ranked separately, since dollars in two currencies
+          aren&apos;t compared. A location&apos;s name opens its team view.
+        </p>
+      ) : (
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
         Every registration in {selectedSeason} that {freeOnly
           ? "paid nothing"
@@ -304,6 +355,7 @@ export default async function DiscountPlayersPage({
         still came off. {teamView && !freeOnly && !kind ? "Team view lists the teams with no discounted registration at the bottom. " : ""}
         {feed?.truncated ? "Only the first 2,000 rows are shown." : ""}
       </p>
+      )}
     </main>
   );
 }
