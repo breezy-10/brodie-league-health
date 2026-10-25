@@ -563,8 +563,8 @@ export default function DiscountTable({
 // Team view's column widths in percent, shared by both cards: team, location,
 // discounted, code, discount type, list price, discount, total, registered.
 const TEAM_COLS: [string, number][] = [
-  ["team", 19], ["location", 11], ["discounted", 10], ["code", 13], ["type", 15],
-  ["list", 8], ["discount", 8], ["total", 8], ["registered", 8],
+  ["team", 17], ["location", 10], ["discounted", 11], ["code", 12], ["type", 15],
+  ["list", 8], ["discount", 8], ["total", 10], ["registered", 9],
 ];
 
 const TOOL_BTN =
@@ -575,7 +575,7 @@ const TOOL_BTN =
 // Header cells stick to the top of the table's scroll box.
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold sticky top-0 z-[2] bg-glass-surface`}
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold whitespace-nowrap sticky top-0 z-[2] bg-glass-surface`}
       style={{ borderBottom: "1px solid var(--glass-border)" }}>
       {children}
     </th>
