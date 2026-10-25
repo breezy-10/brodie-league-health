@@ -57,6 +57,10 @@ export type DropInRow = {
   returning_converted_same_season?: number;
   returning_converted_other_season?: number;
   returning_converted_by_season?: Record<string, number>;
+  // What a conversion rate is out of: the players who showed up, plus any who
+  // registered anyway (absent from an older feed).
+  new_conversion_base?: number;
+  returning_conversion_base?: number;
   new_charged?: number;
   returning_free?: number;
   given_free?: number;
@@ -84,6 +88,8 @@ export type DropInPeople = {
   returning_converted_players?: number;
   returning_converted_by_season?: Record<string, number>;
   returning_converted_multi_season?: number;
+  new_conversion_base?: number;
+  returning_conversion_base?: number;
 };
 export type DropInFeed = {
   season: string;
@@ -321,6 +327,16 @@ async function DropInSummary({ season, locationNames, when, players }: {
   // A returning player is one who had already played or registered;
   // this is the ones who registered for a season after their drop-in.
   const retConverted = people.returning_converted_players ?? sum("returning_converted_players");
+  // On games already played a conversion rate is out of the players who
+  // showed up (plus any who registered anyway): a no-show couldn't have been
+  // won over, so they don't count against it. Games to come have no show-ups
+  // yet, so there it's every player.
+  const newBase = past ? people.new_conversion_base ?? newPlayers : newPlayers;
+  const retBase = past ? people.returning_conversion_base ?? retPlayers : retPlayers;
+  const rowNewBase = (r: DropInRow) => (past ? r.new_conversion_base ?? r.new_players : r.new_players) ?? 0;
+  const rowRetBase = (r: DropInRow) => (past ? r.returning_conversion_base ?? r.returning_players : r.returning_players) ?? 0;
+  const whoNew = past ? "new players who showed up" : "new players";
+  const whoRet = past ? "returning players who showed up" : "returning players";
   const newDropins = sum("new_dropins");
   const retDropins = sum("returning_dropins");
   // The returning players' price in one currency, weighted by their drop-ins.
@@ -416,12 +432,12 @@ async function DropInSummary({ season, locationNames, when, players }: {
       } />
   );
   const becameTile = (
-    <Tile label="Became registrations" value={pct(converted, newPlayers)} accent={ACCENT}
+    <Tile label="Became registrations" value={pct(converted, newBase)} accent={ACCENT}
       sub={!converted
-        ? `0 of ${newPlayers.toLocaleString()} new players have registered for a season since`
+        ? `0 of ${newBase.toLocaleString()} ${whoNew} have registered for a season since`
         : people.converted_by_season
-          ? convertedLines(converted, newPlayers, "new", people.converted_by_season, people.converted_multi_season)
-          : `${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${
+          ? convertedLines(converted, newBase, whoNew, people.converted_by_season, people.converted_multi_season)
+          : `${converted.toLocaleString()} of ${newBase.toLocaleString()} ${whoNew} registered for a season after: ${
               convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
   );
   const givenFreeTile = (
@@ -469,10 +485,10 @@ async function DropInSummary({ season, locationNames, when, players }: {
       sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
   );
   const regAfterTile = (
-    <Tile label="Registered after" value={pct(retConverted, retPlayers)} accent={ACCENT}
+    <Tile label="Registered after" value={pct(retConverted, retBase)} accent={ACCENT}
       sub={retConverted
-        ? convertedLines(retConverted, retPlayers, "returning", people.returning_converted_by_season, people.returning_converted_multi_season)
-        : `none of ${retPlayers.toLocaleString()} returning players has registered for a season since`} />
+        ? convertedLines(retConverted, retBase, whoRet, people.returning_converted_by_season, people.returning_converted_multi_season)
+        : `none of ${retBase.toLocaleString()} ${whoRet} has registered for a season since`} />
   );
 
   return (
@@ -597,8 +613,8 @@ async function DropInSummary({ season, locationNames, when, players }: {
                           <CountLine one="drop-in" many="drop-ins" n={r.new_dropins ?? 0} />
                         </Td>
                         {showedTd(r.showed_up ?? 0, (r.showed_up ?? 0) + (r.no_show ?? 0))}
-                        <RateTd count={r.converted_same_season ?? 0} total={r.new_players ?? 0} />
-                        <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0}
+                        <RateTd count={r.converted_same_season ?? 0} total={rowNewBase(r)} />
+                        <RateTd count={r.converted_other_season ?? 0} total={rowNewBase(r)}
                           note={otherSeasons(r.converted_by_season, selectedSeason)} />
                       </>
                     )}
@@ -609,7 +625,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
                           <CountLine one="drop-in" many="drop-ins" n={r.returning_dropins ?? 0} />
                         </Td>
                         {!showNew && showedTd(r.showed_up ?? 0, (r.showed_up ?? 0) + (r.no_show ?? 0))}
-                        <RateTd count={r.returning_converted_players ?? 0} total={r.returning_players ?? 0}
+                        <RateTd count={r.returning_converted_players ?? 0} total={rowRetBase(r)}
                           note={r.returning_converted_by_season && Object.keys(r.returning_converted_by_season).length
                             ? seasonCounts(r.returning_converted_by_season) : null} />
                         <Td>{r.returning_dropins ? moneyIn(r.returning_revenue ?? 0, r.currency) : "—"}</Td>
@@ -640,8 +656,8 @@ async function DropInSummary({ season, locationNames, when, players }: {
                           <CountLine one="drop-in" many="drop-ins" n={newDropins} />
                         </Td>
                         {showedTd(showed, showed + noShow, true)}
-                        <RateTd strong count={convertedSame} total={newPlayers} />
-                        <RateTd strong count={convertedOther} total={newPlayers}
+                        <RateTd strong count={convertedSame} total={newBase} />
+                        <RateTd strong count={convertedOther} total={newBase}
                           note={otherSeasons(people.converted_by_season, selectedSeason)} />
                       </>
                     )}
@@ -652,7 +668,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
                           <CountLine one="drop-in" many="drop-ins" n={retDropins} />
                         </Td>
                         {!showNew && showedTd(showed, showed + noShow, true)}
-                        <RateTd strong count={retConverted} total={retPlayers}
+                        <RateTd strong count={retConverted} total={retBase}
                           note={people.returning_converted_by_season && Object.keys(people.returning_converted_by_season).length
                             ? seasonCounts(people.returning_converted_by_season) : null} />
                         <Td strong>{retDropins ? <MoneyLines amounts={currencies.map((cur) => [sum("returning_revenue", cur), cur])} /> : "—"}</Td>
@@ -724,12 +740,12 @@ function mergePeople(list: DropInPeople[]): DropInPeople {
 // season (they're in every season they registered for, so the season counts
 // can add up to more than the players).
 function convertedLines(
-  converted: number, players: number, kind: string, bySeason: Record<string, number> | undefined, multi: number | undefined,
+  converted: number, players: number, who: string, bySeason: Record<string, number> | undefined, multi: number | undefined,
 ): React.ReactNode {
   const seasons = Object.keys(bySeason ?? {}).length;
   return (
     <>
-      <span className="block">{converted.toLocaleString()} of {players.toLocaleString()} {kind} players registered for a season after</span>
+      <span className="block">{converted.toLocaleString()} of {players.toLocaleString()} {who} registered for a season after</span>
       {bySeason && seasons > 0 && <span className="block">{seasonCounts(bySeason, " · ")}</span>}
       {!!multi && (
         <span className="block">
