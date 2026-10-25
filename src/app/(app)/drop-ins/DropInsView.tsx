@@ -69,22 +69,26 @@ export type DropInRow = {
   awaiting_stats?: number;
   upcoming?: number;
 };
+export type DropInPeople = {
+  players: number; repeat_players: number; new_players?: number; returning_players?: number; converted_players?: number;
+  converted_same_season?: number; converted_other_season?: number;
+  converted_by_season?: Record<string, number>;
+  // Players who registered for two or more seasons, so counted under each
+  // in the by-season counts (absent from an older feed).
+  converted_multi_season?: number;
+  returning_converted_players?: number;
+  returning_converted_by_season?: Record<string, number>;
+  returning_converted_multi_season?: number;
+};
 export type DropInFeed = {
   season: string;
   locations: DropInRow[];
   // A player who dropped in at two venues is one player, so these are counted
   // across venues by the feed rather than summed from the rows.
-  players_by_currency: Record<string, {
-    players: number; repeat_players: number; new_players?: number; returning_players?: number; converted_players?: number;
-    converted_same_season?: number; converted_other_season?: number;
-    converted_by_season?: Record<string, number>;
-    // Players who registered for two or more seasons, so counted under each
-    // in the by-season counts (absent from an older feed).
-    converted_multi_season?: number;
-    returning_converted_players?: number;
-    returning_converted_by_season?: Record<string, number>;
-    returning_converted_multi_season?: number;
-  }>;
+  players_by_currency: Record<string, DropInPeople>;
+  // The same across both countries: someone who dropped in in Canada and the
+  // US is one player (absent from an older feed).
+  players_all?: DropInPeople;
   discount_codes: { code: string; currency: string; uses: number; given_up: number }[];
   truncated: boolean;
 };
@@ -113,6 +117,8 @@ export async function loadDropIns(
 const ACCENT = "var(--glass-text)";
 const LIST = "var(--viz-prev)"; // the grey the registration bars use for the prior season
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// An amount with its currency, "$50.00 CAD": Canada and the US share the page.
+const moneyIn = (n: number, cur: string) => `${money(n)} ${cur}`;
 const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "—");
 
 export default async function DropInsView({
@@ -267,294 +273,326 @@ async function DropInSummary({ season, locationNames, when, players }: {
   const showRet = players !== "new";
   const who = players === "new" ? " by new players" : players === "returning" ? " by returning players" : "";
   const selectedSeason = season;
-  // Each currency is its own world, never mixed on one scale or summed.
-  const currencies = [...new Set((feed?.locations ?? []).map((r) => r.currency))].sort();
+  // Canada and the US together: counts are added up, but money never is. Every
+  // amount carries its currency, and a total names each currency on its own.
+  const locs = [...(feed?.locations ?? [])].sort((a, b) => a.location.localeCompare(b.location));
+  const currencies = [...new Set(locs.map((r) => r.currency))].sort();
+
+  if (!feed) {
+    return (
+      <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
+        Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {selectedSeason}.
+      </div>
+    );
+  }
+  if (!locs.length) {
+    return (
+      <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
+        {past
+          ? `No drop-ins${who} for games played in ${selectedSeason} in this scope yet.`
+          : `No drop-ins${who} for games still to come in ${selectedSeason} in this scope.`}
+      </div>
+    );
+  }
+
+  const n = locs.reduce((s, r) => s + r.dropins, 0);
+  // Optional fields read as 0 from an older feed.
+  const sum = (k: keyof DropInRow, cur?: string) =>
+    locs.reduce((s, r) => s + (cur && r.currency !== cur ? 0 : ((r[k] as number | undefined) ?? 0)), 0);
+  // "$50.00 CAD · $0.00 USD": one amount per currency on the page.
+  const byCurrency = (amount: (cur: string) => number, prefix = "") =>
+    currencies.map((cur) => `${prefix}${moneyIn(amount(cur), cur)}`).join(" · ");
+  const people = feed.players_all ?? mergePeople(Object.values(feed.players_by_currency ?? {}));
+  const newPlayers = people.new_players ?? sum("new_players");
+  const retPlayers = people.returning_players ?? sum("returning_players");
+  const converted = people.converted_players ?? sum("converted_players");
+  const convertedSame = people.converted_same_season ?? sum("converted_same_season");
+  const convertedOther = people.converted_other_season ?? sum("converted_other_season");
+  // A returning player is one who had already played or registered;
+  // this is the ones who registered for a season after their drop-in.
+  const retConverted = people.returning_converted_players ?? sum("returning_converted_players");
+  const newDropins = sum("new_dropins");
+  const retDropins = sum("returning_dropins");
+  // The returning players' price in one currency, weighted by their drop-ins.
+  const rw = (k: keyof DropInRow, cur: string) => {
+    const d = sum("returning_dropins", cur);
+    return d ? locs.reduce((s, r) => s + (r.currency === cur ? ((r[k] as number) ?? 0) * (r.returning_dropins ?? 0) : 0), 0) / d : 0;
+  };
+  // Paid drop-ins: returning players' not let in free, and any new
+  // player's that was charged. Their prices make up Revenue.
+  const newCharged = sum("new_charged");
+  const newFree = newDropins - newCharged;
+  const retPaid = retDropins - sum("returning_free");
+  const paidDropins = retPaid + newCharged;
+  const showed = sum("showed_up");
+  const noShow = sum("no_show");
+  const notPaid = sum("not_paid");
+  const cancelled = sum("cancelled");
+  // Each venue's bar is against the highest venue in its own currency.
+  const maxRevenue = new Map(currencies.map((cur) => [cur, Math.max(...locs.filter((r) => r.currency === cur).map((r) => r.revenue), 1)]));
 
   return (
     <div className="space-y-8">
-      {!feed ? (
-        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
-          Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {selectedSeason}.
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>
+            {past ? "Drop-ins played" : "Drop-ins to come"}
+          </h2>
+          <span className="text-xs text-glass-text-tertiary">
+            {n.toLocaleString()} {n === 1 ? "drop-in" : "drop-ins"}{who} for {past ? "games played" : "games still to come"} · {selectedSeason}
+          </span>
         </div>
-      ) : currencies.length === 0 ? (
-        <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
-          {past
-            ? `No drop-ins${who} for games played in ${selectedSeason} in this scope yet.`
-            : `No drop-ins${who} for games still to come in ${selectedSeason} in this scope.`}
-        </div>
-      ) : (
-        currencies.map((cur) => {
-          const locs = feed.locations
-            .filter((r) => r.currency === cur)
-            .sort((a, b) => a.location.localeCompare(b.location));
-          const n = locs.reduce((s, r) => s + r.dropins, 0);
-          // Optional fields read as 0 from an older feed.
-          const sum = (k: keyof DropInRow) => locs.reduce((s, r) => s + ((r[k] as number | undefined) ?? 0), 0);
-          const people = feed.players_by_currency[cur] ?? { players: sum("players"), repeat_players: sum("repeat_players") };
-          const newPlayers = people.new_players ?? sum("new_players");
-          const retPlayers = people.returning_players ?? sum("returning_players");
-          const converted = people.converted_players ?? sum("converted_players");
-          const convertedSame = people.converted_same_season ?? sum("converted_same_season");
-          const convertedOther = people.converted_other_season ?? sum("converted_other_season");
-          // A returning player is one who had already played or registered;
-          // this is the ones who registered for a season after their drop-in.
-          const retConverted = people.returning_converted_players ?? sum("returning_converted_players");
-          const newDropins = sum("new_dropins");
-          const retDropins = sum("returning_dropins");
-          // The returning players' price, weighted by their drop-ins.
-          const rw = (k: keyof DropInRow) =>
-            retDropins ? locs.reduce((s, r) => s + ((r[k] as number) ?? 0) * (r.returning_dropins ?? 0), 0) / retDropins : 0;
-          // Paid drop-ins: returning players' not let in free, and any new
-          // player's that was charged. Their prices make up Revenue.
-          const newCharged = sum("new_charged");
-          const newFree = newDropins - newCharged;
-          const retPaid = retDropins - sum("returning_free");
-          const paidDropins = retPaid + newCharged;
-          const showed = sum("showed_up");
-          const noShow = sum("no_show");
-          const notPaid = sum("not_paid");
-          const cancelled = sum("cancelled");
-          const maxRevenue = Math.max(...locs.map((r) => r.revenue), 1);
 
-          return (
-            <section key={cur} className="space-y-3">
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>
-                  {cur === "CAD" ? "Canada" : cur === "USD" ? "United States" : cur}
-                </h2>
-                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ background: "var(--fill-3)", color: "var(--glass-text-secondary)" }}>{cur}</span>
-                <span className="text-xs text-glass-text-tertiary">
-                  {n.toLocaleString()} {n === 1 ? "drop-in" : "drop-ins"}{who} for {past ? "games played" : "games still to come"} · {selectedSeason}
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <Tile label="Drop-ins" value={n.toLocaleString()} accent={ACCENT}
+            sub={
+              <>
+                {showNew && <span className="block">{newDropins.toLocaleString()} by new players</span>}
+                {showRet && <span className="block">{retDropins.toLocaleString()} by returning players</span>}
+              </>
+            } />
+          {past && (
+            <Tile label="Showed up" value={pct(showed, showed + noShow)}
+              accent={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined}
+              sub={
+                <>
+                  {/* Out of the drop-ins whose team's stats are in, so
+                      the three lines add up to the drop-ins tile. */}
+                  <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} drop-ins with stats in</span>
+                  <span className="block">{noShow.toLocaleString()} {noShow === 1 ? "no-show" : "no-shows"}</span>
+                  <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats, not counted</span>
+                </>
+              } />
+          )}
+          <Tile label="Revenue" value={byCurrency((cur) => sum("revenue", cur))} accent={ACCENT}
+            sub={
+              <>
+                <span className="block">
+                  {paidDropins.toLocaleString()} paid {paidDropins === 1 ? "drop-in" : "drop-ins"}: {retPaid.toLocaleString()} returning, {newCharged.toLocaleString()} new
                 </span>
-              </div>
+                <span className="block">price after any discount, before processing fees</span>
+              </>
+            } />
+          <Tile label="Started, not paid" value={notPaid.toLocaleString()}
+            accent={notPaid ? "var(--amber-ink)" : undefined}
+            sub={`${cancelled.toLocaleString()} cancelled`} />
+        </div>
 
-              <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-                <Tile label="Drop-ins" value={n.toLocaleString()} accent={ACCENT}
-                  sub={
+        {showNew && (
+          <>
+            <SubHead title="New players" note="Free with First-Time Free" />
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              {/* Drop-ins first, then who made them, as the tile at the top. */}
+              <Tile label="Drop-ins" value={newDropins.toLocaleString()} accent={ACCENT}
+                sub={
+                  <>
+                    <span className="block">by {newPlayers.toLocaleString()} new {newPlayers === 1 ? "player" : "players"}</span>
+                    <span className="block">
+                      {newFree.toLocaleString()} free
+                      {newCharged > 0 && <> · <span style={{ color: "var(--red)" }}>{newCharged.toLocaleString()} charged</span></>}
+                    </span>
+                  </>
+                } />
+              <Tile label="Became registrations" value={pct(converted, newPlayers)} accent={ACCENT}
+                sub={!converted
+                  ? `0 of ${newPlayers.toLocaleString()} new players have registered for a season since`
+                  : people.converted_by_season
+                    ? convertedLines(converted, newPlayers, "new", people.converted_by_season, people.converted_multi_season)
+                    : `${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${
+                        convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
+              <Tile label="Given free" value={byCurrency((cur) => sum("given_free", cur))}
+                sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
+            </div>
+          </>
+        )}
+
+        {showRet && (
+          <>
+            <SubHead title="Returning players" note="Charged for each drop-in" />
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+              <Tile label="Drop-ins" value={retDropins.toLocaleString()} accent={ACCENT}
+                sub={
+                  <>
+                    <span className="block">by {retPlayers.toLocaleString()} returning {retPlayers === 1 ? "player" : "players"}</span>
+                    {sum("returning_free") > 0 && (
+                      <span className="block" style={{ color: "var(--red)" }}>{sum("returning_free")} got in free</span>
+                    )}
+                  </>
+                } />
+              <Tile label="List price" value={retDropins ? byCurrency((cur) => rw("returning_list_price", cur)) : "—"} accent={LIST}
+                sub="before discount" />
+              <Tile label="Discount" value={retDropins ? byCurrency((cur) => rw("returning_discount", cur), "−") : "—"}
+                sub="averaged over returning drop-ins" />
+              {/* Before processing fees, like Revenue above: the drop-in price
+                  returning players brought in, summed. */}
+              <Tile label="Revenue" value={byCurrency((cur) => sum("returning_revenue", cur))} accent={ACCENT}
+                sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
+              <Tile label="Registered after" value={pct(retConverted, retPlayers)} accent={ACCENT}
+                sub={retConverted
+                  ? convertedLines(retConverted, retPlayers, "returning", people.returning_converted_by_season, people.returning_converted_multi_season)
+                  : `none of ${retPlayers.toLocaleString()} returning players has registered for a season since`} />
+            </div>
+          </>
+        )}
+
+        <div className="rounded-2xl bg-glass-surface shadow-card">
+          <div className={tableScrollBox(past ? 1200 : 1080)}>
+            <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1200 : 1080 }}>
+              <thead>
+                <tr className="text-xs font-bold text-glass-text-tertiary">
+                  <Th align="left">Location</Th>
+                  <Th>Drop-ins</Th>
+                  {showNew && (
                     <>
-                      {showNew && <span className="block">{newDropins.toLocaleString()} by new players</span>}
-                      {showRet && <span className="block">{retDropins.toLocaleString()} by returning players</span>}
+                      <Th>New players</Th>
+                      <Th>Registered this season</Th>
+                      <Th>Registered another season</Th>
                     </>
-                  } />
-                {past && (
-                  <Tile label="Showed up" value={pct(showed, showed + noShow)}
-                    accent={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined}
-                    sub={
+                  )}
+                  {showRet && (
+                    <>
+                      <Th>Returning players</Th>
+                      <Th>Returning who registered after</Th>
+                      <Th>Returning revenue</Th>
+                    </>
+                  )}
+                  <Th>Revenue</Th>
+                  {past && <Th>Showed up</Th>}
+                  <Th>Not paid</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {locs.map((r) => (
+                  <tr key={r.location} style={{ borderTop: "1px solid var(--glass-border)" }}>
+                    <td className="px-4 py-2.5 align-middle">
+                      <div className="font-semibold truncate" style={{ color: "var(--glass-text)" }} title={r.location}>
+                        {r.location}
+                      </div>
+                      {/* Bar length = revenue against the highest venue in its currency. */}
+                      <div className="mt-1.5 h-1.5 rounded-full overflow-hidden flex"
+                        style={{ width: `${Math.max((r.revenue / (maxRevenue.get(r.currency) ?? 1)) * 100, 2)}%`, minWidth: 8 }}
+                        title={`${moneyIn(r.revenue, r.currency)} collected`}>
+                        <span style={{ width: "100%", background: "var(--glass-text)" }} />
+                      </div>
+                    </td>
+                    <Td>
+                      {r.dropins.toLocaleString()}
+                      <CountLine n={r.players} one="player" many="players" />
+                    </Td>
+                    {showNew && (
                       <>
-                        {/* Out of the drop-ins whose team's stats are in, so
-                            the three lines add up to the drop-ins tile. */}
-                        <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} drop-ins with stats in</span>
-                        <span className="block">{noShow.toLocaleString()} {noShow === 1 ? "no-show" : "no-shows"}</span>
-                        <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats, not counted</span>
+                        <Td>
+                          {(r.new_players ?? 0).toLocaleString()}
+                          <CountLine one="drop-in" many="drop-ins" n={r.new_dropins ?? 0} />
+                        </Td>
+                        <RateTd count={r.converted_same_season ?? 0} total={r.new_players ?? 0} />
+                        <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0}
+                          note={otherSeasons(r.converted_by_season, selectedSeason)} />
                       </>
-                    } />
+                    )}
+                    {showRet && (
+                      <>
+                        <Td>
+                          {(r.returning_players ?? 0).toLocaleString()}
+                          <CountLine one="drop-in" many="drop-ins" n={r.returning_dropins ?? 0} />
+                        </Td>
+                        <RateTd count={r.returning_converted_players ?? 0} total={r.returning_players ?? 0}
+                          note={r.returning_converted_by_season && Object.keys(r.returning_converted_by_season).length
+                            ? seasonCounts(r.returning_converted_by_season) : null} />
+                        <Td>{r.returning_dropins ? moneyIn(r.returning_revenue ?? 0, r.currency) : "—"}</Td>
+                      </>
+                    )}
+                    <Td strong>{moneyIn(r.revenue, r.currency)}</Td>
+                    {past && (
+                      <RateTd count={r.showed_up ?? 0} total={(r.showed_up ?? 0) + (r.no_show ?? 0)}
+                        color={(r.showed_up ?? 0) + (r.no_show ?? 0)
+                          ? showTone((100 * (r.showed_up ?? 0)) / ((r.showed_up ?? 0) + (r.no_show ?? 0))) : undefined} />
+                    )}
+                    <Td>
+                      {r.not_paid.toLocaleString()}
+                      {r.cancelled > 0 && (
+                        <div className="text-[11px] font-normal text-glass-text-tertiary">{r.cancelled} cancelled</div>
+                      )}
+                    </Td>
+                  </tr>
+                ))}
+                {/* A total of one row only repeats it. */}
+                {locs.length > 1 && (
+                  <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
+                    <td className="px-4 py-3 font-bold" style={{ color: "var(--glass-text)" }}>All locations</td>
+                    <Td strong>
+                      {n.toLocaleString()}
+                      <CountLine n={people.players} one="player" many="players" />
+                    </Td>
+                    {showNew && (
+                      <>
+                        <Td strong>
+                          {newPlayers.toLocaleString()}
+                          <CountLine one="drop-in" many="drop-ins" n={newDropins} />
+                        </Td>
+                        <RateTd strong count={convertedSame} total={newPlayers} />
+                        <RateTd strong count={convertedOther} total={newPlayers}
+                          note={otherSeasons(people.converted_by_season, selectedSeason)} />
+                      </>
+                    )}
+                    {showRet && (
+                      <>
+                        <Td strong>
+                          {retPlayers.toLocaleString()}
+                          <CountLine one="drop-in" many="drop-ins" n={retDropins} />
+                        </Td>
+                        <RateTd strong count={retConverted} total={retPlayers}
+                          note={people.returning_converted_by_season && Object.keys(people.returning_converted_by_season).length
+                            ? seasonCounts(people.returning_converted_by_season) : null} />
+                        <Td strong>{retDropins ? <MoneyLines amounts={currencies.map((cur) => [sum("returning_revenue", cur), cur])} /> : "—"}</Td>
+                      </>
+                    )}
+                    <Td strong><MoneyLines amounts={currencies.map((cur) => [sum("revenue", cur), cur])} /></Td>
+                    {past && (
+                      <RateTd strong count={showed} total={showed + noShow}
+                        color={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined} />
+                    )}
+                    <Td strong>{notPaid.toLocaleString()}</Td>
+                  </tr>
                 )}
-                <Tile label="Revenue" value={money(sum("revenue"))} accent={ACCENT}
-                  sub={
-                    <>
-                      <span className="block">
-                        {paidDropins.toLocaleString()} paid {paidDropins === 1 ? "drop-in" : "drop-ins"}: {retPaid.toLocaleString()} returning, {newCharged.toLocaleString()} new
-                      </span>
-                      <span className="block">price after any discount, before processing fees</span>
-                    </>
-                  } />
-                <Tile label="Started, not paid" value={notPaid.toLocaleString()}
-                  accent={notPaid ? "var(--amber-ink)" : undefined}
-                  sub={`${cancelled.toLocaleString()} cancelled`} />
-              </div>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
-              {showNew && (
-                <>
-              <SubHead title="New players" note="Free with First-Time Free" />
-              <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-                {/* Drop-ins first, then who made them, as the tile at the top. */}
-                <Tile label="Drop-ins" value={newDropins.toLocaleString()} accent={ACCENT}
-                  sub={
-                    <>
-                      <span className="block">by {newPlayers.toLocaleString()} new {newPlayers === 1 ? "player" : "players"}</span>
-                      <span className="block">
-                        {newFree.toLocaleString()} free
-                        {newCharged > 0 && <> · <span style={{ color: "var(--red)" }}>{newCharged.toLocaleString()} charged</span></>}
-                      </span>
-                    </>
-                  } />
-                <Tile label="Became registrations" value={pct(converted, newPlayers)} accent={ACCENT}
-                  sub={!converted
-                    ? `0 of ${newPlayers.toLocaleString()} new players have registered for a season since`
-                    : people.converted_by_season
-                      ? convertedLines(converted, newPlayers, "new", people.converted_by_season, people.converted_multi_season)
-                      : `${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${
-                          convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
-                <Tile label="Given free" value={money(sum("given_free"))}
-                  sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
-              </div>
-                </>
-              )}
-
-              {showRet && (
-                <>
-              <SubHead title="Returning players" note="Charged for each drop-in" />
-              <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
-                <Tile label="Drop-ins" value={retDropins.toLocaleString()} accent={ACCENT}
-                  sub={
-                    <>
-                      <span className="block">by {retPlayers.toLocaleString()} returning {retPlayers === 1 ? "player" : "players"}</span>
-                      {sum("returning_free") > 0 && (
-                        <span className="block" style={{ color: "var(--red)" }}>{sum("returning_free")} got in free</span>
-                      )}
-                    </>
-                  } />
-                <Tile label="List price" value={retDropins ? money(rw("returning_list_price")) : "—"} accent={LIST} sub="before discount" />
-                <Tile label="Discount" value={retDropins ? `−${money(rw("returning_discount"))}` : "—"} sub="averaged over returning drop-ins" />
-                {/* Before processing fees, like Revenue above: the drop-in price
-                    returning players brought in, summed. */}
-                <Tile label="Revenue" value={money(sum("returning_revenue"))} accent={ACCENT}
-                  sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
-                <Tile label="Registered after" value={pct(retConverted, retPlayers)} accent={ACCENT}
-                  sub={retConverted
-                    ? convertedLines(retConverted, retPlayers, "returning", people.returning_converted_by_season, people.returning_converted_multi_season)
-                    : `none of ${retPlayers.toLocaleString()} returning players has registered for a season since`} />
-              </div>
-                </>
-              )}
-
-              <div className="rounded-2xl bg-glass-surface shadow-card">
-                <div className={tableScrollBox(past ? 1200 : 1080)}>
-                  <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1200 : 1080 }}>
-                    <thead>
-                      <tr className="text-xs font-bold text-glass-text-tertiary">
-                        <Th align="left">Location</Th>
-                        <Th>Drop-ins</Th>
-                        {showNew && (
-                          <>
-                            <Th>New players</Th>
-                            <Th>Registered this season</Th>
-                            <Th>Registered another season</Th>
-                          </>
-                        )}
-                        {showRet && (
-                          <>
-                            <Th>Returning players</Th>
-                            <Th>Returning who registered after</Th>
-                            <Th>Returning revenue</Th>
-                          </>
-                        )}
-                        <Th>Revenue</Th>
-                        {past && <Th>Showed up</Th>}
-                        <Th>Not paid</Th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {locs.map((r) => (
-                        <tr key={r.location} style={{ borderTop: "1px solid var(--glass-border)" }}>
-                          <td className="px-4 py-2.5 align-middle">
-                            <div className="font-semibold truncate" style={{ color: "var(--glass-text)" }} title={r.location}>
-                              {r.location}
-                            </div>
-                            {/* Bar length = revenue against the highest venue. */}
-                            <div className="mt-1.5 h-1.5 rounded-full overflow-hidden flex"
-                              style={{ width: `${Math.max((r.revenue / maxRevenue) * 100, 2)}%`, minWidth: 8 }}
-                              title={`${money(r.revenue)} collected`}>
-                              <span style={{ width: "100%", background: "var(--glass-text)" }} />
-                            </div>
-                          </td>
-                          <Td>
-                            {r.dropins.toLocaleString()}
-                            <CountLine n={r.players} one="player" many="players" />
-                          </Td>
-                          {showNew && (
-                            <>
-                              <Td>
-                                {(r.new_players ?? 0).toLocaleString()}
-                                <CountLine one="drop-in" many="drop-ins" n={r.new_dropins ?? 0} />
-                              </Td>
-                              <RateTd count={r.converted_same_season ?? 0} total={r.new_players ?? 0} />
-                              <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0}
-                                note={otherSeasons(r.converted_by_season, selectedSeason)} />
-                            </>
-                          )}
-                          {showRet && (
-                            <>
-                              <Td>
-                                {(r.returning_players ?? 0).toLocaleString()}
-                                <CountLine one="drop-in" many="drop-ins" n={r.returning_dropins ?? 0} />
-                              </Td>
-                              <RateTd count={r.returning_converted_players ?? 0} total={r.returning_players ?? 0}
-                                note={r.returning_converted_by_season && Object.keys(r.returning_converted_by_season).length
-                                  ? seasonCounts(r.returning_converted_by_season) : null} />
-                              <Td>{r.returning_dropins ? money(r.returning_revenue ?? 0) : "—"}</Td>
-                            </>
-                          )}
-                          <Td strong>{money(r.revenue)}</Td>
-                          {past && (
-                            <RateTd count={r.showed_up ?? 0} total={(r.showed_up ?? 0) + (r.no_show ?? 0)}
-                              color={(r.showed_up ?? 0) + (r.no_show ?? 0)
-                                ? showTone((100 * (r.showed_up ?? 0)) / ((r.showed_up ?? 0) + (r.no_show ?? 0))) : undefined} />
-                          )}
-                          <Td>
-                            {r.not_paid.toLocaleString()}
-                            {r.cancelled > 0 && (
-                              <div className="text-[11px] font-normal text-glass-text-tertiary">{r.cancelled} cancelled</div>
-                            )}
-                          </Td>
-                        </tr>
-                      ))}
-                      {/* A total of one row only repeats it. */}
-                      {locs.length > 1 && (
-                        <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
-                          <td className="px-4 py-3 font-bold" style={{ color: "var(--glass-text)" }}>All locations</td>
-                          <Td strong>
-                            {n.toLocaleString()}
-                            <CountLine n={people.players} one="player" many="players" />
-                          </Td>
-                          {showNew && (
-                            <>
-                              <Td strong>
-                                {newPlayers.toLocaleString()}
-                                <CountLine one="drop-in" many="drop-ins" n={newDropins} />
-                              </Td>
-                              <RateTd strong count={convertedSame} total={newPlayers} />
-                              <RateTd strong count={convertedOther} total={newPlayers}
-                                note={otherSeasons(people.converted_by_season, selectedSeason)} />
-                            </>
-                          )}
-                          {showRet && (
-                            <>
-                              <Td strong>
-                                {retPlayers.toLocaleString()}
-                                <CountLine one="drop-in" many="drop-ins" n={retDropins} />
-                              </Td>
-                              <RateTd strong count={retConverted} total={retPlayers}
-                                note={people.returning_converted_by_season && Object.keys(people.returning_converted_by_season).length
-                                  ? seasonCounts(people.returning_converted_by_season) : null} />
-                              <Td strong>{retDropins ? money(sum("returning_revenue")) : "—"}</Td>
-                            </>
-                          )}
-                          <Td strong>{money(sum("revenue"))}</Td>
-                          {past && (
-                            <RateTd strong count={showed} total={showed + noShow}
-                              color={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined} />
-                          )}
-                          <Td strong>{notPaid.toLocaleString()}</Td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
-          );
-        })
-      )}
-
-      {feed?.truncated && (
+      {feed.truncated && (
         <p className="text-xs" style={{ color: "var(--red)" }}>
           The ops database returned its row limit, so some drop-ins may be missing from these figures.
         </p>
       )}
     </div>
   );
+}
+
+// A total cell's amounts, one currency per line.
+function MoneyLines({ amounts }: { amounts: [number, string][] }) {
+  return <>{amounts.map(([v, cur]) => <div key={cur}>{moneyIn(v, cur)}</div>)}</>;
+}
+
+// The counts of several currencies' players added together, for an older feed
+// without players_all (a player in both countries is counted twice there).
+function mergePeople(list: DropInPeople[]): DropInPeople {
+  const add = (k: keyof DropInPeople) => list.reduce((s, p) => s + ((p[k] as number | undefined) ?? 0), 0);
+  const addSeasons = (k: "converted_by_season" | "returning_converted_by_season") => {
+    const out: Record<string, number> = {};
+    for (const p of list) for (const [s, v] of Object.entries(p[k] ?? {})) out[s] = (out[s] ?? 0) + v;
+    return out;
+  };
+  return {
+    players: add("players"), repeat_players: add("repeat_players"),
+    new_players: add("new_players"), returning_players: add("returning_players"), converted_players: add("converted_players"),
+    converted_same_season: add("converted_same_season"), converted_other_season: add("converted_other_season"),
+    converted_by_season: addSeasons("converted_by_season"), converted_multi_season: add("converted_multi_season"),
+    returning_converted_players: add("returning_converted_players"),
+    returning_converted_by_season: addSeasons("returning_converted_by_season"),
+    returning_converted_multi_season: add("returning_converted_multi_season"),
+  };
 }
 
 // "1 for Fall '26, 2 for Winter '27": each season the converted players
