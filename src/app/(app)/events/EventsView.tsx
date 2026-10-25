@@ -6,8 +6,8 @@ import { BasisToggle } from "../dashboard/BasisToggle";
 import { dayLabel, todayKey } from "../drop-ins/ScheduledDropIns";
 import { requireUser } from "@/lib/auth";
 import { promoFetch } from "@/lib/promo-feed";
-import { TZ_SHORT } from "@/lib/tz";
-import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
+import EventsTable, { type EventPerson } from "./EventsTable";
+import { CheckinNote, pct } from "./events-ui";
 
 // Events: open runs, Kicks of the Week, opening nights, beginner runs, all-star
 // games and the rest, from the ops events platform via the Promo Tracker. For
@@ -64,20 +64,23 @@ export async function loadEvents(locationNames: string[] | null, season?: string
   }
 }
 
-// Read from the string: it is already the event's own clock, and Date would
-// shift it into the viewer's zone.
-function whenLabel(at: string | null, tz: string): { day: string; time: string } {
-  if (!at) return { day: "Date to be set", time: "" };
-  const [y, m, d] = at.slice(0, 10).split("-").map(Number);
-  const day = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
-    .format(new Date(Date.UTC(y, m - 1, d)));
-  const [hh, mm] = at.slice(11, 16).split(":").map(Number);
-  const time = `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${TZ_SHORT[tz] ? ` ${TZ_SHORT[tz]}` : ""}`;
-  return { day, time };
+// Each event's people by name, for the rows that open: events still to come,
+// or those that have started (live and past), within the page's dates.
+async function loadEventPeople(upcoming: boolean, from?: string, to?: string): Promise<{ people: EventPerson[]; truncated: boolean } | null> {
+  try {
+    const url = new URL("/api/events", PROMO_APP_URL);
+    url.searchParams.set("view", "people");
+    if (upcoming) url.searchParams.set("when", "upcoming");
+    if (from) url.searchParams.set("from", from);
+    if (to) url.searchParams.set("to", to);
+    const res = await promoFetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const k = (await res.json()) as { people?: EventPerson[]; truncated?: boolean };
+    return Array.isArray(k.people) ? { people: k.people, truncated: !!k.truncated } : null;
+  } catch {
+    return null;
+  }
 }
-
-const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "—");
-const CHIP = "inline-block text-[11px] font-semibold rounded-md px-1.5 py-0.5 whitespace-nowrap";
 
 type EventsParams = { location?: string; when?: string; from?: string; to?: string; sort?: string };
 
@@ -102,11 +105,17 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
 
   // Locations with a captain this season or next, as every location filter
   // lists; events at a venue no league plays at still show under All.
-  const [canonical, active, all] = await Promise.all([
+  const [canonical, active, all, peopleFeed] = await Promise.all([
     getCanonicalLocations(),
     getActiveLocationKeys([]),
     loadEvents(locationNames),
+    loadEventPeople(!past && !live, from, to),
   ]);
+  const peopleByEvent = new Map<string, EventPerson[]>();
+  for (const p of peopleFeed?.people ?? []) {
+    if (!peopleByEvent.has(p.event_id)) peopleByEvent.set(p.event_id, []);
+    peopleByEvent.get(p.event_id)!.push(p);
+  }
   const options: FilterOptions = { seasons: [], locations: onlyActive(canonical, active, selectedLocations), dates: true };
 
   const events = (all ?? [])
@@ -195,17 +204,17 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
               value={byLocation ? "location" : "date"}
               options={[{ value: "date", label: "By date" }, { value: "location", label: "By location" }]}
             />
+            {/* Each section's day (or location) heads its own card, with the
+                card's Expand all beside it. */}
             {groups.map((g) => (
-              <section key={g.key} className="space-y-2">
-                <h3 className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>
-                  {g.label}
-                  <span className="ml-2 text-xs font-normal text-glass-text-tertiary">
-                    {g.events.length.toLocaleString()} {g.events.length === 1 ? "event" : "events"}
-                  </span>
-                </h3>
-                <EventsTable events={g.events} past={past} live={live} anyPaid={anyPaid} />
-              </section>
+              <EventsTable key={g.key} title={g.label} events={g.events} past={past} live={live} anyPaid={anyPaid}
+                people={Object.fromEntries(g.events.map((e) => [e.id, peopleByEvent.get(e.id) ?? []]))} />
             ))}
+            {peopleFeed?.truncated && (
+              <p className="text-xs" style={{ color: "var(--red)" }}>
+                The ops database returned its row limit, so some of the older events&apos; names may be missing. Narrow the dates to see them.
+              </p>
+            )}
             </>
           )}
         </>
@@ -219,188 +228,6 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
         local time. The type is read from the event&apos;s name.
       </p>
     </main>
-  );
-}
-
-// One section's events, with its own total. Every section of the page shares
-// the columns (anyPaid comes from the whole list) so they line up.
-function EventsTable({ events, past, live, anyPaid }: {
-  events: EventRow[]; past: boolean; live: boolean; anyPaid: boolean;
-}) {
-  const sum = (k: keyof EventRow) => events.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
-  const going = sum("going"), rsvps = sum("rsvps"), newPlayers = sum("new_players"), converted = sum("converted");
-  const paid = sum("paid");
-  const checkedIn = sum("checked_in"), checkedInGoing = sum("checked_in_going"), checkedInNew = sum("checked_in_new");
-  // Fixed widths, the same in every section, so the columns line up from one
-  // table to the next whatever each holds. Past and Paid add a column to every
-  // section alike, so the shares are worked out from the columns shown.
-  const cols: [string, number][] = [
-    ["date", 15], ["event", 27], ["location", 18], ["going", 12],
-    ...(past ? [["became", 11] as [string, number]] : []),
-    ...(anyPaid ? [["paid", 6] as [string, number]] : []),
-    ["checked", 13],
-  ];
-  const totalWeight = cols.reduce((n, [, w]) => n + w, 0);
-  return (
-    <div className="rounded-2xl bg-glass-surface shadow-card">
-      {/* The header sticks to the window, which an overflow box would
-          trap, so the table only scrolls sideways where it can't fit
-          (below xl). */}
-      <div className={tableScrollBox(860)}>
-        <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860, tableLayout: "fixed" }}>
-          <colgroup>
-            {cols.map(([k, w]) => <col key={k} style={{ width: `${((100 * w) / totalWeight).toFixed(2)}%` }} />)}
-          </colgroup>
-          <thead>
-            <tr className="text-xs font-bold text-glass-text-tertiary">
-              <Th align="left">Date</Th>
-              <Th align="left">Event</Th>
-              <Th align="left">Location</Th>
-              <Th>Going</Th>
-              {past && <Th>Became registrations</Th>}
-              {anyPaid && <Th>Paid</Th>}
-              <Th>Checked in</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {events.map((e) => {
-              const w = whenLabel(e.starts_at, e.timezone);
-              return (
-                <tr key={e.id} style={{ borderTop: "1px solid var(--glass-border)" }}>
-                  <td className="px-4 py-2.5 whitespace-nowrap align-top">
-                    <div style={{ color: "var(--glass-text)" }}>{w.day}</div>
-                    <div className="text-[11px] text-glass-text-tertiary tabular">
-                      {w.time}
-                      {live && e.ends_at && <> to {whenLabel(e.ends_at, e.timezone).time.replace(/ [A-Z]{3}$/, "")}</>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 align-top">
-                    <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{e.name}</div>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      <span className={CHIP} style={{ color: "var(--glass-text-secondary)", background: "var(--fill-3)" }}>{e.kind}</span>
-                      {e.is_private && (
-                        <span className={CHIP} style={{ color: "var(--glass-text-secondary)", background: "var(--fill-3)" }}>Private</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 align-top">
-                    <div style={{ color: "var(--glass-text)" }}>{e.location}</div>
-                    {e.venue && e.venue !== e.location && (
-                      <div className="text-[11px] text-glass-text-tertiary">{e.venue}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
-                    <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{e.going.toLocaleString()}</div>
-                    <div className="text-[11px] text-glass-text-tertiary">of {e.rsvps.toLocaleString()} RSVPs</div>
-                    <div className="text-[11px]" style={{ color: e.new_players ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
-                      {e.new_players.toLocaleString()} new to Brodie
-                    </div>
-                  </td>
-                  {past && (
-                    <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
-                      <div style={{ color: "var(--glass-text)" }}>{pct(e.converted, e.new_players)}</div>
-                      <div className="text-[11px] text-glass-text-tertiary">{e.converted} of {e.new_players}</div>
-                    </td>
-                  )}
-                  {anyPaid && (
-                    <td className="px-4 py-2.5 text-right tabular align-top" style={{ color: "var(--glass-text)" }}>
-                      {e.paid ? e.paid.toLocaleString() : "—"}
-                    </td>
-                  )}
-                  {/* Nobody is checked in to an event that hasn't started. */}
-                  <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
-                    {e.upcoming ? (
-                      <span className="text-glass-text-tertiary">—</span>
-                    ) : (
-                      <>
-                        <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{(e.checked_in ?? 0).toLocaleString()}</div>
-                        <div className="text-[11px] text-glass-text-tertiary">
-                          <CheckinNote going={e.going} checkedInGoing={e.checked_in_going ?? 0} checkedIn={e.checked_in ?? 0}
-                            checkedInNew={e.checked_in_new} />
-                        </div>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {/* A total of one row only repeats it. */}
-            {events.length > 1 && (
-              <tr style={{ borderTop: "2px solid var(--glass-border-light)" }}>
-                <td className="px-4 py-3 font-bold whitespace-nowrap align-top" style={{ color: "var(--glass-text)" }} colSpan={3}>
-                  Total
-                  <span className="ml-2 text-xs font-normal text-glass-text-tertiary">
-                    {events.length.toLocaleString()} {events.length === 1 ? "event" : "events"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
-                  <div className="font-bold" style={{ color: "var(--glass-text)" }}>{going.toLocaleString()}</div>
-                  <div className="text-[11px] text-glass-text-tertiary">of {rsvps.toLocaleString()} RSVPs</div>
-                  <div className="text-[11px]" style={{ color: newPlayers ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
-                    {newPlayers.toLocaleString()} new to Brodie
-                  </div>
-                </td>
-                {past && (
-                  <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
-                    <div className="font-bold" style={{ color: "var(--glass-text)" }}>{pct(converted, newPlayers)}</div>
-                    <div className="text-[11px] text-glass-text-tertiary">{converted} of {newPlayers}</div>
-                  </td>
-                )}
-                {anyPaid && (
-                  <td className="px-4 py-3 text-right tabular align-top font-bold" style={{ color: "var(--glass-text)" }}>
-                    {paid ? paid.toLocaleString() : "—"}
-                  </td>
-                )}
-                <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
-                  {past || live ? (
-                    <>
-                      <div className="font-bold" style={{ color: "var(--glass-text)" }}>{checkedIn.toLocaleString()}</div>
-                      <div className="text-[11px] text-glass-text-tertiary">
-                        <CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} checkedInNew={checkedInNew} />
-                      </div>
-                    </>
-                  ) : (
-                    <span className="text-glass-text-tertiary">—</span>
-                  )}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// Under a check-in count: the people going who haven't been checked in, how
-// many of those in were new to Brodie (as Going shows for its count), and
-// anyone checked in without an RSVP. A person is in or not, so the count above
-// already says how many are; this says who is missing and who they were.
-function CheckinNote({ going, checkedInGoing, checkedIn, checkedInNew }: {
-  going: number; checkedInGoing: number; checkedIn: number;
-  // Absent from an older feed.
-  checkedInNew?: number;
-}) {
-  const missing = Math.max(going - checkedInGoing, 0);
-  const walkIns = Math.max(checkedIn - checkedInGoing, 0);
-  return (
-    <>
-      <span className="block">{missing ? `${missing.toLocaleString()} going not checked in` : "everyone going is in"}</span>
-      {checkedInNew !== undefined && (
-        <span className="block" style={{ color: checkedInNew ? "var(--glass-text-secondary)" : undefined }}>
-          {checkedInNew.toLocaleString()} new to Brodie
-        </span>
-      )}
-      {walkIns > 0 && <span className="block">{walkIns.toLocaleString()} without an RSVP</span>}
-    </>
-  );
-}
-
-function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
-  return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${stickyTh(860)}`} style={STICKY_TH_STYLE}>
-      {children}
-    </th>
   );
 }
 
