@@ -118,7 +118,8 @@ const ACCENT = "var(--glass-text)";
 const LIST = "var(--viz-prev)"; // the grey the registration bars use for the prior season
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 // An amount with its currency, "$50.00 CAD": Canada and the US share the page.
-const moneyIn = (n: number, cur: string) => `${money(n)} ${cur}`;
+// A no-break space, so the code never wraps away from its amount.
+const moneyIn = (n: number, cur: string) => `${money(n)}\u00a0${cur}`;
 const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "—");
 
 export default async function DropInsView({
@@ -299,9 +300,9 @@ async function DropInSummary({ season, locationNames, when, players }: {
   // Optional fields read as 0 from an older feed.
   const sum = (k: keyof DropInRow, cur?: string) =>
     locs.reduce((s, r) => s + (cur && r.currency !== cur ? 0 : ((r[k] as number | undefined) ?? 0)), 0);
-  // "$50.00 CAD · $0.00 USD": one amount per currency on the page.
-  const byCurrency = (amount: (cur: string) => number, prefix = "") =>
-    currencies.map((cur) => `${prefix}${moneyIn(amount(cur), cur)}`).join(" · ");
+  // One amount per currency on the page, each on its own line.
+  const byCurrency = (amount: (cur: string) => number, prefix = ""): React.ReactNode =>
+    currencies.map((cur) => <span key={cur} className="block">{prefix}{moneyIn(amount(cur), cur)}</span>);
   const people = feed.players_all ?? mergePeople(Object.values(feed.players_by_currency ?? {}));
   const newPlayers = people.new_players ?? sum("new_players");
   const retPlayers = people.returning_players ?? sum("returning_players");
@@ -690,7 +691,7 @@ function Td({ children, strong = false, color }: { children: React.ReactNode; st
 
 
 function Tile({ label, value, sub, accent }: {
-  label: string; value: string; sub?: React.ReactNode; accent?: string;
+  label: string; value: React.ReactNode; sub?: React.ReactNode; accent?: string;
 }) {
   return (
     <div className="rounded-xl bg-glass-surface px-4 py-3.5 min-w-0 flex flex-col shadow-card">
