@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import Filters, { type FilterOptions } from "../../dashboard/Filters";
 import { discountTone, freeTone } from "../rates";
-import DiscountTable from "./DiscountTable";
+import DiscountTable, { type ScopeTeamData } from "./DiscountTable";
 import { BasisToggle } from "../../dashboard/BasisToggle";
 import { loadStaff } from "@/lib/staff";
 import { loadAmbassadorTeams } from "../../ambassador-teams/AmbassadorSummary";
@@ -24,6 +24,8 @@ type DiscountPlayer = {
   list_price: number; discount: number; total_paid: number; free: boolean;
   codes: string; discount_names?: string; registered_on: string | null;
   season_team_id?: string | null; player_id?: string | null;
+  // Everyone on that team's roster (absent from an older feed).
+  team_players?: number;
   // What each group of the registration's codes took off (absent from an
   // older feed): a returning-player $20 stacked with an ambassador $30 is 20
   // returning and 30 other.
@@ -31,7 +33,8 @@ type DiscountPlayer = {
 };
 // unrostered: every free agent not yet on a team, discounted or not (asked
 // for in team view only).
-type Feed = { season: string; players: DiscountPlayer[]; truncated: boolean; unrostered?: DiscountPlayer[] };
+// teams: every registered team in scope, discounted or not (team view only).
+type Feed = { season: string; players: DiscountPlayer[]; truncated: boolean; unrostered?: DiscountPlayer[]; teams?: ScopeTeamData[] };
 type TotalsFeed = { locations: { currency: string; regs: number }[] };
 
 // Total registrations in scope — the denominator the players feed can't supply,
@@ -74,6 +77,8 @@ async function loadPlayers(season: string, locationNames: string[] | null, freeO
     url.searchParams.set("season", season);
     if (freeOnly) url.searchParams.set("free", "1");
     if (unrostered) url.searchParams.set("unrostered", "1");
+    // Team view also lists the teams with no discount, so it asks for them all.
+    if (unrostered) url.searchParams.set("teams", "1");
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
     const res = await promoFetch(url.toString(), { cache: "no-store" });
@@ -279,7 +284,10 @@ export default async function DiscountPlayersPage({
         </div>
       ) : (
         <DiscountTable key={teamView ? "teams" : "players"} rows={rows} season={selectedSeason} staff={staff} ambassadors={ambassadors} teamView={teamView}
-          unrostered={unrosteredRows} />
+          unrostered={unrosteredRows}
+          // The teams with no discount only make sense on the full list, not
+          // one narrowed to free registrations or one kind of discount.
+          scopeTeams={teamView && !freeOnly && !kind ? (feed.teams ?? []).filter((t) => !currency || t.currency === currency) : undefined} />
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
@@ -291,7 +299,8 @@ export default async function DiscountPlayersPage({
         Discounts tab, so the count here matches the &ldquo;{freeOnly ? "free" : kind ? KIND_TITLE[kind].toLowerCase() : "discounted"}&rdquo; tile. A code that has since been
         deleted takes its usage records with it, so a registration can carry a discount with nothing left to name it;
         those show as <span className="font-mono">(code removed)</span> rather than being dropped, because the money
-        still came off. {feed?.truncated ? "Only the first 2,000 rows are shown." : ""}
+        still came off. {teamView && !freeOnly && !kind ? "Team view lists the teams with no discounted registration at the bottom. " : ""}
+        {feed?.truncated ? "Only the first 2,000 rows are shown." : ""}
       </p>
     </main>
   );

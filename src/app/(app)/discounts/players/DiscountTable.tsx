@@ -14,8 +14,18 @@ export type DiscountRowData = {
   list_price: number; discount: number; total_paid: number; free: boolean;
   codes: string; discount_names?: string; registered_on: string | null;
   season_team_id?: string | null; player_id?: string | null;
+  // Everyone on the registration's team, discounted or not (absent from an
+  // older feed).
+  team_players?: number;
 };
 
+
+// Every registered team in scope, discounted or not (the Promo Tracker's
+// teams=1), so team view can list the ones with no discount.
+export type ScopeTeamData = {
+  season_team_id: string; team: string; location: string; currency: string;
+  team_players: number; list_total: number; paid_total: number; registered_on: string | null;
+};
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const TYPE_LABEL: Record<string, string> = { captain: "Captain", join_team: "Join team", free_agent: "Free agent" };
@@ -49,12 +59,14 @@ const pairKey = (r: DiscountRowData) => `${r.season_team_id}|${r.player_id ?? ""
 // A team view row: every discounted registration on one team, added up.
 type TeamUnit = {
   rep: DiscountRowData; team: string | null; location: string; currency: string;
-  players: number; free: number; list: number; discount: number; total: number;
+  players: number; teamPlayers: number; free: number; list: number; discount: number; total: number;
   codes: string[]; names: string[]; first: string | null;
+  // A team with no discounted registration, listed in its own section.
+  none?: boolean;
 };
 
 export default function DiscountTable({
-  rows, season, staff, ambassadors, teamView = false, unrostered: unrosteredProp,
+  rows, season, staff, ambassadors, teamView = false, unrostered: unrosteredProp, scopeTeams,
 }: {
   rows: DiscountRowData[];
   season: string;
@@ -66,6 +78,8 @@ export default function DiscountTable({
   teamView?: boolean;
   // Team view's last block: free agents not on a team yet, discounted or not.
   unrostered?: DiscountRowData[];
+  // Every team in scope; the ones with no discount get their own section.
+  scopeTeams?: ScopeTeamData[];
 }) {
   // Teams in scope, most given up first. A registration with no team has
   // nothing to group under; the footer of the page counts it in player view.
@@ -76,9 +90,10 @@ export default function DiscountTable({
       if (!r.season_team_id) continue;
       const u = m.get(r.season_team_id) ?? {
         rep: r, team: r.team, location: r.location, currency: r.currency,
-        players: 0, free: 0, list: 0, discount: 0, total: 0, codes: [], names: [], first: null,
+        players: 0, teamPlayers: 0, free: 0, list: 0, discount: 0, total: 0, codes: [], names: [], first: null,
       };
       u.players += 1;
+      u.teamPlayers = Math.max(u.teamPlayers, r.team_players ?? 0);
       if (r.free) u.free += 1;
       u.list += r.list_price; u.discount += r.discount; u.total += r.total_paid;
       for (const c of r.codes.split(", ")) if (c && !u.codes.includes(c)) u.codes.push(c);
@@ -87,8 +102,28 @@ export default function DiscountTable({
       if (r.registered_on && (!u.first || r.registered_on < u.first)) u.first = r.registered_on;
       m.set(r.season_team_id, u);
     }
-    return [...m.values()].sort((a, b) => b.discount - a.discount);
+    const discounted = [...m.values()].sort((a, b) => b.discount - a.discount);
+    // Teams with no discounted registration, by location then name. Their
+    // row opens the roster like any other; no player is named, so the
+    // roster lookup takes the team as it is now.
+    const none: TeamUnit[] = (scopeTeams ?? [])
+      .filter((t) => !m.has(t.season_team_id))
+      .sort((a, b) => a.location.localeCompare(b.location) || a.team.localeCompare(b.team))
+      .map((t) => ({
+        rep: {
+          player: "", location: t.location, currency: t.currency, type: "", team: t.team,
+          list_price: t.list_total, discount: 0, total_paid: t.paid_total, free: false, codes: "",
+          registered_on: t.registered_on, season_team_id: t.season_team_id, player_id: null, team_players: t.team_players,
+        },
+        team: t.team, location: t.location, currency: t.currency,
+        players: 0, teamPlayers: t.team_players, free: 0, list: t.list_total, discount: 0, total: t.paid_total,
+        codes: [], names: [], first: t.registered_on, none: true,
+      }));
+    return [...discounted, ...none];
   })();
+  // Where the teams with no discount start in the list.
+  const firstNone = teamUnits.findIndex((u) => u.none);
+  const discountedCount = firstNone === -1 ? teamUnits.length : firstNone;
   // What each row opens: the registration itself, or the team's first one.
   const units: DiscountRowData[] = teamView ? teamUnits.map((u) => u.rep) : rows;
   // Team view lists these last: free agents waiting to be placed. The page
@@ -194,69 +229,7 @@ export default function DiscountTable({
   const ambassadorIds = new Set(ambassadors ?? []);
   const isAmbassador = (r: DiscountRowData) => !!r.player_id && ambassadorIds.has(r.player_id);
 
-  return (
-    <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
-      <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-2.5"
-        style={{ borderBottom: "1px solid var(--glass-border)" }}>
-        {loading > 0 && (
-          <span className="mr-auto inline-flex items-center gap-2 text-xs text-glass-text-tertiary">
-            <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
-            Loading rosters…
-          </span>
-        )}
-        {/* One toggle rather than a disabled pair: the label always names
-            the action the click performs, so there is nothing dimmed to
-            decode. Matches the check-in panel in overdue-payments. */}
-        <button
-          type="button"
-          onClick={() => (allOpen ? setOpen({}) : expandAll())}
-          disabled={totalOpenable === 0}
-          className={TOOL_BTN}
-        >
-          {allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
-          {allOpen ? "Collapse all" : "Expand all"}
-        </button>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1120 }}>
-          <thead>
-            {teamView ? (
-              <tr className="text-xs font-bold text-glass-text-tertiary">
-                <Th align="left">Team</Th>
-                <Th align="left">Location</Th>
-                {/* How many on the team carried a discount — the roster
-                    underneath has everyone, discounted or not. */}
-                <Th align="left">Discounted</Th>
-                <Th align="left">Code</Th>
-                <Th align="left">Discount type</Th>
-                <Th>List price</Th>
-                <Th>Discount</Th>
-                <Th>Total price</Th>
-                <Th>Registered</Th>
-              </tr>
-            ) : (
-            <tr className="text-xs font-bold text-glass-text-tertiary">
-              <Th align="left">Player</Th>
-              <Th align="left">Location</Th>
-              {/* Captain or player — the kind of registration, not the kind of
-                  discount, which the Code column beside it names. */}
-              <Th align="left">Reg type</Th>
-              <Th align="left">Team</Th>
-              <Th align="left">Code</Th>
-              {/* What the code is for. The ops DB's own discount "type" is
-                  'coupon' on all but a handful of rows system-wide, so the
-                  discount's name is the field that actually separates an
-                  ambassador comp from a referral from a returning player. */}
-              <Th align="left">Discount type</Th>
-              <Th>List price</Th>
-              <Th>Discount</Th>
-              <Th>Total price</Th>
-              <Th>Registered</Th>
-            </tr>
-            )}
-          </thead>
-          <tbody>
-            {units.map((r, i) => {
+  const renderUnit = (r: DiscountRowData, i: number) => {
               const canOpen = openable[i];
               const isOpen = canOpen && !!open[i];
               const got = canOpen ? resolved[pairKey(r)] : undefined;
@@ -296,8 +269,24 @@ export default function DiscountTable({
                       </span>
                     </td>
                     <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{u.location}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-tertiary">
-                      {u.players} player{u.players === 1 ? "" : "s"}
+                    <td className="px-4 py-2.5 whitespace-nowrap align-middle">
+                      {u.teamPlayers > 0 ? (() => {
+                        // A discounted player who has since left the roster
+                        // still counts, so the share never passes 100%.
+                        const of = Math.max(u.teamPlayers, u.players);
+                        return (
+                          <>
+                            <div className="tabular" style={{ color: "var(--glass-text)" }}>
+                              {u.players} of {of} player{of === 1 ? "" : "s"}
+                            </div>
+                            <div className="text-[11px] text-glass-text-tertiary leading-snug tabular">
+                              {Math.round((100 * u.players) / of)}%
+                            </div>
+                          </>
+                        );
+                      })() : (
+                        <span className="text-glass-text-tertiary">{u.players} player{u.players === 1 ? "" : "s"}</span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 font-mono text-[12px] max-w-[200px] truncate text-glass-text-tertiary" title={u.codes.join(", ")}>
                       {u.codes.join(", ") || "—"}
@@ -308,10 +297,16 @@ export default function DiscountTable({
                     </td>
                     <Td>{money(u.list)}</Td>
                     <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
-                      <div style={{ color: GOLD, fontWeight: 700 }}>−{money(u.discount)}</div>
-                      <div className="text-[11px] text-glass-text-tertiary leading-snug">
-                        {u.list ? `${Math.round((100 * u.discount) / u.list)}%` : "—"}
-                      </div>
+                      {u.discount > 0 ? (
+                        <>
+                          <div style={{ color: GOLD, fontWeight: 700 }}>−{money(u.discount)}</div>
+                          <div className="text-[11px] text-glass-text-tertiary leading-snug">
+                            {u.list ? `${Math.round((100 * u.discount) / u.list)}%` : "—"}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-glass-text-tertiary">—</span>
+                      )}
                     </td>
                     <Td>{money(u.total)}</Td>
                     {/* The team's first discounted registration. */}
@@ -404,7 +399,75 @@ export default function DiscountTable({
                   </tr>
                 ),
               ];
-            })}
+            };
+
+  return (
+    <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
+      <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-2.5"
+        style={{ borderBottom: "1px solid var(--glass-border)" }}>
+        {loading > 0 && (
+          <span className="mr-auto inline-flex items-center gap-2 text-xs text-glass-text-tertiary">
+            <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+            Loading rosters…
+          </span>
+        )}
+        {/* One toggle rather than a disabled pair: the label always names
+            the action the click performs, so there is nothing dimmed to
+            decode. Matches the check-in panel in overdue-payments. */}
+        <button
+          type="button"
+          onClick={() => (allOpen ? setOpen({}) : expandAll())}
+          disabled={totalOpenable === 0}
+          className={TOOL_BTN}
+        >
+          {allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+          {allOpen ? "Collapse all" : "Expand all"}
+        </button>
+      </div>
+      {/* The table scrolls inside this box, not the window, so its header row
+          stays at the box's top (top-0) however far down the list you are, as
+          on the Ambassadors table. The box is as tall as the window allows
+          under the kit's header and this card's toolbar. */}
+      <div className="overflow-x-auto" style={{ maxHeight: "max(460px, calc(100vh - var(--shell-top) - 120px))" }}>
+        <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1120 }}>
+          <thead>
+            {teamView ? (
+              <tr className="text-xs font-bold text-glass-text-tertiary">
+                <Th align="left">Team</Th>
+                <Th align="left">Location</Th>
+                {/* How many on the team carried a discount, out of everyone
+                    on its roster, and that share. */}
+                <Th align="left">Discounted</Th>
+                <Th align="left">Code</Th>
+                <Th align="left">Discount type</Th>
+                <Th>List price</Th>
+                <Th>Discount</Th>
+                <Th>Total price</Th>
+                <Th>Registered</Th>
+              </tr>
+            ) : (
+            <tr className="text-xs font-bold text-glass-text-tertiary">
+              <Th align="left">Player</Th>
+              <Th align="left">Location</Th>
+              {/* Captain or player — the kind of registration, not the kind of
+                  discount, which the Code column beside it names. */}
+              <Th align="left">Reg type</Th>
+              <Th align="left">Team</Th>
+              <Th align="left">Code</Th>
+              {/* What the code is for. The ops DB's own discount "type" is
+                  'coupon' on all but a handful of rows system-wide, so the
+                  discount's name is the field that actually separates an
+                  ambassador comp from a referral from a returning player. */}
+              <Th align="left">Discount type</Th>
+              <Th>List price</Th>
+              <Th>Discount</Th>
+              <Th>Total price</Th>
+              <Th>Registered</Th>
+            </tr>
+            )}
+          </thead>
+          <tbody>
+            {(teamView ? units.slice(0, discountedCount) : units).map((r, i) => renderUnit(r, i))}
             {unrostered.length > 0 && (
               <>
                 <tr style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
@@ -457,6 +520,16 @@ export default function DiscountTable({
                 })}
               </>
             )}
+            {teamView && firstNone !== -1 && (
+              <>
+                <tr style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
+                  <td colSpan={COLS - 1} className="px-4 py-2 text-xs font-bold text-glass-text-tertiary">
+                    No discounts · {units.length - discountedCount} team{units.length - discountedCount === 1 ? "" : "s"}
+                  </td>
+                </tr>
+                {units.slice(discountedCount).map((r, j) => renderUnit(r, discountedCount + j))}
+              </>
+            )}
           </tbody>
         </table>
       </div>
@@ -469,8 +542,14 @@ const TOOL_BTN =
   + "text-glass-text-tertiary hover:text-glass-text hover:border-glass-gold hover:bg-glass-surface-hover transition "
   + "disabled:opacity-40 disabled:pointer-events-none";
 
+// Header cells stick to the top of the table's scroll box.
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
-  return <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold`}>{children}</th>;
+  return (
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold sticky top-0 z-[2] bg-glass-surface`}
+      style={{ borderBottom: "1px solid var(--glass-border)" }}>
+      {children}
+    </th>
+  );
 }
 
 function Td({ children }: { children: React.ReactNode }) {
