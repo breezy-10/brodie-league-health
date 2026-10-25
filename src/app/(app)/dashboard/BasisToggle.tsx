@@ -10,6 +10,7 @@ export function BasisToggle({
   value,
   options,
   defaultValue,
+  clearOn,
 }: {
   param: string;
   value: string;
@@ -18,6 +19,9 @@ export function BasisToggle({
   // usually also the default state, but not always: season toggles list the
   // newer season first whichever one the section opens on.
   defaultValue?: string;
+  // Other params to drop when a value is picked, e.g. the location filter
+  // when switching to a view that compares every location.
+  clearOn?: Record<string, string[]>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -27,6 +31,7 @@ export function BasisToggle({
   function pick(next: string) {
     if (next === value) return;
     const q = new URLSearchParams(search.toString());
+    for (const k of clearOn?.[next] ?? []) q.delete(k);
     // The default stays out of the URL.
     if (next === (defaultValue ?? options[0].value)) q.delete(param);
     else q.set(param, next);

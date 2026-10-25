@@ -31,10 +31,11 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 const pct = (n: number, of: number, digits = 0) => (of ? `${((100 * n) / of).toFixed(digits)}%` : "—");
 
 // Column widths in percent, the same in every currency's card so they line up:
-// rank, location, registrations, discounted, free, list price, discount, share.
+// rank, location, registrations, the four kinds (returning, referral, other,
+// free), list price, discount, share.
 const COLS: [string, number][] = [
-  ["rank", 5], ["location", 23], ["regs", 11], ["discounted", 13], ["free", 10],
-  ["list", 13], ["discount", 13], ["share", 12],
+  ["rank", 4], ["location", 17], ["regs", 9], ["returning", 10], ["referral", 10], ["other", 10],
+  ["free", 9], ["list", 11], ["discount", 11], ["share", 9],
 ];
 
 // Locations ranked from the most discount to the least, one card per currency
@@ -91,7 +92,7 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
             {/* Scrolls in its own box so the header row stays in view, like the
                 team view's cards. */}
             <div className="overflow-x-auto" style={{ maxHeight: "max(460px, calc(100vh - var(--shell-top) - 120px))" }}>
-              <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 900, tableLayout: "fixed" }}>
+              <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1100, tableLayout: "fixed" }}>
                 <colgroup>
                   {COLS.map(([k, w]) => <col key={k} style={{ width: `${w}%` }} />)}
                 </colgroup>
@@ -100,7 +101,9 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                     <Th align="left">#</Th>
                     <Th align="left">Location</Th>
                     <Th>Registrations</Th>
-                    <Th>Discounted</Th>
+                    <Th>Returning player</Th>
+                    <Th>Referral</Th>
+                    <Th>Other discounts</Th>
                     <Th>Free</Th>
                     <Th>List price</Th>
                     <Th on={sort === "volume"}>Discount</Th>
@@ -119,8 +122,14 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                           </Link>
                         </td>
                         <Num>{r.regs.toLocaleString()}</Num>
-                        <Num sub={pct(g.n, r.regs)}>{g.n.toLocaleString()} of {r.regs.toLocaleString()}</Num>
-                        <Num sub={pct(r.free, r.regs)}>{r.free.toLocaleString()}</Num>
+                        {/* Each kind as on the cards above: how many
+                            registrations used it, and what it gave up. Other
+                            leaves out the free registrations, which have their
+                            own column. */}
+                        <Kind n={r.returning_discounted} amount={r.returning_discount_total} />
+                        <Kind n={r.referral_discounted} amount={r.referral_discount_total} />
+                        <Kind n={Math.max(0, r.other_discounted - r.free)} amount={Math.max(0, r.other_discount_total - r.free_value)} />
+                        <Kind n={r.free} amount={r.free_value} />
                         <Num>{money(listOf(r))}</Num>
                         <td className="px-4 py-2.5 text-right tabular whitespace-nowrap"
                           style={{ color: g.amount > 0 ? GOLD : "var(--glass-text-tertiary)", fontWeight: sort === "volume" ? 700 : 500 }}>
@@ -150,6 +159,16 @@ function Th({ children, align = "right", on = false }: { children: React.ReactNo
       style={{ borderBottom: "1px solid var(--glass-border)", color: on ? "var(--glass-text)" : undefined }}>
       {children}{on ? " ↓" : ""}
     </th>
+  );
+}
+
+// A kind of discount for one location: registrations, and dollars given up.
+function Kind({ n, amount }: { n: number; amount: number }) {
+  return (
+    <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
+      <div style={{ color: n > 0 ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>{n > 0 ? n.toLocaleString() : "—"}</div>
+      {amount > 0.004 && <div className="text-[11px] text-glass-text-tertiary leading-snug">−{money(amount)}</div>}
+    </td>
   );
 }
 

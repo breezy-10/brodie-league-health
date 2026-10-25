@@ -413,6 +413,16 @@ export default function DiscountTable({
                         <TeamRosterBlock
                           team={team}
                           staff={staff ?? undefined}
+                          // A name opens that player in player view, same season,
+                          // their team's location and currency.
+                          hrefFor={(x) => {
+                            if (!x.player_id) return null;
+                            const q = new URLSearchParams({
+                              season, location: team.location, currency: r.currency, view: "players",
+                              player: x.player_id, name: x.player,
+                            });
+                            return `/discounts/players?${q}`;
+                          }}
                           note={got.moved
                             ? `Registered on ${r.team ?? "a team"}, which was merged — showing the team they're on now.`
                             : team.removed

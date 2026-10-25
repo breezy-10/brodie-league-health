@@ -97,10 +97,10 @@ const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigi
 export default async function DiscountPlayersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; free?: string; kind?: string; view?: string; currency?: string; sort?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; free?: string; kind?: string; view?: string; currency?: string; sort?: string; player?: string; name?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam, view: viewParam, currency: currencyParam, sort: sortParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, free: freeParam, kind: kindParam, view: viewParam, currency: currencyParam, sort: sortParam, player: playerParam, name: nameParam } = await searchParams;
   // The Discounts tab's cards are per currency (Canada, United States), so
   // their links carry it and this list narrows to match the card's count.
   const currency = currencyParam === "CAD" || currencyParam === "USD" ? currencyParam : null;
@@ -111,6 +111,8 @@ export default async function DiscountPlayersPage({
   const leaderboardView = viewParam === "leaderboard";
   const playerView = viewParam === "players";
   const teamView = !leaderboardView && !playerView;
+  // A player's name in a team roster opens player view narrowed to them.
+  const playerFilter = playerView && playerParam ? playerParam : null;
   const sort: LeaderSort = sortParam === "share" ? "share" : "volume";
   const freeOnly = freeParam === "1";
   // kind narrows the list to one group, matching a tile on the Discounts tab:
@@ -193,7 +195,7 @@ export default async function DiscountPlayersPage({
   const other = rows.filter(isOtherPaid).length;
   // What each programme cost, reported per currency like the Given up card —
   // a CAD figure and a USD figure are never added together.
-  const givenUp = (pred: (r: DiscountPlayer) => boolean, k: "returning" | "referral" | "other") => {
+  const givenUp = (pred: (r: DiscountPlayer) => boolean, k: "returning" | "referral" | "other" | null) => {
     const m = new Map<string, number>();
     for (const r of rows) if (pred(r)) m.set(r.currency, (m.get(r.currency) ?? 0) + partOf(r, k));
     return [...m.entries()].sort().map(([c, v]) => `${money(v)} ${c}`).join(" \u00b7 ");
@@ -251,6 +253,9 @@ export default async function DiscountPlayersPage({
         <BasisToggle
           param="view"
           value={leaderboardView ? "leaderboard" : teamView ? "teams" : "players"}
+          // The leaderboard compares every location in both countries, so it
+          // drops a location or currency the page was narrowed to.
+          clearOn={{ leaderboard: ["location", "currency"], teams: ["player", "name"] }}
           options={[
             { value: "teams", label: "Team view" },
             { value: "players", label: "Player view" },
@@ -292,7 +297,8 @@ export default async function DiscountPlayersPage({
           )}
           {!freeOnly && (
             <Tile label="Free" value={free.toLocaleString()} accent={GOLD}
-              sub={totalRegs ? <Pct n={free} of={totalRegs} tone={freeTone} /> : undefined} />
+              sub={<Sub pct={totalRegs ? <Pct n={free} of={totalRegs} tone={freeTone} /> : null}
+                cost={givenUp((r) => r.free, null)} />} />
           )}
           {/* Never summed across currencies — each is its own figure. */}
           <Tile label="Given up"
@@ -328,13 +334,32 @@ export default async function DiscountPlayersPage({
           No {freeOnly ? "free" : kind ? KIND_TITLE[kind].toLowerCase().replace(" discounts", " discounted") : "discounted"} registrations for {selectedSeason} in this scope.
         </div>
       ) : (
-        <DiscountTable key={teamView ? "teams" : "players"} rows={rows} season={selectedSeason} staff={staff} ambassadors={ambassadors} teamView={teamView}
+        <>
+        {playerFilter && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span style={{ color: "var(--glass-text)" }}>
+              Showing <b>{nameParam || "one player"}</b> only
+              {rows.some((r) => r.player_id === playerFilter) ? "" : ` · no discounted registration in ${selectedSeason}`}
+            </span>
+            <Link className="br-link" href={(() => {
+              const q = new URLSearchParams();
+              if (seasonParam) q.set("season", seasonParam);
+              if (locationParam) q.set("location", locationParam);
+              if (currency) q.set("currency", currency);
+              q.set("view", "players");
+              return `/discounts/players?${q}`;
+            })()}>Show everyone</Link>
+          </div>
+        )}
+        <DiscountTable key={teamView ? "teams" : "players"} season={selectedSeason} staff={staff} ambassadors={ambassadors} teamView={teamView}
+          rows={playerFilter ? rows.filter((r) => r.player_id === playerFilter) : rows}
           unrostered={unrosteredRows}
           // Every team in scope: each team's list price and total come from it,
           // and the teams with no discount are listed only on the full list,
           // not one narrowed to free registrations or one kind of discount.
           scopeTeams={teamView ? (feed.teams ?? []).filter((t) => !currency || t.currency === currency) : undefined}
           listNone={!freeOnly && !kind} />
+        </>
       )}
 
       {leaderboardView ? (
