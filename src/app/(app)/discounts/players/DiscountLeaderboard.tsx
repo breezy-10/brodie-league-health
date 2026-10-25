@@ -45,8 +45,8 @@ const pct = (n: number, of: number, digits = 0) => (of ? `${((100 * n) / of).toF
 // rank, location, registrations, the four kinds (returning, referral, other,
 // free), list price, discount, share.
 const COLS: [string, number][] = [
-  ["rank", 3], ["location", 15], ["regs", 8], ["returning", 11], ["referral", 11], ["other", 11],
-  ["free", 11], ["list", 10], ["discount", 11], ["share", 9],
+  ["rank", 3], ["location", 14], ["regs", 8], ["returning", 11], ["referral", 11], ["other", 11],
+  ["free", 11], ["list", 10], ["discount", 11], ["share", 10],
 ];
 
 // Locations ranked from the most discount to the least, one card per currency
