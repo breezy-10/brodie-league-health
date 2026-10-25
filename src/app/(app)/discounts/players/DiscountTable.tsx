@@ -272,12 +272,7 @@ export default function DiscountTable({
                       <span className="flex items-center gap-1.5">
                         {chevron}
                         <span className="min-w-0 truncate" title={u.team ?? ""}>{u.team ?? "—"}</span>
-                        {u.free > 0 && (
-                          <span className="shrink-0 ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>
-                            {u.free > 1 ? `${u.free} free` : "Free"}
-                          </span>
-                        )}
+                        {/* Who plays free is the Free column's job, so no badge here. */}
                       </span>
                     </td>
                     <td className="px-4 py-2.5 truncate" style={{ color: "var(--glass-text)" }} title={u.location}>{u.location}</td>
@@ -553,7 +548,7 @@ export default function DiscountTable({
                 {isAmbassador(r) && <AmbassadorBadge />}
               </span>
             </td>
-            <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{r.location}</td>
+            <td className="px-4 py-2.5 truncate" style={{ color: "var(--glass-text)" }} title={r.location}>{r.location}</td>
             <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-tertiary">{TYPE_LABEL[r.type] ?? r.type}</td>
             <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: r.free ? GOLD : "var(--glass-text-tertiary)" }}>
               {r.free ? "Free" : "—"}
@@ -600,8 +595,8 @@ export default function DiscountTable({
 // discounted, free, code, discount type, list price, discount, total,
 // registered.
 const TEAM_COLS: [string, number][] = [
-  ["team", 15], ["location", 10], ["discounted", 10], ["free", 7], ["code", 10], ["type", 13],
-  ["list", 8], ["discount", 8], ["total", 10], ["registered", 9],
+  ["team", 18], ["location", 12], ["discounted", 10], ["free", 7], ["code", 9], ["type", 10],
+  ["list", 8], ["discount", 8], ["total", 9], ["registered", 9],
 ];
 
 const TOOL_BTN =
