@@ -105,10 +105,12 @@ export default async function DiscountPlayersPage({
   // their links carry it and this list narrows to match the card's count.
   const currency = currencyParam === "CAD" || currencyParam === "USD" ? currencyParam : null;
   const COUNTRY = { CAD: "Canada", USD: "United States" } as const;
-  // Player view lists registrations; team view shows the teams they're on.
-  const teamView = viewParam === "teams";
-  // Leaderboard: locations ranked by discount, by volume or by share of list price.
+  // Team view (the default) shows the teams; player view lists each
+  // registration; the leaderboard ranks locations by discount, by volume or
+  // by share of list price. "teams" in an older link still means team view.
   const leaderboardView = viewParam === "leaderboard";
+  const playerView = viewParam === "players";
+  const teamView = !leaderboardView && !playerView;
   const sort: LeaderSort = sortParam === "share" ? "share" : "volume";
   const freeOnly = freeParam === "1";
   // kind narrows the list to one group, matching a tile on the Discounts tab:
@@ -237,9 +239,9 @@ export default async function DiscountPlayersPage({
           locations: selectedLocations,
         }}
         // Changing a filter must not quietly widen a free-only list back out,
-        // or drop back to player view or the leaderboard's sort.
-        keep={freeOnly || kind || teamView || leaderboardView || currency
-          ? { ...(freeOnly ? { free: "1" } : {}), ...(kind ? { kind } : {}), ...(teamView ? { view: "teams" } : {}),
+        // or drop back to team view from the player view or the leaderboard.
+        keep={freeOnly || kind || playerView || leaderboardView || currency
+          ? { ...(freeOnly ? { free: "1" } : {}), ...(kind ? { kind } : {}), ...(playerView ? { view: "players" } : {}),
               ...(leaderboardView ? { view: "leaderboard", ...(sort === "share" ? { sort } : {}) } : {}),
               ...(currency ? { currency } : {}) }
           : undefined}
@@ -250,8 +252,8 @@ export default async function DiscountPlayersPage({
           param="view"
           value={leaderboardView ? "leaderboard" : teamView ? "teams" : "players"}
           options={[
-            { value: "players", label: "Player view" },
             { value: "teams", label: "Team view" },
+            { value: "players", label: "Player view" },
             { value: "leaderboard", label: "Leaderboard" },
           ]}
         />
