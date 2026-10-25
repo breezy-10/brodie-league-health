@@ -1,4 +1,4 @@
-import { locParam } from "@/lib/seasons";
+import { compareSeasons, locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { type PlayersFilter, matchesPlayers } from "./players";
 import { TZ_SHORT } from "@/lib/tz";
@@ -35,6 +35,9 @@ type ScheduledRow = {
   // they went to one.
   stat_line?: StatLine | null;
   placeholder_names?: string | null;
+  // The seasons they registered for after the drop-in (absent from an older
+  // feed; empty when they haven't).
+  registered_seasons?: string[];
 };
 type StatLine = "player" | "placeholder" | "not_recorded" | "awaiting";
 
@@ -119,13 +122,13 @@ const STAT_LINE: Record<StatLine, { label: string; style: React.CSSProperties }>
   awaiting: { label: "No stats yet", style: { color: "var(--glass-text-secondary)", background: "var(--fill-3)" } },
 };
 // Column widths shared by every day's table: time, location, player, team,
-// price, and on Past, attendance, where the stats went, and the game's
-// BallerTV, admin and stats links.
-const COLS = ["12%", "17%", "27%", "34%", "10%"];
-const COLS_PAST = ["8%", "10%", "16%", "19%", "5%", "10%", "11%", "7%", "7%", "7%"];
+// price, the seasons they registered for, and on Past, attendance, where the
+// stats went, and the game's BallerTV, admin and stats links.
+const COLS = ["11%", "15%", "24%", "24%", "8%", "18%"];
+const COLS_PAST = ["8%", "10%", "15%", "15%", "5%", "10%", "9%", "9%", "6%", "6%", "7%"];
 // By registration date: the registration time, then the game's day and time.
-const COLS_REG = ["10%", "17%", "14%", "23%", "28%", "8%"];
-const COLS_PAST_REG = ["7%", "11%", "9%", "14%", "16%", "5%", "9%", "10%", "6%", "6%", "7%"];
+const COLS_REG = ["9%", "15%", "12%", "20%", "20%", "7%", "17%"];
+const COLS_PAST_REG = ["7%", "10%", "8%", "13%", "13%", "5%", "9%", "9%", "9%", "6%", "5%", "6%"];
 
 // The game on BallerTV, found when clicked (see /go/ballertv), and on the
 // admin and stats sites by its ops id: the same three links Stats Health
@@ -199,7 +202,7 @@ export default async function ScheduledDropIns({
   const games = new Set(rows.map((r) => `${r.game_at}|${r.location}|${r.team}|${r.opponent}`)).size;
   const newCount = rows.filter((r) => r.is_new).length;
   const today = todayKey();
-  const tableMin = (past ? 1240 : 760) + (byRegistered ? 140 : 0);
+  const tableMin = (past ? 1320 : 860) + (byRegistered ? 140 : 0);
 
   return (
     <div className="space-y-4">
@@ -247,6 +250,7 @@ export default async function ScheduledDropIns({
                       <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Player</th>
                       <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Team</th>
                       <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Price</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Registered for</th>
                       {past && (
                         <>
                           <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Attendance</th>
@@ -294,11 +298,24 @@ export default async function ScheduledDropIns({
                           </span>
                         </td>
                         <td className="px-4 py-2.5" style={{ color: "var(--glass-text)" }}>
-                          {r.team ?? "—"}
-                          {r.opponent && <span className="text-glass-text-tertiary"> vs {r.opponent}</span>}
+                          <div>{r.team ?? "—"}</div>
+                          {r.opponent && <div className="text-xs text-glass-text-tertiary">vs {r.opponent}</div>}
                         </td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-secondary">
                           {r.paid > 0 ? "Paid" : "Free"}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {r.registered_seasons?.length ? (
+                            <div className="flex flex-wrap gap-1">
+                              {[...r.registered_seasons].sort(compareSeasons).map((s) => (
+                                <span key={s} className={CHIP} style={{ color: "var(--green)", background: "var(--green-tint)" }}>
+                                  {s === season ? "This season" : s}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-glass-text-tertiary">—</span>
+                          )}
                         </td>
                         {past && r.attendance !== "upcoming" && (
                           <>
@@ -352,14 +369,16 @@ export default async function ScheduledDropIns({
             or marked as played on the game; a no-show is a game whose stats are in for their team but not for them;
             awaiting stats is a game with none in for their team yet. Stat line says where their stats went: on the
             player, on a spare (a placeholder with no account and no roster spot, like &ldquo;Spare player&rdquo;),
-            not on their team&apos;s sheet, or no stats in yet. Times are the venue&apos;s own local time.
+            not on their team&apos;s sheet, or no stats in yet. Registered for is each season the player registered
+            for after the drop-in. Times are the venue&apos;s own local time.
             {byRegistered && " Registered is when the drop-in went through (paid, or confirmed when free)."}
           </>
         ) : (
           <>
             Every drop-in that went through for a game still to come, {byRegistered
               ? "by the day it was registered, newest first"
-              : "by the game it is for"}. Times are the venue&apos;s own local time.
+              : "by the game it is for"}. Registered for is each season the player registered for after the
+            drop-in. Times are the venue&apos;s own local time.
             {byRegistered && " Registered is when the drop-in went through (paid, or confirmed when free)."}
           </>
         )}
