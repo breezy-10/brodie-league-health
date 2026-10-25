@@ -190,16 +190,16 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
           </div>
 
           <section className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>
-                {byNight ? "By night" : "By location"}
-              </h2>
-              <BasisToggle
-                param="by"
-                value={byNight ? "night" : "location"}
-                options={[{ value: "location", label: "By location" }, { value: "night", label: "By night" }]}
-              />
-            </div>
+            {/* The view toggle sits on its own row under the cards, above the
+                section it switches. */}
+            <BasisToggle
+              param="by"
+              value={byNight ? "night" : "location"}
+              options={[{ value: "location", label: "By location" }, { value: "night", label: "By night" }]}
+            />
+            <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>
+              {byNight ? "By night" : "By location"}
+            </h2>
 
             {nights.length === 0 ? (
               <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
