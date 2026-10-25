@@ -219,8 +219,8 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
                       <tr className="text-xs font-bold text-glass-text-tertiary">
                         <Th align="left" width="22%">Location</Th>
                         <Th width="8%">Games</Th>
-                        <Th width="10%">Played</Th>
                         <Th width="12%">Checked in</Th>
+                        <Th width="10%">Played</Th>
                         <Th width="18%">Of those who played</Th>
                         <Th align="left" width="30%">Checked in by</Th>
                       </tr>
@@ -230,12 +230,12 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
                         <tr key={n.league_id} style={{ borderTop: "1px solid var(--glass-border)" }}>
                           <td className="px-4 py-2.5" style={{ color: "var(--glass-text)" }}>{n.location}</td>
                           <Num>{n.games}</Num>
-                          <Num muted={!n.played}>{n.played ? n.played.toLocaleString() : "—"}</Num>
                           <td className="px-4 py-2.5 text-right tabular">
                             {n.checked_in > 0
                               ? <span style={{ color: "var(--glass-text)" }}>{n.checked_in.toLocaleString()}</span>
                               : <span className={CHIP} style={RED}>None</span>}
                           </td>
+                          <Num muted={!n.played}>{n.played ? n.played.toLocaleString() : "—"}</Num>
                           <td className="px-4 py-2.5 text-right tabular whitespace-nowrap">
                             <Share n={n.checked_and_played} of={n.played} />
                           </td>
@@ -254,8 +254,8 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
                   <tr className="text-xs font-bold text-glass-text-tertiary">
                     <Th align="left" width="18%">Location</Th>
                     <Th width="12%">Nights checking in</Th>
-                    <Th width="9%">Played</Th>
                     <Th width="10%">Checked in</Th>
+                    <Th width="9%">Played</Th>
                     <Th width="16%">Of those who played</Th>
                     <Th width="11%">Last checked in</Th>
                     <Th align="left" width="24%">Checked in by</Th>
@@ -270,8 +270,8 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
                           {r.checking} of {r.nights}
                         </span>
                       </td>
-                      <Num muted={!r.played}>{r.played ? r.played.toLocaleString() : "—"}</Num>
                       <Num>{r.checkedIn.toLocaleString()}</Num>
+                      <Num muted={!r.played}>{r.played ? r.played.toLocaleString() : "—"}</Num>
                       <td className="px-4 py-2.5 text-right tabular whitespace-nowrap">
                         <Share n={r.checkedPlayed} of={r.played} />
                       </td>
@@ -289,8 +289,8 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
                       <td className="px-4 py-3 text-right tabular font-bold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
                         {nightsChecking} of {nights.length}
                       </td>
-                      <Num bold>{played.toLocaleString()}</Num>
                       <Num bold>{checkedIn.toLocaleString()}</Num>
+                      <Num bold>{played.toLocaleString()}</Num>
                       <td className="px-4 py-3 text-right tabular whitespace-nowrap">
                         <Share n={checkedPlayed} of={played} />
                       </td>
