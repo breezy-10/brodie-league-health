@@ -45,8 +45,8 @@ const pct = (n: number, of: number, digits = 0) => (of ? `${((100 * n) / of).toF
 // rank, location, registrations, the four kinds (returning, referral, other,
 // free), list price, discount, share.
 const COLS: [string, number][] = [
-  ["rank", 4], ["location", 17], ["regs", 9], ["returning", 10], ["referral", 10], ["other", 10],
-  ["free", 9], ["list", 11], ["discount", 11], ["share", 9],
+  ["rank", 3], ["location", 15], ["regs", 8], ["returning", 11], ["referral", 11], ["other", 11],
+  ["free", 11], ["list", 10], ["discount", 11], ["share", 9],
 ];
 
 // Locations ranked from the most discount to the least, one card per currency
@@ -114,10 +114,10 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                     <Th align="left">#</Th>
                     <Th align="left">Location</Th>
                     <Th>Registrations</Th>
-                    <Th>Returning player</Th>
-                    <Th>Referral</Th>
-                    <Th>Other discounts</Th>
-                    <Th>Free</Th>
+                    <Th tight>Returning player</Th>
+                    <Th tight>Referral</Th>
+                    <Th tight>Other discounts</Th>
+                    <Th tight>Free</Th>
                     <Th>List price</Th>
                     <Th on={sort === "volume"}>Discount</Th>
                     <Th on={sort === "share"}>% of list price</Th>
@@ -139,10 +139,10 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                             registrations used it, and what it gave up. Other
                             leaves out the free registrations, which have their
                             own column. */}
-                        <Kind n={r.returning_discounted} amount={r.returning_discount_total} />
-                        <Kind n={r.referral_discounted} amount={r.referral_discount_total} />
-                        <Kind n={otherN(r)} amount={otherAmt(r)} />
-                        <Kind n={r.free} amount={r.free_value} />
+                        <Kind n={r.returning_discounted} of={r.regs} amount={r.returning_discount_total} />
+                        <Kind n={r.referral_discounted} of={r.regs} amount={r.referral_discount_total} />
+                        <Kind n={otherN(r)} of={r.regs} amount={otherAmt(r)} />
+                        <Kind n={r.free} of={r.regs} amount={r.free_value} />
                         <Num>{money(listOf(r))}</Num>
                         <td className="px-4 py-2.5 text-right tabular whitespace-nowrap"
                           style={{ color: g.amount > 0 ? GOLD : "var(--glass-text-tertiary)", fontWeight: sort === "volume" ? 700 : 500 }}>
@@ -163,10 +163,10 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                     <Foot align="left" />
                     <Foot align="left">Total</Foot>
                     <Foot>{sum((r) => r.regs).toLocaleString()}</Foot>
-                    <Foot sub={sum((r) => r.returning_discount_total)}>{sum((r) => r.returning_discounted).toLocaleString()}</Foot>
-                    <Foot sub={sum((r) => r.referral_discount_total)}>{sum((r) => r.referral_discounted).toLocaleString()}</Foot>
-                    <Foot sub={sum(otherAmt)}>{sum(otherN).toLocaleString()}</Foot>
-                    <Foot sub={sum((r) => r.free_value)}>{sum((r) => r.free).toLocaleString()}</Foot>
+                    <FootKind n={sum((r) => r.returning_discounted)} of={sum((r) => r.regs)} amount={sum((r) => r.returning_discount_total)} />
+                    <FootKind n={sum((r) => r.referral_discounted)} of={sum((r) => r.regs)} amount={sum((r) => r.referral_discount_total)} />
+                    <FootKind n={sum(otherN)} of={sum((r) => r.regs)} amount={sum(otherAmt)} />
+                    <FootKind n={sum((r) => r.free)} of={sum((r) => r.regs)} amount={sum((r) => r.free_value)} />
                     <Foot>{money(totalList)}</Foot>
                     <Foot gold>{totalGiven > 0 ? `−${money(totalGiven)}` : "—"}</Foot>
                     <Foot>{pct(totalGiven, totalList, 1)}</Foot>
@@ -182,9 +182,9 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
 }
 
 // Sticky header cell; the column the board is sorted by reads bright with an arrow.
-function Th({ children, align = "right", on = false }: { children: React.ReactNode; align?: "left" | "right"; on?: boolean }) {
+function Th({ children, align = "right", on = false, tight = false }: { children: React.ReactNode; align?: "left" | "right"; on?: boolean; tight?: boolean }) {
   return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold whitespace-nowrap ${STICK_TH}`}
+    <th className={`${tight ? "px-2.5" : "px-4"} py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold whitespace-nowrap ${STICK_TH}`}
       style={{ ...STICKY_TH_STYLE, color: on ? "var(--glass-text)" : undefined }}>
       {children}{on ? " ↓" : ""}
     </th>
@@ -193,27 +193,40 @@ function Th({ children, align = "right", on = false }: { children: React.ReactNo
 
 // A cell of the totals row: sticky at the bottom of the window, with the
 // dollars given up under a count where there are any.
-function Foot({ children, align = "right", sub, gold = false }: {
-  children?: React.ReactNode; align?: "left" | "right"; sub?: number; gold?: boolean;
+function Foot({ children, align = "right", sub, note, gold = false, tight = false }: {
+  children?: React.ReactNode; align?: "left" | "right"; sub?: number; note?: string; gold?: boolean; tight?: boolean;
 }) {
   return (
-    <td className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} tabular whitespace-nowrap align-middle ${STICK_FOOT} first:rounded-bl-2xl last:rounded-br-2xl`}
+    <td className={`${tight ? "px-2.5" : "px-4"} py-2.5 ${align === "left" ? "text-left" : "text-right"} tabular whitespace-nowrap align-middle ${STICK_FOOT} first:rounded-bl-2xl last:rounded-br-2xl`}
       style={{ ...STICKY_TH_STYLE, boxShadow: "inset 0 1px 0 var(--glass-border), 0 -10px 14px -10px rgba(0,0,0,0.55)", color: gold ? GOLD : "var(--glass-text)" }}>
       <div>{children}</div>
       {sub !== undefined && sub > 0.004 && (
         <div className="text-[11px] font-normal text-glass-text-tertiary leading-snug">−{money(sub)}</div>
       )}
+      {note && <div className="text-[11px] font-normal text-glass-text-tertiary leading-snug">{note}</div>}
     </td>
   );
 }
 
-// A kind of discount for one location: registrations, and dollars given up.
-function Kind({ n, amount }: { n: number; amount: number }) {
+// A kind of discount for one location: how many of its registrations used it,
+// that share, and the dollars it gave up.
+const kindSub = (n: number, of: number, amount: number) =>
+  [of ? pct(n, of) : null, amount > 0.004 ? `−${money(amount)}` : null].filter(Boolean).join(" · ");
+function Kind({ n, of, amount }: { n: number; of: number; amount: number }) {
   return (
-    <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-middle">
-      <div style={{ color: n > 0 ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>{n > 0 ? n.toLocaleString() : "—"}</div>
-      {amount > 0.004 && <div className="text-[11px] text-glass-text-tertiary leading-snug">−{money(amount)}</div>}
+    <td className="px-2.5 py-2.5 text-right tabular whitespace-nowrap align-middle">
+      <div style={{ color: n > 0 ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
+        {n.toLocaleString()} of {of.toLocaleString()}
+      </div>
+      <div className="text-[11px] text-glass-text-tertiary leading-snug">{kindSub(n, of, amount)}</div>
     </td>
+  );
+}
+
+// The totals row's version of a kind cell.
+function FootKind({ n, of, amount }: { n: number; of: number; amount: number }) {
+  return (
+    <Foot tight note={kindSub(n, of, amount)}>{n.toLocaleString()} of {of.toLocaleString()}</Foot>
   );
 }
 
