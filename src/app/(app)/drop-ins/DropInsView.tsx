@@ -332,6 +332,92 @@ async function DropInSummary({ season, locationNames, when, players }: {
   // Each venue's bar is against the highest venue in its own currency.
   const maxRevenue = new Map(currencies.map((cur) => [cur, Math.max(...locs.filter((r) => r.currency === cur).map((r) => r.revenue), 1)]));
 
+  const showedTile = past && (
+    <Tile label="Showed up" value={pct(showed, showed + noShow)}
+      accent={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined}
+      sub={
+        <>
+          {/* Out of the drop-ins whose team's stats are in, so
+              the three lines add up to the drop-ins tile. */}
+          <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} drop-ins with stats in</span>
+          <span className="block">{noShow.toLocaleString()} {noShow === 1 ? "no-show" : "no-shows"}</span>
+          <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats, not counted</span>
+        </>
+      } />
+  );
+  const revenueTile = (
+    <Tile label="Revenue" value={byCurrency((cur) => sum("revenue", cur))} accent={ACCENT}
+      sub={
+        <>
+          <span className="block">
+            {paidDropins.toLocaleString()} paid {paidDropins === 1 ? "drop-in" : "drop-ins"}: {retPaid.toLocaleString()} returning, {newCharged.toLocaleString()} new
+          </span>
+          <span className="block">price after any discount, before processing fees</span>
+        </>
+      } />
+  );
+  const notPaidTile = (
+    <Tile label="Started, not paid" value={notPaid.toLocaleString()}
+      accent={notPaid ? "var(--amber-ink)" : undefined}
+      sub={`${cancelled.toLocaleString()} cancelled`} />
+  );
+  const newDropinsTile = (
+    <Tile label="Drop-ins" value={newDropins.toLocaleString()} accent={ACCENT}
+      sub={
+        <>
+          <span className="block">by {newPlayers.toLocaleString()} new {newPlayers === 1 ? "player" : "players"}</span>
+          <span className="block">
+            {newFree.toLocaleString()} free
+            {newCharged > 0 && <> · <span style={{ color: "var(--red)" }}>{newCharged.toLocaleString()} charged</span></>}
+          </span>
+        </>
+      } />
+  );
+  const becameTile = (
+    <Tile label="Became registrations" value={pct(converted, newPlayers)} accent={ACCENT}
+      sub={!converted
+        ? `0 of ${newPlayers.toLocaleString()} new players have registered for a season since`
+        : people.converted_by_season
+          ? convertedLines(converted, newPlayers, "new", people.converted_by_season, people.converted_multi_season)
+          : `${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${
+              convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
+  );
+  const givenFreeTile = (
+    <Tile label="Given free" value={byCurrency((cur) => sum("given_free", cur))}
+      sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
+  );
+  const retDropinsTile = (
+    <Tile label="Drop-ins" value={retDropins.toLocaleString()} accent={ACCENT}
+      sub={
+        <>
+          <span className="block">by {retPlayers.toLocaleString()} returning {retPlayers === 1 ? "player" : "players"}</span>
+          {sum("returning_free") > 0 && (
+            <span className="block" style={{ color: "var(--red)" }}>{sum("returning_free")} got in free</span>
+          )}
+        </>
+      } />
+  );
+  const listTile = (
+    <Tile label="List price" value={retDropins ? byCurrency((cur) => rw("returning_list_price", cur)) : "—"} accent={LIST}
+      sub="before discount" />
+  );
+  const discountTile = (
+    <Tile label="Discount" value={retDropins ? byCurrency((cur) => rw("returning_discount", cur), "−") : "—"}
+      sub="averaged over returning drop-ins" />
+  );
+  // Before processing fees, like Revenue: the drop-in price returning players
+  // brought in, summed.
+  const retRevenueTile = (
+    <Tile label="Revenue" value={byCurrency((cur) => sum("returning_revenue", cur))} accent={ACCENT}
+      sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
+  );
+  const regAfterTile = (
+    <Tile label="Registered after" value={pct(retConverted, retPlayers)} accent={ACCENT}
+      sub={retConverted
+        ? convertedLines(retConverted, retPlayers, "returning", people.returning_converted_by_season, people.returning_converted_multi_season)
+        : `none of ${retPlayers.toLocaleString()} returning players has registered for a season since`} />
+  );
+
   return (
     <div className="space-y-8">
       <section className="space-y-3">
@@ -344,96 +430,58 @@ async function DropInSummary({ season, locationNames, when, players }: {
           </span>
         </div>
 
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-          <Tile label="Drop-ins" value={n.toLocaleString()} accent={ACCENT}
-            sub={
-              <>
-                {showNew && <span className="block">{newDropins.toLocaleString()} by new players</span>}
-                {showRet && <span className="block">{retDropins.toLocaleString()} by returning players</span>}
-              </>
-            } />
-          {past && (
-            <Tile label="Showed up" value={pct(showed, showed + noShow)}
-              accent={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined}
-              sub={
-                <>
-                  {/* Out of the drop-ins whose team's stats are in, so
-                      the three lines add up to the drop-ins tile. */}
-                  <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} drop-ins with stats in</span>
-                  <span className="block">{noShow.toLocaleString()} {noShow === 1 ? "no-show" : "no-shows"}</span>
-                  <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats, not counted</span>
-                </>
-              } />
-          )}
-          <Tile label="Revenue" value={byCurrency((cur) => sum("revenue", cur))} accent={ACCENT}
-            sub={
-              <>
-                <span className="block">
-                  {paidDropins.toLocaleString()} paid {paidDropins === 1 ? "drop-in" : "drop-ins"}: {retPaid.toLocaleString()} returning, {newCharged.toLocaleString()} new
-                </span>
-                <span className="block">price after any discount, before processing fees</span>
-              </>
-            } />
-          <Tile label="Started, not paid" value={notPaid.toLocaleString()}
-            accent={notPaid ? "var(--amber-ink)" : undefined}
-            sub={`${cancelled.toLocaleString()} cancelled`} />
-        </div>
-
-        {showNew && (
+        {/* New or Returning alone is one row of tiles: the group's own
+            drop-ins tile (who was free) leads, and nothing repeats. Both keeps
+            the totals, then a section for each group. */}
+        {players === "both" ? (
           <>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              <Tile label="Drop-ins" value={n.toLocaleString()} accent={ACCENT}
+                sub={
+                  <>
+                    <span className="block">{newDropins.toLocaleString()} by new players</span>
+                    <span className="block">{retDropins.toLocaleString()} by returning players</span>
+                  </>
+                } />
+              {showedTile}
+              {revenueTile}
+              {notPaidTile}
+            </div>
             <SubHead title="New players" note="Free with First-Time Free" />
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-              {/* Drop-ins first, then who made them, as the tile at the top. */}
-              <Tile label="Drop-ins" value={newDropins.toLocaleString()} accent={ACCENT}
-                sub={
-                  <>
-                    <span className="block">by {newPlayers.toLocaleString()} new {newPlayers === 1 ? "player" : "players"}</span>
-                    <span className="block">
-                      {newFree.toLocaleString()} free
-                      {newCharged > 0 && <> · <span style={{ color: "var(--red)" }}>{newCharged.toLocaleString()} charged</span></>}
-                    </span>
-                  </>
-                } />
-              <Tile label="Became registrations" value={pct(converted, newPlayers)} accent={ACCENT}
-                sub={!converted
-                  ? `0 of ${newPlayers.toLocaleString()} new players have registered for a season since`
-                  : people.converted_by_season
-                    ? convertedLines(converted, newPlayers, "new", people.converted_by_season, people.converted_multi_season)
-                    : `${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after: ${
-                        convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
-              <Tile label="Given free" value={byCurrency((cur) => sum("given_free", cur))}
-                sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
+              {newDropinsTile}
+              {becameTile}
+              {givenFreeTile}
             </div>
-          </>
-        )}
-
-        {showRet && (
-          <>
             <SubHead title="Returning players" note="Charged for each drop-in" />
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
-              <Tile label="Drop-ins" value={retDropins.toLocaleString()} accent={ACCENT}
-                sub={
-                  <>
-                    <span className="block">by {retPlayers.toLocaleString()} returning {retPlayers === 1 ? "player" : "players"}</span>
-                    {sum("returning_free") > 0 && (
-                      <span className="block" style={{ color: "var(--red)" }}>{sum("returning_free")} got in free</span>
-                    )}
-                  </>
-                } />
-              <Tile label="List price" value={retDropins ? byCurrency((cur) => rw("returning_list_price", cur)) : "—"} accent={LIST}
-                sub="before discount" />
-              <Tile label="Discount" value={retDropins ? byCurrency((cur) => rw("returning_discount", cur), "−") : "—"}
-                sub="averaged over returning drop-ins" />
-              {/* Before processing fees, like Revenue above: the drop-in price
-                  returning players brought in, summed. */}
-              <Tile label="Revenue" value={byCurrency((cur) => sum("returning_revenue", cur))} accent={ACCENT}
-                sub={`${retDropins.toLocaleString()} ${retDropins === 1 ? "drop-in" : "drop-ins"}, before processing fees`} />
-              <Tile label="Registered after" value={pct(retConverted, retPlayers)} accent={ACCENT}
-                sub={retConverted
-                  ? convertedLines(retConverted, retPlayers, "returning", people.returning_converted_by_season, people.returning_converted_multi_season)
-                  : `none of ${retPlayers.toLocaleString()} returning players has registered for a season since`} />
+              {retDropinsTile}
+              {listTile}
+              {discountTile}
+              {retRevenueTile}
+              {regAfterTile}
             </div>
           </>
+        ) : players === "new" ? (
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+            {newDropinsTile}
+            {showedTile}
+            {revenueTile}
+            {notPaidTile}
+            {becameTile}
+            {givenFreeTile}
+          </div>
+        ) : (
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+            {retDropinsTile}
+            {showedTile}
+            {/* Revenue here is all returning players', so no second one. */}
+            {revenueTile}
+            {notPaidTile}
+            {listTile}
+            {discountTile}
+            {regAfterTile}
+          </div>
         )}
 
         <div className="rounded-2xl bg-glass-surface shadow-card">
