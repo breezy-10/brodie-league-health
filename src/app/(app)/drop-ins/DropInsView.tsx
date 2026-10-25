@@ -187,17 +187,20 @@ export default async function DropInsView({
 
       {/* Available lists open spots, which belong to no player, so it has no
           new or returning to pick. */}
+      {/* Its own row: br-seg is inline, and would sit beside the tab bar. */}
       {!isAvailable && (
-        <BasisToggle
-          param="players"
-          value={players}
-          defaultValue="new"
-          options={[
-            { value: "new", label: "New" },
-            { value: "returning", label: "Returning" },
-            { value: "both", label: "Both" },
-          ]}
-        />
+        <div>
+          <BasisToggle
+            param="players"
+            value={players}
+            defaultValue="new"
+            options={[
+              { value: "new", label: "New" },
+              { value: "returning", label: "Returning" },
+              { value: "both", label: "Both" },
+            ]}
+          />
+        </div>
       )}
 
       <BasisToggle
