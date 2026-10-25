@@ -19,6 +19,7 @@ type Night = {
   location: string;
   night: string; // the venue's local date, "YYYY-MM-DD"
   games: number;
+  games_stats_in?: number; // games whose stats are in; absent from an older feed
   played: number;
   checked_in: number;
   checked_and_played: number;
@@ -111,6 +112,9 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
 
   const sum = (rows: Night[], k: "games" | "played" | "checked_in" | "checked_and_played") =>
     rows.reduce((s, n) => s + n[k], 0);
+  const statsIn = (n: Night) => n.games_stats_in ?? n.games;
+  const games = sum(nights, "games");
+  const gamesIn = nights.reduce((s, n) => s + statsIn(n), 0);
   const checkedIn = sum(nights, "checked_in");
   const played = sum(nights, "played");
   const checkedPlayed = sum(nights, "checked_and_played");
@@ -118,15 +122,18 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
 
   // One row per location over the window.
   type LocRow = {
-    location: string; nights: number; checking: number; played: number; checkedIn: number;
-    checkedPlayed: number; last: string | null; staff: Set<string>;
+    location: string; nights: number; checking: number; games: number; gamesIn: number; played: number;
+    checkedIn: number; checkedPlayed: number; last: string | null; staff: Set<string>;
   };
   const byLoc = new Map<string, LocRow>();
   for (const n of nights) {
     const r = byLoc.get(n.location) ?? {
-      location: n.location, nights: 0, checking: 0, played: 0, checkedIn: 0, checkedPlayed: 0, last: null, staff: new Set<string>(),
+      location: n.location, nights: 0, checking: 0, games: 0, gamesIn: 0, played: 0, checkedIn: 0, checkedPlayed: 0,
+      last: null, staff: new Set<string>(),
     };
     r.nights += 1;
+    r.games += n.games;
+    r.gamesIn += statsIn(n);
     r.played += n.played;
     r.checkedIn += n.checked_in;
     r.checkedPlayed += n.checked_and_played;
@@ -180,7 +187,8 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
               sub={`on ${nightsChecking.toLocaleString()} of ${nights.length.toLocaleString()} game nights`} />
             <Tile label="Of those who played" value={pct(checkedPlayed, played)}
               valueStyle={played ? { color: shareStyle(checkedPlayed, played).color } : undefined}
-              sub={`${checkedPlayed.toLocaleString()} of ${played.toLocaleString()} players with a stat line were checked in`} />
+              sub={`${checkedPlayed.toLocaleString()} of ${played.toLocaleString()} players with a stat line were checked in${
+                played && gamesIn < games ? `, with stats in for ${gamesIn.toLocaleString()} of ${games.toLocaleString()} games` : ""}`} />
             <Tile label="Locations checking in" value={`${locsChecking} of ${locRows.length}`}
               sub={locRows.length - locsChecking > 0
                 ? `${locRows.length - locsChecking} with game nights and no one checked in`
@@ -235,7 +243,7 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
                               ? <span style={{ color: "var(--glass-text)" }}>{n.checked_in.toLocaleString()}</span>
                               : <span className={CHIP} style={RED}>None</span>}
                           </td>
-                          <Num muted={!n.played}>{n.played ? n.played.toLocaleString() : "—"}</Num>
+                          <Played n={n.played} games={n.games} statsIn={statsIn(n)} />
                           <td className="px-4 py-2.5 text-right tabular whitespace-nowrap">
                             <Share n={n.checked_and_played} of={n.played} />
                           </td>
@@ -271,7 +279,7 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
                         </span>
                       </td>
                       <Num>{r.checkedIn.toLocaleString()}</Num>
-                      <Num muted={!r.played}>{r.played ? r.played.toLocaleString() : "—"}</Num>
+                      <Played n={r.played} games={r.games} statsIn={r.gamesIn} />
                       <td className="px-4 py-2.5 text-right tabular whitespace-nowrap">
                         <Share n={r.checkedPlayed} of={r.played} />
                       </td>
@@ -290,7 +298,7 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
                         {nightsChecking} of {nights.length}
                       </td>
                       <Num bold>{checkedIn.toLocaleString()}</Num>
-                      <Num bold>{played.toLocaleString()}</Num>
+                      <Played n={played} games={games} statsIn={gamesIn} bold />
                       <td className="px-4 py-3 text-right tabular whitespace-nowrap">
                         <Share n={checkedPlayed} of={played} />
                       </td>
@@ -353,7 +361,8 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
         From the ops check-ins: staff at the front table check each player in to their game, to the venue, or to an
         event. A game night is one location&apos;s games on one local date, from the first night two or more
         locations checked players in this season. Played is everyone with a stat line or marked as played on that night&apos;s games, so a night
-        whose stats aren&apos;t in yet reads awaiting stats. Of those who played is how many of them were checked in:
+        whose stats aren&apos;t in yet reads awaiting stats, and one with only some games&apos; stats in says how many games under Played
+        (a forfeit counts as in). Of those who played is how many of them were checked in:
         green when all were, yellow from 80%, red below. Checked in can run above played: spares, drop-ins and anyone
         checked in without a stat line count there. Events count against everyone with a confirmed RSVP.
       </p>
@@ -370,6 +379,24 @@ function Share({ n, of, awaiting = "Awaiting stats" }: { n: number; of: number; 
       <span className="text-[11px] text-glass-text-tertiary">{n.toLocaleString()} of {of.toLocaleString()}</span>
       <span className={CHIP} style={shareStyle(n, of)}>{pct(n, of)}</span>
     </span>
+  );
+}
+
+// Played, with how many of the games have stats in under it while some are
+// still to come: the rest of those games' players can't count as played yet.
+function Played({ n, games, statsIn, bold = false }: { n: number; games: number; statsIn: number; bold?: boolean }) {
+  const partial = n > 0 && statsIn < games;
+  return (
+    <td className={`px-4 ${bold ? "py-3 font-bold" : "py-2.5"} text-right tabular`}
+      style={{ color: n ? "var(--glass-text)" : "var(--glass-text-tertiary)" }}>
+      {n ? n.toLocaleString() : "—"}
+      {partial && (
+        <div className="text-[11px] font-normal text-glass-text-tertiary whitespace-nowrap"
+          title={`Stats are in for ${statsIn} of ${games} games`}>
+          {statsIn.toLocaleString()} of {games.toLocaleString()} games
+        </div>
+      )}
+    </td>
   );
 }
 
