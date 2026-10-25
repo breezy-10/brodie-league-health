@@ -1,5 +1,6 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
+import { type PlayersFilter, matchesPlayers } from "./players";
 import { TZ_SHORT, dateKey, dayLabel, todayKey } from "./ScheduledDropIns";
 import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
@@ -74,13 +75,15 @@ const COLS = ["10%", "13%", "21%", "24%", "32%"];
 export default async function MissingStatsDropIns({
   season,
   locationNames,
+  players = "both",
 }: {
   season: string;
   locationNames: string[] | null;
+  players?: PlayersFilter;
 }) {
-  const rows = await loadMissing(season, locationNames);
+  const loaded = await loadMissing(season, locationNames);
 
-  if (!rows) {
+  if (!loaded) {
     return (
       <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
         Drop-in feed unavailable: the Promo Tracker didn&apos;t answer for {season}.
@@ -88,6 +91,7 @@ export default async function MissingStatsDropIns({
     );
   }
 
+  const rows = loaded.filter((r) => matchesPlayers(r.is_new, players));
   // Most recent day first, then location and time, as Scheduled's Past view.
   const sorted = [...rows].sort((a, b) =>
     (dateKey(b.game_at) || "0000").localeCompare(dateKey(a.game_at) || "0000")

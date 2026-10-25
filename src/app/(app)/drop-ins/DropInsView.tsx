@@ -8,6 +8,7 @@ import AvailableDropIns from "./AvailableDropIns";
 import MissingStatsDropIns from "./MissingStatsDropIns";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { type PlayersFilter, playersFilter } from "./players";
 import { SectionSkeleton } from "../dashboard/Skeletons";
 import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
@@ -91,12 +92,13 @@ export type DropInFeed = {
 // when: only drop-ins for games already played, or still to come; every
 // drop-in without it.
 export async function loadDropIns(
-  season: string, locationNames: string[] | null, when?: "past" | "upcoming",
+  season: string, locationNames: string[] | null, when?: "past" | "upcoming", players: PlayersFilter = "both",
 ): Promise<DropInFeed | null> {
   try {
     const url = new URL("/api/drop-ins", PROMO_APP_URL);
     url.searchParams.set("season", season);
     if (when) url.searchParams.set("when", when);
+    if (players !== "both") url.searchParams.set("players", players);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
     const res = await promoFetch(url.toString(), { cache: "no-store" });
@@ -116,10 +118,12 @@ const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : 
 export default async function DropInsView({
   searchParams,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; tab?: string; when?: string; by?: string }>;
+  searchParams: Promise<{ season?: string; location?: string; tab?: string; when?: string; by?: string; players?: string }>;
 }) {
   await requireUser();
-  const { season: seasonParam, location: locationParam, tab: tabParam, when: whenParam, by: byParam } = await searchParams;
+  const { season: seasonParam, location: locationParam, tab: tabParam, when: whenParam, by: byParam, players: playersParam } = await searchParams;
+  // New players by default; returning, or both, when asked.
+  const players = playersFilter(playersParam);
   // Past used to be a switch inside Scheduled; a link from then opens the tab.
   // A redirect rather than reading both, because the tab bar keeps every other
   // param and a leftover when=past would hold Scheduled on Past.
@@ -172,11 +176,29 @@ export default async function DropInsView({
           seasons: selectedSeasons.length ? selectedSeasons : [selectedSeason],
           locations: selectedLocations,
         }}
-        keep={isScheduled ? { tab: "scheduled", ...(byRegistered ? { by: "registered" } : {}) }
-          : isAvailable ? { tab: "available", ...(byLocation ? { by: "location" } : {}) }
-          : isMissing ? { tab: "missing-stats" }
-          : byRegistered ? { by: "registered" } : undefined}
+        keep={{
+          ...(isScheduled ? { tab: "scheduled", ...(byRegistered ? { by: "registered" } : {}) }
+            : isAvailable ? { tab: "available", ...(byLocation ? { by: "location" } : {}) }
+            : isMissing ? { tab: "missing-stats" }
+            : byRegistered ? { by: "registered" } : {}),
+          ...(players !== "new" ? { players } : {}),
+        }}
       />
+
+      {/* Available lists open spots, which belong to no player, so it has no
+          new or returning to pick. */}
+      {!isAvailable && (
+        <BasisToggle
+          param="players"
+          value={players}
+          defaultValue="new"
+          options={[
+            { value: "new", label: "New" },
+            { value: "returning", label: "Returning" },
+            { value: "both", label: "Both" },
+          ]}
+        />
+      )}
 
       <BasisToggle
         param="tab"
@@ -192,12 +214,12 @@ export default async function DropInsView({
       {isAvailable ? (
         <AvailableDropIns season={selectedSeason} locationNames={locationNames} byLocation={byLocation} />
       ) : isMissing ? (
-        <MissingStatsDropIns season={selectedSeason} locationNames={locationNames} />
+        <MissingStatsDropIns season={selectedSeason} locationNames={locationNames} players={players} />
       ) : (
         <>
           {/* Both stream in on their own, so neither waits on the other's feed. */}
           <Suspense fallback={<SectionSkeleton title={isScheduled ? "Drop-ins to come" : "Drop-ins played"} />}>
-            <DropInSummary season={selectedSeason} locationNames={locationNames} when={when} />
+            <DropInSummary season={selectedSeason} locationNames={locationNames} when={when} players={players} />
           </Suspense>
           <section className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -215,7 +237,8 @@ export default async function DropInsView({
                 {[92, 81, 70, 59].map((w) => <div key={w} className="h-3 rounded skeleton-pulse" style={{ width: `${w}%` }} />)}
               </div>
             }>
-              <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={!isScheduled} byRegistered={byRegistered} />
+              <ScheduledDropIns season={selectedSeason} locationNames={locationNames} past={!isScheduled} byRegistered={byRegistered}
+                players={players} />
             </Suspense>
           </section>
         </>
@@ -227,13 +250,19 @@ export default async function DropInsView({
 // The season in numbers, as the Overview tab had it, for the drop-ins whose
 // game has been played (Past) or is still to come (Scheduled). Attendance only
 // means something once a game is played, so Scheduled leaves it out.
-async function DropInSummary({ season, locationNames, when }: {
+async function DropInSummary({ season, locationNames, when, players }: {
   season: string;
   locationNames: string[] | null;
   when: "past" | "upcoming";
+  players: PlayersFilter;
 }) {
-  const feed = await loadDropIns(season, locationNames, when);
+  const feed = await loadDropIns(season, locationNames, when, players);
   const past = when === "past";
+  // The feed already holds only the chosen players; these hide what's left
+  // empty, the other group's tiles and table columns.
+  const showNew = players !== "returning";
+  const showRet = players !== "new";
+  const who = players === "new" ? " by new players" : players === "returning" ? " by returning players" : "";
   const selectedSeason = season;
   // Each currency is its own world, never mixed on one scale or summed.
   const currencies = [...new Set((feed?.locations ?? []).map((r) => r.currency))].sort();
@@ -247,8 +276,8 @@ async function DropInSummary({ season, locationNames, when }: {
       ) : currencies.length === 0 ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
           {past
-            ? `No drop-ins for games played in ${selectedSeason} in this scope yet.`
-            : `No drop-ins for games still to come in ${selectedSeason} in this scope.`}
+            ? `No drop-ins${who} for games played in ${selectedSeason} in this scope yet.`
+            : `No drop-ins${who} for games still to come in ${selectedSeason} in this scope.`}
         </div>
       ) : (
         currencies.map((cur) => {
@@ -293,7 +322,7 @@ async function DropInSummary({ season, locationNames, when }: {
                 <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
                   style={{ background: "var(--fill-3)", color: "var(--glass-text-secondary)" }}>{cur}</span>
                 <span className="text-xs text-glass-text-tertiary">
-                  {n.toLocaleString()} {n === 1 ? "drop-in" : "drop-ins"} for {past ? "games played" : "games still to come"} · {selectedSeason}
+                  {n.toLocaleString()} {n === 1 ? "drop-in" : "drop-ins"}{who} for {past ? "games played" : "games still to come"} · {selectedSeason}
                 </span>
               </div>
 
@@ -301,8 +330,8 @@ async function DropInSummary({ season, locationNames, when }: {
                 <Tile label="Drop-ins" value={n.toLocaleString()} accent={ACCENT}
                   sub={
                     <>
-                      <span className="block">{newDropins.toLocaleString()} by new players</span>
-                      <span className="block">{retDropins.toLocaleString()} by returning players</span>
+                      {showNew && <span className="block">{newDropins.toLocaleString()} by new players</span>}
+                      {showRet && <span className="block">{retDropins.toLocaleString()} by returning players</span>}
                     </>
                   } />
                 {past && (
@@ -332,6 +361,8 @@ async function DropInSummary({ season, locationNames, when }: {
                   sub={`${cancelled.toLocaleString()} cancelled`} />
               </div>
 
+              {showNew && (
+                <>
               <SubHead title="New players" note="Free with First-Time Free" />
               <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
                 {/* Drop-ins first, then who made them, as the tile at the top. */}
@@ -355,7 +386,11 @@ async function DropInSummary({ season, locationNames, when }: {
                 <Tile label="Given free" value={money(sum("given_free"))}
                   sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
               </div>
+                </>
+              )}
 
+              {showRet && (
+                <>
               <SubHead title="Returning players" note="Charged for each drop-in" />
               <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
                 <Tile label="Drop-ins" value={retDropins.toLocaleString()} accent={ACCENT}
@@ -378,6 +413,8 @@ async function DropInSummary({ season, locationNames, when }: {
                     ? convertedLines(retConverted, retPlayers, "returning", people.returning_converted_by_season, people.returning_converted_multi_season)
                     : `none of ${retPlayers.toLocaleString()} returning players has registered for a season since`} />
               </div>
+                </>
+              )}
 
               <div className="rounded-2xl bg-glass-surface shadow-card">
                 <div className={tableScrollBox(past ? 1200 : 1080)}>
@@ -386,12 +423,20 @@ async function DropInSummary({ season, locationNames, when }: {
                       <tr className="text-xs font-bold text-glass-text-tertiary">
                         <Th align="left">Location</Th>
                         <Th>Drop-ins</Th>
-                        <Th>New players</Th>
-                        <Th>Registered this season</Th>
-                        <Th>Registered another season</Th>
-                        <Th>Returning players</Th>
-                        <Th>Returning who registered after</Th>
-                        <Th>Returning revenue</Th>
+                        {showNew && (
+                          <>
+                            <Th>New players</Th>
+                            <Th>Registered this season</Th>
+                            <Th>Registered another season</Th>
+                          </>
+                        )}
+                        {showRet && (
+                          <>
+                            <Th>Returning players</Th>
+                            <Th>Returning who registered after</Th>
+                            <Th>Returning revenue</Th>
+                          </>
+                        )}
                         <Th>Revenue</Th>
                         {past && <Th>Showed up</Th>}
                         <Th>Not paid</Th>
@@ -415,21 +460,29 @@ async function DropInSummary({ season, locationNames, when }: {
                             {r.dropins.toLocaleString()}
                             <CountLine n={r.players} one="player" many="players" />
                           </Td>
-                          <Td>
-                            {(r.new_players ?? 0).toLocaleString()}
-                            <CountLine one="drop-in" many="drop-ins" n={r.new_dropins ?? 0} />
-                          </Td>
-                          <RateTd count={r.converted_same_season ?? 0} total={r.new_players ?? 0} />
-                          <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0}
-                            note={otherSeasons(r.converted_by_season, selectedSeason)} />
-                          <Td>
-                            {(r.returning_players ?? 0).toLocaleString()}
-                            <CountLine one="drop-in" many="drop-ins" n={r.returning_dropins ?? 0} />
-                          </Td>
-                          <RateTd count={r.returning_converted_players ?? 0} total={r.returning_players ?? 0}
-                            note={r.returning_converted_by_season && Object.keys(r.returning_converted_by_season).length
-                              ? seasonCounts(r.returning_converted_by_season) : null} />
-                          <Td>{r.returning_dropins ? money(r.returning_revenue ?? 0) : "—"}</Td>
+                          {showNew && (
+                            <>
+                              <Td>
+                                {(r.new_players ?? 0).toLocaleString()}
+                                <CountLine one="drop-in" many="drop-ins" n={r.new_dropins ?? 0} />
+                              </Td>
+                              <RateTd count={r.converted_same_season ?? 0} total={r.new_players ?? 0} />
+                              <RateTd count={r.converted_other_season ?? 0} total={r.new_players ?? 0}
+                                note={otherSeasons(r.converted_by_season, selectedSeason)} />
+                            </>
+                          )}
+                          {showRet && (
+                            <>
+                              <Td>
+                                {(r.returning_players ?? 0).toLocaleString()}
+                                <CountLine one="drop-in" many="drop-ins" n={r.returning_dropins ?? 0} />
+                              </Td>
+                              <RateTd count={r.returning_converted_players ?? 0} total={r.returning_players ?? 0}
+                                note={r.returning_converted_by_season && Object.keys(r.returning_converted_by_season).length
+                                  ? seasonCounts(r.returning_converted_by_season) : null} />
+                              <Td>{r.returning_dropins ? money(r.returning_revenue ?? 0) : "—"}</Td>
+                            </>
+                          )}
                           <Td strong>{money(r.revenue)}</Td>
                           {past && (
                             <RateTd count={r.showed_up ?? 0} total={(r.showed_up ?? 0) + (r.no_show ?? 0)}
@@ -452,21 +505,29 @@ async function DropInSummary({ season, locationNames, when }: {
                             {n.toLocaleString()}
                             <CountLine n={people.players} one="player" many="players" />
                           </Td>
-                          <Td strong>
-                            {newPlayers.toLocaleString()}
-                            <CountLine one="drop-in" many="drop-ins" n={newDropins} />
-                          </Td>
-                          <RateTd strong count={convertedSame} total={newPlayers} />
-                          <RateTd strong count={convertedOther} total={newPlayers}
-                            note={otherSeasons(people.converted_by_season, selectedSeason)} />
-                          <Td strong>
-                            {retPlayers.toLocaleString()}
-                            <CountLine one="drop-in" many="drop-ins" n={retDropins} />
-                          </Td>
-                          <RateTd strong count={retConverted} total={retPlayers}
-                            note={people.returning_converted_by_season && Object.keys(people.returning_converted_by_season).length
-                              ? seasonCounts(people.returning_converted_by_season) : null} />
-                          <Td strong>{retDropins ? money(sum("returning_revenue")) : "—"}</Td>
+                          {showNew && (
+                            <>
+                              <Td strong>
+                                {newPlayers.toLocaleString()}
+                                <CountLine one="drop-in" many="drop-ins" n={newDropins} />
+                              </Td>
+                              <RateTd strong count={convertedSame} total={newPlayers} />
+                              <RateTd strong count={convertedOther} total={newPlayers}
+                                note={otherSeasons(people.converted_by_season, selectedSeason)} />
+                            </>
+                          )}
+                          {showRet && (
+                            <>
+                              <Td strong>
+                                {retPlayers.toLocaleString()}
+                                <CountLine one="drop-in" many="drop-ins" n={retDropins} />
+                              </Td>
+                              <RateTd strong count={retConverted} total={retPlayers}
+                                note={people.returning_converted_by_season && Object.keys(people.returning_converted_by_season).length
+                                  ? seasonCounts(people.returning_converted_by_season) : null} />
+                              <Td strong>{retDropins ? money(sum("returning_revenue")) : "—"}</Td>
+                            </>
+                          )}
                           <Td strong>{money(sum("revenue"))}</Td>
                           {past && (
                             <RateTd strong count={showed} total={showed + noShow}
