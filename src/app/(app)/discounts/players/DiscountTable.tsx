@@ -257,16 +257,16 @@ export default function DiscountTable({
                     <td className="px-4 py-2.5 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
                       <span className="flex items-center gap-1.5">
                         {chevron}
-                        <span className="max-w-[260px] truncate" title={u.team ?? ""}>{u.team ?? "—"}</span>
+                        <span className="min-w-0 truncate" title={u.team ?? ""}>{u.team ?? "—"}</span>
                         {u.free > 0 && (
-                          <span className="ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded"
+                          <span className="shrink-0 ml-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded"
                             style={{ background: "var(--glass-gold-light, var(--fill-3))", color: GOLD }}>
                             {u.free > 1 ? `${u.free} free` : "Free"}
                           </span>
                         )}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{u.location}</td>
+                    <td className="px-4 py-2.5 truncate" style={{ color: "var(--glass-text)" }} title={u.location}>{u.location}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap align-middle">
                       {u.teamPlayers > 0 ? (() => {
                         // A discounted player who has since left the roster
@@ -439,7 +439,15 @@ export default function DiscountTable({
             on the Ambassadors table. The box is as tall as the window allows
             under the kit's header and this card's toolbar. */}
         <div className="overflow-x-auto" style={{ maxHeight: "max(460px, calc(100vh - var(--shell-top) - 120px))" }}>
-          <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1120 }}>
+          <table className="w-full text-sm"
+            style={{ borderCollapse: "collapse", minWidth: 1120, ...(teamView ? { tableLayout: "fixed" as const } : {}) }}>
+            {/* Team view: the same fixed widths in both cards, so Discounts and
+                No discounts line up column for column (as on Events). */}
+            {teamView && (
+              <colgroup>
+                {TEAM_COLS.map(([k, w]) => <col key={k} style={{ width: `${w}%` }} />)}
+              </colgroup>
+            )}
             <thead>
               {teamView ? (
                 <tr className="text-xs font-bold text-glass-text-tertiary">
@@ -551,6 +559,13 @@ export default function DiscountTable({
     </div>
   );
 }
+
+// Team view's column widths in percent, shared by both cards: team, location,
+// discounted, code, discount type, list price, discount, total, registered.
+const TEAM_COLS: [string, number][] = [
+  ["team", 19], ["location", 11], ["discounted", 10], ["code", 13], ["type", 15],
+  ["list", 8], ["discount", 8], ["total", 8], ["registered", 8],
+];
 
 const TOOL_BTN =
   "inline-flex items-center gap-1.5 rounded-md border border-glass-border px-2.5 py-1 text-[11px] font-semibold "
