@@ -114,7 +114,8 @@ export default function TeamRosterBlock({
         </span>
         <span
           className="text-xs tabular ml-auto shrink-0"
-          style={{ color: t.roster.length && paid === t.roster.length ? "var(--glass-text-secondary)" : THIN }}
+          // Everyone paid reads green; anything short of that stays muted.
+          style={{ color: t.roster.length && paid === t.roster.length ? "var(--glass-success-text)" : THIN }}
         >
           {t.roster.length ? `${paid} of ${t.roster.length} paid` : "—"}
         </span>
