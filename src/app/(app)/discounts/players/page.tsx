@@ -285,9 +285,11 @@ export default async function DiscountPlayersPage({
       ) : (
         <DiscountTable key={teamView ? "teams" : "players"} rows={rows} season={selectedSeason} staff={staff} ambassadors={ambassadors} teamView={teamView}
           unrostered={unrosteredRows}
-          // The teams with no discount only make sense on the full list, not
-          // one narrowed to free registrations or one kind of discount.
-          scopeTeams={teamView && !freeOnly && !kind ? (feed.teams ?? []).filter((t) => !currency || t.currency === currency) : undefined} />
+          // Every team in scope: each team's list price and total come from it,
+          // and the teams with no discount are listed only on the full list,
+          // not one narrowed to free registrations or one kind of discount.
+          scopeTeams={teamView ? (feed.teams ?? []).filter((t) => !currency || t.currency === currency) : undefined}
+          listNone={!freeOnly && !kind} />
       )}
 
       <p className="text-xs text-glass-text-tertiary max-w-[80ch]">
