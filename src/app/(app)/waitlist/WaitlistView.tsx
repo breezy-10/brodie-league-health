@@ -33,8 +33,9 @@ async function loadWaitlist(): Promise<WaitlistRow[] | null> {
   }
 }
 
+// Every amount names its currency ("$50.00 USD", "$50.00 CAD"): the markets mix both.
 const money = (n: number, cur: string) =>
-  `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${cur === "USD" ? "" : ` ${cur}`}`;
+  `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
 const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "—");
 // "2026-10-12" read as a date, not through Date in the viewer's zone.
 function shortDate(d: string | null): string {
@@ -88,7 +89,7 @@ export async function WaitlistBody() {
         <Tile label="Signed up" value={signedUp.toLocaleString()}
           sub={`in ${withSignups} of ${open} open ${open === 1 ? "market" : "markets"}`} />
         <Tile label="Deposits" value={deposits.length ? deposits.map(([c, n]) => money(n, c)).join(" · ") : "$0.00"}
-          sub={`${deposits.some(([c]) => c === "USD") ? "USD, " : ""}before processing fees and tax`} />
+          sub="before processing fees and tax" />
         <Tile label="Started, not paid" value={started.toLocaleString()}
           sub="began signing up and didn't put down the deposit" />
         <Tile label="New to Brodie" value={pct(newToBrodie, signedUp)}
