@@ -66,7 +66,7 @@ type TeamUnit = {
 };
 
 export default function DiscountTable({
-  rows, season, staff, ambassadors, teamView = false, unrostered: unrosteredProp, scopeTeams,
+  rows, season, staff, ambassadors, teamView = false, unrostered: unrosteredProp, scopeTeams, listNone = true,
 }: {
   rows: DiscountRowData[];
   season: string;
@@ -80,6 +80,9 @@ export default function DiscountTable({
   unrostered?: DiscountRowData[];
   // Every team in scope; the ones with no discount get their own section.
   scopeTeams?: ScopeTeamData[];
+  // Whether to list the teams with no discount (only on the full list, not
+  // one narrowed to free registrations or one kind of discount).
+  listNone?: boolean;
 }) {
   // Teams in scope, most given up first. A registration with no team has
   // nothing to group under; the footer of the page counts it in player view.
@@ -102,11 +105,22 @@ export default function DiscountTable({
       if (r.registered_on && (!u.first || r.registered_on < u.first)) u.first = r.registered_on;
       m.set(r.season_team_id, u);
     }
+    // List price and total are the whole team's, every player's registration,
+    // so the discount reads as a share of what the team was priced at. A team
+    // the feed doesn't list (merged away) keeps its discounted players' sums.
+    const byId = new Map((scopeTeams ?? []).map((t) => [t.season_team_id, t]));
+    for (const [id, u] of m) {
+      const t = byId.get(id);
+      if (t && t.list_total > 0) {
+        u.list = Math.max(t.list_total, u.list);
+        u.total = t.paid_total;
+      }
+    }
     const discounted = [...m.values()].sort((a, b) => b.discount - a.discount);
     // Teams with no discounted registration, by location then name. Their
     // row opens the roster like any other; no player is named, so the
     // roster lookup takes the team as it is now.
-    const none: TeamUnit[] = (scopeTeams ?? [])
+    const none: TeamUnit[] = (listNone ? scopeTeams ?? [] : [])
       .filter((t) => !m.has(t.season_team_id))
       .sort((a, b) => a.location.localeCompare(b.location) || a.team.localeCompare(b.team))
       .map((t) => ({
@@ -286,6 +300,24 @@ export default function DiscountTable({
                         <span className="text-glass-text-tertiary">{u.players} player{u.players === 1 ? "" : "s"}</span>
                       )}
                     </td>
+                    {/* How many on the team play free (a 100% discount), out of
+                        the roster, and that share. */}
+                    <td className="px-4 py-2.5 whitespace-nowrap align-middle">
+                      {(() => {
+                        const of = Math.max(u.teamPlayers, u.players);
+                        if (!of) return <span className="text-glass-text-tertiary">{u.free}</span>;
+                        return (
+                          <>
+                            <div className="tabular" style={{ color: u.free > 0 ? GOLD : "var(--glass-text)" }}>
+                              {u.free} of {of}
+                            </div>
+                            <div className="text-[11px] text-glass-text-tertiary leading-snug tabular">
+                              {Math.round((100 * u.free) / of)}%
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </td>
                     <td className="px-4 py-2.5 font-mono text-[12px] max-w-[200px] truncate text-glass-text-tertiary" title={u.codes.join(", ")}>
                       {u.codes.join(", ") || "—"}
                     </td>
@@ -371,7 +403,7 @@ export default function DiscountTable({
                 ),
                 isOpen && (
                   <tr key={`detail-${i}`} style={{ background: "var(--glass-surface-hover)" }}>
-                    <td colSpan={teamView ? COLS - 1 : COLS} className="px-4 py-3">
+                    <td colSpan={teamView ? TEAM_COLS.length : COLS} className="px-4 py-3">
                       {!got || got.state === "loading" ? (
                         <span className="inline-flex items-center gap-2 text-xs text-glass-text-tertiary">
                           <span className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
@@ -456,6 +488,7 @@ export default function DiscountTable({
                   {/* How many on the team carried a discount, out of everyone
                       on its roster, and that share. */}
                   <Th align="left">Discounted</Th>
+                  <Th align="left">Free</Th>
                   <Th align="left">Code</Th>
                   <Th align="left">Discount type</Th>
                   <Th>List price</Th>
@@ -499,7 +532,7 @@ export default function DiscountTable({
   const freeAgents = unrostered.length > 0 && (
     <>
       <tr style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
-        <td colSpan={COLS - 1} className="px-4 py-2 text-xs font-bold text-glass-text-tertiary">
+        <td colSpan={TEAM_COLS.length} className="px-4 py-2 text-xs font-bold text-glass-text-tertiary">
           Not on a team yet · {unrostered.length} free agent{unrostered.length === 1 ? "" : "s"}
         </td>
       </tr>
@@ -522,6 +555,9 @@ export default function DiscountTable({
             </td>
             <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{r.location}</td>
             <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-tertiary">{TYPE_LABEL[r.type] ?? r.type}</td>
+            <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: r.free ? GOLD : "var(--glass-text-tertiary)" }}>
+              {r.free ? "Free" : "—"}
+            </td>
             <td className="px-4 py-2.5 font-mono text-[12px] max-w-[200px] truncate text-glass-text-tertiary" title={r.codes}>{r.codes}</td>
             <td className="px-4 py-2.5 max-w-[240px] truncate" style={{ color: "var(--glass-text-secondary)" }}
               title={r.discount_names ?? ""}>
@@ -561,9 +597,10 @@ export default function DiscountTable({
 }
 
 // Team view's column widths in percent, shared by both cards: team, location,
-// discounted, code, discount type, list price, discount, total, registered.
+// discounted, free, code, discount type, list price, discount, total,
+// registered.
 const TEAM_COLS: [string, number][] = [
-  ["team", 17], ["location", 10], ["discounted", 11], ["code", 12], ["type", 15],
+  ["team", 15], ["location", 10], ["discounted", 10], ["free", 7], ["code", 10], ["type", 13],
   ["list", 8], ["discount", 8], ["total", 10], ["registered", 9],
 ];
 
