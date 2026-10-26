@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { promoFetch } from "@/lib/promo-feed";
-import WaitlistTable, { money, pct, type WaitlistPerson, type WaitlistRow } from "./WaitlistTable";
+import WaitlistTable, { type WaitlistPerson, type WaitlistRow } from "./WaitlistTable";
+import { money, pct } from "./waitlist-format";
 
 // Expansion waitlists: every market ops has opened a waitlist for, how many
 // people put down a deposit to be first in, how many started and didn't pay,
