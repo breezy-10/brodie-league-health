@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
+import { money, pct } from "./waitlist-format";
 
 export type WaitlistRow = {
   market: string;
@@ -31,10 +32,6 @@ export type WaitlistPerson = {
   on: string | null; // "2026-10-12", Toronto date
 };
 
-// Every amount names its currency ("$50.00 USD", "$50.00 CAD"): the markets mix both.
-export const money = (n: number, cur: string) =>
-  `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
-export const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "—");
 // "2026-10-12" read as a date, not through Date in the viewer's zone.
 function shortDate(d: string | null): string {
   if (!d) return "—";
