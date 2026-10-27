@@ -1601,10 +1601,12 @@ type PacingMetric = "captains" | "athletes" | "full_roster" | "low_roster" | "re
 // Accrued registration revenue, already normalised to CAD by the feed. Whole
 // dollars everywhere — cents are noise at this size.
 const money = (n: number) => `${n < 0 ? "\u2212" : ""}$${Math.abs(Math.round(n)).toLocaleString()}`;
-// Bars sit three to a card, so their labels abbreviate.
+// Bars sit three to a card, so their labels abbreviate. Thousands keep one
+// decimal ($19.5k): rounded to the whole thousand, two seasons a few hundred
+// dollars apart read as the same number.
 const moneyShort = (n: number) => {
   const a = Math.abs(n);
-  const s = a >= 1_000_000 ? `${(a / 1_000_000).toFixed(2)}M` : a >= 1_000 ? `${Math.round(a / 1_000)}k` : `${Math.round(a)}`;
+  const s = a >= 999_950 ? `${(a / 1_000_000).toFixed(2)}M` : a >= 1_000 ? `${(a / 1_000).toFixed(1)}k` : `${Math.round(a)}`;
   return `${n < 0 ? "\u2212" : ""}$${s}`;
 };
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
