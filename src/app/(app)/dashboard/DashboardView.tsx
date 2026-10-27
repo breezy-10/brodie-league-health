@@ -19,7 +19,7 @@ import { promoFetch } from "@/lib/promo-feed";
 import { canonLoc, sameLocation } from "@/lib/location-match";
 import { forfeitTeamsHref, loadForfeitRisk } from "@/lib/forfeit-risk";
 import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams/AmbassadorSummary";
-import { loadDropIns } from "../drop-ins/DropInsView";
+import { dropInOutcomeTiles, loadDropIns } from "../drop-ins/DropInsView";
 import { loadEvents } from "../events/EventsView";
 import { checkInTotals, loadCheckIns, pct as checkInPct, shareStyle as checkInShareStyle } from "../check-ins/CheckInsView";
 import { ChipTile, type Chip } from "./ChipTile";
@@ -2344,10 +2344,15 @@ function TileLink({ href, text }: { href: string; text: string }) {
   );
 }
 
-// How many drop-ins each location has: a drop-in is a game in the season
-// being played.
+// How many drop-ins each location has (a drop-in is a game in the season
+// being played), then the Drop-ins page's opening tiles: its default view,
+// new players on games already played.
 async function DropInCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
-  const dropIns = await loadDropIns(season, scope.locationNames);
+  const [dropIns, played] = await Promise.all([
+    loadDropIns(season, scope.locationNames),
+    loadDropIns(season, scope.locationNames, "past", "new"),
+  ]);
+  const outcome = played?.locations.length ? dropInOutcomeTiles(played, season, "new", true) : null;
   // A location with two currencies has a row for each; a drop-in is a drop-in.
   const dropInsBy = tallyByLocation((dropIns?.locations ?? []).map((r) => [r.location, r.dropins]));
   const total = [...dropInsBy.values()].reduce((a, b) => a + b, 0);
@@ -2357,11 +2362,14 @@ async function DropInCards({ season, scope, fullTag }: { season: string; scope: 
   if (lp) q.set("location", lp);
   return (
     <Section title="Drop-ins" scopeTag={fullTag} seasonTag={season} tiles={dropIns ? [] : null}>
-      <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <ChipTile label="Drop-ins" value={total.toLocaleString()}
           sub={total ? atLocations(locs) : `none yet in ${season}`}
           chips={perLocationChips(dropInsBy)}
           footer={<TileLink href={`/drop-ins?${q}`} text="View drop-ins" />} />
+        {outcome?.showedTile}
+        {outcome?.becameTile}
+        {outcome?.convRevenueTile}
       </div>
     </Section>
   );
@@ -3804,7 +3812,7 @@ export default async function DashboardView({
             <Suspense fallback={<SectionSkeleton title="Ambassador teams" cols={3} count={2} />}>
               <AmbassadorCards season={regSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
-            <Suspense fallback={<SectionSkeleton title="Drop-ins" cols={3} count={1} />}>
+            <Suspense fallback={<SectionSkeleton title="Drop-ins" />}>
               <DropInCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Events" cols={3} count={2} />}>

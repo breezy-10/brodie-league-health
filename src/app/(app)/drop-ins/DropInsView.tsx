@@ -276,6 +276,70 @@ export default async function DropInsView({
   );
 }
 
+// The Showed up, Became registrations and Season registration revenue tiles,
+// built here once for this page and for the dashboard's Drop-ins row, so the
+// two read the same.
+export function dropInOutcomeTiles(feed: DropInFeed, season: string, players: PlayersFilter, past: boolean) {
+  const who = players === "new" ? " by new players" : players === "returning" ? " by returning players" : "";
+  const currencies = [...new Set(feed.locations.map((r) => r.currency))].sort();
+  const sum = (k: keyof DropInRow, cur?: string) =>
+    feed.locations.reduce((s, r) => s + (cur && r.currency !== cur ? 0 : ((r[k] as number | undefined) ?? 0)), 0);
+  const byCurrency = (amount: (cur: string) => number, prefix = ""): React.ReactNode =>
+    currencies.map((cur) => <span key={cur} className="block">{prefix}{moneyIn(amount(cur), cur)}</span>);
+  const people = feed.players_all ?? mergePeople(Object.values(feed.players_by_currency ?? {}));
+  const newPlayers = people.new_players ?? sum("new_players");
+  const converted = people.converted_players ?? sum("converted_players");
+  const convertedSame = people.converted_same_season ?? sum("converted_same_season");
+  const convertedOther = people.converted_other_season ?? sum("converted_other_season");
+  // Out of the new players who showed up (plus any who registered anyway) on
+  // games already played; every new player on games to come.
+  const newBase = past ? people.new_conversion_base ?? newPlayers : newPlayers;
+  const whoNew = past ? "new players who showed up" : "new players";
+  const showed = sum("showed_up");
+  const noShow = sum("no_show");
+
+  const showedTile = past && (
+    <Tile label="Showed up" value={pct(showed, showed + noShow)}
+      accent={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined}
+      sub={
+        <>
+          {/* Out of the drop-ins whose team's stats are in, so
+              the three lines add up to the drop-ins tile. */}
+          <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} drop-ins{who} with stats in</span>
+          <span className="block">{noShow.toLocaleString()} {noShow === 1 ? "no-show" : "no-shows"}</span>
+          <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats, not counted</span>
+        </>
+      } />
+  );
+  const becameTile = (
+    <Tile label="Became registrations" value={pct(converted, newBase)} accent={ACCENT}
+      sub={!converted
+        ? `0 of ${newBase.toLocaleString()} ${whoNew} have registered for a season since`
+        : people.converted_by_season
+          ? convertedLines(converted, newBase, whoNew, people.converted_by_season, people.converted_multi_season)
+          : `${converted.toLocaleString()} of ${newBase.toLocaleString()} ${whoNew} registered for a season after: ${
+              convertedSame.toLocaleString()} for ${season}, ${convertedOther.toLocaleString()} for another season`} />
+  );
+  // The season registrations new players made after their drop-in, and what
+  // they brought in: the money the drop-ins led to.
+  const newConv = feed.conversion_revenue?.new;
+  const convRevenueTile = newConv && (
+    <Tile label="Season registration revenue" value={byCurrency((cur) => newConv.by_currency[cur] ?? 0)} accent={ACCENT}
+      sub={
+        <>
+          <span className="block">
+            {/* No player count: converted also counts new players who only
+                paid for another drop-in, who made no season registration. */}
+            {newConv.registrations.toLocaleString()} season {newConv.registrations === 1 ? "registration" : "registrations"} by
+            new players after their drop-in
+          </span>
+          <span className="block">full price before tax</span>
+        </>
+      } />
+  );
+  return { showedTile, becameTile, convRevenueTile };
+}
+
 // The season in numbers, as the Overview tab had it, for the drop-ins whose
 // game has been played (Past) or is still to come (Scheduled). Attendance only
 // means something once a game is played, so Scheduled leaves it out.
@@ -325,7 +389,6 @@ async function DropInSummary({ season, locationNames, when, players }: {
   const people = feed.players_all ?? mergePeople(Object.values(feed.players_by_currency ?? {}));
   const newPlayers = people.new_players ?? sum("new_players");
   const retPlayers = people.returning_players ?? sum("returning_players");
-  const converted = people.converted_players ?? sum("converted_players");
   const convertedSame = people.converted_same_season ?? sum("converted_same_season");
   const convertedOther = people.converted_other_season ?? sum("converted_other_season");
   // A returning player is one who had already played or registered;
@@ -395,19 +458,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
       color={total ? showTone((100 * count) / total) : undefined} />
   );
 
-  const showedTile = past && (
-    <Tile label="Showed up" value={pct(showed, showed + noShow)}
-      accent={showed + noShow ? showTone((100 * showed) / (showed + noShow)) : undefined}
-      sub={
-        <>
-          {/* Out of the drop-ins whose team's stats are in, so
-              the three lines add up to the drop-ins tile. */}
-          <span className="block">{showed.toLocaleString()} of {(showed + noShow).toLocaleString()} drop-ins with stats in</span>
-          <span className="block">{noShow.toLocaleString()} {noShow === 1 ? "no-show" : "no-shows"}</span>
-          <span className="block">{sum("awaiting_stats").toLocaleString()} awaiting stats, not counted</span>
-        </>
-      } />
-  );
+  const { showedTile, becameTile, convRevenueTile } = dropInOutcomeTiles(feed, season, players, past);
   const revenueTile = (
     <Tile label="Drop-in revenue" value={byCurrency((cur) => sum("revenue", cur))} accent={ACCENT}
       sub={
@@ -436,15 +487,6 @@ async function DropInSummary({ season, locationNames, when, players }: {
         </>
       } />
   );
-  const becameTile = (
-    <Tile label="Became registrations" value={pct(converted, newBase)} accent={ACCENT}
-      sub={!converted
-        ? `0 of ${newBase.toLocaleString()} ${whoNew} have registered for a season since`
-        : people.converted_by_season
-          ? convertedLines(converted, newBase, whoNew, people.converted_by_season, people.converted_multi_season)
-          : `${converted.toLocaleString()} of ${newBase.toLocaleString()} ${whoNew} registered for a season after: ${
-              convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
-  );
   // New players who came back and paid for another drop-in: their own count,
   // not a season registration. That drop-in's price is returning drop-in
   // revenue, since they were no longer new by then.
@@ -460,23 +502,6 @@ async function DropInSummary({ season, locationNames, when, players }: {
   const givenFreeTile = (
     <Tile label="Drop-ins given free" value={byCurrency((cur) => sum("given_free", cur))}
       sub={`the drop-in price, waived on ${newFree.toLocaleString()} free ${newFree === 1 ? "drop-in" : "drop-ins"}`} />
-  );
-  // The season registrations new players made after their drop-in, and what
-  // they brought in: the money the drop-ins led to.
-  const newConv = feed.conversion_revenue?.new;
-  const convRevenueTile = newConv && (
-    <Tile label="Season registration revenue" value={byCurrency((cur) => newConv.by_currency[cur] ?? 0)} accent={ACCENT}
-      sub={
-        <>
-          <span className="block">
-            {/* No player count: converted also counts new players who only
-                paid for another drop-in, who made no season registration. */}
-            {newConv.registrations.toLocaleString()} season {newConv.registrations === 1 ? "registration" : "registrations"} by
-            new players after their drop-in
-          </span>
-          <span className="block">full price before tax</span>
-        </>
-      } />
   );
   const retDropinsTile = (
     <Tile label="Drop-ins" value={retDropins.toLocaleString()} accent={ACCENT}
