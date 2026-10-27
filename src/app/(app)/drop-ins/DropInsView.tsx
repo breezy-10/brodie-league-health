@@ -439,11 +439,23 @@ async function DropInSummary({ season, locationNames, when, players }: {
   const becameTile = (
     <Tile label="Became registrations" value={pct(converted, newBase)} accent={ACCENT}
       sub={!converted
-        ? `0 of ${newBase.toLocaleString()} ${whoNew} have registered for a season or paid for another drop-in since`
+        ? `0 of ${newBase.toLocaleString()} ${whoNew} have registered for a season since`
         : people.converted_by_season
-          ? convertedLines(converted, newBase, whoNew, people.converted_by_season, people.converted_multi_season, paidAgain)
+          ? convertedLines(converted, newBase, whoNew, people.converted_by_season, people.converted_multi_season)
           : `${converted.toLocaleString()} of ${newBase.toLocaleString()} ${whoNew} registered for a season after: ${
               convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
+  );
+  // New players who came back and paid for another drop-in: their own count,
+  // not a season registration. That drop-in's price is returning drop-in
+  // revenue, since they were no longer new by then.
+  const paidAgainTile = (
+    <Tile label="Registered for another drop-in" value={pct(paidAgain, newBase)} accent={ACCENT}
+      sub={
+        <>
+          <span className="block">{paidAgain.toLocaleString()} of {newBase.toLocaleString()} {whoNew} came back and paid for another drop-in</span>
+          {paidAgain > 0 && <span className="block">that drop-in&apos;s price counts under Returning</span>}
+        </>
+      } />
   );
   const givenFreeTile = (
     <Tile label="Drop-ins given free" value={byCurrency((cur) => sum("given_free", cur))}
@@ -532,6 +544,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
               {newDropinsTile}
               {becameTile}
               {convRevenueTile}
+              {paidAgainTile}
               {givenFreeTile}
             </div>
             <SubHead title="Returning players" note="Charged for each drop-in" />
@@ -549,6 +562,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
             {showedTile}
             {becameTile}
             {convRevenueTile}
+            {paidAgainTile}
             {revenueTile}
             {givenFreeTile}
             {notPaidTile}
@@ -749,24 +763,14 @@ function mergePeople(list: DropInPeople[]): DropInPeople {
 // season's own count of players, and how many registered for more than one
 // season (they're in every season they registered for, so the season counts
 // can add up to more than the players).
-// A new player also converts by paying for another drop-in; a returning one
-// only by registering for a season.
 function convertedLines(
   converted: number, players: number, who: string, bySeason: Record<string, number> | undefined, multi: number | undefined,
-  paidDropins?: number,
 ): React.ReactNode {
-  const orDropin = paidDropins !== undefined;
   const seasons = Object.keys(bySeason ?? {}).length;
   return (
     <>
-      <span className="block">
-        {converted.toLocaleString()} of {players.toLocaleString()} {who} registered for a season
-        {orDropin ? " or paid for another drop-in" : ""} after
-      </span>
+      <span className="block">{converted.toLocaleString()} of {players.toLocaleString()} {who} registered for a season after</span>
       {bySeason && seasons > 0 && <span className="block">{seasonCounts(bySeason, " · ")}</span>}
-      {!!paidDropins && (
-        <span className="block">{paidDropins.toLocaleString()} paid for another drop-in</span>
-      )}
       {!!multi && (
         <span className="block">
           {multi.toLocaleString()} registered for {seasons === 2 ? "both" : "more than one season"}
