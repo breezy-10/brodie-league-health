@@ -107,11 +107,11 @@ export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
       {/* Always one line, sized to the screen: the clock fills its column
           (container units, 100cqi = the column's width) up to 4.5rem, so it
           grows on a wide screen and shrinks instead of wrapping on a 13-inch
-          one. Each character is about 0.72em in this font (bold, tabular);
-          0.74 keeps a little room. */}
+          one. Each character is about 0.56em in this font (bold, tabular,
+          measured live); 0.6 leaves a little room. */}
       <div className="min-w-0" style={{ containerType: "inline-size" }}>
         <div className="tabular font-bold leading-none whitespace-nowrap sm:text-right"
-          style={{ color: "var(--glass-gold)", fontSize: `clamp(1.25rem, calc(100cqi / ${(clock.length * 0.74).toFixed(2)}), 4.5rem)` }}>
+          style={{ color: "var(--glass-gold)", fontSize: `clamp(1.25rem, calc(100cqi / ${(clock.length * 0.6).toFixed(2)}), 4.5rem)` }}>
           {clock}
         </div>
       </div>
