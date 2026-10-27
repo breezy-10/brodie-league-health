@@ -105,10 +105,11 @@ export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
       <PriceTable week={w} />
       {/* Always one line: the size follows the column's width (container
           units), so a 13-inch screen shrinks the clock instead of wrapping it
-          ("3d 12h 36m" over "34s"). Up to 3rem where there's room. */}
+          ("3d 12h 36m" over "34s"). The clock is about 10.5em wide with a
+          two-digit day count, so 8.5cqi leaves room. Up to 3rem where there's room. */}
       <div className="min-w-0" style={{ containerType: "inline-size" }}>
         <div className="tabular font-bold leading-none whitespace-nowrap sm:text-right"
-          style={{ color: "var(--glass-gold)", fontSize: "clamp(1.25rem, 10cqi, 3rem)" }}>
+          style={{ color: "var(--glass-gold)", fontSize: "clamp(1.25rem, 8.5cqi, 3rem)" }}>
           {countdown(next.at - now)}
         </div>
       </div>
