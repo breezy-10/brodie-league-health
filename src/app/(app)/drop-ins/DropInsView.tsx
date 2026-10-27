@@ -105,7 +105,8 @@ export type DropInFeed = {
   // US is one player (absent from an older feed).
   players_all?: DropInPeople;
   // What the players who registered for a season after a drop-in brought in:
-  // their season registrations, full price before tax, per currency, split by
+  // their season registrations' invoice subtotal (before discounts, processing
+  // fees and tax), per currency, split by
   // new and returning drop-ins (absent from an older feed).
   conversion_revenue?: ConversionRevenue;
   discount_codes: { code: string; currency: string; uses: number; given_up: number }[];
@@ -333,7 +334,7 @@ export function dropInOutcomeTiles(feed: DropInFeed, season: string, players: Pl
             {newConv.registrations.toLocaleString()} season {newConv.registrations === 1 ? "registration" : "registrations"} by
             new players after their drop-in
           </span>
-          <span className="block">full price before tax</span>
+          <span className="block">subtotal, before discounts, fees and tax</span>
         </>
       } />
   );
@@ -749,8 +750,9 @@ function MoneyLines({ amounts }: { amounts: [number, string][] }) {
   return <>{amounts.map(([v, cur]) => <div key={cur}>{moneyIn(v, cur)}</div>)}</>;
 }
 
-// What the season registrations made after the drop-ins brought in, full
-// price before tax, with how many registrations under it.
+// What the season registrations made after the drop-ins brought in, their
+// invoice subtotal (before discounts, fees and tax), with how many
+// registrations under it.
 function ConvRevenueTd({ amounts, registrations, strong = false }: {
   amounts: [number, string][]; registrations: number; strong?: boolean;
 }) {
