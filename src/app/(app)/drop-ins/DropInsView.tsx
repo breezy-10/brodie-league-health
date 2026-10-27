@@ -452,8 +452,10 @@ async function DropInSummary({ season, locationNames, when, players }: {
       sub={
         <>
           <span className="block">
+            {/* No player count: converted also counts new players who only
+                paid for another drop-in, who made no season registration. */}
             {newConv.registrations.toLocaleString()} season {newConv.registrations === 1 ? "registration" : "registrations"} by
-            the {converted.toLocaleString()} new {converted === 1 ? "player" : "players"} who registered
+            new players after their drop-in
           </span>
           <span className="block">full price before tax</span>
         </>
