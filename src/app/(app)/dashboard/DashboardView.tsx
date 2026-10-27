@@ -1084,13 +1084,19 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
     // Which venues the debt is at. The feed already breaks itself down this
     // way; the cards were only ever showing the sum.
     const byLoc = [...(k.locations ?? [])].sort((a, b) => a.location.localeCompare(b.location));
+    // Active players lead: they are still on the court, so their money is the
+    // part that can be collected. The total, which includes people who have
+    // stopped coming, sits beneath. Amber when only those people owe, the same
+    // reading as the venue chips.
+    const prevActive = k.prev ? k.prev.cad.active_players + k.prev.usd.active_players : undefined;
     const tiles: Tile[] = [
       {
-        label: "Total overdue players", value: ov.total_players.toLocaleString(), tone: ov.total_players > 0 ? "bad" : "ok",
+        label: "Active overdue players", value: ov.active_players.toLocaleString(),
+        tone: ov.active_players > 0 ? "bad" : ov.total_players > 0 ? "warn" : "ok",
         lines: [
-          { text: `${ov.active_players.toLocaleString()} of ${ov.total_players.toLocaleString()} active`, strong: true },
+          { text: `${ov.total_players.toLocaleString()} overdue in total`, strong: true },
           { text: `across ${ov.locations} location${ov.locations === 1 ? "" : "s"}` },
-          ...(weekly ? wowCount(ov.total_players, k.prev?.total_players, when) : []),
+          ...(weekly ? wowCount(ov.active_players, prevActive, when) : []),
         ],
         // Active out of overdue, per venue. A bare count of who owes does not
         // separate a venue chasing people who have stopped coming from one
