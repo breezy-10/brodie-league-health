@@ -3743,18 +3743,18 @@ export default async function DashboardView({
         )}
         {!isReg && (
           <>
-            <Suspense fallback={<SectionSkeleton title="Ambassador teams" cols={3} count={2} />}>
-              <AmbassadorCards season={regSeason} scope={scope} fullTag={fullTag} />
-            </Suspense>
-            <Suspense fallback={<SectionSkeleton title="Drop-ins and events" cols={3} />}>
-              <DropInEventCards season={selectedSeason} scope={scope} fullTag={fullTag} />
-            </Suspense>
             <Section title="Team Confirmed Stories" scopeTag={fullTag} href={`${APP_URL.promo}/team-confirmed-stories`}
               tiles={promoTiles?.tiles ?? null}
               seasonTag={seasonToggle("promoSeason", promoSeason) ? undefined : promoSeasonName}
               headerExtra={seasonToggle("promoSeason", promoSeason)} />
             <Suspense fallback={<SectionSkeleton title="Outreach" cols={4} />}>
               <OutreachCards scope={scope} season={regSeason} fullTag={fullTag} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton title="Ambassador teams" cols={3} count={2} />}>
+              <AmbassadorCards season={regSeason} scope={scope} fullTag={fullTag} />
+            </Suspense>
+            <Suspense fallback={<SectionSkeleton title="Drop-ins and events" cols={3} />}>
+              <DropInEventCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
             <Suspense fallback={<TableSkeleton title="Site Visits" />}>
               <SiteVisitCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
