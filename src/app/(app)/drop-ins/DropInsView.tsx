@@ -434,9 +434,9 @@ async function DropInSummary({ season, locationNames, when, players }: {
   const becameTile = (
     <Tile label="Became registrations" value={pct(converted, newBase)} accent={ACCENT}
       sub={!converted
-        ? `0 of ${newBase.toLocaleString()} ${whoNew} have registered for a season since`
+        ? `0 of ${newBase.toLocaleString()} ${whoNew} have registered for a season or paid for another drop-in since`
         : people.converted_by_season
-          ? convertedLines(converted, newBase, whoNew, people.converted_by_season, people.converted_multi_season)
+          ? convertedLines(converted, newBase, whoNew, people.converted_by_season, people.converted_multi_season, true)
           : `${converted.toLocaleString()} of ${newBase.toLocaleString()} ${whoNew} registered for a season after: ${
               convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
   );
@@ -739,13 +739,19 @@ function mergePeople(list: DropInPeople[]): DropInPeople {
 // season's own count of players, and how many registered for more than one
 // season (they're in every season they registered for, so the season counts
 // can add up to more than the players).
+// A new player also converts by paying for another drop-in; a returning one
+// only by registering for a season.
 function convertedLines(
   converted: number, players: number, who: string, bySeason: Record<string, number> | undefined, multi: number | undefined,
+  orDropin = false,
 ): React.ReactNode {
   const seasons = Object.keys(bySeason ?? {}).length;
   return (
     <>
-      <span className="block">{converted.toLocaleString()} of {players.toLocaleString()} {who} registered for a season after</span>
+      <span className="block">
+        {converted.toLocaleString()} of {players.toLocaleString()} {who} registered for a season
+        {orDropin ? " or paid for another drop-in" : ""} after
+      </span>
       {bySeason && seasons > 0 && <span className="block">{seasonCounts(bySeason, " · ")}</span>}
       {!!multi && (
         <span className="block">

@@ -38,6 +38,9 @@ type ScheduledRow = {
   // The seasons they registered for after the drop-in (absent from an older
   // feed; empty when they haven't).
   registered_seasons?: string[];
+  // A new player who came back and paid for another drop-in, which counts as
+  // converting (absent from an older feed).
+  paid_dropin_after?: boolean;
 };
 type StatLine = "player" | "placeholder" | "not_recorded" | "awaiting";
 
@@ -148,18 +151,19 @@ function GameLink({ href, label, title }: { href: string | null; label: string; 
 }
 
 // Each season the player registered for after the drop-in, the season being
-// viewed as "This season"; says so when they haven't.
+// viewed as "This season", and Paid drop-in for a new player who came back and
+// paid for another; says so when they've done neither.
 function RegisteredFor({ r, season, className }: { r: ScheduledRow; season: string; className: string }) {
   const seasons = [...(r.registered_seasons ?? [])].sort(compareSeasons);
+  const GREEN = { color: "var(--green)", background: "var(--green-tint)" };
   return (
     <td className={className}>
-      {seasons.length ? (
+      {seasons.length || r.paid_dropin_after ? (
         <div className="flex flex-wrap gap-1">
           {seasons.map((s) => (
-            <span key={s} className={CHIP} style={{ color: "var(--green)", background: "var(--green-tint)" }}>
-              {s === season ? "This season" : s}
-            </span>
+            <span key={s} className={CHIP} style={GREEN}>{s === season ? "This season" : s}</span>
           ))}
+          {r.paid_dropin_after && <span className={CHIP} style={GREEN}>Paid drop-in</span>}
         </div>
       ) : (
         <span className={CHIP} style={{ color: "var(--glass-text-secondary)", background: "var(--fill-3)" }}>Not registered</span>
@@ -383,7 +387,7 @@ export default async function ScheduledDropIns({
             awaiting stats is a game with none in for their team yet. Stat line says where their stats went: on the
             player, on a spare (a placeholder with no account and no roster spot, like &ldquo;Spare player&rdquo;),
             not on their team&apos;s sheet, or no stats in yet. Registered for is each season the player registered
-            for after the drop-in. Times are the venue&apos;s own local time.
+            for after the drop-in; Paid drop-in is a new player who came back and paid for another, which counts as converting. Times are the venue&apos;s own local time.
             {byRegistered && " Registered is when the drop-in went through (paid, or confirmed when free)."}
           </>
         ) : (
@@ -391,7 +395,7 @@ export default async function ScheduledDropIns({
             Every drop-in that went through for a game still to come, {byRegistered
               ? "by the day it was registered, newest first"
               : "by the game it is for"}. Registered for is each season the player registered for after the
-            drop-in. Times are the venue&apos;s own local time.
+            drop-in; Paid drop-in is a new player who came back and paid for another, which counts as converting. Times are the venue&apos;s own local time.
             {byRegistered && " Registered is when the drop-in went through (paid, or confirmed when free)."}
           </>
         )}
