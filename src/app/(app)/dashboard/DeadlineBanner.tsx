@@ -74,6 +74,7 @@ export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
   const dt = instant(w);
   // The Promo Tracker's registration promos page.
   const infoHref = `${PROMO_APP_URL}/registration-promos`;
+  const clock = countdown(next.at - now);
 
   return (
     <div
@@ -103,14 +104,15 @@ export default function DeadlineBanner({ weeks }: { weeks: DeadlineWeek[] }) {
         </a>
       </div>
       <PriceTable week={w} />
-      {/* Always one line: the size follows the column's width (container
-          units), so a 13-inch screen shrinks the clock instead of wrapping it
-          ("3d 12h 36m" over "34s"). The clock is about 10.5em wide with a
-          two-digit day count, so 8.5cqi leaves room. Up to 3rem where there's room. */}
+      {/* Always one line, sized to the screen: the clock fills its column
+          (container units, 100cqi = the column's width) up to 4.5rem, so it
+          grows on a wide screen and shrinks instead of wrapping on a 13-inch
+          one. Each character is about 0.72em in this font (bold, tabular);
+          0.74 keeps a little room. */}
       <div className="min-w-0" style={{ containerType: "inline-size" }}>
         <div className="tabular font-bold leading-none whitespace-nowrap sm:text-right"
-          style={{ color: "var(--glass-gold)", fontSize: "clamp(1.25rem, 8.5cqi, 3rem)" }}>
-          {countdown(next.at - now)}
+          style={{ color: "var(--glass-gold)", fontSize: `clamp(1.25rem, calc(100cqi / ${(clock.length * 0.74).toFixed(2)}), 4.5rem)` }}>
+          {clock}
         </div>
       </div>
     </div>
