@@ -2380,8 +2380,8 @@ async function DropInCards({ season, scope, fullTag }: { season: string; scope: 
 
 // Events have no season of their own: upcoming is every one still to come,
 // and held is the ones already past inside the season's dates (the earliest
-// league's start to the latest league's end). One card counts both, then the
-// Events page's Past tiles over the events held this season.
+// league's start to the latest league's end). One card counts both, then
+// Going, Checked in and New to Brodie over the events held this season.
 async function EventCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
   const events = await loadEvents(scope.locationNames, season);
   const upcoming = (events ?? []).filter((e) => e.upcoming);
@@ -2418,8 +2418,8 @@ async function EventCards({ season, scope, fullTag }: { season: string; scope: S
             { href: upcomingHref, text: "View upcoming" },
           ]} />} />
         {outcome?.goingTile}
+        {outcome?.checkedInTile}
         {outcome?.newTile}
-        {outcome?.becameTile}
       </div>
     </Section>
   );
