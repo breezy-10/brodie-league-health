@@ -1,10 +1,12 @@
-// A figure with a row of chips under it: the Ambassador teams cards, and the
-// Drop-ins and Events cards beside them on the dashboard. Yellow for full
-// rosters, red for what needs work (thin rosters, a location still without an
-// ambassador team), neutral for a plain count.
+// A figure with a row of chips under it: the Ambassador teams, Drop-ins,
+// Events and Check-ins cards on the dashboard. Yellow for full rosters, red for
+// what needs work (thin rosters, a location still without an ambassador team),
+// green for a location that has it covered (everyone who played checked in),
+// neutral for a plain count.
 export const CHIP_STYLE = {
   yellow: { color: "var(--amber-ink)", borderColor: "transparent", background: "var(--amber-tint)" },
   red: { color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" },
+  green: { color: "var(--green)", borderColor: "transparent", background: "var(--green-tint)" },
   // Informational, not a judgement: "4.19 per team", "Burlington 20".
   neutral: { color: "var(--glass-gold)", borderColor: "transparent", background: "var(--glass-gold-light, var(--fill-3))" },
 };
