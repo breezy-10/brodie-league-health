@@ -229,10 +229,14 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
 
 // The Going, New to Brodie and Became registrations tiles over a set of
 // events, built here once for this page and for the dashboard's Events row,
-// so the two read the same.
+// so the two read the same. Checked in is the dashboard's, over events
+// already held.
 export function eventOutcomeTiles(events: EventRow[]) {
-  const sum = (k: keyof EventRow) => events.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
+  const sum = (k: keyof EventRow, of = events) => of.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
   const going = sum("going"), newPlayers = sum("new_players"), converted = sum("converted");
+  // Who is missing is measured only on the events that checked anyone in:
+  // before check-ins began, everyone going would read as not checked in.
+  const checking = events.filter((e) => (e.checked_in ?? 0) > 0);
   return {
     goingTile: (
       <Tile label="Going" value={going.toLocaleString()}
@@ -245,6 +249,19 @@ export function eventOutcomeTiles(events: EventRow[]) {
     becameTile: (
       <Tile label="Became registrations" value={pct(converted, newPlayers)}
         sub={`${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after`} />
+    ),
+    checkedInTile: (
+      <Tile label="Checked in" value={sum("checked_in").toLocaleString()}
+        sub={
+          <>
+            <span className="block">at {checking.length.toLocaleString()} of {events.length.toLocaleString()} events held</span>
+            {checking.length > 0 && (
+              <CheckinNote going={sum("going", checking)} checkedInGoing={sum("checked_in_going", checking)}
+                checkedIn={sum("checked_in", checking)}
+                checkedInNew={checking.some((e) => e.checked_in_new !== undefined) ? sum("checked_in_new", checking) : undefined} />
+            )}
+          </>
+        } />
     ),
   };
 }
