@@ -61,6 +61,9 @@ export type DropInRow = {
   // registered anyway (absent from an older feed).
   new_conversion_base?: number;
   returning_conversion_base?: number;
+  // New players who came back and paid for another drop-in (absent from an
+  // older feed). They count as converted but not in the season split.
+  paid_dropin_players?: number;
   new_charged?: number;
   returning_free?: number;
   given_free?: number;
@@ -90,6 +93,7 @@ export type DropInPeople = {
   returning_converted_multi_season?: number;
   new_conversion_base?: number;
   returning_conversion_base?: number;
+  paid_dropin_players?: number;
 };
 export type DropInFeed = {
   season: string;
@@ -327,6 +331,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
   // A returning player is one who had already played or registered;
   // this is the ones who registered for a season after their drop-in.
   const retConverted = people.returning_converted_players ?? sum("returning_converted_players");
+  const paidAgain = people.paid_dropin_players ?? sum("paid_dropin_players");
   // On games already played a conversion rate is out of the players who
   // showed up (plus any who registered anyway): a no-show couldn't have been
   // won over, so they don't count against it. Games to come have no show-ups
@@ -436,7 +441,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
       sub={!converted
         ? `0 of ${newBase.toLocaleString()} ${whoNew} have registered for a season or paid for another drop-in since`
         : people.converted_by_season
-          ? convertedLines(converted, newBase, whoNew, people.converted_by_season, people.converted_multi_season, true)
+          ? convertedLines(converted, newBase, whoNew, people.converted_by_season, people.converted_multi_season, paidAgain)
           : `${converted.toLocaleString()} of ${newBase.toLocaleString()} ${whoNew} registered for a season after: ${
               convertedSame.toLocaleString()} for ${selectedSeason}, ${convertedOther.toLocaleString()} for another season`} />
   );
@@ -562,8 +567,8 @@ async function DropInSummary({ season, locationNames, when, players }: {
         )}
 
         <div className="rounded-2xl bg-glass-surface shadow-card">
-          <div className={tableScrollBox(past ? 1400 : 1280)}>
-            <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1400 : 1280 }}>
+          <div className={tableScrollBox(past ? 1560 : 1440)}>
+            <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1560 : 1440 }}>
               <thead>
                 <tr className="text-xs font-bold text-glass-text-tertiary">
                   <Th align="left">Location</Th>
@@ -584,9 +589,10 @@ async function DropInSummary({ season, locationNames, when, players }: {
                       <Th>Returning revenue</Th>
                     </>
                   )}
-                  <Th>Drop-in revenue</Th>
-                  <Th>Not paid</Th>
                   <Th>Season registration revenue</Th>
+                  <Th>Not paid</Th>
+                  {showNew && <Th>Registered for another drop-in</Th>}
+                  <Th>Drop-in revenue</Th>
                 </tr>
               </thead>
               <tbody>
@@ -633,14 +639,15 @@ async function DropInSummary({ season, locationNames, when, players }: {
                         <Td>{r.returning_dropins ? moneyIn(r.returning_revenue ?? 0, r.currency) : "—"}</Td>
                       </>
                     )}
-                    <Td strong>{moneyIn(r.revenue, r.currency)}</Td>
+                    <ConvRevenueTd {...venueConv(r)} />
                     <Td>
                       {r.not_paid.toLocaleString()}
                       {r.cancelled > 0 && (
                         <div className="text-[11px] font-normal text-glass-text-tertiary">{r.cancelled} cancelled</div>
                       )}
                     </Td>
-                    <ConvRevenueTd {...venueConv(r)} />
+                    {showNew && <RateTd count={r.paid_dropin_players ?? 0} total={rowNewBase(r)} />}
+                    <Td strong>{moneyIn(r.revenue, r.currency)}</Td>
                   </tr>
                 ))}
                 {/* A total of one row only repeats it. */}
@@ -676,10 +683,11 @@ async function DropInSummary({ season, locationNames, when, players }: {
                         <Td strong>{retDropins ? <MoneyLines amounts={currencies.map((cur) => [sum("returning_revenue", cur), cur])} /> : "—"}</Td>
                       </>
                     )}
-                    <Td strong><MoneyLines amounts={currencies.map((cur) => [sum("revenue", cur), cur])} /></Td>
-                    <Td strong>{notPaid.toLocaleString()}</Td>
                     <ConvRevenueTd strong registrations={convTotal.registrations}
                       amounts={currencies.map((cur) => [convTotal.by[cur] ?? 0, cur])} />
+                    <Td strong>{notPaid.toLocaleString()}</Td>
+                    {showNew && <RateTd strong count={paidAgain} total={newBase} />}
+                    <Td strong><MoneyLines amounts={currencies.map((cur) => [sum("revenue", cur), cur])} /></Td>
                   </tr>
                 )}
               </tbody>
@@ -745,8 +753,9 @@ function mergePeople(list: DropInPeople[]): DropInPeople {
 // only by registering for a season.
 function convertedLines(
   converted: number, players: number, who: string, bySeason: Record<string, number> | undefined, multi: number | undefined,
-  orDropin = false,
+  paidDropins?: number,
 ): React.ReactNode {
+  const orDropin = paidDropins !== undefined;
   const seasons = Object.keys(bySeason ?? {}).length;
   return (
     <>
@@ -755,6 +764,9 @@ function convertedLines(
         {orDropin ? " or paid for another drop-in" : ""} after
       </span>
       {bySeason && seasons > 0 && <span className="block">{seasonCounts(bySeason, " · ")}</span>}
+      {!!paidDropins && (
+        <span className="block">{paidDropins.toLocaleString()} paid for another drop-in</span>
+      )}
       {!!multi && (
         <span className="block">
           {multi.toLocaleString()} registered for {seasons === 2 ? "both" : "more than one season"}
