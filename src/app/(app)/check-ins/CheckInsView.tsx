@@ -41,10 +41,86 @@ async function loadNights(season: string, locationNames: string[] | null): Promi
   }
 }
 
-const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "—");
+// The window opens on the first night two or more locations checked players
+// in, which is when check-ins started for real: before it there was one test
+// check-in at Burlington (Sep 28) and a trial at Toronto (Uptown) (Oct 14),
+// and counting from those buried the rollout under weeks of nights nobody
+// was asked to check in. From then on a location that has not started reads
+// as nights missed rather than dropping out. A scoped view still needs every
+// location's nights for that, so it reads the whole season too. Shared with
+// the dashboard's Check-ins section, so the two give the same figures.
+export async function loadCheckIns(season: string, locationNames: string[] | null): Promise<{
+  connected: boolean; since: string | null; nights: Night[]; events: EventRow[] | null; shownEvents: EventRow[];
+}> {
+  const [scoped, everywhere, events] = await Promise.all([
+    loadNights(season, locationNames),
+    locationNames ? loadNights(season, null) : Promise.resolve(null),
+    loadEvents(locationNames, season),
+  ]);
+  const all = everywhere ?? scoped;
+  const locsByNight = new Map<string, number>();
+  for (const n of all ?? []) if (n.checked_in > 0) locsByNight.set(n.night, (locsByNight.get(n.night) ?? 0) + 1);
+  const since = [...locsByNight.entries()].filter(([, k]) => k >= 2).map(([d]) => d).sort()[0] ?? null;
+  const nights = (scoped ?? []).filter((n) => since && n.night >= since);
+
+  // Events already held this season from the first event check-in in scope
+  // (or the first game night's, if that came first).
+  const pastEvents = (events ?? []).filter((e) => !e.upcoming && e.in_season !== false && e.starts_at);
+  const eventSince = [
+    since,
+    pastEvents.filter((e) => (e.checked_in ?? 0) > 0).map((e) => e.starts_at!.slice(0, 10)).sort()[0] ?? null,
+  ].filter((d): d is string => !!d).sort()[0] ?? null;
+  const shownEvents = pastEvents
+    .filter((e) => eventSince && e.starts_at!.slice(0, 10) >= eventSince)
+    .sort((a, b) => (b.starts_at ?? "").localeCompare(a.starts_at ?? ""));
+  return { connected: scoped !== null, since, nights, events, shownEvents };
+}
+
+export const statsIn = (n: Night) => n.games_stats_in ?? n.games;
+
+// The window's totals, and one row per location over it.
+export function checkInTotals(nights: Night[]) {
+  const sum = (rows: Night[], k: "games" | "played" | "checked_in" | "checked_and_played") =>
+    rows.reduce((s, n) => s + n[k], 0);
+  const games = sum(nights, "games");
+  const gamesIn = nights.reduce((s, n) => s + statsIn(n), 0);
+  const checkedIn = sum(nights, "checked_in");
+  const played = sum(nights, "played");
+  const checkedPlayed = sum(nights, "checked_and_played");
+  const nightsChecking = nights.filter((n) => n.checked_in > 0).length;
+
+  type LocRow = {
+    location: string; nights: number; checking: number; games: number; gamesIn: number; played: number;
+    checkedIn: number; checkedPlayed: number; last: string | null; staff: Set<string>;
+  };
+  const byLoc = new Map<string, LocRow>();
+  for (const n of nights) {
+    const r = byLoc.get(n.location) ?? {
+      location: n.location, nights: 0, checking: 0, games: 0, gamesIn: 0, played: 0, checkedIn: 0, checkedPlayed: 0,
+      last: null, staff: new Set<string>(),
+    };
+    r.nights += 1;
+    r.games += n.games;
+    r.gamesIn += statsIn(n);
+    r.played += n.played;
+    r.checkedIn += n.checked_in;
+    r.checkedPlayed += n.checked_and_played;
+    if (n.checked_in > 0) {
+      r.checking += 1;
+      if (!r.last || n.night > r.last) r.last = n.night;
+    }
+    for (const s of n.staff) r.staff.add(s);
+    byLoc.set(n.location, r);
+  }
+  const locRows = [...byLoc.values()].sort((a, b) => a.location.localeCompare(b.location));
+  const locsChecking = locRows.filter((r) => r.checking > 0).length;
+  return { games, gamesIn, checkedIn, played, checkedPlayed, nightsChecking, locRows, locsChecking };
+}
+
+export const pct = (n: number, of: number) => (of ? `${Math.round((100 * n) / of)}%` : "—");
 // Everyone who played checked in is the standard: all of them green, 80% and
 // up yellow, below that red, as the dashboard reads a booking.
-function shareStyle(n: number, of: number): React.CSSProperties {
+export function shareStyle(n: number, of: number): React.CSSProperties {
   const p = of ? n / of : 0;
   if (p >= 1) return { color: "var(--green)", background: "var(--green-tint)" };
   if (p >= 0.8) return { color: "var(--amber-ink)", background: "var(--amber-tint)" };
@@ -81,71 +157,10 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
     locations: filterLocations,
   };
 
-  // The window opens on the first night two or more locations checked players
-  // in, which is when check-ins started for real: before it there was one test
-  // check-in at Burlington (Sep 28) and a trial at Toronto (Uptown) (Oct 14),
-  // and counting from those buried the rollout under weeks of nights nobody
-  // was asked to check in. From then on a location that has not started reads
-  // as nights missed rather than dropping out. A scoped view still needs every
-  // location's nights for that, so it reads the whole season too.
-  const [scoped, everywhere, events] = await Promise.all([
-    loadNights(selectedSeason, locationNames),
-    locationNames ? loadNights(selectedSeason, null) : Promise.resolve(null),
-    loadEvents(locationNames, selectedSeason),
-  ]);
-  const all = everywhere ?? scoped;
-  const locsByNight = new Map<string, number>();
-  for (const n of all ?? []) if (n.checked_in > 0) locsByNight.set(n.night, (locsByNight.get(n.night) ?? 0) + 1);
-  const since = [...locsByNight.entries()].filter(([, k]) => k >= 2).map(([d]) => d).sort()[0] ?? null;
-  const nights = (scoped ?? []).filter((n) => since && n.night >= since);
-
-  // Events already held this season from the first event check-in in scope
-  // (or the first game night's, if that came first).
-  const pastEvents = (events ?? []).filter((e) => !e.upcoming && e.in_season !== false && e.starts_at);
-  const eventSince = [
-    since,
-    pastEvents.filter((e) => (e.checked_in ?? 0) > 0).map((e) => e.starts_at!.slice(0, 10)).sort()[0] ?? null,
-  ].filter((d): d is string => !!d).sort()[0] ?? null;
-  const shownEvents = pastEvents
-    .filter((e) => eventSince && e.starts_at!.slice(0, 10) >= eventSince)
-    .sort((a, b) => (b.starts_at ?? "").localeCompare(a.starts_at ?? ""));
-
-  const sum = (rows: Night[], k: "games" | "played" | "checked_in" | "checked_and_played") =>
-    rows.reduce((s, n) => s + n[k], 0);
-  const statsIn = (n: Night) => n.games_stats_in ?? n.games;
-  const games = sum(nights, "games");
-  const gamesIn = nights.reduce((s, n) => s + statsIn(n), 0);
-  const checkedIn = sum(nights, "checked_in");
-  const played = sum(nights, "played");
-  const checkedPlayed = sum(nights, "checked_and_played");
-  const nightsChecking = nights.filter((n) => n.checked_in > 0).length;
-
-  // One row per location over the window.
-  type LocRow = {
-    location: string; nights: number; checking: number; games: number; gamesIn: number; played: number;
-    checkedIn: number; checkedPlayed: number; last: string | null; staff: Set<string>;
-  };
-  const byLoc = new Map<string, LocRow>();
-  for (const n of nights) {
-    const r = byLoc.get(n.location) ?? {
-      location: n.location, nights: 0, checking: 0, games: 0, gamesIn: 0, played: 0, checkedIn: 0, checkedPlayed: 0,
-      last: null, staff: new Set<string>(),
-    };
-    r.nights += 1;
-    r.games += n.games;
-    r.gamesIn += statsIn(n);
-    r.played += n.played;
-    r.checkedIn += n.checked_in;
-    r.checkedPlayed += n.checked_and_played;
-    if (n.checked_in > 0) {
-      r.checking += 1;
-      if (!r.last || n.night > r.last) r.last = n.night;
-    }
-    for (const s of n.staff) r.staff.add(s);
-    byLoc.set(n.location, r);
-  }
-  const locRows = [...byLoc.values()].sort((a, b) => a.location.localeCompare(b.location));
-  const locsChecking = locRows.filter((r) => r.checking > 0).length;
+  const data = await loadCheckIns(selectedSeason, locationNames);
+  const scoped = data.connected;
+  const { since, nights, events, shownEvents } = data;
+  const { games, gamesIn, checkedIn, played, checkedPlayed, nightsChecking, locRows, locsChecking } = checkInTotals(nights);
 
   const nightGroups: { key: string; rows: Night[] }[] = [];
   for (const n of [...nights].sort((a, b) => b.night.localeCompare(a.night) || a.location.localeCompare(b.location))) {
