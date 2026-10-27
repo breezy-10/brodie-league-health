@@ -20,7 +20,7 @@ import { canonLoc, sameLocation } from "@/lib/location-match";
 import { forfeitTeamsHref, loadForfeitRisk } from "@/lib/forfeit-risk";
 import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams/AmbassadorSummary";
 import { dropInOutcomeTiles, loadDropIns } from "../drop-ins/DropInsView";
-import { loadEvents } from "../events/EventsView";
+import { eventOutcomeTiles, loadEvents } from "../events/EventsView";
 import { checkInTotals, loadCheckIns, pct as checkInPct, shareStyle as checkInShareStyle } from "../check-ins/CheckInsView";
 import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
@@ -2334,12 +2334,15 @@ function tallyByLocation(pairs: [string, number][]) {
   return m;
 }
 const atLocations = (n: number) => `at ${n} ${n === 1 ? "location" : "locations"}`;
-function TileLink({ href, text }: { href: string; text: string }) {
+// The links at the foot of a card, right-aligned.
+function TileLinks({ links }: { links: { href: string; text: string }[] }) {
   return (
-    <div className="mt-3 flex justify-end">
-      <a href={href} className="text-[11px] font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
-        {text} →
-      </a>
+    <div className="mt-3 flex flex-wrap justify-end gap-x-4 gap-y-1">
+      {links.map((l) => (
+        <a key={l.href} href={l.href} className="text-[11px] font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
+          {l.text} →
+        </a>
+      ))}
     </div>
   );
 }
@@ -2366,7 +2369,7 @@ async function DropInCards({ season, scope, fullTag }: { season: string; scope: 
         <ChipTile label="Drop-ins" value={total.toLocaleString()}
           sub={total ? atLocations(locs) : `none yet in ${season}`}
           chips={perLocationChips(dropInsBy)}
-          footer={<TileLink href={`/drop-ins?${q}`} text="View drop-ins" />} />
+          footer={<TileLinks links={[{ href: `/drop-ins?${q}`, text: "View drop-ins" }]} />} />
         {outcome?.showedTile}
         {outcome?.becameTile}
         {outcome?.convRevenueTile}
@@ -2377,7 +2380,8 @@ async function DropInCards({ season, scope, fullTag }: { season: string; scope: 
 
 // Events have no season of their own: upcoming is every one still to come,
 // and held is the ones already past inside the season's dates (the earliest
-// league's start to the latest league's end).
+// league's start to the latest league's end). One card counts both, then the
+// Events page's Past tiles over the events held this season.
 async function EventCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
   const events = await loadEvents(scope.locationNames, season);
   const upcoming = (events ?? []).filter((e) => e.upcoming);
@@ -2386,20 +2390,36 @@ async function EventCards({ season, scope, fullTag }: { season: string; scope: S
   const knowsSeason = (events ?? []).some((e) => e.in_season !== undefined);
   const held = (events ?? []).filter((e) => !e.upcoming && e.in_season);
   const heldBy = tallyByLocation(held.map((e) => [e.location, 1]));
+  const outcome = knowsSeason ? eventOutcomeTiles(held) : null;
+  // A chip per location: what it has held this season, and what is to come.
+  const locs = [...new Set([...heldBy.keys(), ...upcomingBy.keys()])]
+    .sort((a, b) => (heldBy.get(b) ?? 0) - (heldBy.get(a) ?? 0) || (upcomingBy.get(b) ?? 0) - (upcomingBy.get(a) ?? 0) || a.localeCompare(b));
+  const chips: Chip[] = locs.flatMap((loc) => {
+    const parts = [
+      knowsSeason && heldBy.get(loc) ? `${heldBy.get(loc)} held` : null,
+      upcomingBy.get(loc) ? `${upcomingBy.get(loc)} upcoming` : null,
+    ].filter(Boolean);
+    return parts.length ? [{ text: `${loc} ${parts.join(" · ")}`, tone: "neutral" as const }] : [];
+  });
   const lp = locParam(scope.locationNames);
+  const upcomingHref = `/events${lp ? `?${new URLSearchParams({ location: lp })}` : ""}`;
+  const pastHref = `/events?${new URLSearchParams({ when: "past", ...(lp ? { location: lp } : {}) })}`;
   return (
     <Section title="Events" scopeTag={fullTag} seasonTag={season} tiles={events ? [] : null}>
-      <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
-        <ChipTile label="Upcoming events" value={upcoming.length.toLocaleString()}
-          sub={upcoming.length ? atLocations(upcomingBy.size) : "none scheduled"}
-          chips={perLocationChips(upcomingBy)}
-          footer={<TileLink href={`/events${lp ? `?${new URLSearchParams({ location: lp })}` : ""}`} text="View events" />} />
-        {knowsSeason && (
-          <ChipTile label="Events held this season" value={held.length.toLocaleString()}
-            sub={held.length ? atLocations(heldBy.size) : `none yet in ${season}`}
-            chips={perLocationChips(heldBy)}
-            footer={<TileLink href={`/events?${new URLSearchParams({ when: "past", ...(lp ? { location: lp } : {}) })}`} text="View past events" />} />
-        )}
+      <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+        <ChipTile label={knowsSeason ? "Events this season" : "Upcoming events"}
+          value={knowsSeason ? `${held.length.toLocaleString()} held` : upcoming.length.toLocaleString()}
+          sub={knowsSeason
+            ? `${held.length ? atLocations(heldBy.size) : `none yet in ${season}`} · ${upcoming.length.toLocaleString()} upcoming`
+            : upcoming.length ? atLocations(upcomingBy.size) : "none scheduled"}
+          chips={chips}
+          footer={<TileLinks links={[
+            ...(knowsSeason ? [{ href: pastHref, text: "View past events" }] : []),
+            { href: upcomingHref, text: "View upcoming" },
+          ]} />} />
+        {outcome?.goingTile}
+        {outcome?.newTile}
+        {outcome?.becameTile}
       </div>
     </Section>
   );
@@ -2431,7 +2451,7 @@ async function CheckInCards({ season, scope, fullTag }: { season: string; scope:
           <ChipTile label="Players checked in" value={t.checkedIn.toLocaleString()}
             sub={`on ${t.nightsChecking.toLocaleString()} of ${d.nights.length.toLocaleString()} game nights since ${sinceDay(d.since)}`}
             chips={perLocationChips(new Map(t.locRows.map((r) => [r.location, r.checkedIn])))}
-            footer={<TileLink href={`/check-ins?${q}`} text="View check-ins" />} />
+            footer={<TileLinks links={[{ href: `/check-ins?${q}`, text: "View check-ins" }]} />} />
           <ChipTile label="Of those who played" value={checkInPct(t.checkedPlayed, t.played)}
             accent={t.played ? checkInShareStyle(t.checkedPlayed, t.played).color : undefined}
             sub={`${t.checkedPlayed.toLocaleString()} of ${t.played.toLocaleString()} players with a stat line were checked in`}
@@ -3815,7 +3835,7 @@ export default async function DashboardView({
             <Suspense fallback={<SectionSkeleton title="Drop-ins" />}>
               <DropInCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
-            <Suspense fallback={<SectionSkeleton title="Events" cols={3} count={2} />}>
+            <Suspense fallback={<SectionSkeleton title="Events" />}>
               <EventCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Check-ins" />}>

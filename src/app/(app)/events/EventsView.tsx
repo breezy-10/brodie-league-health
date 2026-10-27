@@ -145,7 +145,8 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
     });
   }
   const sum = (k: keyof EventRow) => events.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
-  const going = sum("going"), rsvps = sum("rsvps"), newPlayers = sum("new_players"), converted = sum("converted");
+  const going = sum("going");
+  const outcome = eventOutcomeTiles(events);
   const anyPaid = events.some((e) => e.paid > 0);
   // The filter bar rebuilds the query string, so it carries what it doesn't own.
   const keep: Record<string, string> = {
@@ -178,18 +179,13 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
         <>
           <div className={`grid gap-3 grid-cols-2 ${past || live ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
             <Tile label={past ? "Events held" : live ? "Live now" : "Upcoming events"} value={events.length.toLocaleString()} />
-            <Tile label="Going" value={going.toLocaleString()}
-              sub={`${rsvps.toLocaleString()} RSVPs · ${sum("cancelled").toLocaleString()} cancelled`} />
-            <Tile label="New to Brodie" value={newPlayers.toLocaleString()}
-              sub={`${pct(newPlayers, going)} of those going had never played`} />
+            {outcome.goingTile}
+            {outcome.newTile}
             {live && (
               <Tile label="Checked in" value={checkedIn.toLocaleString()}
                 sub={<CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} checkedInNew={checkedInNew} />} />
             )}
-            {past && (
-              <Tile label="Became registrations" value={pct(converted, newPlayers)}
-                sub={`${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after`} />
-            )}
+            {past && outcome.becameTile}
           </div>
 
           {events.length === 0 ? (
@@ -229,6 +225,28 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
       </p>
     </main>
   );
+}
+
+// The Going, New to Brodie and Became registrations tiles over a set of
+// events, built here once for this page and for the dashboard's Events row,
+// so the two read the same.
+export function eventOutcomeTiles(events: EventRow[]) {
+  const sum = (k: keyof EventRow) => events.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
+  const going = sum("going"), newPlayers = sum("new_players"), converted = sum("converted");
+  return {
+    goingTile: (
+      <Tile label="Going" value={going.toLocaleString()}
+        sub={`${sum("rsvps").toLocaleString()} RSVPs · ${sum("cancelled").toLocaleString()} cancelled`} />
+    ),
+    newTile: (
+      <Tile label="New to Brodie" value={newPlayers.toLocaleString()}
+        sub={`${pct(newPlayers, going)} of those going had never played`} />
+    ),
+    becameTile: (
+      <Tile label="Became registrations" value={pct(converted, newPlayers)}
+        sub={`${converted.toLocaleString()} of ${newPlayers.toLocaleString()} new players registered for a season after`} />
+    ),
+  };
 }
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: React.ReactNode }) {
