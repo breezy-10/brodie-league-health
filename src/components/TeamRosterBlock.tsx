@@ -84,10 +84,13 @@ export function StaffBadge({ label }: { label: string }) {
 }
 
 export default function TeamRosterBlock({
-  team: t, note, staff, hrefFor,
+  team: t, note, staff, hrefFor, showWhere = true,
 }: {
   team: RosterTeam;
   note?: string;
+  // The location, night and division beside the name; off under headings
+  // that already say them.
+  showWhere?: boolean;
   // Normalised name -> role label, from the training roster. Omit to show no tags.
   staff?: Record<string, string>;
   // Where a player's name links, if anywhere (the discounts team view opens
@@ -110,10 +113,12 @@ export default function TeamRosterBlock({
           style={{ background: t.players === 0 ? "var(--glass-red)" : t.players === 1 ? THIN : GOLD }}
         />
         <span className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{t.team}</span>
-        <span className="text-xs text-glass-text-tertiary">
-          {t.location} &middot; {t.day ?? "no night"}
-          {t.division ? ` · ${t.division}` : ""}
-        </span>
+        {showWhere && (
+          <span className="text-xs text-glass-text-tertiary">
+            {t.location} &middot; {t.day ?? "no night"}
+            {t.division ? ` · ${t.division}` : ""}
+          </span>
+        )}
         <span
           className="text-xs tabular ml-auto shrink-0"
           // Everyone paid reads green; anything short of that stays muted.
