@@ -14,7 +14,8 @@ const REFERRALS: NavItem = { href: "/referrals", label: "Referrals", short: "Ref
 const DISCOUNTS: NavItem = { href: "/discounts", label: "Discounts", short: "Discounts", icon: "discounts", group: "" };
 const AMBASSADORS: NavItem = { href: "/ambassador-teams", label: "Ambassador teams", short: "Ambassadors", icon: "ambassadors", group: "" };
 // On trial before it replaces Ambassador teams; super admins only until then.
-const AMBASSADORS_V2: NavItem = { href: "/ambassador-teams-v2", label: "Ambassador teams v2", short: "Ambassadors v2", icon: "ambassadors", group: "" };
+// "Ambassadors v2": "Ambassador teams v2" is cut off in the sidebar.
+const AMBASSADORS_V2: NavItem = { href: "/ambassador-teams-v2", label: "Ambassadors v2", short: "Ambassadors v2", icon: "ambassadors", group: "" };
 const FORFEIT: NavItem = { href: "/forfeit-risk", label: "Forfeit risk", short: "Forfeits", icon: "forfeit", group: "" };
 const DROP_INS: NavItem = { href: "/drop-ins", label: "Drop-ins", short: "Drop-ins", icon: "dropins", group: "" };
 const EVENTS: NavItem = { href: "/events", label: "Events", short: "Events", icon: "events", group: "" };
