@@ -102,10 +102,6 @@ export default function TeamRosterBlock({
       a.player.localeCompare(b.player),
   );
   const paid = t.roster.filter((x) => x.paid_ok).length;
-  // Only a team where somebody took a discount gets the extra column, and the
-  // lines widen by exactly that much so name and amount stay under the header.
-  const hasDiscounts = t.roster.some((x) => (x.discount ?? 0) > 0);
-  const lineWidth = hasDiscounts ? "calc(42rem + 292px)" : "42rem";
   return (
     <div>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 max-w-2xl">
@@ -130,45 +126,66 @@ export default function TeamRosterBlock({
       {ordered.length === 0 ? (
         <p className="mt-1 text-[12px] italic text-glass-text-tertiary">No players on this roster yet.</p>
       ) : (
-        <ul className="mt-1 space-y-0.5">
-          {ordered.map((x, i) => (
-            <li key={`${x.player}-${i}`} className="flex items-baseline gap-3 text-[12px]" style={{ maxWidth: lineWidth }}>
-              <span className="truncate flex-1"
-                style={{ color: owes(x) ? "var(--glass-text)" : "var(--glass-text-secondary)" }}>
-                {(() => {
-                  const href = hrefFor?.(x);
-                  return href ? <Link href={href} className="hover:underline">{x.player}</Link> : x.player;
-                })()}
-                {x.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
-                {staff?.[normName(x.player)] && <StaffBadge label={staff[normName(x.player)]} />}
-                {!x.is_captain && <JoinedTag via={x.joined_via} />}
-              </span>
-              <span
-                className="tabular shrink-0 w-[128px] text-right"
-                style={{ color: owes(x) ? GOLD : "var(--glass-text-secondary)" }}
-                title={x.no_registration ? "No registration on file" : undefined}
-              >
-                {money(x)}
-              </span>
-              {hasDiscounts && (
-                <span className="shrink-0 w-[280px] truncate"
-                  title={x.discount_names ?? undefined}>
-                  {(x.discount ?? 0) > 0 && (
-                    <>
-                      <span className="tabular font-bold" style={{ color: GOLD }}>
-                        {"\u2212"}${Math.round(x.discount!)}
-                      </span>
-                      <span style={{ color: "var(--glass-text-secondary)" }}>
-                        {" \u00b7 "}{x.discount_names ? shortDiscount(x.discount_names) : "code removed"}
-                      </span>
-                    </>
-                  )}
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
+        <RosterLines lines={ordered} staff={staff} hrefFor={hrefFor} className="mt-1" />
       )}
     </div>
+  );
+}
+
+// One line per player: name and how they joined, what they have paid of their
+// price, then any discount and its code. Fixed widths keep name and amount
+// under the Ambassadors table's header; fluid lets the name give way first,
+// for a card narrower than the table (the location cards' rosters).
+export function RosterLines({ lines, staff, hrefFor, fluid = false, className }: {
+  lines: RosterLine[];
+  staff?: Record<string, string>;
+  hrefFor?: (x: RosterLine) => string | null;
+  fluid?: boolean;
+  className?: string;
+}) {
+  // Only a roster where somebody took a discount gets the extra column, and the
+  // lines widen by exactly that much so name and amount stay under the header.
+  const hasDiscounts = lines.some((x) => (x.discount ?? 0) > 0);
+  const lineWidth = fluid ? undefined : hasDiscounts ? "calc(42rem + 292px)" : "42rem";
+  return (
+    <ul className={`space-y-0.5 ${className ?? ""}`}>
+      {lines.map((x, i) => (
+        <li key={`${x.player}-${i}`} className="flex items-baseline gap-3 text-[12px]" style={{ maxWidth: lineWidth }}>
+          <span className="truncate flex-1 min-w-0"
+            style={{ color: owes(x) ? "var(--glass-text)" : "var(--glass-text-secondary)" }}>
+            {(() => {
+              const href = hrefFor?.(x);
+              return href ? <Link href={href} className="hover:underline">{x.player}</Link> : x.player;
+            })()}
+            {x.is_captain && <span className="text-glass-text-tertiary"> (C)</span>}
+            {staff?.[normName(x.player)] && <StaffBadge label={staff[normName(x.player)]} />}
+            {!x.is_captain && <JoinedTag via={x.joined_via} />}
+          </span>
+          <span
+            className={`tabular shrink-0 text-right ${fluid ? "" : "w-[128px]"}`}
+            style={{ color: owes(x) ? GOLD : "var(--glass-text-secondary)" }}
+            title={x.no_registration ? "No registration on file" : undefined}
+          >
+            {money(x)}
+          </span>
+          {hasDiscounts && (
+            <span className={`truncate ${fluid ? "min-w-0" : "shrink-0 w-[280px]"}`}
+              style={fluid ? { flex: "0 1 280px" } : undefined}
+              title={x.discount_names ?? undefined}>
+              {(x.discount ?? 0) > 0 && (
+                <>
+                  <span className="tabular font-bold" style={{ color: GOLD }}>
+                    {"\u2212"}${Math.round(x.discount!)}
+                  </span>
+                  <span style={{ color: "var(--glass-text-secondary)" }}>
+                    {" \u00b7 "}{x.discount_names ? shortDiscount(x.discount_names) : "code removed"}
+                  </span>
+                </>
+              )}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

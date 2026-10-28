@@ -98,6 +98,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/discounts", title: "Price and discounting", subtitle: "What a registration is advertised at, what comes off, and what actually lands." },
   { path: "/ambassador-teams/captain", title: "Captain", subtitle: "One captain's ambassador team and roster." },
   { path: "/ambassador-teams", title: "Ambassador teams", subtitle: "Every night's ambassador team, and how full each roster is." },
+  { path: "/ambassador-teams-v2", title: "Ambassador teams v2", subtitle: "Every night's ambassador team, and how full each roster is." },
   { path: "/forfeit-risk", title: "Forfeit risk", subtitle: "Teams one no-show from forfeiting: 6 or fewer fully paid players, with the ambassador teams among them marked." },
   { path: "/drop-ins", title: "Drop-ins", subtitle: "Players who came for a single game: who was new, who showed up, and who went on to register." },
   { path: "/check-ins", title: "Check-ins", subtitle: "Who the front table checked in each game night and event, against who played." },

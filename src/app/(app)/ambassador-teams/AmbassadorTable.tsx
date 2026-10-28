@@ -50,6 +50,7 @@ export default function AmbassadorTable({
   header,
   locationsHeader,
   locationCards,
+  locationPanels,
 }: {
   // Each view's title and explanation, drawn beside the Expand all toggle.
   header?: React.ReactNode;
@@ -67,6 +68,9 @@ export default function AmbassadorTable({
   // Each location's nights and team cards, drawn under the table in the
   // Locations view only.
   locationCards?: React.ReactNode;
+  // In place of the team list, what a location row opens onto (v2: that
+  // location's nights and team cards), keyed by location.
+  locationPanels?: Record<string, React.ReactNode>;
 }) {
   const [mode, setMode] = useState<Mode>("ambassadors");
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -143,7 +147,7 @@ export default function AmbassadorTable({
                 const k = `${mode}:${c.key}`;
                 return (
                   <Row key={k} c={c} teams={teams} isOpen={!!open[k]} colCount={colCount} season={season}
-                    staff={staff}
+                    staff={staff} panel={byLocation ? locationPanels?.[c.key] : undefined}
                     hasFullRoster={hasFullRoster} hasTeammates={hasTeammates} hasPaid={hasPaid}
                     toggle={() => setOpen((o) => ({ ...o, [k]: !o[k] }))} />
                 );
@@ -159,9 +163,10 @@ export default function AmbassadorTable({
 }
 
 function Row({
-  c, teams, isOpen, colCount, season, staff, hasFullRoster, hasTeammates, hasPaid, toggle,
+  c, teams, isOpen, colCount, season, staff, panel, hasFullRoster, hasTeammates, hasPaid, toggle,
 }: {
   c: CaptainRow;
+  panel?: React.ReactNode;
   teams: CaptainTeam[];
   isOpen: boolean;
   colCount: number;
@@ -247,11 +252,13 @@ function Row({
       {isOpen && (
         <tr style={{ background: "var(--glass-surface-hover)" }}>
           <td colSpan={colCount} className="px-4 py-3">
-            <div className="space-y-3">
-              {teams.map((t, ti) => (
-                <TeamRosterBlock key={`${t.location}-${t.team}-${ti}`} team={t} staff={staff ?? undefined} />
-              ))}
-            </div>
+            {panel ?? (
+              <div className="space-y-3">
+                {teams.map((t, ti) => (
+                  <TeamRosterBlock key={`${t.location}-${t.team}-${ti}`} team={t} staff={staff ?? undefined} />
+                ))}
+              </div>
+            )}
           </td>
         </tr>
       )}

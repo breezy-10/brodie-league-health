@@ -4,7 +4,7 @@ import { getLocationDistricts } from "@/lib/districts-locations";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import AmbassadorTable, { type CaptainRow, type CaptainTeam } from "./AmbassadorTable";
 import { sameLocation } from "@/lib/location-match";
-import { JoinedTag, StaffBadge, pickedTeam, placedOnTeam } from "@/components/TeamRosterBlock";
+import { JoinedTag, RosterLines, StaffBadge, pickedTeam, placedOnTeam } from "@/components/TeamRosterBlock";
 import { loadStaff } from "@/lib/staff";
 import { normName } from "@/lib/names";
 import { shortDiscount } from "@/lib/discount-names";
@@ -18,10 +18,16 @@ const EMPTY = "var(--glass-red)"; // no roster at all
 const DAY_ABBR = (d: string) => d.slice(0, 3).toUpperCase();
 const DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
+// v2 (Ambassador teams v2, on trial before it replaces this page): a location
+// row opens onto that location's nights and team cards instead of a list of
+// rosters, the cards are no longer repeated under the table, and a card's
+// roster is one line per player, as in the Ambassadors table.
 export default async function AmbassadorTeamsView({
   searchParams,
+  v2 = false,
 }: {
   searchParams: Promise<{ season?: string; location?: string; district?: string; lm?: string }>;
+  v2?: boolean;
 }) {
   await requireUser();
   const { season: seasonParam, location: locationParam, district: districtParam } = await searchParams;
@@ -136,10 +142,14 @@ export default async function AmbassadorTeamsView({
   const locationCards = (
     <div className="space-y-3">
       {locations.map((loc) => (
-        <LocationCard key={loc.location} loc={loc} slots={slots} captainTeams={captainTeams} staff={staff} />
+        <LocationCard key={loc.location} loc={loc} slots={slots} captainTeams={captainTeams} staff={staff} rosterLines={v2} />
       ))}
     </div>
   );
+  const locationPanels = v2
+    ? Object.fromEntries(locations.map((loc) => [loc.location,
+        <LocationCard key={loc.location} loc={loc} slots={slots} captainTeams={captainTeams} staff={staff} rosterLines />]))
+    : undefined;
   const locationRows: CaptainRow[] = locations.map((loc) => {
     const teams = teamsByLocation[loc.location] ?? [];
     const mates = teams.reduce((n, t) => n + (t.roster.length
@@ -226,7 +236,9 @@ export default async function AmbassadorTeamsView({
                     Every location with an ambassador team in the current filter, counted the same way: teammates
                     are the roster spots other than the captain&apos;s, teams with 7+ the ones that can field a
                     side, paid teammates the ones who have paid any amount this season. Open the arrow beside a
-                    location for its teams and who has paid on each.
+                    location for {v2
+                      ? <>its nights, divisions and ambassador teams; Show roster on a team lists who has paid.</>
+                      : <>its teams and who has paid on each.</>}
                   </p>
                   </>}
                   rows={captainRows}
@@ -238,7 +250,8 @@ export default async function AmbassadorTeamsView({
                   hasFullRoster={hasFullRoster}
                   hasTeammates={hasTeammates}
                   hasPaid={hasPaid}
-                  locationCards={locationCards}
+                  locationCards={v2 ? undefined : locationCards}
+                  locationPanels={locationPanels}
                 />
             ) : locationCards}
           </>
@@ -263,11 +276,14 @@ function LocationCard({
   slots,
   captainTeams,
   staff,
+  rosterLines = false,
 }: {
   loc: LocationRow;
   slots: number;
   captainTeams: Record<string, number>;
   staff: Record<string, string> | null;
+  // A team's roster one line per player (v2) rather than two.
+  rosterLines?: boolean;
 }) {
   // Every night the location plays gets a column, ambassador team or not, so an
   // uncovered night shows as empty rather than missing. Only nights it plays,
@@ -367,7 +383,8 @@ function LocationCard({
                         ) : (
                           <ul className="space-y-2">
                             {g.rows.map((r, i) => (
-                              <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} staff={staff} />
+                              <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} staff={staff}
+                                rosterLines={rosterLines} />
                             ))}
                           </ul>
                         )}
@@ -389,11 +406,13 @@ function TeamChip({
   slots,
   captainTeams,
   staff,
+  rosterLines = false,
 }: {
   row: TeamRow;
   slots: number;
   captainTeams: Record<string, number>;
   staff: Record<string, string> | null;
+  rosterLines?: boolean;
 }) {
   const staffOf = (name: string | null) => (name ? staff?.[normName(name)] : undefined);
   const runs = row.captain ? captainTeams[row.captain] ?? 1 : 1;
@@ -530,8 +549,13 @@ function TeamChip({
           </div>
         </summary>
 
-        {/* Name on one line, what they've paid on the next, in the Ambassadors
-            table's form: paid of price, then any discount and its code. */}
+        {rosterLines ? (
+          <div className="px-2.5 pb-2.5 pt-1.5" style={{ borderTop: "1px solid var(--glass-border)" }}>
+            <RosterLines lines={ordered} staff={staff ?? undefined} fluid />
+          </div>
+        ) : (
+        /* Name on one line, what they've paid on the next, in the Ambassadors
+            table's form: paid of price, then any discount and its code. */
         <ul className="px-2.5 pb-2.5 pt-1.5 space-y-1.5" style={{ borderTop: "1px solid var(--glass-border)" }}>
           {ordered.map((r, i) => {
             const owes = !r.no_registration && r.total > 0;
@@ -567,6 +591,7 @@ function TeamChip({
             );
           })}
         </ul>
+        )}
       </details>
     </li>
   );
