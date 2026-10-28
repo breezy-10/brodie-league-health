@@ -4,7 +4,7 @@ import { getLocationDistricts } from "@/lib/districts-locations";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import AmbassadorTable, { type CaptainRow, type CaptainTeam } from "./AmbassadorTable";
 import { sameLocation } from "@/lib/location-match";
-import { JoinedTag, RosterLines, StaffBadge, pickedTeam, placedOnTeam } from "@/components/TeamRosterBlock";
+import TeamRosterBlock, { JoinedTag, RosterLines, StaffBadge, pickedTeam, placedOnTeam } from "@/components/TeamRosterBlock";
 import { loadStaff } from "@/lib/staff";
 import { normName } from "@/lib/names";
 import { shortDiscount } from "@/lib/discount-names";
@@ -146,10 +146,11 @@ export default async function AmbassadorTeamsView({
       ))}
     </div>
   );
-  const locationPanels = v2
-    ? Object.fromEntries(locations.map((loc) => [loc.location,
-        <LocationCard key={loc.location} loc={loc} slots={slots} captainTeams={captainTeams} staff={staff} v2 />]))
-    : undefined;
+  // What a location row opens onto: v2, the location's card; the original,
+  // its teams and who has paid on each, under a heading per night and division.
+  const locationPanels = Object.fromEntries(locations.map((loc) => [loc.location, v2
+    ? <LocationCard key={loc.location} loc={loc} slots={slots} captainTeams={captainTeams} staff={staff} v2 />
+    : <LocationTeamList key={loc.location} loc={loc} teams={teamsByLocation[loc.location] ?? []} staff={staff} />]));
   const locationRows: CaptainRow[] = locations.map((loc) => {
     const teams = teamsByLocation[loc.location] ?? [];
     const mates = teams.reduce((n, t) => n + (t.roster.length
@@ -238,7 +239,7 @@ export default async function AmbassadorTeamsView({
                     side, paid teammates the ones who have paid any amount this season. Open the arrow beside a
                     location for {v2
                       ? <>its nights, divisions and ambassador teams; Show roster on a team lists who has paid.</>
-                      : <>its teams and who has paid on each.</>}
+                      : <>its teams by night and division, and who has paid on each.</>}
                   </p>
                   </>}
                   rows={captainRows}
@@ -271,6 +272,78 @@ export default async function AmbassadorTeamsView({
   );
 }
 
+// Every night the location plays, ambassador team or not, so an uncovered
+// night shows as empty rather than missing. Only nights it plays, so a
+// one-night venue doesn't render six empty ones. A team with no night (null)
+// comes last, as TBD.
+function nightsOf(loc: LocationRow): (string | null)[] {
+  const played = new Set<string | null>([...(loc.days ?? []), ...loc.rows.map((r) => r.day)]);
+  return [
+    ...DAY_ORDER.filter((d) => played.has(d)),
+    ...[...played].filter((d): d is string => !!d && !DAY_ORDER.includes(d)),
+    ...(played.has(null) ? [null] : []),
+  ];
+}
+// The divisions open on a night, and any an ambassador team plays in there.
+function divisionsOn(loc: LocationRow, day: string | null): Set<string> {
+  return new Set([
+    ...(loc.divisions ?? []).filter((d) => d.day === day).map((d) => d.division),
+    ...loc.rows.filter((r) => r.day === day).map((r) => r.division).filter((d): d is string => !!d),
+  ]);
+}
+
+// The original page's location dropdown: each night, then each division open
+// that night, with its ambassador teams and who has paid on each, and a night
+// or division without one listed as such.
+function LocationTeamList({ loc, teams, staff }: {
+  loc: LocationRow;
+  teams: CaptainTeam[];
+  staff: Record<string, string> | null;
+}) {
+  const nights = nightsOf(loc);
+  const none = (
+    <div className="text-[12px] font-semibold" style={{ color: "var(--red)" }}>No ambassador team</div>
+  );
+  if (!nights.length) return none;
+  return (
+    <div className="space-y-4">
+      {nights.map((day) => {
+        const onNight = teams.filter((t) => t.day === day);
+        const divisions = [...divisionsOn(loc, day)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        const groups: { division: string | null; teams: CaptainTeam[] }[] = divisions.map((d) => ({
+          division: d,
+          teams: onNight.filter((t) => t.division === d).sort((a, b) => a.team.localeCompare(b.team)),
+        }));
+        const undivided = onNight.filter((t) => !t.division);
+        if (undivided.length) groups.push({ division: null, teams: undivided });
+        return (
+          <div key={day ?? "tbd"}>
+            <h4 className="text-sm font-semibold pb-1 mb-2" style={{ color: "var(--glass-text)", borderBottom: "1px solid var(--glass-border)" }}>
+              {day ?? "No night set"}
+            </h4>
+            {groups.length === 0 ? none : (
+              <div className="space-y-3">
+                {groups.map((g) => (
+                  <div key={g.division ?? "none"}>
+                    <div className="text-xs font-semibold text-glass-text-secondary mb-1.5">{g.division ?? "No division"}</div>
+                    {g.teams.length === 0 ? none : (
+                      <div className="space-y-3">
+                        {g.teams.map((t, i) => (
+                          <TeamRosterBlock key={`${t.team}-${i}`} team={t} staff={staff ?? undefined} showWhere={false} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function LocationCard({
   loc,
   slots,
@@ -286,16 +359,7 @@ function LocationCard({
   // team's roster one line per player rather than two.
   v2?: boolean;
 }) {
-  // Every night the location plays gets a column, ambassador team or not, so an
-  // uncovered night shows as empty rather than missing. Only nights it plays,
-  // so a one-night venue doesn't render six empty ones. A team with no night
-  // goes in a TBD column at the end.
-  const played = new Set<string | null>([...(loc.days ?? []), ...loc.rows.map((r) => r.day)]);
-  const days: (string | null)[] = [
-    ...DAY_ORDER.filter((d) => played.has(d)),
-    ...[...played].filter((d): d is string => !!d && !DAY_ORDER.includes(d)),
-    ...(played.has(null) ? [null] : []),
-  ];
+  const days = nightsOf(loc);
 
   return (
     <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
@@ -376,16 +440,12 @@ function NightRows({ loc, days, slots, captainTeams, staff, perRow, rosterLines 
   const bands: (string | null)[][] = [];
   for (let i = 0; i < days.length; i += perRow) bands.push(days.slice(i, i + perRow));
   const teamsOn = (day: string | null) => loc.rows.filter((r) => r.day === day);
-  const divisionsOn = (day: string | null) => new Set([
-    ...(loc.divisions ?? []).filter((d) => d.day === day).map((d) => d.division),
-    ...teamsOn(day).map((r) => r.division).filter((d): d is string => !!d),
-  ]);
   const cell = "bg-glass-surface px-3 py-3 min-w-0";
   return (
     <>
       {bands.map((band, bi) => {
         // The band's divisions, in order; teams with no division last.
-        const names = [...new Set(band.flatMap((d) => [...divisionsOn(d)]))]
+        const names = [...new Set(band.flatMap((d) => [...divisionsOn(loc, d)]))]
           .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
         const undivided = band.some((d) => teamsOn(d).some((r) => !r.division));
         const rows: (string | null)[] = [...names, ...(undivided ? [null] : [])];
@@ -415,9 +475,9 @@ function NightRows({ loc, days, slots, captainTeams, staff, perRow, rosterLines 
               ))}
               {rows.flatMap((division, ri) => band.map((day) => {
                 const teams = teamsOn(day).filter((r) => (division ? r.division === division : !r.division));
-                const runs = division ? divisionsOn(day).has(division) : teams.length > 0;
+                const runs = division ? divisionsOn(loc, day).has(division) : teams.length > 0;
                 // A night with no divisions open and no team still says so.
-                const bare = ri === 0 && divisionsOn(day).size === 0 && teamsOn(day).length === 0;
+                const bare = ri === 0 && divisionsOn(loc, day).size === 0 && teamsOn(day).length === 0;
                 return (
                   <div key={`${division ?? "none"}-${day ?? "tbd"}`} className={cell}>
                     {bare && <p className="text-xs italic text-glass-text-tertiary">No ambassador team</p>}
