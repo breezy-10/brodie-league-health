@@ -340,84 +340,41 @@ function LocationCard({
           </div>
         </div>
       )}
-      {v2 ? <NightRows loc={loc} days={days} slots={slots} captainTeams={captainTeams} staff={staff} /> : (
-      <div className="grid gap-px" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(216px, 1fr))", background: "var(--glass-border)" }}>
-        {days.map((day) => {
-          const teams = loc.rows.filter((r) => r.day === day);
-          return (
-            <div key={day ?? "unscheduled"} className="bg-glass-surface px-3 py-3">
-              <div
-                className="flex items-center justify-between gap-2 pb-2 mb-2.5"
-                style={{ borderBottom: "1px solid var(--glass-border)" }}
-              >
-                <span className="tabular text-[11px] font-bold" style={{ color: GOLD }}>
-                  {day ? DAY_ABBR(day) : "TBD"}
-                </span>
-                <span className="tabular text-[11px] text-glass-text-tertiary">{teams.length}</span>
-              </div>
-              {(() => {
-                // The night's teams by division: every division open that
-                // night, in order, each with its ambassador teams or a clear
-                // note that it has none. A team with no division goes last.
-                const open = (loc.divisions ?? []).filter((d) => d.day === day).map((d) => d.division);
-                const names = [...new Set([...open, ...teams.map((r) => r.division).filter((d): d is string => !!d)])]
-                  .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-                const groups: { division: string | null; rows: TeamRow[] }[] = names.map((d) => ({
-                  division: d, rows: teams.filter((r) => r.division === d),
-                }));
-                const undivided = teams.filter((r) => !r.division);
-                if (undivided.length) groups.push({ division: null, rows: undivided });
-                if (groups.length === 0) {
-                  return <p className="text-xs italic text-glass-text-tertiary">No ambassador team</p>;
-                }
-                return (
-                  <div className="space-y-3">
-                    {groups.map((g) => (
-                      <div key={g.division ?? "none"} className="space-y-1.5">
-                        <div className="text-[11px] font-semibold text-glass-text-secondary">
-                          {g.division ?? "No division"}
-                        </div>
-                        {g.rows.length === 0 ? (
-                          <div className="rounded-lg px-2.5 py-2 text-[11.5px] font-semibold"
-                            style={{ color: "var(--red)", background: "var(--red-tint)" }}>
-                            No ambassador team
-                          </div>
-                        ) : (
-                          <ul className="space-y-2">
-                            {g.rows.map((r, i) => (
-                              <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} staff={staff} />
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-          );
-        })}
-      </div>
+      {v2 ? (
+        <NightRows loc={loc} days={days} slots={slots} captainTeams={captainTeams} staff={staff}
+          perRow={NIGHTS_PER_ROW} rosterLines />
+      ) : (
+        // Every night on one row, as before, scrolling sideways on a screen
+        // too narrow for them all.
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: days.length * 216 }}>
+            <NightRows loc={loc} days={days} slots={slots} captainTeams={captainTeams} staff={staff}
+              perRow={Math.max(days.length, 1)} />
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-// v2's nights: at most four to a row, so a column is wide enough to read a
-// roster in, and within each row the divisions line up: D3 on one line across
-// every night, D4 on the next. A night that doesn't run a division leaves its
-// cell empty; one that runs it with no ambassador team says so.
+// A location's nights, perRow to a row, and within each row the divisions line
+// up: D3 on one line across every night, D4 on the next. A night that doesn't
+// run a division leaves its cell empty; one that runs it with no ambassador
+// team says so. The original page puts every night on one row; v2 four, so a
+// column is wide enough to read a roster in.
 const NIGHTS_PER_ROW = 4;
-function NightRows({ loc, days, slots, captainTeams, staff }: {
+function NightRows({ loc, days, slots, captainTeams, staff, perRow, rosterLines = false }: {
   loc: LocationRow;
   days: (string | null)[];
   slots: number;
   captainTeams: Record<string, number>;
   staff: Record<string, string> | null;
+  perRow: number;
+  rosterLines?: boolean;
 }) {
-  const cols = Math.min(NIGHTS_PER_ROW, days.length);
+  const cols = Math.min(perRow, days.length);
   const bands: (string | null)[][] = [];
-  for (let i = 0; i < days.length; i += NIGHTS_PER_ROW) bands.push(days.slice(i, i + NIGHTS_PER_ROW));
+  for (let i = 0; i < days.length; i += perRow) bands.push(days.slice(i, i + perRow));
   const teamsOn = (day: string | null) => loc.rows.filter((r) => r.day === day);
   const divisionsOn = (day: string | null) => new Set([
     ...(loc.divisions ?? []).filter((d) => d.day === day).map((d) => d.division),
@@ -456,11 +413,14 @@ function NightRows({ loc, days, slots, captainTeams, staff }: {
                   <p className="text-xs italic text-glass-text-tertiary">No ambassador team</p>
                 </div>
               ))}
-              {rows.flatMap((division) => band.map((day) => {
+              {rows.flatMap((division, ri) => band.map((day) => {
                 const teams = teamsOn(day).filter((r) => (division ? r.division === division : !r.division));
                 const runs = division ? divisionsOn(day).has(division) : teams.length > 0;
+                // A night with no divisions open and no team still says so.
+                const bare = ri === 0 && divisionsOn(day).size === 0 && teamsOn(day).length === 0;
                 return (
                   <div key={`${division ?? "none"}-${day ?? "tbd"}`} className={cell}>
+                    {bare && <p className="text-xs italic text-glass-text-tertiary">No ambassador team</p>}
                     {runs && (
                       <div className="space-y-1.5">
                         <div className="text-[11px] font-semibold text-glass-text-secondary">
@@ -475,7 +435,7 @@ function NightRows({ loc, days, slots, captainTeams, staff }: {
                           <ul className="space-y-2">
                             {teams.map((r, i) => (
                               <TeamChip key={`${r.team}-${i}`} row={r} slots={slots} captainTeams={captainTeams} staff={staff}
-                                rosterLines />
+                                rosterLines={rosterLines} />
                             ))}
                           </ul>
                         )}
