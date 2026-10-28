@@ -134,8 +134,10 @@ export default function TeamRosterBlock({
 
 // One line per player: name and how they joined, what they have paid of their
 // price, then any discount and its code. Fixed widths keep name and amount
-// under the Ambassadors table's header; fluid lets the name give way first,
-// for a card narrower than the table (the location cards' rosters).
+// under the Ambassadors table's header. Fluid fills whatever card it is in
+// (the location cards' rosters): one line where there is room, and in a
+// column too narrow for that the amounts drop under the name, rather than
+// squeezing the name out.
 export function RosterLines({ lines, staff, hrefFor, fluid = false, className }: {
   lines: RosterLine[];
   staff?: Record<string, string>;
@@ -150,9 +152,10 @@ export function RosterLines({ lines, staff, hrefFor, fluid = false, className }:
   return (
     <ul className={`space-y-0.5 ${className ?? ""}`}>
       {lines.map((x, i) => (
-        <li key={`${x.player}-${i}`} className="flex items-baseline gap-3 text-[12px]" style={{ maxWidth: lineWidth }}>
+        <li key={`${x.player}-${i}`}
+          className={`flex items-baseline text-[12px] ${fluid ? "flex-wrap gap-x-3" : "gap-3"}`} style={{ maxWidth: lineWidth }}>
           <span className="truncate flex-1 min-w-0"
-            style={{ color: owes(x) ? "var(--glass-text)" : "var(--glass-text-secondary)" }}>
+            style={{ color: owes(x) ? "var(--glass-text)" : "var(--glass-text-secondary)", ...(fluid ? { flex: "1 1 10rem" } : {}) }}>
             {(() => {
               const href = hrefFor?.(x);
               return href ? <Link href={href} className="hover:underline">{x.player}</Link> : x.player;
