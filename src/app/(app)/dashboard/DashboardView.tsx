@@ -4261,7 +4261,11 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
             caption: "with 7 or more players",
           } : undefined}
           tone="default"
-          lines={teamsRegistered != null ? [{ text: "Each location: teams registered / teams booked" }] : undefined}
+          // How many locations the chips below cover, then how to read them.
+          lines={teamsRegistered != null ? [
+            { text: `${locFill.length} ${locFill.length === 1 ? "location" : "locations"}`, strong: true },
+            { text: "Each location: teams registered / teams booked" },
+          ] : undefined}
           pills={teamsRegistered != null
             ? locFill.map((f) => ({
                 text: `${f.location} ${f.registered}/${f.booked}`,
