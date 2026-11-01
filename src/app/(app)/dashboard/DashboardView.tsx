@@ -4198,9 +4198,10 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
     return {
       location: l.location,
       registered: regs.reduce((n, r) => n + r.teams, 0),
-      // Its teams that can field a side, and the players on its teams, for
-      // the chip's second and third lines.
+      // Its teams that can field a side, those that have barely started, and
+      // the players on its teams, for the chip's lines under its name.
       full: regs.reduce((n, r) => n + r.full, 0),
+      low: regs.reduce((n, r) => n + r.low, 0),
       players: regs.reduce((n, r) => n + r.players, 0),
       booked: (l.by_day ?? []).reduce((n, d) => n + (d.teams_capacity ?? d.teams), 0),
     };
@@ -4267,6 +4268,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                 href: `#${bookingRowId(f.location)}`,
                 sub: [
                   `${f.full} with 7+ players`,
+                  `${f.low} with ≤3 players`,
                   f.registered ? `${(f.players / f.registered).toFixed(1)} avg players per team` : "no teams yet",
                 ],
                 tone: fillTone(f.registered, f.booked),
