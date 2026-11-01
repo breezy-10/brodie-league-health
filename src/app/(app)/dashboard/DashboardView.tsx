@@ -28,13 +28,6 @@ import { BackToTopButton, ScrollUpButton } from "./ScrollUpButton";
 import { SectionJumpBar } from "./SectionJumpBar";
 import { loadRefereeBookings, RefereeBookingsSection } from "./RefereeBookings";
 
-// Promo Tracker location name -> League Health league_managers.location_name,
-// so selecting a location still matches the roster in the live sections.
-const PROMO_TO_ROSTER: Record<string, string> = {
-  "Brampton": "Brampton (Game6)",
-  "Brooklyn - Bushwick": "Brooklyn (Bushwick)",
-};
-
 // Deep links to each source app's dashboard ("More details →").
 const APP_URL: Record<string, string> = {
   crm: "https://brodie-crm-pro.vercel.app",
@@ -3155,15 +3148,24 @@ export default async function DashboardView({
       ).data) as unknown as SnapRow[]) ?? []
     : [];
 
-  // Map the selected Promo Tracker locations to their roster names for matching.
-  // A snapshot is in scope if it matches ANY selected location or league
-  // manager (the same union the source-app queries use).
-  const rosterLocations = new Set(selectedLocations.map((l) => PROMO_TO_ROSTER[l] ?? l));
+  // A snapshot is in scope if its league manager covers ANY selected location
+  // (the same union the source-app queries use). Every location they run counts
+  // once the roster comes from districts (location_names, migration 0023; read
+  // with `*` so this works before it lands); until then, the one location_name.
+  // Names are compared loosely: the old CRM roster spells some venues its own
+  // way ("Brampton (Game6)").
+  const rosterLocs = new Map<string, string[]>();
+  if (selectedLocations.length && snaps.length) {
+    const { data: rosterRows } = await admin.from("league_managers").select("*");
+    for (const r of (rosterRows ?? []) as { id: string; location_name: string | null; location_names?: string[] | null }[]) {
+      rosterLocs.set(r.id, r.location_names?.length ? r.location_names : r.location_name ? [r.location_name] : []);
+    }
+  }
   const filtered = snaps.filter((s) => {
     if (!s.league_managers?.active) return false;
-    if (!rosterLocations.size) return true;
-    const locName = s.league_managers.location_name;
-    return locName != null && rosterLocations.has(locName);
+    if (!selectedLocations.length) return true;
+    const mine = rosterLocs.get(s.lm_id) ?? (s.league_managers.location_name ? [s.league_managers.location_name] : []);
+    return mine.some((n) => selectedLocations.some((sel) => sameLocation(sel, n)));
   });
 
   type MetricAgg = { name: string; slug: string; sum: number; n: number };
