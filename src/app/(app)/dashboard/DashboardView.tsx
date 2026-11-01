@@ -4384,18 +4384,11 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                       <div className="font-bold" style={{ color: fill }}>
                         {reg ? reg.teams.toLocaleString() : "—"}
                       </div>
-                      {/* How many of the night's teams can field a side, and
-                          how many have barely started. */}
-                      {/* The average first — it describes the night as a whole; the
-                          chips under it are the two tails. */}
+                      {/* How many of the night's teams can field a side, how
+                          many have barely started, and the average under the
+                          two tails, as on the location chips above. */}
                       {(!!reg?.full || !!reg?.low || !!reg?.teams) && (
                         <div className="mt-1 flex flex-col items-end gap-0.5">
-                          {!!reg?.teams && (
-                            <span className={ROSTER_CHIP}
-                              style={rosterChipStyle(reg.players / reg.teams)}>
-                              {(reg.players / reg.teams).toFixed(1)} avg players per team
-                            </span>
-                          )}
                           {!!reg?.full && (
                             <span className={ROSTER_CHIP}
                               style={FULL_ROSTER_CHIP}>
@@ -4406,6 +4399,12 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                             <span className={ROSTER_CHIP}
                               style={{ color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" }}>
                               {reg.low} with 3 or fewer players
+                            </span>
+                          )}
+                          {!!reg?.teams && (
+                            <span className={ROSTER_CHIP}
+                              style={rosterChipStyle(reg.players / reg.teams)}>
+                              {(reg.players / reg.teams).toFixed(1)} avg players per team
                             </span>
                           )}
                         </div>
@@ -4453,10 +4452,6 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                   </div>
                   {!!totals.registered && (
                     <div className="mt-1 flex flex-col items-end gap-0.5">
-                      <span className={ROSTER_CHIP}
-                        style={rosterChipStyle(totals.players / totals.registered)}>
-                        {(totals.players / totals.registered).toFixed(1)} avg players per team
-                      </span>
                       {!!totals.full && (
                         <span className={ROSTER_CHIP}
                           style={FULL_ROSTER_CHIP}>
@@ -4469,6 +4464,10 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                           {totals.low} with 3 or fewer players
                         </span>
                       )}
+                      <span className={ROSTER_CHIP}
+                        style={rosterChipStyle(totals.players / totals.registered)}>
+                        {(totals.players / totals.registered).toFixed(1)} avg players per team
+                      </span>
                     </div>
                   )}
                 </td>
