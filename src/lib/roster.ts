@@ -19,9 +19,11 @@ import { sameLocation } from "@/lib/location-match";
  *     it is still theirs, else the first alphabetically.
  *   - `district` is their district managers' names (those with an email,
  *     most locations first).
- *   - A row whose person districts no longer lists is marked inactive, never
- *     deleted (scores and history hang off the id). Ids never change: rows
- *     are updated in place by id.
+ *   - A row whose person districts doesn't list is left as it is, active, and
+ *     reported in `notInDistricts`: staff who aren't on a districts roster
+ *     (Destin Gross, Ekjot Sandhu and Shane McNabb in Nov 2026) are still at
+ *     Brodie, so not being listed is no reason to stop scoring them. Rows are
+ *     never deleted, and ids never change: rows are updated in place by id.
  *   - `hired_at` is filled from the Training app's users table by email.
  *   - Super admins never get an active row (unchanged rule).
  *
@@ -40,6 +42,8 @@ export interface RosterSyncResult {
   created: { name: string; email: string; locations: string[] }[];
   reactivated: { name: string; email: string }[];
   deactivated: { name: string; email: string; location: string | null }[];
+  /** Active rows districts doesn't list: kept as they are, for someone to check. */
+  notInDistricts: { name: string; email: string; location: string | null }[];
   /** Location changes, primary first on both sides. */
   locations: { name: string; email: string; before: string[]; after: string[] }[];
   districts: { name: string; from: string | null; to: string | null }[];
@@ -111,7 +115,7 @@ export async function syncRosterFromDirectory(
 ): Promise<RosterSyncResult> {
   const dryRun = opts.dryRun === true;
   const out: RosterSyncResult = {
-    ok: false, dryRun, synced: 0, created: [], reactivated: [], deactivated: [], locations: [],
+    ok: false, dryRun, synced: 0, created: [], reactivated: [], deactivated: [], notInDistricts: [], locations: [],
     districts: [], hiredAt: [], matchedByName: [], noAccount: [], superAdmins: [],
   };
   const directory = opts.directory !== undefined ? opts.directory : await fetchDirectory();
@@ -185,11 +189,12 @@ export async function syncRosterFromDirectory(
   }
   if (want.size === 0) return { ...out, error: "Districts names no league managers with an email: skipped." };
 
-  // A sudden mass departure is far more likely a districts problem than real.
+  // Most of the roster missing from districts is far more likely a districts
+  // problem than real.
   const activeNow = roster.filter((r) => r.active && !superAdminEmails.has(normEmail(r.email)));
   const leaving = activeNow.filter((r) => !want.has(normEmail(r.email)));
   if (activeNow.length >= 6 && leaving.length > activeNow.length / 2) {
-    return { ...out, error: `Districts would deactivate ${leaving.length} of ${activeNow.length} active league managers: skipped. Check the directory.` };
+    return { ...out, error: `Districts lists only ${activeNow.length - leaving.length} of ${activeNow.length} active league managers: skipped. Check the directory.` };
   }
 
   const hires = await trainingHireDates();
@@ -255,9 +260,12 @@ export async function syncRosterFromDirectory(
     if (error) return { ...out, error: `Could not update ${label}: ${error.message}` };
   }
 
-  // 3. Departures: inactive, never deleted. Super admins are switched off too
-  // (they never score, whatever districts says).
-  const off = roster.filter((r) => r.active && (!want.has(normEmail(r.email)) || superAdminEmails.has(normEmail(r.email))));
+  // 3. Super admins are switched off (they never score, whatever districts
+  // says). Anyone else districts doesn't list keeps their row as it is.
+  for (const r of roster.filter((r) => r.active && !want.has(normEmail(r.email)) && !superAdminEmails.has(normEmail(r.email)))) {
+    out.notInDistricts.push({ name: r.full_name ?? r.email, email: r.email, location: r.location_name });
+  }
+  const off = roster.filter((r) => r.active && superAdminEmails.has(normEmail(r.email)));
   for (const r of off) {
     out.deactivated.push({ name: r.full_name ?? r.email, email: r.email, location: r.location_name });
     if (dryRun) continue;
@@ -277,6 +285,7 @@ export function describeRosterSync(r: RosterSyncResult): string {
     ...r.created.map((c) => `+ add ${c.name} <${c.email}>: ${c.locations.join(", ")}`),
     ...r.reactivated.map((c) => `+ reactivate ${c.name} <${c.email}>`),
     ...r.deactivated.map((c) => `- deactivate ${c.name} <${c.email}> (was ${c.location ?? "no location"})`),
+    ...r.notInDistricts.map((c) => `? not in districts, left as is: ${c.name} <${c.email}> (${c.location ?? "no location"})`),
     ...r.locations.map((c) => `~ ${c.name}: ${c.before.join(", ") || "no location"} -> ${c.after.join(", ") || "no location"}`),
     ...r.districts.map((c) => `~ ${c.name}: district manager ${c.from ?? "none"} -> ${c.to ?? "none"}`),
     ...r.hiredAt.map((c) => `~ ${c.name}: hired ${c.hiredAt} (from Training)`),
