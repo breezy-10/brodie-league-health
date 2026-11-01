@@ -2,6 +2,7 @@ import { compareSeasons, locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { type PlayersFilter, matchesPlayers } from "./players";
 import { TZ_SHORT } from "@/lib/tz";
+import { scoresheetsHref } from "@/lib/scoresheets";
 import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
 export { TZ_SHORT };
@@ -27,6 +28,9 @@ type ScheduledRow = {
   attendance: Attendance;
   // The ops game id (absent from an older feed).
   game_id?: string | null;
+  // Which night of the season the game was for its night, as the score sheet
+  // folders number their weeks (absent from an older feed).
+  game_week?: number | null;
   // When the drop-in went through, as a UTC ISO instant (absent from an
   // older feed).
   registered_at?: string | null;
@@ -126,12 +130,13 @@ const STAT_LINE: Record<StatLine, { label: string; style: React.CSSProperties }>
 };
 // Column widths shared by every day's table: time, location, player, team,
 // price, on Past attendance and where the stats went, the seasons they
-// registered for, and on Past the game's BallerTV, admin and stats links.
+// registered for, and on Past the game's BallerTV, admin and stats links and
+// the night's score sheets.
 const COLS = ["11%", "15%", "24%", "24%", "8%", "18%"];
-const COLS_PAST = ["8%", "10%", "15%", "15%", "5%", "9%", "9%", "10%", "6%", "6%", "7%"];
+const COLS_PAST = ["7%", "9%", "14%", "14%", "4%", "8%", "9%", "9%", "7%", "6%", "6%", "7%"];
 // By registration date: the registration time, then the game's day and time.
 const COLS_REG = ["9%", "15%", "12%", "20%", "20%", "7%", "17%"];
-const COLS_PAST_REG = ["7%", "10%", "8%", "13%", "13%", "5%", "9%", "9%", "9%", "6%", "5%", "6%"];
+const COLS_PAST_REG = ["7%", "9%", "8%", "12%", "12%", "4%", "8%", "8%", "8%", "6%", "5%", "6%", "7%"];
 
 // The game on BallerTV, found when clicked (see /go/ballertv), and on the
 // admin and stats sites by its ops id: the same three links Stats Health
@@ -227,7 +232,7 @@ export default async function ScheduledDropIns({
   const games = new Set(rows.map((r) => `${r.game_at}|${r.location}|${r.team}|${r.opponent}`)).size;
   const newCount = rows.filter((r) => r.is_new).length;
   const today = todayKey();
-  const tableMin = (past ? 1320 : 860) + (byRegistered ? 140 : 0);
+  const tableMin = (past ? 1420 : 860) + (byRegistered ? 140 : 0);
 
   return (
     <div className="space-y-4">
@@ -286,6 +291,7 @@ export default async function ScheduledDropIns({
                           <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>BallerTV</th>
                           <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Admin</th>
                           <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Stats</th>
+                          <th className={`px-2 py-2.5 text-left font-bold ${stickyTh(tableMin)}`} style={STICKY_TH_STYLE}>Stat sheets</th>
                         </>
                       )}
                     </tr>
@@ -365,6 +371,11 @@ export default async function ScheduledDropIns({
                               <GameLink href={r.game_id ? `https://stats.brodierec.com/games/${r.game_id}` : null} label="Stats"
                                 title="Open this game on stats.brodierec.com" />
                             </td>
+                            <td className="px-2 py-2.5">
+                              <GameLink href={scoresheetsHref({ location: r.location, gameAt: r.game_at, season, week: r.game_week })}
+                                label="Sheets"
+                                title={`Open the night's score sheets on Google Drive${r.game_week ? ` (week ${r.game_week})` : ""}`} />
+                            </td>
                           </>
                         )}
                       </tr>
@@ -387,7 +398,9 @@ export default async function ScheduledDropIns({
             awaiting stats is a game with none in for their team yet. Stat line says where their stats went: on the
             player, on a spare (a placeholder with no account and no roster spot, like &ldquo;Spare player&rdquo;),
             not on their team&apos;s sheet, or no stats in yet. Registered for is each season the player registered
-            for after the drop-in; Paid drop-in is a new player who came back and paid for another, which counts as converting. Times are the venue&apos;s own local time.
+            for after the drop-in; Paid drop-in is a new player who came back and paid for another, which counts as converting. Stat sheets
+            opens the night&apos;s score sheets on Google Drive, from OpsHub&apos;s score sheet upload links: the week&apos;s folder,
+            or the night&apos;s when that week has none. Times are the venue&apos;s own local time.
             {byRegistered && " Registered is when the drop-in went through (paid, or confirmed when free)."}
           </>
         ) : (
