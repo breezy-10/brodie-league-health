@@ -13,6 +13,34 @@
   scoring roster. Picker names come from the Promo Tracker canonical list
   (`src/lib/locations.ts`), matching the dashboard's location filter.
 
+## Roster comes from districts
+
+`syncRoster` (`src/lib/roster.ts`, first step of the 05:00 sync-all job and
+My Day's self-heal) builds the `league_managers` scoring roster from
+brodie-districts' directory (`src/lib/directory.ts`, `GET /api/directory`,
+env `DIRECTORY_FEED_TOKEN`), so a manager change is entered once, there.
+
+- Every league manager districts names for an active location now gets a row,
+  matched by email; a name districts has no email for matches an existing row
+  or sign-in with the exact same full name, else it is listed as "no account"
+  (placeholders like "Atlanta LM"). Rows are updated in place (ids are what
+  scores hang off) and someone districts stops listing is marked inactive,
+  never deleted. Super admins never get an active row.
+- Locations: `location_names` + `league_ids` (ops league ids, migration 0023)
+  hold every location districts names them for, primary first;
+  `location_name` stays the primary one for display. `district` is their
+  district managers' names. `hired_at` is filled from Training's users table.
+- With `DIRECTORY_SYNC=apply` it writes, and the adapters' league manager list
+  and locations (`listLMsFromCRM` / `resolve*ForLM` in
+  `source-apps/cross-app-locations.ts`) read the roster instead of CRM
+  managers. Anything else is report only: the diff is logged and the old CRM
+  copy (`syncRosterFromCrm`) keeps the roster as before. If districts can't be
+  read with the switch on, the run is skipped rather than emptying anything.
+- Dry run by hand (writes nothing):
+  `set -a && source .env.local && set +a && npx tsx scripts/directory-sync-dry-run.ts`.
+- This app's own `user_locations` (Settings > Users) is display only: nothing
+  scopes by it, so the sync leaves it alone.
+
 ## Where things live
 
 - `src/lib/source-apps/adapters/` — one file per source app. Each exports an

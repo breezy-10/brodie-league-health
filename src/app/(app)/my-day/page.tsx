@@ -117,10 +117,10 @@ export default async function MyDay({
       data = r3.data;
     }
 
-    // Strategy 4: self-heal. Sync the roster from CRM and retry once.
-    // This is what "have them have active pages and just sync with the CRM
-    // every day" means in practice — if you're a CRM manager and you log
-    // in before the daily cron has caught you, we pull you in on the spot.
+    // Strategy 4: self-heal. Sync the roster (from districts, or the CRM
+    // until DIRECTORY_SYNC=apply; lib/roster.ts) and retry once. If you're
+    // a league manager and you log in before the daily cron has caught you,
+    // we pull you in on the spot.
     if (!data && userEmail) {
       try {
         const { syncRoster } = await import("@/lib/roster");

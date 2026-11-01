@@ -12,8 +12,10 @@
  *   training:       "Brampton"             "Bushwick"              "Calgary"
  *   facilities:     city="Brampton"        city="Brooklyn (Bushwick)" city="Calgary (North)"
  *
- * This helper resolves an LM's assigned location names from CRM to the
- * corresponding row IDs (or city strings, for facilities) in each target app.
+ * This helper resolves an LM's assigned location names to the corresponding
+ * row IDs (or city strings, for facilities) in each target app. The names
+ * come from the league_managers roster, which follows brodie-districts, when
+ * DIRECTORY_SYNC=apply (lib/roster.ts); until then, from CRM managers.
  *
  * Matching strategy (case-insensitive, accent-stripped):
  *   1. exact match on normalized name
@@ -25,6 +27,7 @@
  */
 import { sourceClient } from "./clients";
 import type { AppSlug } from "./clients";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type Norm = string;
 
@@ -78,7 +81,42 @@ function fuzzyMatch(crmNames: string[], candidate: string): boolean {
 // In-process caches keyed by sync run.
 let crmManagersCache: Map<string /*email*/, string[] /*locationNames*/> | null = null;
 
+type RosterLM = { email: string; name: string; locations: string[]; leagueIds: string[] };
+let rosterCache: Promise<RosterLM[] | null> | null = null;
+
+// The active roster with every location districts names each league manager
+// for, once the directory sync owns the roster. Null (use CRM) when the switch
+// is off, the roster can't be read, or it hasn't been synced from districts
+// yet (location_names, from migration 0023, still empty everywhere).
+function directoryRoster(): Promise<RosterLM[] | null> {
+  if (process.env.DIRECTORY_SYNC !== "apply") return Promise.resolve(null);
+  if (!rosterCache) {
+    rosterCache = (async () => {
+      try {
+        const { data, error } = await createAdminClient().from("league_managers").select("*").eq("active", true);
+        if (error || !data) return null;
+        const rows = data as Array<{
+          email: string; full_name: string | null; location_name: string | null;
+          location_names?: string[] | null; league_ids?: string[] | null;
+        }>;
+        if (!rows.some((r) => Array.isArray(r.location_names))) return null;
+        return rows.map((r) => ({
+          email: r.email.toLowerCase(),
+          name: r.full_name ?? r.email,
+          locations: r.location_names ?? (r.location_name ? [r.location_name] : []),
+          leagueIds: r.league_ids ?? [],
+        }));
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return rosterCache;
+}
+
 async function getCRMLocationNamesForLM(lmEmail: string): Promise<string[]> {
+  const roster = await directoryRoster();
+  if (roster) return roster.find((r) => r.email === lmEmail.toLowerCase())?.locations ?? [];
   if (!crmManagersCache) {
     const crm = sourceClient("crm");
     if (!crm) return [];
@@ -200,12 +238,15 @@ export async function resolveFacilityCitiesForLM(lmEmail: string): Promise<strin
 }
 
 /**
- * Pull the canonical LM list straight from CRM managers. Source of truth
- * for who has accountability for what. Adapters should use this rather than
- * looking up profiles in the target app — most LMs don't have profiles in
- * facilities/ref_payroll/etc.
+ * The canonical LM list: who has accountability for what. Adapters should use
+ * this rather than looking up profiles in the target app — most LMs don't have
+ * profiles in facilities/ref_payroll/etc. From the directory-synced roster when
+ * DIRECTORY_SYNC=apply (assigned_locations are then ops league ids), else
+ * straight from CRM managers (CRM location ids).
  */
 export async function listLMsFromCRM(): Promise<Array<{ email: string; name: string; assigned_locations: string[] }>> {
+  const roster = await directoryRoster();
+  if (roster) return roster.map((r) => ({ email: r.email, name: r.name, assigned_locations: r.leagueIds }));
   await getCRMLocationNamesForLM("noop@noop"); // forces the cache load
   const crm = sourceClient("crm");
   if (!crm) return [];
@@ -224,6 +265,7 @@ export async function listLMsFromCRM(): Promise<Array<{ email: string; name: str
 /** Wipe caches at the start of each sync run. */
 export function clearLocationCache(): void {
   crmManagersCache = null;
+  rosterCache = null;
   locationCache.clear();
   locationTableCache.clear();
 }
