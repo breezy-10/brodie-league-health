@@ -43,7 +43,8 @@ const DAY_FULL: Record<string, string> = {
   Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday",
 };
 
-type RefNight = { location: string; refLocationId: string; day: string; status: RefStatus };
+// refLocationId is null for a facility no referee payroll location is linked to.
+type RefNight = { location: string; refLocationId: string | null; day: string; status: RefStatus };
 export type RefereeData = { seasonId: string | null; nights: RefNight[] };
 
 type Booking = {
@@ -96,7 +97,9 @@ export async function loadRefereeBookings(season: string, locationNames: string[
     if (!s) return { seasonId: null, nights: [] };
 
     // Each facility under one referee payroll location: the first, by name,
-    // sharing a stats venue id with it, as that app does.
+    // sharing a stats venue id with it, as that app does. A facility with no
+    // such location is still listed (a night can't run without referees), and
+    // reads as need to book: that app has nowhere to record its referees.
     const facRows = (facilities ?? []) as { id: string; city: string | null; external_facility_ids: string[] | null }[];
     const cityOf = new Map(facRows.map((f) => [f.id, f.city]));
     const locByFacility = new Map<string, { id: string; name: string }>();
@@ -107,19 +110,16 @@ export async function loadRefereeBookings(season: string, locationNames: string[
         if (!locByFacility.has(f.id) && (f.external_facility_ids ?? []).some((e) => ext.has(e))) locByFacility.set(f.id, { id: l.id, name: l.name });
       }
     }
-    const facilityIds = [...locByFacility.keys()];
-    if (!facilityIds.length) return { seasonId: s.id, nights: [] };
-
     const bookings = await allRows<Booking>((from, to) => (fac as SupabaseClient)
       .from("bookings")
       .select("id, facility_id, date, start_time, end_time, num_courts, game_label, is_off")
-      .eq("season_id", s.id).in("facility_id", facilityIds)
+      .eq("season_id", s.id)
       .order("date").order("id").range(from, to));
     if (!bookings.length) return { seasonId: s.id, nights: [] };
 
     const locIds = [...new Set([...locByFacility.values()].map((l) => l.id))];
     const ids = new Set(bookings.map((b) => b.id));
-    const refRows = await allRows<RefRow>((from, to) => (rp as SupabaseClient)
+    const refRows = !locIds.length ? [] : await allRows<RefRow>((from, to) => (rp as SupabaseClient)
       .from("referee_bookings")
       .select("facility_booking_id, status, booking_date, booked_start_time, booked_end_time, booked_courts")
       .in("location_id", locIds)
@@ -143,10 +143,10 @@ export async function loadRefereeBookings(season: string, locationNames: string[
       // Live nights, and a night off still holding referees who need telling.
       if (isOff && status !== "notification_required") continue;
       const first = blocks[0];
-      const loc = locByFacility.get(first.facility_id)!;
-      const label = cityOf.get(first.facility_id) || loc.name;
+      const loc = locByFacility.get(first.facility_id);
+      const label = cityOf.get(first.facility_id) || loc?.name || "Unknown facility";
       if (locationNames?.length && !locationNames.some((n) => sameLocation(label, n))) continue;
-      nights.push({ location: label, refLocationId: loc.id, day: DOW[new Date(`${first.date}T00:00:00Z`).getUTCDay()], status });
+      nights.push({ location: label, refLocationId: loc?.id ?? null, day: DOW[new Date(`${first.date}T00:00:00Z`).getUTCDay()], status });
     }
     return { seasonId: s.id, nights };
   } catch {
@@ -160,6 +160,11 @@ const rowId = (loc: string, day?: string) =>
   `referee-${loc.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}${day ? `-${day.toLowerCase()}` : ""}`;
 // Which card a status belongs to: done (green), needs telling (yellow), to book (red).
 const toneOf = (s: RefStatus): Tone => (s === "need_to_book" ? "bad" : s === "notification_required" ? "warn" : "ok");
+// A location's chip on the Referees booked card: green once every night has
+// referees, yellow once any night has them booked (a night needing telling
+// still had them booked), red while none do.
+const progressTone = (c: Cell): Tone =>
+  c.nights && c.done === c.nights ? "ok" : c.done + (c.by.notification_required ?? 0) > 0 ? "warn" : "bad";
 
 type Cell = { nights: number; done: number; by: Partial<Record<RefStatus, number>> };
 const blank = (): Cell => ({ nights: 0, done: 0, by: {} });
@@ -182,7 +187,7 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
   data: RefereeData | null; season: string; titleSuffix?: ReactNode; headerExtra?: ReactNode;
 }) {
   // Location -> night -> counts, alphabetical, Monday first.
-  const byLoc = new Map<string, { refLocationId: string; days: Map<string, Cell>; all: Cell }>();
+  const byLoc = new Map<string, { refLocationId: string | null; days: Map<string, Cell>; all: Cell }>();
   const total = blank();
   for (const n of data?.nights ?? []) {
     let l = byLoc.get(n.location);
@@ -215,8 +220,8 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
   const card = (tone: Tone) => chips.filter((c) => c.tone === tone);
   const locsIn = (cs: { location: string }[]) => new Set(cs.map((c) => c.location)).size;
   const ofAll = (n: number) => (locations.length ? `${Math.round((n / locations.length) * 100)}%` : undefined);
-  const bookingsHref = (refLocationId: string) => data?.seasonId
-    ? `${REF_PAYROLL_URL}/bookings?${new URLSearchParams({ season: data.seasonId, location: refLocationId })}`
+  const bookingsHref = (refLocationId: string | null) => data?.seasonId
+    ? `${REF_PAYROLL_URL}/bookings?${new URLSearchParams({ season: data.seasonId, ...(refLocationId ? { location: refLocationId } : {}) })}`
     : `${REF_PAYROLL_URL}/bookings`;
   const ROW_MARGIN = "calc(var(--shell-top) + 52px)";
 
@@ -261,7 +266,7 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
                 lines={[{ text: "Each location: nights with referees booked / nights" }]}
                 pills={locations.map((l) => ({
                   text: `${l.location} ${l.all.done}/${l.all.nights}`,
-                  tone: toneOf(cellStatus(l.all)),
+                  tone: progressTone(l.all),
                   href: `#${rowId(l.location)}`,
                 }))}
                 pillsByTone
@@ -357,10 +362,11 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
             </table>
           </div>
           <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
-            Every game night booked at a facility linked to a referee payroll location, for {season}. A night counts as
-            having referees when they are booked, booked differently or not needed; notification required means the
-            facility booking changed after the referees were booked. Read live from the referee payroll app&apos;s
-            Bookings page.
+            Every game night on the facilities schedule for {season}. A night counts as having referees when they are
+            booked, booked differently or not needed; notification required means the facility booking changed after
+            the referees were booked. A location&apos;s chip is green when every night has referees, yellow when some
+            do and red when none do. Read live from the referee payroll app&apos;s Bookings page; a facility no referee
+            payroll location is linked to reads as need to book.
           </p>
         </>
       )}
