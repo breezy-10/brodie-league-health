@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { promoFetch } from "@/lib/promo-feed";
 import { loadEvents, type EventRow } from "../events/EventsView";
 import { dayLabel, todayKey } from "../drop-ins/ScheduledDropIns";
-import { TZ_SHORT } from "@/lib/tz";
+import { tzSuffix } from "@/lib/tz";
 
 // Check-ins: the front table checks each player in at the door, to a game or
 // to the venue, and at events. For every game night of the season, how many
@@ -345,7 +345,7 @@ export default async function CheckInsView({ searchParams }: { searchParams: Pro
               {shownEvents.map((e: EventRow) => {
                 const at = e.starts_at!;
                 const [hh, mm] = at.slice(11, 16).split(":").map(Number);
-                const time = `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${TZ_SHORT[e.timezone] ? ` ${TZ_SHORT[e.timezone]}` : ""}`;
+                const time = `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${tzSuffix(e.timezone, at)}`;
                 const ci = e.checked_in ?? 0;
                 return (
                   <tr key={e.id} style={{ borderTop: "1px solid var(--glass-border)" }}>

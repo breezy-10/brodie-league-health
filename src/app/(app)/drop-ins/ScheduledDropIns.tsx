@@ -1,11 +1,10 @@
 import { compareSeasons, locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { type PlayersFilter, matchesPlayers } from "./players";
-import { TZ_SHORT } from "@/lib/tz";
+import { tzSuffix } from "@/lib/tz";
 import { scoresheetsHref } from "@/lib/scoresheets";
 import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
-export { TZ_SHORT };
 
 // The Scheduled and Past tabs: each drop-in that went through, by the game it
 // is for. Scheduled is the games still to come, soonest first, so a league
@@ -80,7 +79,7 @@ function timeLabel(gameAt: string | null, tz: string): string {
   if (!gameAt) return "—";
   const [hh, mm] = gameAt.slice(11, 16).split(":").map(Number);
   const h12 = hh % 12 === 0 ? 12 : hh % 12;
-  return `${h12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${TZ_SHORT[tz] ? ` ${TZ_SHORT[tz]}` : ""}`;
+  return `${h12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${tzSuffix(tz, gameAt)}`;
 }
 // An instant as the venue's own wall-clock time, in the same form as game_at
 // ("2026-10-20T18:31"), so a registration reads in the zone its game does.

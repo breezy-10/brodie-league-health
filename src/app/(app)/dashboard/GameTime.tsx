@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TZ_SHORT } from "@/lib/tz";
+import { tzShort } from "@/lib/tz";
 
 // A game time in the viewer's own time zone, with the venue's in brackets when
 // they differ ("10:00–11:00 pm ET (7:00–8:00 pm PT)"). The server doesn't know
@@ -12,7 +12,8 @@ import { TZ_SHORT } from "@/lib/tz";
 type Mode = "slot" | "start" | "startZone";
 
 function zoneLabel(iso: string, tz: string): string {
-  if (TZ_SHORT[tz]) return TZ_SHORT[tz];
+  const short = tzShort(tz, iso);
+  if (short) return short;
   try {
     return new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" })
       .formatToParts(new Date(iso)).find((p) => p.type === "timeZoneName")?.value ?? "";

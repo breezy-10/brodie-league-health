@@ -1,6 +1,7 @@
 import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
-import { TZ_SHORT, dateKey, dayLabel, todayKey } from "./ScheduledDropIns";
+import { dateKey, dayLabel, todayKey } from "./ScheduledDropIns";
+import { tzSuffix } from "@/lib/tz";
 import { BasisToggle } from "../dashboard/BasisToggle";
 import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 
@@ -55,7 +56,7 @@ function shortDate(at: string | null): string {
 function timeLabel(at: string | null, tz: string): string {
   if (!at) return "—";
   const [hh, mm] = at.slice(11, 16).split(":").map(Number);
-  return `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${TZ_SHORT[tz] ? ` ${TZ_SHORT[tz]}` : ""}`;
+  return `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${tzSuffix(tz, at)}`;
 }
 
 const CHIP = "inline-block text-[11px] font-semibold rounded-md px-1.5 py-0.5 whitespace-nowrap";

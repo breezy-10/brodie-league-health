@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
-import { TZ_SHORT } from "@/lib/tz";
+import { tzSuffix } from "@/lib/tz";
 import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
 import { CheckinNote, pct } from "./events-ui";
 import type { EventRow } from "./EventsView";
@@ -27,7 +27,7 @@ function whenLabel(at: string | null, tz: string): { day: string; time: string }
   const day = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(y, m - 1, d)));
   const [hh, mm] = at.slice(11, 16).split(":").map(Number);
-  const time = `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${TZ_SHORT[tz] ? ` ${TZ_SHORT[tz]}` : ""}`;
+  const time = `${hh % 12 === 0 ? 12 : hh % 12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "am" : "pm"}${tzSuffix(tz, at)}`;
   return { day, time };
 }
 

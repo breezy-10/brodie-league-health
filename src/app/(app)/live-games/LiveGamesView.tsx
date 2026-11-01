@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
-import { TZ_SHORT } from "@/lib/tz";
+import { tzShort } from "@/lib/tz";
 import { canonicalLocation, csvParam } from "@/lib/seasons";
 import { getCanonicalLocations } from "@/lib/districts-locations";
 import { getActiveLocationKeys, onlyActive } from "@/lib/active-locations";
@@ -39,7 +39,7 @@ export default async function LiveGamesView({ searchParams }: { searchParams: Pr
   const options: FilterOptions = { seasons: [], locations: onlyActive(canonical, active, selectedLocations) };
   const asOf = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: viewerTz })
     .format(new Date());
-  const zone = TZ_SHORT[viewerTz] ?? (new Intl.DateTimeFormat("en-US", { timeZone: viewerTz, timeZoneName: "short" })
+  const zone = tzShort(viewerTz) ?? (new Intl.DateTimeFormat("en-US", { timeZone: viewerTz, timeZoneName: "short" })
     .formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value ?? "");
   const n = games ? gameCounts(games) : null;
 
