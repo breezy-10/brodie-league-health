@@ -263,7 +263,12 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
                 unit={`/ ${total.nights.toLocaleString()} nights`}
                 valueSuffix={`${pct}%`}
                 valueColor={pctColor(pct)}
-                lines={[{ text: "Each location: nights with referees booked / nights" }]}
+                // How many locations the chips below cover, then how to read them,
+                // as on the Facility Bookings teams card.
+                lines={[
+                  { text: `${locations.length} ${locations.length === 1 ? "location" : "locations"}`, strong: true },
+                  { text: "Each location: nights with referees booked / nights" },
+                ]}
                 pills={locations.map((l) => ({
                   text: `${l.location} ${l.all.done}/${l.all.nights}`,
                   tone: progressTone(l.all),
