@@ -24,8 +24,10 @@ env `DIRECTORY_FEED_TOKEN`), so a manager change is entered once, there.
   matched by email; a name districts has no email for matches an existing row
   or sign-in with the exact same full name, else it is listed as "no account"
   (placeholders like "Atlanta LM"). Rows are updated in place (ids are what
-  scores hang off) and someone districts stops listing is marked inactive,
-  never deleted. Super admins never get an active row.
+  scores hang off). Someone districts doesn't list keeps their row as it is,
+  active, and is reported (`notInDistricts`): Destin Gross, Ekjot Sandhu and
+  Shane McNabb aren't on districts rosters but are still at Brodie (Sohaib,
+  2026-11-01). Rows are never deleted. Super admins never get an active row.
 - Locations: `location_names` + `league_ids` (ops league ids, migration 0023)
   hold every location districts names them for, primary first;
   `location_name` stays the primary one for display. `district` is their
