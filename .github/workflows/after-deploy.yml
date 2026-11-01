@@ -1,6 +1,7 @@
 # Runs when Vercel reports a production deployment ready (and on demand).
-# Two Vercel projects report on this repo; only the one serving the live site
-# (its URL contains 'amycorreia') is checked.
+# Only the Brodie League project's production deploys are checked (their URLs
+# end in -brodie-league.vercel.app); a leftover project in a former employee's
+# account may still report on this repo.
 # A failure means the live site is broken or a scheduled job has silently
 # stopped; GitHub emails whoever triggered the deploy.
 name: After deploy
@@ -11,7 +12,7 @@ permissions:
   contents: read
 jobs:
   smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && startsWith(github.event.deployment_status.environment, 'Production') && contains(github.event.deployment_status.environment_url, 'amycorreia')) }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && startsWith(github.event.deployment_status.environment, 'Production') && contains(github.event.deployment_status.environment_url, '-brodie-league.vercel.app')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -24,4 +25,4 @@ jobs:
       - name: Smoke test
         run: node .github/scripts/smoke.mjs
         env:
-          PROD_URL: https://brodie-league-health.vercel.app
+          PROD_URL: https://brodie-leaguehealth.vercel.app

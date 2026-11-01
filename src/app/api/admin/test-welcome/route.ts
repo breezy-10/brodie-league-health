@@ -41,7 +41,7 @@ export async function POST(req: Request) {
 
   const first = firstName?.trim() || email.split("@")[0];
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://brodie-league-health.vercel.app";
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://brodie-leaguehealth.vercel.app";
 
   const blocks = [
     {
