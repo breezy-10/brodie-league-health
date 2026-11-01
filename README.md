@@ -46,7 +46,7 @@ cp .env.local.example .env.local
 3. `pnpm db:push` to apply `supabase/migrations/0001_init.sql`.
 4. Enable Google OAuth in Supabase Auth → Providers (use the brodierec.com
    domain hint).
-5. Set the Site URL to `https://brodie-league-health.vercel.app` (or your
+5. Set the Site URL to `https://brodie-leaguehealth.vercel.app` (or your
    custom domain) and add `/auth/callback` to Redirect URLs.
 6. Seed yourself as super_admin:
    ```sql

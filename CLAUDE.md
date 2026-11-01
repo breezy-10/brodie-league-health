@@ -54,7 +54,7 @@ env `DIRECTORY_FEED_TOKEN`), so a manager change is entered once, there.
 - `src/app/page.tsx` — LM "My Day" view.
 - `src/app/leaderboard/page.tsx` — opt-in board.
 - `src/app/admin/*` — DM/super-admin views; weight editor in `/admin/weights`.
-- `src/app/api/cron/*` — three cron endpoints (sync-all, score, slack-digest).
+- `src/app/api/cron/*` — cron endpoints; sync-all and score are scheduled. slack-digest and weekly-slack-digest still exist but aren't scheduled (see Daily flow).
 - `src/app/api/admin/refresh/route.ts` — manual full refresh.
 - `supabase/migrations/0001_init.sql` — schema + seed apps/metrics + RLS.
 
@@ -91,7 +91,7 @@ You can move them around without recalculating absolutes.
   refresh `daily_action_items` for today.
 - 05:30 cron `/api/cron/score` → `recomputeScores()` writes
   `lm_xp_totals` and ranks.
-- 08:00 cron `/api/cron/slack-digest` → DMs each LM with `slack_user_id`.
+- No Slack digests: `/api/cron/slack-digest` (8am DM to each league manager, plus the new-hire welcome) and `/api/cron/weekly-slack-digest` were taken off the schedule in Nov 2026 when the app moved to Brodie League (Sohaib: the digest wasn't worth sending as it stood). The project has no `SLACK_BOT_TOKEN`, so access-request pings and dispute notices don't post to Slack either until one is added.
 - Manual "Refresh now" button on `/admin` re-runs sync + score.
 
 ## Design system
@@ -134,7 +134,7 @@ are built the same way.
 
 ## Deploys and checks
 
-- Merging to `main` deploys production automatically (Vercel's GitHub integration). Don't run `vercel --prod` from a local checkout: it deploys whatever is on disk, and a stale checkout has rolled production back before. The live site is the Vercel project in Amy's scope; the `brodie-league` project this checkout is linked to is a stale duplicate, so a local `vercel --prod` never reaches users anyway.
+- Merging to `main` deploys production automatically (Vercel's GitHub integration). Don't run `vercel --prod` from a local checkout: it deploys whatever is on disk, and a stale checkout has rolled production back before. The live site is the `brodie-league-health` project in the Brodie League team, at https://brodie-leaguehealth.vercel.app (moved 2026-11-01). The old address, brodie-league-health.vercel.app, belongs to a project in Amy's former personal Vercel account that nobody can reach; League Health's database keys were replaced and the old ones disabled, so that copy no longer works.
 - Every PR runs `.github/workflows/checks.yml`: `.github/scripts/guards.mjs` (middleware in the folder Next reads, every scheduled job in `vercel.json` has a route that checks `CRON_SECRET`, no committed env files) and the type check.
-- After each production deploy, `.github/workflows/after-deploy.yml` runs `.github/scripts/smoke.mjs` against https://brodie-league-health.vercel.app: the home page must redirect to /login, /login must load, and every scheduled job's route must be reachable. A failed run means production is broken or a job has silently stopped; GitHub emails whoever merged.
+- After each production deploy, `.github/workflows/after-deploy.yml` runs `.github/scripts/smoke.mjs` against https://brodie-leaguehealth.vercel.app: the home page must redirect to /login, /login must load, and every scheduled job's route must be reachable. A failed run means production is broken or a job has silently stopped; GitHub emails whoever merged.
 - These files are the same in every Brodie app; change them in all of them.

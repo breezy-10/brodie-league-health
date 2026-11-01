@@ -91,7 +91,7 @@ export async function notifyDmOfDispute(disputeId: string) {
     admin.from("profiles").update({ slack_user_id: dmSlackId }).eq("id", dmProfileId).then(() => {}, () => {});
   }
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://brodie-league-health.vercel.app";
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://brodie-leaguehealth.vercel.app";
   const link = `${base}/district/disputes`;
 
   const blocks = [

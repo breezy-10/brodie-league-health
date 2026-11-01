@@ -5,7 +5,7 @@
 // what made requests show up as "Ops Hub access requested".
 
 const APP_NAME = "League Health";
-const APP_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://brodie-league-health.vercel.app";
+const APP_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://brodie-leaguehealth.vercel.app";
 
 export async function notifyAccessRequested(input: {
   email: string;

@@ -94,7 +94,7 @@ export async function sendWeeklySlackDigest(date?: Date) {
       (bestApp ? `*Best app:* ${appLabel(bestApp.slug)} (${Math.round(bestApp.pct)}%)\n` : "") +
       (worstApp && worstApp.slug !== bestApp?.slug ? `*Needs work:* ${appLabel(worstApp.slug)} (${Math.round(worstApp.pct)}%)\n` : "") +
       `\n` +
-      `Monday lands tomorrow. Open the board: ${process.env.NEXT_PUBLIC_SITE_URL ?? "https://brodie-league-health.vercel.app"}`;
+      `Monday lands tomorrow. Open the board: ${process.env.NEXT_PUBLIC_SITE_URL ?? "https://brodie-leaguehealth.vercel.app"}`;
 
     try {
       const res = await fetch("https://slack.com/api/chat.postMessage", {

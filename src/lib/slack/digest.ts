@@ -78,7 +78,7 @@ export async function sendDailyDigest(date?: Date) {
         items.slice(0, 6).map((i) => `• ${i.severity === "critical" ? "🚨" : i.severity === "high" ? "⚠️" : "•"} ${i.title}`).join("\n");
     }
 
-    const text = `Good morning ${first}.\n\n${xpLine}\n${breakdownLine ? breakdownLine + "\n" : ""}\n${actionBlock}\n\nOpen the full board: ${process.env.NEXT_PUBLIC_SITE_URL ?? "https://brodie-league-health.vercel.app"}`;
+    const text = `Good morning ${first}.\n\n${xpLine}\n${breakdownLine ? breakdownLine + "\n" : ""}\n${actionBlock}\n\nOpen the full board: ${process.env.NEXT_PUBLIC_SITE_URL ?? "https://brodie-leaguehealth.vercel.app"}`;
 
     try {
       const res = await fetch("https://slack.com/api/chat.postMessage", {

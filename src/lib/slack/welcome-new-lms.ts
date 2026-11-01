@@ -33,7 +33,7 @@ export async function welcomeNewLMs(): Promise<{ sent: number; skipped: number; 
   if (rows.length === 0) return { sent: 0, skipped: 0 };
 
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://brodie-league-health.vercel.app";
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://brodie-leaguehealth.vercel.app";
   let sent = 0;
   let skipped = 0;
   const cache = newWorkspaceCache();
