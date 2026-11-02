@@ -166,8 +166,8 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   const locationRows: Row[] = base.map((l) => toRow(l, keptBy.get(l.location), backBy.get(l.location)))
     .filter((r) => r.teams > 0 || r.athletes > 0 || r.back);
 
-  // Each venue's nights, in week order as the feed sends them; only venues
-  // with two or more get a dropdown.
+  // Each venue's nights, in week order as the feed sends them; venues with two
+  // or more get a dropdown, and a venue with one names its night.
   const nightKey = (l: Loc) => `${l.location}|${l.day ?? ""}`;
   const nightKeptBy = new Map((nightsKept ?? []).map((l) => [nightKey(l), l]));
   const nightsBy = new Map<string, { day: string; row: Row }[]>();
@@ -347,6 +347,7 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
                         cells={cells(r)}
                         nights={ns && ns.length > 1 ? nightRows(ns) : undefined}
                         nightCount={ns?.length}
+                        onlyNight={ns?.length === 1 ? ns[0].day : undefined}
                       />
                     );
                   })}
@@ -360,8 +361,9 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
         {season} at the same day of registration as the other tabs. Teams and athletes are registrations that went
         through, shown against the location&apos;s goal for the season (teams / goal) where the admin Goals tab has one;
         % sold out is teams or athletes over that goal, and a location with no goal set shows a dash. A location that
-        plays more than one night opens (the arrow) into a row per night with that night&apos;s goal; retention: past
-        players is worked out for the whole location, so a night shows a dash there. Average players per team is
+        plays more than one day opens (the arrow) into a row per day with that day&apos;s goal, and a location that
+        plays one day names it; retention: past players is worked out for the whole location, so a day shows a dash
+        there. Average players per team is
         athletes over teams. Revenue is each location&apos;s own currency; average price per player is what athletes paid for
         themselves over how many did, team fees left out, as on the Registrations tab. Revenue and price rank Canada
         and the US separately, since the two currencies are never mixed. Retention: past players is the share of last
