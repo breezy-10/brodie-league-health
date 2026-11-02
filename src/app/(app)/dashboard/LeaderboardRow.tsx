@@ -3,14 +3,16 @@
 import { useState } from "react";
 
 // One leaderboard row. A location that plays more than one night opens to show
-// a row per night under it (`nights`, rendered on the server).
-export function LeaderboardRow({ rank, name, sub, cells, nights, nightCount }: {
+// a row per night under it (`nights`, rendered on the server); one that plays a
+// single night names it under the location (`onlyNight`).
+export function LeaderboardRow({ rank, name, sub, cells, nights, nightCount, onlyNight }: {
   rank: number;
   name: string;
   sub?: React.ReactNode;
   cells: React.ReactNode;
   nights?: React.ReactNode;
   nightCount?: number;
+  onlyNight?: string;
 }) {
   const [open, setOpen] = useState(false);
   const top = rank <= 3;
@@ -28,7 +30,7 @@ export function LeaderboardRow({ rank, name, sub, cells, nights, nightCount }: {
                 type="button"
                 onClick={() => setOpen((o) => !o)}
                 aria-expanded={open}
-                aria-label={`${open ? "Hide" : "Show"} ${name} by night`}
+                aria-label={`${open ? "Hide" : "Show"} ${name} by day`}
                 className="shrink-0 -ml-1 px-1 py-0.5 rounded hover:bg-glass-surface-hover focus-visible:outline focus-visible:outline-2"
                 style={{ color: "var(--glass-text-tertiary)" }}
               >
@@ -43,7 +45,9 @@ export function LeaderboardRow({ rank, name, sub, cells, nights, nightCount }: {
             <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{name}</span>
           </div>
           {nights && nightCount ? (
-            <div className="text-[11px] text-glass-text-tertiary">{nightCount} nights</div>
+            <div className="text-[11px] text-glass-text-tertiary">{nightCount} days</div>
+          ) : onlyNight ? (
+            <div className="text-[11px] text-glass-text-tertiary">{onlyNight}</div>
           ) : null}
           {sub}
         </td>
