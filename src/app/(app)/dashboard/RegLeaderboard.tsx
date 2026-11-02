@@ -2,6 +2,7 @@ import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { BasisToggle } from "./BasisToggle";
 import { getLocationDistricts } from "@/lib/districts-locations";
+import { LeaderboardRow } from "./LeaderboardRow";
 
 // Registrations > Leaderboard: every location ranked, greatest first, by the
 // measure picked: teams, athletes, how sold out each is against its goal,
@@ -11,7 +12,10 @@ import { getLocationDistricts } from "@/lib/districts-locations";
 // across currencies (the feed carries no exchange rate), so revenue and price
 // rank Canada's locations and the US's separately. By district, each
 // district's locations are added together (districts from brodie-districts)
-// and the averages and shares worked out from the sums.
+// and the averages and shares worked out from the sums. By location, a venue
+// that plays more than one night opens into a row per night (the feed's
+// location_day breakdown; retention: past players is a venue figure, so nights
+// show a dash there).
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
 type Season = {
@@ -28,13 +32,15 @@ type Season = {
   team_goal?: number | null;
   athlete_goal?: number | null;
 };
-type Loc = { location: string; country?: string; seasons: Season[] };
+type Loc = { location: string; day?: string; country?: string; seasons: Season[] };
 
-async function loadLocations(season: string, locationNames: string[] | null, flag?: "retention" | "back"): Promise<Loc[] | null> {
+async function loadLocations(
+  season: string, locationNames: string[] | null, flag?: "retention" | "back", breakdown: "location" | "location_day" = "location",
+): Promise<Loc[] | null> {
   try {
     const url = new URL("/api/registration-pacing", PROMO_APP_URL);
     url.searchParams.set("season", season);
-    url.searchParams.set("breakdown", "location");
+    url.searchParams.set("breakdown", breakdown);
     if (flag) url.searchParams.set(flag, "1");
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
@@ -94,11 +100,13 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
 }) {
   const rank: RankBy = (RANKS.find((r) => r.value === rankBy)?.value) ?? "teams";
   const byDistrict = groupBy === "district";
-  const [base, kept, back, districtMap] = await Promise.all([
+  const [base, kept, back, districtMap, nights, nightsKept] = await Promise.all([
     loadLocations(season, locationNames),
     loadLocations(season, locationNames, "retention"),
     loadLocations(season, locationNames, "back"),
     byDistrict ? getLocationDistricts() : Promise.resolve(null),
+    byDistrict ? Promise.resolve(null) : loadLocations(season, locationNames, undefined, "location_day"),
+    byDistrict ? Promise.resolve(null) : loadLocations(season, locationNames, "retention", "location_day"),
   ]);
 
   const toggle = (
@@ -128,13 +136,13 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   const current = (l?: Loc) => l?.seasons.find((s) => s.kind === "current");
   const byName = (list: Loc[] | null) => new Map((list ?? []).map((l) => [l.location, l]));
   const keptBy = byName(kept), backBy = byName(back);
-  const locationRows: Row[] = base.map((l) => {
+  const toRow = (l: Loc, keptLoc?: Loc, backLoc?: Loc): Row => {
     const c = current(l);
     const indiv = c?.athletes_indiv != null;
     const players = indiv ? c!.athletes_indiv! : (c?.athletes ?? 0);
     const rev = (indiv ? c?.revenue_indiv_native : c?.revenue_native) ?? 0;
-    const k = current(keptBy.get(l.location))?.kept;
-    const b = current(backBy.get(l.location))?.back;
+    const k = current(keptLoc)?.kept;
+    const b = current(backLoc)?.back;
     const teamGoal = c?.team_goal ?? null, athleteGoal = c?.athlete_goal ?? null;
     return {
       location: l.location,
@@ -154,7 +162,21 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
       priceRev: rev,
       pricePlayers: players,
     };
-  }).filter((r) => r.teams > 0 || r.athletes > 0 || r.back);
+  };
+  const locationRows: Row[] = base.map((l) => toRow(l, keptBy.get(l.location), backBy.get(l.location)))
+    .filter((r) => r.teams > 0 || r.athletes > 0 || r.back);
+
+  // Each venue's nights, in week order as the feed sends them; only venues
+  // with two or more get a dropdown.
+  const nightKey = (l: Loc) => `${l.location}|${l.day ?? ""}`;
+  const nightKeptBy = new Map((nightsKept ?? []).map((l) => [nightKey(l), l]));
+  const nightsBy = new Map<string, { day: string; row: Row }[]>();
+  for (const l of nights ?? []) {
+    if (!l.day) continue;
+    const list = nightsBy.get(l.location) ?? [];
+    list.push({ day: l.day, row: toRow(l, nightKeptBy.get(nightKey(l))) });
+    nightsBy.set(l.location, list);
+  }
 
   // By district: every district from brodie-districts, its locations summed.
   // A location the feed names a little differently ("Seattle (Capitol Hill)")
@@ -242,8 +264,12 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
     </th>
   );
   const ofGoal = (n: number, goal: number | null) => (goal ? `${n.toLocaleString()} / ${goal.toLocaleString()}` : n.toLocaleString());
-  const left = (n: number, goal: number | null, unit: string) =>
-    goal == null ? undefined : n >= goal ? "Sold out" : `${(goal - n).toLocaleString()} ${unit} to go`;
+  const left = (n: number, goal: number | null, unit: string) => {
+    if (goal == null) return undefined;
+    if (n >= goal) return "Sold out";
+    const gap = goal - n;
+    return `${gap.toLocaleString()} ${gap === 1 ? unit : `${unit}s`} to go`;
+  };
   const cell = (k: RankBy, children: React.ReactNode, sub?: string) => (
     <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-top"
       style={{ color: active(k) ? "var(--glass-text)" : "var(--glass-text-secondary)", fontWeight: active(k) ? 700 : 500 }}>
@@ -251,6 +277,26 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
       {sub && <div className="text-[11px] font-normal text-glass-text-tertiary">{sub}</div>}
     </td>
   );
+  const cells = (r: Row) => (
+    <>
+      {cell("teams", ofGoal(r.teams, r.teamGoal))}
+      {cell("athletes", ofGoal(r.athletes, r.athleteGoal))}
+      {cell("soldTeams", r.soldTeams == null ? "—" : `${r.soldTeams}%`, left(r.teams, r.teamGoal, "team"))}
+      {cell("soldAthletes", r.soldAthletes == null ? "—" : `${r.soldAthletes}%`, left(r.athletes, r.athleteGoal, "athlete"))}
+      {cell("roster", r.roster == null ? "—" : r.roster.toFixed(1))}
+      {cell("revenue", money(r.revenue, r.currency))}
+      {cell("price", r.price == null ? "—" : money(r.price, r.currency))}
+      {cell("back", r.back ? `${r.back.pct}%` : "—", r.back ? `${r.back.n} of ${r.back.of}` : undefined)}
+      {cell("kept", r.kept ? `${r.kept.pct}%` : "—", r.kept ? `${r.kept.n} of ${r.kept.of}` : undefined)}
+    </>
+  );
+  const nightRows = (list: { day: string; row: Row }[]) => list.map(({ day, row }) => (
+    <tr key={day} style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
+      <td />
+      <td className="px-4 py-2 align-top pl-9 text-[13px]" style={{ color: "var(--glass-text-secondary)" }}>{day}</td>
+      {cells(row)}
+    </tr>
+  ));
 
   return (
     <div className="space-y-4">
@@ -286,31 +332,24 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
                   </tr>
                 </thead>
                 <tbody>
-                  {g.rows.map((r, i) => (
-                    <tr key={r.location} style={{ borderTop: "1px solid var(--glass-border)" }}>
-                      <td className="px-4 py-2.5 text-right tabular align-top w-10"
-                        style={{ color: i < 3 ? "var(--glass-text)" : "var(--glass-text-tertiary)", fontWeight: i < 3 ? 700 : 500 }}>
-                        {i + 1}
-                      </td>
-                      <td className="px-4 py-2.5 align-top">
-                        <div className="font-semibold" style={{ color: "var(--glass-text)" }}>{r.location}</div>
-                        {r.members && (
+                  {g.rows.map((r, i) => {
+                    const ns = !r.members ? nightsBy.get(r.location) : undefined;
+                    return (
+                      <LeaderboardRow
+                        key={r.location}
+                        rank={i + 1}
+                        name={r.location}
+                        sub={r.members ? (
                           <div className="text-[11px] text-glass-text-tertiary leading-snug max-w-[260px]">
                             {r.members.length ? r.members.join(", ") : "no registrations in scope"}
                           </div>
-                        )}
-                      </td>
-                      {cell("teams", ofGoal(r.teams, r.teamGoal))}
-                      {cell("athletes", ofGoal(r.athletes, r.athleteGoal))}
-                      {cell("soldTeams", r.soldTeams == null ? "—" : `${r.soldTeams}%`, left(r.teams, r.teamGoal, "teams"))}
-                      {cell("soldAthletes", r.soldAthletes == null ? "—" : `${r.soldAthletes}%`, left(r.athletes, r.athleteGoal, "athletes"))}
-                      {cell("roster", r.roster == null ? "—" : r.roster.toFixed(1))}
-                      {cell("revenue", money(r.revenue, r.currency))}
-                      {cell("price", r.price == null ? "—" : money(r.price, r.currency))}
-                      {cell("back", r.back ? `${r.back.pct}%` : "—", r.back ? `${r.back.n} of ${r.back.of}` : undefined)}
-                      {cell("kept", r.kept ? `${r.kept.pct}%` : "—", r.kept ? `${r.kept.n} of ${r.kept.of}` : undefined)}
-                    </tr>
-                  ))}
+                        ) : undefined}
+                        cells={cells(r)}
+                        nights={ns && ns.length > 1 ? nightRows(ns) : undefined}
+                        nightCount={ns?.length}
+                      />
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -320,8 +359,10 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
       <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
         {season} at the same day of registration as the other tabs. Teams and athletes are registrations that went
         through, shown against the location&apos;s goal for the season (teams / goal) where the admin Goals tab has one;
-        % sold out is teams or athletes over that goal, and a location with no goal set shows a dash. Average players
-        per team is athletes over teams. Revenue is each location&apos;s own currency; average price per player is what athletes paid for
+        % sold out is teams or athletes over that goal, and a location with no goal set shows a dash. A location that
+        plays more than one night opens (the arrow) into a row per night with that night&apos;s goal; retention: past
+        players is worked out for the whole location, so a night shows a dash there. Average players per team is
+        athletes over teams. Revenue is each location&apos;s own currency; average price per player is what athletes paid for
         themselves over how many did, team fees left out, as on the Registrations tab. Revenue and price rank Canada
         and the US separately, since the two currencies are never mixed. Retention: past players is the share of last
         season&apos;s athletes at the location who registered there again; retention: registered is the share of this
