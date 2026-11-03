@@ -3971,13 +3971,6 @@ export default async function DashboardView({
         )}
       </div>
 
-      {isOm && (
-        <p className="text-xs text-glass-text-tertiary">
-          Every section reads live from its source app, scoped to the selected season and locations. Registrations and
-          Facility and Referee Bookings run one season ahead, the season being sold, and each carries a toggle beside its
-          heading to read it on the season being played instead; the checklist shows both seasons.
-        </p>
-      )}
       {!isReg && !isOm && (
         <p className="text-xs text-glass-text-tertiary">
           Feedback, Stats Health, and Content Health read live from each source, scoped to the selected Season, Location,

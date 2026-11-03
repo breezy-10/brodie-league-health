@@ -366,13 +366,6 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
-            Every game night on the facilities schedule for {season}. A night counts as having referees when they are
-            booked, booked differently or not needed; notification required means the facility booking changed after
-            the referees were booked. A location&apos;s chip is green when every night has referees, yellow when some
-            do and red when none do. Read live from the referee payroll app&apos;s Bookings page; a facility no referee
-            payroll location is linked to reads as need to book.
-          </p>
         </>
       )}
     </section>
