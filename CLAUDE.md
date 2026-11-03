@@ -8,6 +8,12 @@
   `profiles`. Only `super_admin` is a full admin (sees the whole nav + Settings
   hub). `dm` + `operations_manager` get Dashboard + Users (can add/edit users,
   but not grant/edit super_admins). `lm` gets Dashboard only.
+- The Dashboard is labelled "DM/LM Dashboard". `/om-dashboard` ("OM Dashboard",
+  in the nav for `operations_manager` + `super_admin`) is the same view in
+  `mode="om"`: the operations managers' own Season Success checklist (kind
+  `operations`, one league-wide checklist per season) instead of the league
+  managers', and no Team Confirmed Stories, Outreach, Ambassador teams, Site
+  Visits, Video Reviews, LM Game Day Checklist or Training sections.
 - User -> location assignments live in `user_locations` (many per user, any
   role), set on invite/edit. Generic and separate from the `league_managers`
   scoring roster. Picker names come from the Promo Tracker canonical list

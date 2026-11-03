@@ -15,6 +15,7 @@ import {
   BadgePercent,
   CalendarCheck,
   ClipboardList,
+  Gauge,
   Gift,
   LayoutDashboard,
   Map,
@@ -38,7 +39,7 @@ import { SIDEBAR_COOKIE, type Theme } from "@/lib/theme-shared";
 // instead, because bundle.js toggling classes would be undone by the next render.
 
 export type NavIcon =
-  | "dashboard" | "live" | "registrations" | "referrals" | "discounts" | "ambassadors" | "forfeit" | "dropins" | "events" | "checkins" | "waitlist" | "cities" | "launchers" | "staff"
+  | "dashboard" | "omdashboard" | "live" | "registrations" | "referrals" | "discounts" | "ambassadors" | "forfeit" | "dropins" | "events" | "checkins" | "waitlist" | "cities" | "launchers" | "staff"
   | "myday" | "leaderboard" | "trophies" | "district" | "disputes" | "settings" | "users";
 
 export interface NavItem {
@@ -62,6 +63,7 @@ export type SidebarMode = "pinned" | "rail" | "auto";
 
 const ICONS: Record<NavIcon, LucideIcon> = {
   dashboard: LayoutDashboard,
+  omdashboard: Gauge,
   live: Radio,
   registrations: ClipboardList,
   referrals: Gift,
@@ -88,6 +90,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
 // specific paths come first. Pages keep a line of their own only for what
 // changes with the view: a person's name, the scope, how fresh the data is.
 const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[] = [
+  { path: "/om-dashboard", title: "OM Dashboard", subtitle: "How operations is tracking this season, across every app." },
   { path: "/dashboard", title: "DM/LM Dashboard", subtitle: "How every league is tracking this season, across every app." },
   { path: "/weekly-review", title: "Weekly review", subtitle: "Each league's week, Saturday to Friday, beside the season so far." },
   { path: "/registrations/location", title: "By day of week", subtitle: "Each night's teams and athletes at one location, against last season and last year." },

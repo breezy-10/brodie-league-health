@@ -304,6 +304,77 @@ async function loadChecklistTiles(season: string, scope: Scope, expectedLocation
   ];
 }
 
+// The Season Success app's phases, in its order and with its names.
+const CHECKLIST_PHASES: [string, string][] = [
+  ["registration", "Registration"], ["season_prep", "Season prep"], ["opening_night", "Opening night"],
+  ["in_season", "In-season"], ["playoffs_finals", "Playoffs and finals"], ["all_stars", "All-Stars"],
+];
+const MON_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// The operations managers' season checklist (kind "operations"): one per
+// season for the whole league, with no venue behind it, so the location
+// filter leaves it alone. The same three cards as the league managers' row,
+// read off that one checklist: overdue work is split by phase rather than by
+// venue. Done and overdue mean what season_task_progress means by them.
+async function loadOpsChecklistTiles(season: string): Promise<Tile[] | null> {
+  if (!sourceConfigured("checklist")) return null;
+  const sb = sourceClient("checklist")!;
+  const want = seasonKey(season);
+  const [{ data: seasons, error }, { data: calendar }] = await Promise.all([
+    sb.from("seasons").select("id, name").eq("kind", "operations").eq("archived", false),
+    sb.from("season_calendar").select("id, name"),
+  ]);
+  if (error) return null;
+  const row = ((seasons ?? []) as { id: string; name: string | null }[])
+    .find((s) => s.name && seasonKey(s.name) === want);
+  if (!row) {
+    // Nothing to open yet: the card goes to the operations list for the
+    // season, where the checklist is created.
+    const q = new URLSearchParams({ kind: "operations" });
+    const calendarId = ((calendar ?? []) as { id: string; name: string | null }[])
+      .find((c) => c.name && seasonKey(c.name) === want)?.id;
+    if (calendarId) q.set("season", calendarId);
+    return [
+      { label: `Checklist · ${season}`, value: "Not set up", tone: "bad",
+        link: { href: `${APP_URL.checklist}/checklists?${q}`, label: "Set it up" } },
+      { label: `Tasks complete · ${season}`, value: "—", sub: "no checklist yet" },
+      { label: `Overdue tasks · ${season}`, value: "—", sub: "no checklist yet" },
+    ];
+  }
+  // One checklist is a few dozen tasks, far under the 1,000-row cap.
+  const { data: tasks, error: taskError } = await sb.from("season_tasks")
+    .select("phase, status, due_date").eq("season_id", row.id);
+  if (taskError) return null;
+  const today = ymd(new Date());
+  const all = (tasks ?? []) as { phase: string | null; status: string; due_date: string | null }[];
+  const done = all.filter((t) => t.status === "done").length;
+  const pct = all.length ? Math.round((100 * done) / all.length) : 0;
+  const late = all.filter((t) => t.status === "not_started" && t.due_date != null && t.due_date < today);
+  const open = all.filter((t) => t.status !== "done" && t.status !== "skipped" && t.due_date != null && t.due_date >= today)
+    .map((t) => t.due_date!).sort();
+  const next = open[0]
+    ? `next task due ${MON_SHORT[Number(open[0].slice(5, 7)) - 1]} ${Number(open[0].slice(8, 10))}`
+    : "nothing else scheduled";
+  const href = `${APP_URL.checklist}/checklists/${row.id}`;
+  return [
+    { label: `Checklist · ${season}`, value: "Set up", tone: "ok", sub: next, link: { href, label: "Open checklist" } },
+    { label: `Tasks complete · ${season}`, value: `${pct}%`, sub: `${done.toLocaleString()} / ${all.length.toLocaleString()}`, tone: pct >= 100 ? "ok" : pct > 0 ? "warn" : "bad" },
+    {
+      label: `Overdue tasks · ${season}`, value: late.length.toLocaleString(),
+      sub: "not started, past due", tone: late.length > 0 ? "bad" : "ok",
+      // In the order the season runs, so no sort control: its A-Z would be
+      // a wrong label for it.
+      pills: [
+        ...CHECKLIST_PHASES.map(([key, name]) => ({ name, n: late.filter((t) => t.phase === key).length })),
+        { name: "No phase", n: late.filter((t) => !CHECKLIST_PHASES.some(([key]) => key === t.phase)).length },
+      ]
+        .filter((p) => p.n > 0)
+        .map((p) => ({ text: `${p.name} (${p.n})`, tone: "bad" as const, href })),
+      pillsEmpty: "nothing past due",
+    },
+  ];
+}
+
 // When the selected season started, per the stats app — the same table
 // resolveScope reads to decide which season is being played.
 async function seasonStartDate(season: string): Promise<string | null> {
@@ -2945,12 +3016,16 @@ export default async function DashboardView({
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string; refereeSeason?: string;
     tab?: string;
     }>;
-  mode?: "full" | "registrations" | "weekly";
+  mode?: "full" | "registrations" | "weekly" | "om";
   showViewTabs?: boolean;
 }) {
   await requireUser();
   const isReg = mode === "registrations";
   const isWeekly = mode === "weekly";
+  // The OM Dashboard: the season view with the operations managers' own
+  // checklist, and only the sections they run (no league manager outreach,
+  // site visits, game day checklists or training).
+  const isOm = mode === "om";
   const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
     overdueSeason, regsSeason, promoSeason, bookingSeason, refereeSeason, tab: tabParam, rank: rankParam, group: groupParam } = await searchParams;
   // The Registrations page's second tab: who came back, rather than how many.
@@ -3058,8 +3133,8 @@ export default async function DashboardView({
   // held behind the slowest source app. promoTiles stays because two sections
   // share it and it should not be fetched twice.
   const [ckCurrent, ckNext, promoTiles, pacing, deadlines, locDiscounts] = await Promise.all([
-    isReg ? Promise.resolve(null) : loadChecklistTiles(selectedSeason, scope, promoLocations),
-    isReg ? Promise.resolve(null) : loadChecklistTiles(regSeason, scope, promoLocations),
+    isReg ? Promise.resolve(null) : isOm ? loadOpsChecklistTiles(selectedSeason) : loadChecklistTiles(selectedSeason, scope, promoLocations),
+    isReg ? Promise.resolve(null) : isOm ? loadOpsChecklistTiles(regSeason) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadPromoTiles(promoSeasonName, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined, isRetention, isBack),
     isReg ? Promise.resolve([] as DeadlineWeek[]) : loadDeadlines(),
@@ -3664,7 +3739,9 @@ export default async function DashboardView({
             ? <>Teams &amp; athletes at day N of registration for {scopeLabel}, vs the previous season and the previous year.</>
             : isWeekly
               ? <>Cross-app health for {scopeLabel}, scoped to the week of {weekLabel} (Sat–Fri). Registrations, Stats Health &amp; Content Health are week-scoped; other sections show the season to date.</>
-              : <>Cross-app health for {scopeLabel}.{snapDate ? ` As of ${snapDate}.` : ""}</>}
+              : isOm
+                ? <>Operations health for {selectedLocations.length ? scopeLabel : "every location"}. The operations checklist covers the whole league whatever the filter.</>
+                : <>Cross-app health for {scopeLabel}.{snapDate ? ` As of ${snapDate}.` : ""}</>}
         </p>
         {/* The same control the sections use for their own either/or, so the
             page reads as one dashboard with two views rather than two pages. */}
@@ -3716,7 +3793,7 @@ export default async function DashboardView({
       <div id="dashboard-sections" className="space-y-8">
         {!isReg && deadlines.length > 0 && <DeadlineBanner weeks={deadlines} />}
         {!isReg && (
-          <Section title="Season Success Checklist" scopeTag={fullTag} href={`${APP_URL.checklist}/checklists?kind=lm`} tiles={checklistTiles} cols={6} />
+          <Section title="Season Success Checklist" scopeTag={fullTag} href={`${APP_URL.checklist}/checklists?kind=${isOm ? "operations" : "lm"}`} tiles={checklistTiles} cols={6} />
         )}
         {isSplit && (
           <p className="text-sm text-glass-text-secondary max-w-[90ch]">
@@ -3824,16 +3901,20 @@ export default async function DashboardView({
         )}
         {!isReg && (
           <>
-            <Section title="Team Confirmed Stories" scopeTag={fullTag} href={`${APP_URL.promo}/team-confirmed-stories`}
-              tiles={promoTiles?.tiles ?? null}
-              seasonTag={seasonToggle("promoSeason", promoSeason) ? undefined : promoSeasonName}
-              headerExtra={seasonToggle("promoSeason", promoSeason)} />
-            <Suspense fallback={<SectionSkeleton title="Outreach" cols={4} />}>
-              <OutreachCards scope={scope} season={regSeason} fullTag={fullTag} />
-            </Suspense>
-            <Suspense fallback={<SectionSkeleton title="Ambassador teams" cols={3} count={2} />}>
-              <AmbassadorCards season={regSeason} scope={scope} fullTag={fullTag} />
-            </Suspense>
+            {!isOm && (
+              <>
+                <Section title="Team Confirmed Stories" scopeTag={fullTag} href={`${APP_URL.promo}/team-confirmed-stories`}
+                  tiles={promoTiles?.tiles ?? null}
+                  seasonTag={seasonToggle("promoSeason", promoSeason) ? undefined : promoSeasonName}
+                  headerExtra={seasonToggle("promoSeason", promoSeason)} />
+                <Suspense fallback={<SectionSkeleton title="Outreach" cols={4} />}>
+                  <OutreachCards scope={scope} season={regSeason} fullTag={fullTag} />
+                </Suspense>
+                <Suspense fallback={<SectionSkeleton title="Ambassador teams" cols={3} count={2} />}>
+                  <AmbassadorCards season={regSeason} scope={scope} fullTag={fullTag} />
+                </Suspense>
+              </>
+            )}
             <Suspense fallback={<SectionSkeleton title="Drop-ins" />}>
               <DropInCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
@@ -3843,19 +3924,23 @@ export default async function DashboardView({
             <Suspense fallback={<SectionSkeleton title="Check-ins" />}>
               <CheckInCards season={selectedSeason} scope={scope} fullTag={fullTag} />
             </Suspense>
-            <Suspense fallback={<TableSkeleton title="Site Visits" />}>
-              <SiteVisitCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
-            </Suspense>
-            <Suspense fallback={<TableSkeleton title="Video Reviews" />}>
-              <VideoReviewCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
-            </Suspense>
-            <Suspense fallback={<SectionSkeleton title="LM Game Day Checklist" />}>
-              <GameDayCards scope={scope} season={selectedSeason} weeks={activeWeeks}
-                tag={isWeekly ? weekTag : fullTag} />
-            </Suspense>
-            <Suspense fallback={<SectionSkeleton title="Training" />}>
-              <TrainingCards scope={scope} fullTag={fullTag} />
-            </Suspense>
+            {!isOm && (
+              <>
+                <Suspense fallback={<TableSkeleton title="Site Visits" />}>
+                  <SiteVisitCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
+                </Suspense>
+                <Suspense fallback={<TableSkeleton title="Video Reviews" />}>
+                  <VideoReviewCards scope={scope} weeks={weeksParam} weekTag={weekTag} />
+                </Suspense>
+                <Suspense fallback={<SectionSkeleton title="LM Game Day Checklist" />}>
+                  <GameDayCards scope={scope} season={selectedSeason} weeks={activeWeeks}
+                    tag={isWeekly ? weekTag : fullTag} />
+                </Suspense>
+                <Suspense fallback={<SectionSkeleton title="Training" />}>
+                  <TrainingCards scope={scope} fullTag={fullTag} />
+                </Suspense>
+              </>
+            )}
             <Suspense fallback={<SectionSkeleton title="Stats Health" />}>
               <StatsHealthCards season={seasonsParam} scope={scope} weeks={weeksParam} weekTag={weekTag} />
             </Suspense>
@@ -3882,7 +3967,14 @@ export default async function DashboardView({
         )}
       </div>
 
-      {!isReg && (
+      {isOm && (
+        <p className="text-xs text-glass-text-tertiary">
+          Every section reads live from its source app, scoped to the selected season and locations. Registrations and
+          Facility and Referee Bookings run one season ahead, the season being sold, and each carries a toggle beside its
+          heading to read it on the season being played instead; the checklist shows both seasons.
+        </p>
+      )}
+      {!isReg && !isOm && (
         <p className="text-xs text-glass-text-tertiary">
           Feedback, Stats Health, and Content Health read live from each source, scoped to the selected Season, Location,
           and League manager (locations reconciled across apps by fuzzy match). Registrations, the Promo Tracker and Facility
