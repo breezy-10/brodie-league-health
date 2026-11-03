@@ -13,7 +13,7 @@ export function TilePlaceholder() {
   );
 }
 
-export function SectionSkeleton({ title, cols = 4, count }: { title: string; cols?: 3 | 4 | 6; count?: number }) {
+export function SectionSkeleton({ title, cols = 4, count }: { title: string; cols?: 2 | 3 | 4 | 6; count?: number }) {
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -24,7 +24,9 @@ export function SectionSkeleton({ title, cols = 4, count }: { title: string; col
         ? "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6"
         : cols === 3
           ? "grid gap-3 grid-cols-1 md:grid-cols-3"
-          : "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}>
+          : cols === 2
+            ? "grid gap-3 grid-cols-1 md:grid-cols-2"
+            : "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}>
         {Array.from({ length: count ?? cols }).map((_, i) => <TilePlaceholder key={i} />)}
       </div>
     </section>

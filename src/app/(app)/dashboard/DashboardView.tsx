@@ -3059,9 +3059,10 @@ async function CourtCards({ scope }: { scope: Scope }) {
   return <Section title="Court Bookings" href="https://brodie-facilities.vercel.app/bookings" tiles={tiles} cols={3} seasonTag="Next 4 weeks" />;
 }
 
-// Missing Invoices: what the facilities and referee payroll apps' Monday
+// Missing invoices: what the facilities and referee payroll apps' Monday
 // nudges send the operations managers, any day: last month's nights with no
-// invoice, and bills in Float the apps don't have yet.
+// invoice, and bills in Float the apps don't have yet. Each app's half sits
+// under its own payments section.
 type FacilityMissing = {
   month: { from: string; to: string };
   facilities: { id: string; name: string; city: string | null; bookings: number; cents: number; currency: string }[];
@@ -3072,23 +3073,18 @@ type RefMissing = {
   locations: { location: string; games: number }[];
   float: { connected: boolean; bills: { id: string; vendor: string; locations: string[]; invoice_number: string | null; cents: number | null; currency: string | null; invoice_date: string | null; status: string }[] };
 };
-async function loadMissingInvoiceTiles(scope: Scope): Promise<Tile[] | null> {
-  const [fac, ref] = await Promise.all([
-    feedJson<FacilityMissing>("https://brodie-facilities.vercel.app/api/feeds/missing-invoices", process.env.FACILITIES_FEED_KEY),
-    feedJson<RefMissing>("https://brodie-ref-payroll.vercel.app/api/feeds/missing-invoices", process.env.REF_PAYROLL_FEED_KEY),
-  ]);
-  if (!fac && !ref) return null;
-  const monthOf = (iso?: string) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-CA", { month: "long", timeZone: "UTC" }) : "Last month");
-  const notConnected = (label: string, app: string): Tile => ({ label, value: "Not connected", sub: `couldn't read the ${app}` });
-  const venue = (city: string | null, name: string) => (city ? `${city} · ${name}` : name);
-  const facInvoices = "https://brodie-facilities.vercel.app/invoices";
-  const refInvoices = APP_URL.ref_invoices;
+const monthOf = (iso?: string) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-CA", { month: "long", timeZone: "UTC" }) : "last month");
 
-  const tiles: Tile[] = [];
-  if (fac) {
-    const month = monthOf(fac.month.from);
-    const rows = fac.facilities.filter((f) => inScope(scope, f.city ?? "")).sort((a, b) => venue(a.city, a.name).localeCompare(venue(b.city, b.name)));
-    tiles.push({
+// The facilities half: under Facility Payments.
+async function loadFacilityMissingTiles(scope: Scope): Promise<Tile[] | null> {
+  const fac = await feedJson<FacilityMissing>("https://brodie-facilities.vercel.app/api/feeds/missing-invoices", process.env.FACILITIES_FEED_KEY);
+  if (!fac) return null;
+  const venue = (city: string | null, name: string) => (city ? `${city} · ${name}` : name);
+  const month = monthOf(fac.month.from);
+  const rows = fac.facilities.filter((f) => inScope(scope, f.city ?? "")).sort((a, b) => venue(a.city, a.name).localeCompare(venue(b.city, b.name)));
+  const bills = fac.float.bills.filter((b) => inScope(scope, b.city ?? ""));
+  return [
+    {
       label: `Facilities with no ${month} invoice`, value: rows.length.toLocaleString(), tone: rows.length ? "bad" : "ok",
       lines: [
         ...(rows.length ? [{ text: `${plural(rows.reduce((s, f) => s + f.bookings, 0), "booking")} with no invoice` }] : []),
@@ -3096,47 +3092,51 @@ async function loadMissingInvoiceTiles(scope: Scope): Promise<Tile[] | null> {
       ],
       pills: rows.map((f) => ({ text: venue(f.city, f.name), tone: "bad" as Tone, sub: `${plural(f.bookings, "booking")} · ${centsMoney(f.cents, f.currency)}`, sortValue: f.cents, href: `https://brodie-facilities.vercel.app/facilities/${f.id}` })),
       pillsEmpty: "every facility invoiced",
-    });
-    const bills = fac.float.bills.filter((b) => inScope(scope, b.city ?? ""));
-    tiles.push(fac.float.connected
+    },
+    fac.float.connected
       ? {
           label: "Facility bills in Float, not in the app", value: bills.length.toLocaleString(), tone: bills.length ? "warn" : "ok",
           lines: currencyLines(bills.filter((b) => b.cents != null).map((b) => ({ currency: b.currency ?? "CAD", cents: b.cents! }))),
-          pills: bills.map((b) => ({ text: venue(b.city, b.facility), tone: "warn" as Tone, sub: [b.invoice_number, b.cents != null ? centsMoney(b.cents, b.currency ?? "CAD") : null].filter(Boolean).join(" · "), href: `${facInvoices}/from-float` })),
+          pills: bills.map((b) => ({ text: venue(b.city, b.facility), tone: "warn" as Tone, sub: [b.invoice_number, b.cents != null ? centsMoney(b.cents, b.currency ?? "CAD") : null].filter(Boolean).join(" · "), href: `${APP_URL.facility_invoices}/from-float` })),
           pillsEmpty: "Float and the app agree",
         }
-      : { label: "Facility bills in Float, not in the app", value: "Not connected", sub: "Float hasn't synced to the facilities app" });
-  } else {
-    tiles.push(notConnected("Facilities with no invoice", "facilities app"), notConnected("Facility bills in Float, not in the app", "facilities app"));
-  }
-  if (ref) {
-    const month = monthOf(ref.month.from);
-    const rows = ref.locations.filter((l) => inScope(scope, l.location)).sort((a, b) => a.location.localeCompare(b.location));
-    tiles.push({
+      : { label: "Facility bills in Float, not in the app", value: "Not connected", sub: "Float hasn't synced to the facilities app" },
+  ];
+}
+
+// The referee half: under Referee Payments.
+async function loadRefereeMissingTiles(scope: Scope): Promise<Tile[] | null> {
+  const ref = await feedJson<RefMissing>("https://brodie-ref-payroll.vercel.app/api/feeds/missing-invoices", process.env.REF_PAYROLL_FEED_KEY);
+  if (!ref) return null;
+  const month = monthOf(ref.month.from);
+  const rows = ref.locations.filter((l) => inScope(scope, l.location)).sort((a, b) => a.location.localeCompare(b.location));
+  // A vendor bill with no location reads everywhere, like a ticket with none.
+  const bills = ref.float.bills.filter((b) => !scope.locationNames || b.locations.some((l) => inScope(scope, l)));
+  return [
+    {
       label: `Referee invoices missing for ${month}`, value: rows.length.toLocaleString(), sub: rows.length === 1 ? "location" : "locations", subInline: true,
       tone: rows.length ? "bad" : "ok",
       lines: rows.length ? [{ text: `${plural(rows.reduce((s, l) => s + l.games, 0), "game")} played with no invoice` }] : undefined,
-      pills: rows.map((l) => ({ text: l.location, tone: "bad" as Tone, sub: plural(l.games, "game"), sortValue: l.games, href: refInvoices })),
+      pills: rows.map((l) => ({ text: l.location, tone: "bad" as Tone, sub: plural(l.games, "game"), sortValue: l.games, href: APP_URL.ref_invoices })),
       pillsEmpty: "every location invoiced",
-    });
-    // A vendor bill with no location reads everywhere, like a ticket with none.
-    const bills = ref.float.bills.filter((b) => !scope.locationNames || b.locations.some((l) => inScope(scope, l)));
-    tiles.push(ref.float.connected
+    },
+    ref.float.connected
       ? {
           label: "Referee bills in Float, not in the app", value: bills.length.toLocaleString(), tone: bills.length ? "warn" : "ok",
           lines: currencyLines(bills.filter((b) => b.cents != null).map((b) => ({ currency: b.currency ?? "CAD", cents: b.cents! }))),
-          pills: bills.map((b) => ({ text: b.vendor, tone: "warn" as Tone, sub: [b.invoice_number, b.cents != null ? centsMoney(b.cents, b.currency ?? "CAD") : null].filter(Boolean).join(" · "), href: refInvoices })),
+          pills: bills.map((b) => ({ text: b.vendor, tone: "warn" as Tone, sub: [b.invoice_number, b.cents != null ? centsMoney(b.cents, b.currency ?? "CAD") : null].filter(Boolean).join(" · "), href: APP_URL.ref_invoices })),
           pillsEmpty: "Float and the app agree",
         }
-      : { label: "Referee bills in Float, not in the app", value: "Not connected", sub: "Float hasn't synced" });
-  } else {
-    tiles.push(notConnected("Referee invoices missing", "referee payroll app"), notConnected("Referee bills in Float, not in the app", "referee payroll app"));
-  }
-  return tiles;
+      : { label: "Referee bills in Float, not in the app", value: "Not connected", sub: "Float hasn't synced" },
+  ];
 }
-async function MissingInvoiceCards({ scope }: { scope: Scope }) {
-  const tiles = await loadMissingInvoiceTiles(scope);
-  return <Section title="Missing Invoices" href={APP_URL.facility_invoices} tiles={tiles} />;
+async function FacilityMissingCards({ scope }: { scope: Scope }) {
+  const tiles = await loadFacilityMissingTiles(scope);
+  return <Section title="Missing Facility Invoices" href={APP_URL.facility_invoices} tiles={tiles} cols={2} />;
+}
+async function RefereeMissingCards({ scope }: { scope: Scope }) {
+  const tiles = await loadRefereeMissingTiles(scope);
+  return <Section title="Missing Referee Invoices" href={APP_URL.ref_invoices} tiles={tiles} cols={2} />;
 }
 
 // Logistics: what is owed to suppliers (the logistics app's "Money still
@@ -4550,6 +4550,9 @@ export default async function DashboardView({
                 <Suspense fallback={<SectionSkeleton title="Facility Payments" />}>
                   <FacilityPaymentCards scope={scope} />
                 </Suspense>
+                <Suspense fallback={<SectionSkeleton title="Missing Facility Invoices" cols={2} />}>
+                  <FacilityMissingCards scope={scope} />
+                </Suspense>
                 <Suspense fallback={<SectionSkeleton title="Venue Insurance" cols={3} />}>
                   <InsuranceCards scope={scope} seasons={[selectedSeason, regSeason]} />
                 </Suspense>
@@ -4564,8 +4567,8 @@ export default async function DashboardView({
                 <Suspense fallback={<SectionSkeleton title="Referee Payments" />}>
                   <RefereePaymentCards scope={scope} />
                 </Suspense>
-                <Suspense fallback={<SectionSkeleton title="Missing Invoices" />}>
-                  <MissingInvoiceCards scope={scope} />
+                <Suspense fallback={<SectionSkeleton title="Missing Referee Invoices" cols={2} />}>
+                  <RefereeMissingCards scope={scope} />
                 </Suspense>
                 <Suspense fallback={<SectionSkeleton title="Logistics" cols={3} />}>
                   <LogisticsCards scope={scope} />
@@ -5386,7 +5389,7 @@ function Section({
   // Sections with more or fewer than four tiles can ask for a different grid so
   // the row neither wraps nor leaves a hole. Class names are spelled out
   // because Tailwind scans literals.
-  cols?: 3 | 4 | 6;
+  cols?: 2 | 3 | 4 | 6;
   // Cards of the section's own, in place of the StatTile grid. tiles still
   // says whether the source answered (null shows "Not connected").
   children?: ReactNode;
@@ -5431,7 +5434,9 @@ function Section({
           ? "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6"
           : cols === 3
             ? "grid gap-3 grid-cols-1 md:grid-cols-3"
-            : "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}>
+            : cols === 2
+              ? "grid gap-3 grid-cols-1 md:grid-cols-2"
+              : "grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"}>
           {tiles.map((t, i) => <StatTile key={i} {...t} />)}
         </div>
       ) : (
