@@ -38,6 +38,8 @@ const APP_URL: Record<string, string> = {
   checklist: "https://brodie-season-success-checklist.vercel.app",
   training: "https://brodie-training.vercel.app/admin/reports",
   facilities: "https://brodie-facilities.vercel.app/calendar",
+  facility_invoices: "https://brodie-facilities.vercel.app/invoices",
+  ref_invoices: "https://brodie-ref-payroll.vercel.app/payroll/invoices",
   overdue: "https://brodie-overdue-payments.vercel.app",
 };
 
@@ -2629,6 +2631,171 @@ async function RefereeCards({ season, scope, fullTag, headerExtra }: {
     titleSuffix={fullTag ? <ScopeTag label={fullTag} /> : undefined} headerExtra={headerExtra} />;
 }
 
+// Facility Payments and Referee Payments, on the OM Dashboard only: every
+// invoice not yet paid, by where it is in the two-step review both apps run
+// (operations managers, then final approval, then Float pays it). Unpaid
+// invoices from earlier seasons are still someone's job, so these read every
+// season; the location filter still applies.
+type OpenInvoice = { location: string; currency: string; cents: number; stage: "om" | "final" | "ready" | "rejected"; pastDue: boolean };
+// Past due by the Eastern calendar, as both apps judge it.
+const torontoToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Toronto" });
+const centsMoney = (cents: number, cur: string) =>
+  `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
+const inScope = (scope: Scope, location: string) =>
+  !scope.locationNames || scope.locationNames.some((n) => sameLocation(n, location));
+// One line per currency, never added together.
+function currencyLines(items: { currency: string; cents: number }[]) {
+  const by = new Map<string, number>();
+  for (const i of items) by.set(i.currency, (by.get(i.currency) ?? 0) + i.cents);
+  return ["CAD", "USD", ...[...by.keys()].filter((c) => c !== "CAD" && c !== "USD")]
+    .filter((c) => by.has(c))
+    .map((c) => ({ text: centsMoney(by.get(c)!, c), strong: true }));
+}
+// `lateLine` off where every invoice on the card is past due already.
+function invoiceStageTile(label: string, list: OpenInvoice[], busyTone: Tone, empty: string, lateLine = true): Tile {
+  const byLoc = new Map<string, { n: number; late: number }>();
+  for (const i of list) {
+    const e = byLoc.get(i.location) ?? { n: 0, late: 0 };
+    e.n += 1;
+    if (i.pastDue) e.late += 1;
+    byLoc.set(i.location, e);
+  }
+  const late = list.filter((i) => i.pastDue).length;
+  return {
+    label, value: list.length.toLocaleString(),
+    sub: list.length === 1 ? "invoice" : "invoices", subInline: true,
+    tone: list.length ? busyTone : "ok",
+    lines: [
+      ...currencyLines(list),
+      ...(late && lateLine ? [{ text: `${late} past due`, color: "var(--red)" }] : []),
+    ],
+    // Red where something at that location is past due.
+    pills: [...byLoc.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([loc, { n, late: l }]) => ({ text: `${loc} (${n})`, tone: (l ? "bad" : busyTone === "bad" ? "bad" : "default") as Tone, sortValue: n })),
+    pillsEmpty: empty,
+  };
+}
+// The three review steps, in order, with anything rejected noted on the first.
+function invoicePipelineTiles(open: OpenInvoice[]): Tile[] {
+  const at = (s: OpenInvoice["stage"]) => open.filter((i) => i.stage === s);
+  const om = invoiceStageTile("Waiting on OM review", at("om"), "warn", "nothing waiting");
+  const rejected = at("rejected").length;
+  if (rejected) om.lines = [...(om.lines ?? []), { text: `${rejected} rejected, back with whoever entered ${rejected === 1 ? "it" : "them"}` }];
+  return [
+    om,
+    invoiceStageTile("Waiting on final approval", at("final"), "default", "nothing waiting"),
+    invoiceStageTile("Ready to pay", at("ready"), "default", "nothing to pay"),
+  ];
+}
+
+async function loadFacilityPaymentTiles(scope: Scope): Promise<Tile[] | null> {
+  if (!sourceConfigured("facilities")) return null;
+  try {
+    const fac = sourceClient("facilities")!;
+    const [{ data, error }, { venues }] = await Promise.all([
+      fac.from("invoices").select("facility_id, amount_cents, currency, status, approval_state, scheduled_pay_date").neq("status", "paid"),
+      getFacilityLookups(),
+    ]);
+    if (error) return null;
+    const city = new Map(venues.map((v) => [v.id, v.city]));
+    const today = torontoToday();
+    const STAGE: Record<string, OpenInvoice["stage"]> = { pending_review: "om", pending_final_review: "final", approved: "ready", rejected: "rejected" };
+    const open: OpenInvoice[] = ((data ?? []) as { facility_id: string; amount_cents: number | null; currency: string | null; approval_state: string | null; scheduled_pay_date: string | null }[])
+      .map((r) => ({
+        location: city.get(r.facility_id) ?? "No location",
+        currency: r.currency ?? "CAD",
+        cents: r.amount_cents ?? 0,
+        stage: STAGE[r.approval_state ?? ""] ?? "om",
+        // The facilities app's own rule: unpaid or scheduled with the pay
+        // date passed reads as overdue there.
+        pastDue: !!r.scheduled_pay_date && r.scheduled_pay_date < today,
+      }))
+      .filter((i) => inScope(scope, i.location));
+    return [
+      ...invoicePipelineTiles(open),
+      invoiceStageTile("Past due", open.filter((i) => i.pastDue), "bad", "nothing past due", false),
+    ];
+  } catch {
+    return null;
+  }
+}
+
+async function loadRefereePaymentTiles(scope: Scope): Promise<Tile[] | null> {
+  if (!sourceConfigured("ref_payroll")) return null;
+  const rp = sourceClient("ref_payroll")!;
+  // Weekly pay is owed to each referee and worked out in the referee payroll
+  // app (late entries, instalments, monthly refs), so it comes from that
+  // app's own calculation rather than a copy of it here.
+  const weekly = (async () => {
+    const key = process.env.REF_PAYROLL_FEED_KEY;
+    if (!key) return null;
+    try {
+      const res = await fetch("https://brodie-ref-payroll.vercel.app/api/feeds/overdue-ref-pay", {
+        cache: "no-store", headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!res.ok) return null;
+      const j = (await res.json()) as { locations?: { location: string; currency: string; ref_weeks: number; cents: number; oldest_due: string }[] };
+      return j.locations ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  try {
+    const [{ data, error }, { data: locs }, overdue] = await Promise.all([
+      rp.from("location_invoices").select("location_id, amount_cents, currency, status, submission_state, due_date").neq("status", "paid"),
+      rp.from("locations").select("id, name, currency"),
+      weekly,
+    ]);
+    if (error) return null;
+    const locById = new Map(((locs ?? []) as { id: string; name: string; currency: string | null }[]).map((l) => [l.id, l]));
+    const today = torontoToday();
+    // A null state is still at the first step there, like pending_om_review.
+    const STAGE: Record<string, OpenInvoice["stage"]> = { pending_om_review: "om", pending_final_review: "final", approved: "ready", rejected: "rejected" };
+    const open: OpenInvoice[] = ((data ?? []) as { location_id: string; amount_cents: number | null; currency: string | null; submission_state: string | null; due_date: string | null }[])
+      .map((r) => {
+        const loc = locById.get(r.location_id);
+        return {
+          location: loc?.name ?? "No location",
+          currency: r.currency ?? loc?.currency ?? "CAD",
+          cents: r.amount_cents ?? 0,
+          stage: r.submission_state == null ? "om" as const : STAGE[r.submission_state] ?? "om",
+          pastDue: !!r.due_date && r.due_date < today,
+        };
+      })
+      .filter((i) => inScope(scope, i.location));
+    const weeks = overdue?.filter((l) => inScope(scope, l.location)) ?? null;
+    const nWeeks = weeks?.reduce((s, l) => s + l.ref_weeks, 0) ?? 0;
+    const oldest = weeks?.reduce<string | null>((m, l) => (!m || l.oldest_due < m ? l.oldest_due : m), null) ?? null;
+    const shortDate = (iso: string) => `${MON_SHORT[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
+    const weeklyTile: Tile = weeks
+      ? {
+          label: "Weekly referee pay overdue", value: nWeeks.toLocaleString(),
+          sub: nWeeks === 1 ? "referee week" : "referee weeks", subInline: true,
+          tone: nWeeks ? "bad" : "ok",
+          lines: [
+            ...currencyLines(weeks),
+            ...(oldest ? [{ text: `approved, past pay date since ${shortDate(oldest)}` }] : []),
+          ],
+          pills: [...weeks].sort((a, b) => a.location.localeCompare(b.location))
+            .map((l) => ({ text: `${l.location} (${l.ref_weeks})`, tone: "bad" as Tone, sortValue: l.ref_weeks })),
+          pillsEmpty: "everyone paid on time",
+        }
+      : { label: "Weekly referee pay overdue", value: "Not connected", sub: "couldn't read the referee payroll app" };
+    return [...invoicePipelineTiles(open), weeklyTile];
+  } catch {
+    return null;
+  }
+}
+
+async function FacilityPaymentCards({ scope }: { scope: Scope }) {
+  const tiles = await loadFacilityPaymentTiles(scope);
+  return <Section title="Facility Payments" href={APP_URL.facility_invoices} tiles={tiles} seasonTag="All seasons" />;
+}
+async function RefereePaymentCards({ scope }: { scope: Scope }) {
+  const tiles = await loadRefereePaymentTiles(scope);
+  return <Section title="Referee Payments" href={APP_URL.ref_invoices} tiles={tiles} seasonTag="All seasons" />;
+}
+
 // The Discounts tab's three rates for one venue, in its own currency and on
 // its own colour rules. Each label opens that venue's drill-down.
 function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; season: string; seasonToDate: boolean }) {
@@ -3963,10 +4130,20 @@ export default async function DashboardView({
                 promo={promoTiles} promoSeason={promoSeasonName} locationNames={locationNames}
                 headerExtra={seasonToggle("bookingSeason", bookingSeason)} />
             </Suspense>
+            {isOm && (
+              <Suspense fallback={<SectionSkeleton title="Facility Payments" />}>
+                <FacilityPaymentCards scope={scope} />
+              </Suspense>
+            )}
             <Suspense fallback={<TableSkeleton title="Referee Bookings" rows={6} />}>
               <RefereeCards season={refereeSeasonName} scope={scope} fullTag={fullTag}
                 headerExtra={seasonToggle("refereeSeason", refereeSeason)} />
             </Suspense>
+            {isOm && (
+              <Suspense fallback={<SectionSkeleton title="Referee Payments" />}>
+                <RefereePaymentCards scope={scope} />
+              </Suspense>
+            )}
           </>
         )}
       </div>
