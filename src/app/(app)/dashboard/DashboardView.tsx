@@ -1098,6 +1098,8 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
       overall?: { total_players: number; active_players: number; locations: number };
       locations?: {
         location: string; currency: string; players: number; total: number; checked_players: number;
+        // What the active players at the venue owe.
+        checked_total?: number;
         // Each active player's completed game dates ("YYYY-MM-DD", local wall
         // clock) for the team and season they owe on.
         active_players?: { game_dates?: string[] }[];
@@ -1213,17 +1215,18 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
           ...(weekly ? wowActive(c, cur, prev, when) : []),
         ],
         // Only this card's own currency, so the two cards partition the venues
-        // rather than each repeating all of them. Red where somebody has played
-        // while owing: that is the balance still walking through the door.
+        // rather than each repeating all of them. Like the headline, only what
+        // active players owe: a venue whose debtors have all stopped coming
+        // has nothing here.
         pills: byLoc
-          .filter((l) => l.currency.toUpperCase() === cur)
+          .filter((l) => l.currency.toUpperCase() === cur && l.checked_players > 0)
           .map((l) => ({
-            text: `${l.location} ${money(l.total, cur)} (${l.players})`,
-            tone: (l.checked_players > 0 ? "bad" : "warn") as Tone,
-            sortValue: l.total,
+            text: `${l.location} ${money(l.checked_total ?? 0, cur)} (${l.checked_players})`,
+            tone: "bad" as Tone,
+            sortValue: l.checked_total ?? 0,
             href: playersAt(l.location),
           })),
-        pillsEmpty: "nothing outstanding",
+        pillsEmpty: "no active overdue balances",
       };
     const cad = card(k.currency_totals.cad, "CAD", "Active overdue balance - Canadian locations", k.prev?.cad);
     const usd = card(k.currency_totals.usd, "USD", "Active overdue balance - US locations", k.prev?.usd);
