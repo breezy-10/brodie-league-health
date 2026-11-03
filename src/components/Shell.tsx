@@ -5,26 +5,26 @@ import { SIDEBAR_COOKIE } from "@/lib/theme-shared";
 import { CITY_LAUNCHER_ROLES } from "@/lib/city-launchers";
 import { getTheme } from "@/lib/theme";
 
-// The dashboards first under their own heading, then the pages people open
-// daily with no heading, then sentence-case groups (kit Sidebar).
+// Every page sits under a sentence-case group heading (kit Sidebar): the
+// dashboards first, then the pages people open daily.
 // The phone tab bar keeps "Dashboard": "DM/LM Dashboard" is cut off there.
 const DASHBOARD: NavItem = { href: "/dashboard", label: "DM/LM Dashboard", short: "Dashboard", icon: "dashboard", group: "Dashboards" };
 const OM_DASHBOARD: NavItem = { href: "/om-dashboard", label: "OM Dashboard", short: "OM", icon: "omdashboard", group: "Dashboards" };
-const LIVE: NavItem = { href: "/live-games", label: "Live games", short: "Live", icon: "live", group: "" };
-const REGISTRATIONS: NavItem = { href: "/registrations", label: "Registrations", short: "Signups", icon: "registrations", group: "" };
-const REFERRALS: NavItem = { href: "/referrals", label: "Referrals", short: "Referrals", icon: "referrals", group: "" };
-const DISCOUNTS: NavItem = { href: "/discounts", label: "Discounts", short: "Discounts", icon: "discounts", group: "" };
-const AMBASSADORS: NavItem = { href: "/ambassador-teams", label: "Ambassador teams", short: "Ambassadors", icon: "ambassadors", group: "" };
+const LIVE: NavItem = { href: "/live-games", label: "Live games", short: "Live", icon: "live", group: "Leagues" };
+const REGISTRATIONS: NavItem = { href: "/registrations", label: "Registrations", short: "Signups", icon: "registrations", group: "Leagues" };
+const REFERRALS: NavItem = { href: "/referrals", label: "Referrals", short: "Referrals", icon: "referrals", group: "Leagues" };
+const DISCOUNTS: NavItem = { href: "/discounts", label: "Discounts", short: "Discounts", icon: "discounts", group: "Leagues" };
+const AMBASSADORS: NavItem = { href: "/ambassador-teams", label: "Ambassador teams", short: "Ambassadors", icon: "ambassadors", group: "Leagues" };
 // On trial before it replaces Ambassador teams; super admins only until then.
 // "Ambassadors v2": "Ambassador teams v2" is cut off in the sidebar.
-const AMBASSADORS_V2: NavItem = { href: "/ambassador-teams-v2", label: "Ambassadors v2", short: "Ambassadors v2", icon: "ambassadors", group: "" };
-const FORFEIT: NavItem = { href: "/forfeit-risk", label: "Forfeit risk", short: "Forfeits", icon: "forfeit", group: "" };
-const DROP_INS: NavItem = { href: "/drop-ins", label: "Drop-ins", short: "Drop-ins", icon: "dropins", group: "" };
-const EVENTS: NavItem = { href: "/events", label: "Events", short: "Events", icon: "events", group: "" };
-const CHECK_INS: NavItem = { href: "/check-ins", label: "Check-ins", short: "Check-ins", icon: "checkins", group: "" };
-const WAITLIST: NavItem = { href: "/waitlist", label: "Waitlist", short: "Waitlist", icon: "waitlist", group: "" };
-const CITIES: NavItem = { href: "/requested-cities", label: "Requested cities", short: "Cities", icon: "cities", group: "" };
-const LAUNCHERS: NavItem = { href: "/city-launchers", label: "City launchers", short: "Launchers", icon: "launchers", group: "" };
+const AMBASSADORS_V2: NavItem = { href: "/ambassador-teams-v2", label: "Ambassadors v2", short: "Ambassadors v2", icon: "ambassadors", group: "Leagues" };
+const FORFEIT: NavItem = { href: "/forfeit-risk", label: "Forfeit risk", short: "Forfeits", icon: "forfeit", group: "Leagues" };
+const DROP_INS: NavItem = { href: "/drop-ins", label: "Drop-ins", short: "Drop-ins", icon: "dropins", group: "Leagues" };
+const EVENTS: NavItem = { href: "/events", label: "Events", short: "Events", icon: "events", group: "Leagues" };
+const CHECK_INS: NavItem = { href: "/check-ins", label: "Check-ins", short: "Check-ins", icon: "checkins", group: "Leagues" };
+const WAITLIST: NavItem = { href: "/waitlist", label: "Waitlist", short: "Waitlist", icon: "waitlist", group: "Leagues" };
+const CITIES: NavItem = { href: "/requested-cities", label: "Requested cities", short: "Cities", icon: "cities", group: "Leagues" };
+const LAUNCHERS: NavItem = { href: "/city-launchers", label: "City launchers", short: "Launchers", icon: "launchers", group: "Leagues" };
 const STAFF: NavItem = { href: "/staff-performance", label: "Staff performance", short: "Staff", icon: "staff", group: "People" };
 const MY_DAY: NavItem = { href: "/my-day", label: "My day", short: "My day", icon: "myday", group: "People" };
 const LEADERBOARD: NavItem = { href: "/leaderboard", label: "Leaderboard", short: "Leaderboard", icon: "leaderboard", group: "People" };
