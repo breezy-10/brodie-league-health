@@ -88,7 +88,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
 // specific paths come first. Pages keep a line of their own only for what
 // changes with the view: a person's name, the scope, how fresh the data is.
 const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[] = [
-  { path: "/dashboard", title: "Dashboard", subtitle: "How every league is tracking this season, across every app." },
+  { path: "/dashboard", title: "DM/LM Dashboard", subtitle: "How every league is tracking this season, across every app." },
   { path: "/weekly-review", title: "Weekly review", subtitle: "Each league's week, Saturday to Friday, beside the season so far." },
   { path: "/registrations/location", title: "By day of week", subtitle: "Each night's teams and athletes at one location, against last season and last year." },
   { path: "/live-games", title: "Live games", subtitle: "Every game on a day's schedule: what's on court now, what's next, and what's done." },
