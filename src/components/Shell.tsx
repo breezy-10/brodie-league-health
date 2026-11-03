@@ -5,11 +5,11 @@ import { SIDEBAR_COOKIE } from "@/lib/theme-shared";
 import { CITY_LAUNCHER_ROLES } from "@/lib/city-launchers";
 import { getTheme } from "@/lib/theme";
 
-// The pages people open daily first with no heading, then sentence-case
-// groups (kit Sidebar).
+// The dashboards first under their own heading, then the pages people open
+// daily with no heading, then sentence-case groups (kit Sidebar).
 // The phone tab bar keeps "Dashboard": "DM/LM Dashboard" is cut off there.
-const DASHBOARD: NavItem = { href: "/dashboard", label: "DM/LM Dashboard", short: "Dashboard", icon: "dashboard", group: "" };
-const OM_DASHBOARD: NavItem = { href: "/om-dashboard", label: "OM Dashboard", short: "OM", icon: "omdashboard", group: "" };
+const DASHBOARD: NavItem = { href: "/dashboard", label: "DM/LM Dashboard", short: "Dashboard", icon: "dashboard", group: "Dashboards" };
+const OM_DASHBOARD: NavItem = { href: "/om-dashboard", label: "OM Dashboard", short: "OM", icon: "omdashboard", group: "Dashboards" };
 const LIVE: NavItem = { href: "/live-games", label: "Live games", short: "Live", icon: "live", group: "" };
 const REGISTRATIONS: NavItem = { href: "/registrations", label: "Registrations", short: "Signups", icon: "registrations", group: "" };
 const REFERRALS: NavItem = { href: "/referrals", label: "Referrals", short: "Referrals", icon: "referrals", group: "" };
