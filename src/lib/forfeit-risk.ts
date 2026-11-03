@@ -7,6 +7,9 @@ import { readAppSecret } from "@/lib/app-secrets";
 // from the environment if set, else League Health's app_secrets table, and
 // leaves out who owes what: its board has that.
 export const OVERDUE_APP_URL = "https://brodie-overdue-payments.vercel.app";
+// Where people open B.O.B. Its old address still serves the app, but a
+// sign-in there is separate, so links go to the current one.
+export const BOB_URL = "https://brodie-bob.vercel.app";
 
 export type ForfeitTeam = {
   team_id: string;
@@ -43,7 +46,7 @@ export async function loadForfeitRisk(season: string): Promise<ForfeitTeam[] | n
 // given. It matches by exact name and has no multi-venue view, so anything
 // wider opens the cross-location board.
 export function forfeitTeamsHref(season: string, location: string | null = null): string {
-  const u = new URL("/teams", OVERDUE_APP_URL);
+  const u = new URL("/teams", BOB_URL);
   u.searchParams.set("season", season);
   if (location) u.searchParams.set("location", location);
   return u.toString();

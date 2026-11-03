@@ -17,7 +17,7 @@ import type { DiscountRow } from "../discounts/DiscountsView";
 import { discountTone, freeTone } from "../discounts/rates";
 import { promoFetch } from "@/lib/promo-feed";
 import { canonLoc, sameLocation } from "@/lib/location-match";
-import { forfeitTeamsHref, loadForfeitRisk, OVERDUE_APP_URL } from "@/lib/forfeit-risk";
+import { BOB_URL, forfeitTeamsHref, loadForfeitRisk } from "@/lib/forfeit-risk";
 import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams/AmbassadorSummary";
 import { dropInOutcomeTiles, loadDropIns } from "../drop-ins/DropInsView";
 import { eventOutcomeTiles, loadEvents } from "../events/EventsView";
@@ -40,7 +40,7 @@ const APP_URL: Record<string, string> = {
   facilities: "https://brodie-facilities.vercel.app/calendar",
   facility_invoices: "https://brodie-facilities.vercel.app/invoices",
   ref_invoices: "https://brodie-ref-payroll.vercel.app/payroll/invoices",
-  overdue: "https://brodie-overdue-payments.vercel.app",
+  overdue: "https://brodie-bob.vercel.app",
 };
 
 
@@ -1075,7 +1075,7 @@ function bobSeason(name: string): string {
 }
 // One venue's overdue players in B.O.B. (its /locations page).
 function bobLocationHref(location: string, season: string): string {
-  return `${OVERDUE_APP_URL}/locations/${encodeURIComponent(location)}?season=${encodeURIComponent(bobSeason(season))}`;
+  return `${BOB_URL}/locations/${encodeURIComponent(location)}?season=${encodeURIComponent(bobSeason(season))}`;
 }
 
 async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): Promise<Tile[] | null> {
