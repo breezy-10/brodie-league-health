@@ -21,7 +21,9 @@ export default function OmDashboardLoading() {
       <SectionSkeleton title="Feedback" />
       <SectionSkeleton title="Overdue Payments" />
       <TableSkeleton title="Facility Bookings" rows={6} />
+      <SectionSkeleton title="Facility Payments" />
       <TableSkeleton title="Referee Bookings" rows={6} />
+      <SectionSkeleton title="Referee Payments" />
     </div>
   );
 }

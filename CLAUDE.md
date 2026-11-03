@@ -13,7 +13,13 @@
   `mode="om"`: the operations managers' own Season Success checklist (kind
   `operations`, one league-wide checklist per season) instead of the league
   managers', and no Team Confirmed Stories, Outreach, Ambassador teams, Site
-  Visits, Video Reviews, LM Game Day Checklist or Training sections.
+  Visits, Video Reviews, LM Game Day Checklist or Training sections. It adds
+  Facility Payments (facilities `invoices`) and Referee Payments
+  (ref-payroll `location_invoices`) under the bookings sections: every unpaid
+  invoice, any season, by review step. Overdue weekly ref pay comes from
+  ref-payroll's `GET /api/feeds/overdue-ref-pay` (its own
+  `findOverduePayments`), bearer `REF_PAYROLL_FEED_KEY` here =
+  `LEAGUE_HEALTH_FEED_KEY` there.
 - User -> location assignments live in `user_locations` (many per user, any
   role), set on invite/edit. Generic and separate from the `league_managers`
   scoring roster. Picker names come from the Promo Tracker canonical list
