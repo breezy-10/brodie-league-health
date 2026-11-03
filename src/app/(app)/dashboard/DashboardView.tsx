@@ -17,7 +17,7 @@ import type { DiscountRow } from "../discounts/DiscountsView";
 import { discountTone, freeTone } from "../discounts/rates";
 import { promoFetch } from "@/lib/promo-feed";
 import { canonLoc, sameLocation } from "@/lib/location-match";
-import { forfeitTeamsHref, loadForfeitRisk } from "@/lib/forfeit-risk";
+import { BOB_URL, forfeitTeamsHref, loadForfeitRisk } from "@/lib/forfeit-risk";
 import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams/AmbassadorSummary";
 import { dropInOutcomeTiles, loadDropIns } from "../drop-ins/DropInsView";
 import { eventOutcomeTiles, loadEvents } from "../events/EventsView";
@@ -40,7 +40,7 @@ const APP_URL: Record<string, string> = {
   facilities: "https://brodie-facilities.vercel.app/calendar",
   facility_invoices: "https://brodie-facilities.vercel.app/invoices",
   ref_invoices: "https://brodie-ref-payroll.vercel.app/payroll/invoices",
-  overdue: "https://brodie-overdue-payments.vercel.app",
+  overdue: "https://brodie-bob.vercel.app",
 };
 
 
@@ -1066,6 +1066,18 @@ type CurTotals = { total_players: number; total_balance: number; active_players:
 // gets that for free — their feeds only return a previous week when asked for
 // one — but the overdue app always sends its last snapshot, so this one has to
 // decline it.
+// B.O.B. names seasons the ops way ("Fall '26") and its pages only take that
+// exact name, falling back to another season otherwise.
+function bobSeason(name: string): string {
+  const t = name.match(/winter|spring|summer|fall/i)?.[0];
+  const yy = (name.match(/\d{2,4}/)?.[0] ?? "").slice(-2);
+  return t && yy && !/spring.*summer/i.test(name) ? `${t[0].toUpperCase()}${t.slice(1).toLowerCase()} '${yy}` : name;
+}
+// One venue's overdue players in B.O.B. (its /locations page).
+function bobLocationHref(location: string, season: string): string {
+  return `${BOB_URL}/locations/${encodeURIComponent(location)}?season=${encodeURIComponent(bobSeason(season))}`;
+}
+
 async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): Promise<Tile[] | null> {
   try {
     const url = new URL("/api/checkin-stats", "https://brodie-overdue-payments.vercel.app");
@@ -1145,6 +1157,9 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
       ];
     };
     const when = asOf(k.prev?.as_of);
+    // Every venue chip opens that venue's overdue players in B.O.B., on the
+    // season the cards are showing. The feed names venues the way B.O.B. does.
+    const playersAt = (location: string) => bobLocationHref(location, season);
     // ISO dates compare as strings, so the latest is a plain max.
     const lastGame = (players?: { game_dates?: string[] }[]) =>
       (players ?? []).flatMap((a) => a.game_dates ?? []).reduce<string | null>((m, d) => (!m || d > m ? d : m), null);
@@ -1178,6 +1193,7 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
             text: `${l.location} ${l.checked_players}/${l.players} (${l.players ? Math.round((100 * l.checked_players) / l.players) : 0}%)${last ? ` · last game ${asOf(last)}` : ""}`,
             tone: (l.checked_players > 0 ? "bad" : "warn") as Tone,
             sortValue: l.players,
+            href: playersAt(l.location),
           };
         }),
         pillsEmpty: "nobody overdue",
@@ -1205,6 +1221,7 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
             text: `${l.location} ${money(l.total, cur)} (${l.players})`,
             tone: (l.checked_players > 0 ? "bad" : "warn") as Tone,
             sortValue: l.total,
+            href: playersAt(l.location),
           })),
         pillsEmpty: "nothing outstanding",
       };
@@ -1241,7 +1258,8 @@ async function loadForfeitTile(season: string, scope: Scope): Promise<Tile | nul
       // number here — a venue is on this list or it is not.
       pills: [...byLoc.entries()]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-        .map(([location, n]) => ({ text: `${location} (${n})`, tone: "bad" as const, sortValue: n })),
+        // Each opens that venue's teams on the forfeit board.
+        .map(([location, n]) => ({ text: `${location} (${n})`, tone: "bad" as const, sortValue: n, href: forfeitTeamsHref(bobSeason(season), location) })),
       pillsEmpty: "no teams at risk",
       // The board opens on what the card is showing: the same season, and the
       // same venue where the filter has come down to exactly one of them. It
