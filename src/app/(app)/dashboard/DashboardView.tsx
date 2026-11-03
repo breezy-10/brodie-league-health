@@ -1181,13 +1181,15 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
         pillsEmpty: "nobody overdue",
       },
     ];
+    // Read like the players card: what active players owe leads, since it is
+    // the money still collectable, and the total sits beneath it.
     const card = (c: CurTotals, cur: string, label: string, prev?: { total_players: number; total_balance: number; active_players: number; active_balance: number }): Tile | null =>
       c.total_players === 0 ? null : {
-        label, value: money(c.total_balance, cur),
+        label, value: money(c.active_balance, cur),
+        tone: c.active_players > 0 ? "bad" : "warn",
         lines: [
-          { text: `${c.total_players} player${c.total_players === 1 ? "" : "s"}`, strong: true },
-          { text: `${money(c.active_balance, cur)} from active players` },
-          { text: `${c.active_players} of ${c.total_players} players active` },
+          { text: `${money(c.total_balance, cur)} overdue in total`, strong: true },
+          { text: `${c.active_players} of ${c.total_players} player${c.total_players === 1 ? "" : "s"} active` },
           ...(weekly ? wowActive(c, cur, prev, when) : []),
         ],
         // Only this card's own currency, so the two cards partition the venues
@@ -1202,8 +1204,8 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
           })),
         pillsEmpty: "nothing outstanding",
       };
-    const cad = card(k.currency_totals.cad, "CAD", "Overdue Balance - Canadian Locations", k.prev?.cad);
-    const usd = card(k.currency_totals.usd, "USD", "Overdue Balance - US Locations", k.prev?.usd);
+    const cad = card(k.currency_totals.cad, "CAD", "Active overdue balance - Canadian locations", k.prev?.cad);
+    const usd = card(k.currency_totals.usd, "USD", "Active overdue balance - US locations", k.prev?.usd);
     if (cad) tiles.push(cad);
     if (usd) tiles.push(usd);
     return tiles;
