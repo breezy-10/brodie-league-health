@@ -331,13 +331,8 @@ export default function AppShell({
   const overflow = items.filter((i) => !tabItems.includes(i));
   const roleLabel = ROLE_LABELS[user.role] ?? user.role;
 
-  // A sentence-case heading wherever the group changes (kit Sidebar). Back to
-  // no group after one (the daily pages under Dashboards) gets an empty
-  // heading, so the gap still closes the section above.
-  const headers = items.map((item, i) => {
-    const prev = items[i - 1]?.group;
-    return item.group ? (item.group !== prev ? item.group : null) : prev ? "" : null;
-  });
+  // A sentence-case heading wherever the group changes (kit Sidebar).
+  const headers = items.map((item, i) => (item.group && item.group !== items[i - 1]?.group ? item.group : null));
 
   return (
     <div className={`br-shell${pinned ? "" : " is-rail"}`}>
@@ -383,7 +378,7 @@ export default function AppShell({
             const header = headers[i];
             return (
               <div key={item.href} style={{ display: "contents" }}>
-                {header !== null && <div className="br-sb-header" aria-hidden={header === "" || undefined}>{header}</div>}
+                {header && <div className="br-sb-header">{header}</div>}
                 <Link
                   href={item.href}
                   className={`br-sb-item${active ? " is-active" : ""}`}
