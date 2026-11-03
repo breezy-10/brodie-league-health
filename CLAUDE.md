@@ -26,9 +26,11 @@
     and refund tickets, pending discounts and replacements, `computeCourtChecks`
     for the next 4 weeks), key `OVERDUE_FEED_KEY` / app_secrets
     `overdue_feed_key`, read once per render (`loadBobOps`, React `cache`).
-  - Missing Invoices: facilities `GET /api/feeds/missing-invoices` (key
-    `FACILITIES_FEED_KEY`) and ref-payroll's (key `REF_PAYROLL_FEED_KEY`), the
-    lists their Monday nudges send (`findMissingInvoices` in each).
+  - Missing Facility Invoices (under Facility Payments) and Missing Referee
+    Invoices (under Referee Payments): facilities `GET
+    /api/feeds/missing-invoices` (key `FACILITIES_FEED_KEY`) and ref-payroll's
+    (key `REF_PAYROLL_FEED_KEY`), the lists their Monday nudges send
+    (`findMissingInvoices` in each).
   - Logistics: logistics `GET /api/feeds/ops-summary` (key
     `LOGISTICS_FEED_KEY`): supplier balances (its "Money still owed" rule) and
     stock at or under its reorder level. Its "ordered, not received" list is

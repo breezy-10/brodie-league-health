@@ -24,10 +24,11 @@ export default function OmDashboardLoading() {
       <TableSkeleton title="Facility Bookings" rows={6} />
       <SectionSkeleton title="Court Bookings" cols={3} />
       <SectionSkeleton title="Facility Payments" />
+      <SectionSkeleton title="Missing Facility Invoices" cols={2} />
       <SectionSkeleton title="Venue Insurance" cols={3} />
       <TableSkeleton title="Referee Bookings" rows={6} />
       <SectionSkeleton title="Referee Payments" />
-      <SectionSkeleton title="Missing Invoices" />
+      <SectionSkeleton title="Missing Referee Invoices" cols={2} />
       <SectionSkeleton title="Logistics" cols={3} />
     </div>
   );
