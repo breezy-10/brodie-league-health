@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode } from "react";
+import { cache as reactCache, Suspense, type ReactNode } from "react";
 import { readAppSecret } from "@/lib/app-secrets";
 import { requireUser } from "@/lib/auth";
 import { SectionSkeleton, TableSkeleton } from "./Skeletons";
@@ -26,7 +26,7 @@ import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
 import { BackToTopButton, ScrollUpButton } from "./ScrollUpButton";
 import { SectionJumpBar } from "./SectionJumpBar";
-import { loadRefereeBookings, RefereeBookingsSection } from "./RefereeBookings";
+import { allRows, loadRefereeBookings, RefereeBookingsSection } from "./RefereeBookings";
 
 // Deep links to each source app's dashboard ("More details →").
 const APP_URL: Record<string, string> = {
@@ -39,6 +39,7 @@ const APP_URL: Record<string, string> = {
   training: "https://brodie-training.vercel.app/admin/reports",
   facilities: "https://brodie-facilities.vercel.app/calendar",
   facility_invoices: "https://brodie-facilities.vercel.app/invoices",
+  facility_coi: "https://brodie-facilities.vercel.app/facilities/coi",
   ref_invoices: "https://brodie-ref-payroll.vercel.app/payroll/invoices",
   overdue: "https://brodie-bob.vercel.app",
 };
@@ -2808,6 +2809,84 @@ async function loadRefereePaymentTiles(scope: Scope): Promise<Tile[] | null> {
   }
 }
 
+// Venue Insurance, on the OM Dashboard: certificates of insurance for every
+// secured venue booked in the season being played or the one being sold. A
+// venue with nothing booked in either isn't rented, so it isn't counted.
+async function loadInsuranceTiles(scope: Scope, seasons: string[]): Promise<Tile[] | null> {
+  if (!sourceConfigured("facilities")) return null;
+  try {
+    const fac = sourceClient("facilities")!;
+    const wanted = new Set(seasons.map(seasonKey));
+    const [{ data: venues, error }, lookups] = await Promise.all([
+      fac.from("facilities").select("id, name, city, status, coi_file_path, coi_expiry_date, coi_uploaded_at, coi_requested_at").eq("status", "secured"),
+      getFacilityLookups(),
+    ]);
+    if (error) return null;
+    const seasonIds = lookups.seasons.filter((s) => s.name && wanted.has(seasonKey(s.name))).map((s) => s.id);
+    if (!seasonIds.length) return null;
+    const booked = new Set((await allRows<{ facility_id: string }>((from, to) => fac.from("bookings")
+      .select("facility_id").in("season_id", seasonIds).eq("is_off", false).order("id").range(from, to)))
+      .map((b) => b.facility_id));
+    type Venue = { id: string; name: string; city: string | null; coi_file_path: string | null; coi_expiry_date: string | null; coi_uploaded_at: string | null; coi_requested_at: string | null };
+    const inUse = ((venues ?? []) as Venue[])
+      .filter((v) => booked.has(v.id) && inScope(scope, v.city ?? ""))
+      .sort((a, b) => (a.city ?? "").localeCompare(b.city ?? "") || a.name.localeCompare(b.name));
+    const today = torontoToday();
+    const soon = ymd(new Date(Date.now() + 30 * 86400000));
+    const label = (v: Venue) => (v.city ? `${v.city} · ${v.name}` : v.name);
+    const href = (v: Venue) => `https://brodie-facilities.vercel.app/facilities/${v.id}`;
+    const shortDate = (iso: string) => `${MON_SHORT[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
+    const missing = inUse.filter((v) => !v.coi_file_path);
+    // Asked of the broker since the last certificate came in (the facilities
+    // app's own "Requested" rule): amber, as it is in hand.
+    const requested = (v: Venue) => !!v.coi_requested_at && (!v.coi_uploaded_at || v.coi_requested_at > v.coi_uploaded_at);
+    const withFile = inUse.filter((v) => v.coi_file_path);
+    const expired = withFile.filter((v) => v.coi_expiry_date && v.coi_expiry_date < today);
+    const expiring = withFile.filter((v) => v.coi_expiry_date && v.coi_expiry_date >= today && v.coi_expiry_date <= soon);
+    const undated = withFile.filter((v) => !v.coi_expiry_date);
+    const current = withFile.filter((v) => v.coi_expiry_date && v.coi_expiry_date > soon);
+    return [
+      {
+        label: "No certificate on file", value: missing.length.toLocaleString(),
+        sub: `of ${inUse.length} venues in use`, subInline: true,
+        tone: missing.length ? "bad" : "ok",
+        lines: missing.some(requested) ? [{ text: `${missing.filter(requested).length} requested from the broker` }] : undefined,
+        pills: missing.map((v) => requested(v)
+          ? { text: label(v), tone: "warn" as Tone, sub: `requested ${shortDate(v.coi_requested_at!.slice(0, 10))}`, href: href(v) }
+          : { text: label(v), tone: "bad" as Tone, href: href(v) }),
+        pillsEmpty: "every venue has one",
+      },
+      {
+        label: "Expired or expiring", value: (expired.length + expiring.length).toLocaleString(),
+        sub: "within 30 days", subInline: true,
+        tone: expired.length ? "bad" : expiring.length ? "warn" : "ok",
+        lines: undated.length ? [{ text: `${undated.length} with no expiry date recorded` }] : undefined,
+        pills: [
+          ...expired.map((v) => ({ text: label(v), tone: "bad" as Tone, sub: `expired ${shortDate(v.coi_expiry_date!)}`, href: href(v) })),
+          ...expiring.map((v) => ({ text: label(v), tone: "warn" as Tone, sub: `expires ${shortDate(v.coi_expiry_date!)}`, href: href(v) })),
+          ...undated.map((v) => ({ text: label(v), tone: "default" as Tone, sub: "no expiry date", href: href(v) })),
+        ],
+        pillsEmpty: "nothing expiring",
+      },
+      {
+        label: "Up to date", value: current.length.toLocaleString(),
+        sub: `of ${inUse.length} venues in use`, subInline: true,
+        tone: inUse.length && current.length === inUse.length ? "ok" : "default",
+        lines: current.length
+          ? [{ text: `next expiry ${shortDate([...current].map((v) => v.coi_expiry_date!).sort()[0])}` }]
+          : undefined,
+      },
+    ];
+  } catch {
+    return null;
+  }
+}
+async function InsuranceCards({ scope, seasons }: { scope: Scope; seasons: string[] }) {
+  const tiles = await loadInsuranceTiles(scope, seasons);
+  return <Section title="Venue Insurance" href={APP_URL.facility_coi} tiles={tiles} cols={3}
+    seasonTag={[...new Set(seasons)].join(" + ")} />;
+}
+
 async function FacilityPaymentCards({ scope }: { scope: Scope }) {
   const tiles = await loadFacilityPaymentTiles(scope);
   return <Section title="Facility Payments" href={APP_URL.facility_invoices} tiles={tiles} seasonTag="All seasons" />;
@@ -2815,6 +2894,313 @@ async function FacilityPaymentCards({ scope }: { scope: Scope }) {
 async function RefereePaymentCards({ scope }: { scope: Scope }) {
   const tiles = await loadRefereePaymentTiles(scope);
   return <Section title="Referee Payments" href={APP_URL.ref_invoices} tiles={tiles} seasonTag="All seasons" />;
+}
+
+// The rest of the OM Dashboard reads small feeds the source apps publish for
+// League Health, each worked out by that app's own code, each behind its own
+// key. Null when a feed can't be reached, so the section says "not connected".
+async function feedJson<T>(url: string, key: string | null | undefined): Promise<T | null> {
+  if (!key) return null;
+  try {
+    const res = await fetch(url, { cache: "no-store", headers: { Authorization: `Bearer ${key}` } });
+    return res.ok ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+const shortIso = (iso: string) => `${MON_SHORT[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+// B.O.B.'s /api/ops-summary: live tickets, requests waiting on a decision and
+// the next four weeks of court booking checks. Two sections read it, so one
+// render fetches it once.
+type BobTicket = { id: string; number: number; kind: "ops" | "refund"; status: string; league_name: string | null; assignee_name: string | null; due_date: string | null; priority: string | null; category: string | null; created_at: string };
+type BobOps = {
+  tickets: BobTicket[] | null;
+  discounts: { id: string; league_name: string | null; status: string; created_at: string }[] | null;
+  replacements: { id: string; league_name: string | null; status: string; created_at: string }[] | null;
+  courts: { facility_id: string; facility: string; date: string; label: string | null; status: "short" | "over"; needed: number; booked: number; basis: string; phase: "open" | "waiting" | "chase" }[] | null;
+};
+const loadBobOps = reactCache(async (): Promise<BobOps | null> =>
+  feedJson<BobOps>(`${BOB_URL}/api/ops-summary`, process.env.OVERDUE_FEED_KEY ?? (await readAppSecret("overdue_feed_key"))));
+
+// Ops Tickets: the queue operations managers work in B.O.B. Every chip opens
+// the ticket, or that location's open tickets, there.
+async function loadTicketTiles(scope: Scope): Promise<Tile[] | null> {
+  const ops = await loadBobOps();
+  if (!ops?.tickets) return null;
+  const today = torontoToday();
+  const NO_LOC = "Not location specific";
+  // A ticket filed for no location belongs to everyone, so it shows only
+  // when the view isn't narrowed to locations.
+  const tickets = ops.tickets.filter((t) => (t.league_name ? inScope(scope, t.league_name) : !scope.locationNames));
+  const live = (s: string) => s === "open" || s === "in_progress" || s === "with_tech";
+  const ticketHref = (id: string) => `${BOB_URL}/tickets?id=${id}`;
+  const label = (t: BobTicket) => `#${t.number} · ${t.league_name ?? NO_LOC}`;
+  const pastDue = (t: { due_date: string | null; status: string }) => live(t.status) && !!t.due_date && t.due_date < today;
+
+  const open = tickets.filter((t) => t.kind === "ops" && live(t.status));
+  const byLoc = new Map<string, { n: number; late: number }>();
+  for (const t of open) {
+    const k = t.league_name ?? NO_LOC;
+    const e = byLoc.get(k) ?? { n: 0, late: 0 };
+    e.n += 1;
+    if (pastDue(t)) e.late += 1;
+    byLoc.set(k, e);
+  }
+  const late = tickets.filter(pastDue).sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
+  const refunds = tickets.filter((t) => t.kind === "refund");
+  const refundAwaiting = refunds.filter((t) => t.status === "awaiting_approval");
+  const refundApproved = refunds.filter((t) => t.status === "open");
+  const refundWorking = refunds.filter((t) => t.status === "in_progress" || t.status === "with_tech");
+  const discounts = (ops.discounts ?? []).filter((d) => !d.league_name || inScope(scope, d.league_name));
+  const replacements = (ops.replacements ?? []).filter((r) => !r.league_name || inScope(scope, r.league_name));
+  const decisions = discounts.length + replacements.length;
+  return [
+    {
+      label: "Open tickets", value: open.length.toLocaleString(), tone: open.length ? "warn" : "ok",
+      lines: [
+        ...(open.some((t) => t.status === "in_progress") ? [{ text: `${open.filter((t) => t.status === "in_progress").length} being worked on` }] : []),
+        ...(open.some((t) => t.status === "with_tech") ? [{ text: `${open.filter((t) => t.status === "with_tech").length} with tech` }] : []),
+        ...(open.some((t) => !t.assignee_name) ? [{ text: `${open.filter((t) => !t.assignee_name).length} not assigned`, color: "var(--red)" }] : []),
+      ],
+      // Red where one at that location is past its due date.
+      pills: [...byLoc.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([loc, { n, late: l }]) => ({
+        text: `${loc} (${n})`, tone: (l ? "bad" : "default") as Tone, sortValue: n,
+        href: loc === NO_LOC ? `${BOB_URL}/tickets?tab=open` : `${BOB_URL}/tickets?tab=open&location=${encodeURIComponent(loc)}`,
+      })),
+      pillsEmpty: "no open tickets",
+    },
+    {
+      label: "Past due tickets", value: late.length.toLocaleString(), tone: late.length ? "bad" : "ok",
+      pills: late.map((t) => ({ text: label(t), tone: "bad" as Tone, sub: `due ${shortIso(t.due_date!)}`, href: ticketHref(t.id) })),
+      pillsEmpty: "nothing past due",
+    },
+    {
+      label: "Refunds", value: (refundAwaiting.length + refundApproved.length + refundWorking.length).toLocaleString(),
+      sub: "not refunded yet", subInline: true,
+      tone: refundApproved.length ? "bad" : refundAwaiting.length + refundWorking.length ? "warn" : "ok",
+      lines: [
+        ...(refundAwaiting.length ? [{ text: `${refundAwaiting.length} waiting on approval` }] : []),
+        // Approved and waiting for someone to send the money back.
+        ...(refundApproved.length ? [{ text: `${refundApproved.length} approved, nobody on it yet`, color: "var(--red)" }] : []),
+        ...(refundWorking.length ? [{ text: `${refundWorking.length} being refunded` }] : []),
+      ],
+      pills: [...refundApproved, ...refundAwaiting, ...refundWorking].map((t) => ({
+        text: label(t),
+        tone: (t.status === "open" ? "bad" : t.status === "awaiting_approval" ? "warn" : "default") as Tone,
+        sub: t.status === "open" ? "approved" : t.status === "awaiting_approval" ? "waiting on approval" : "being refunded",
+        href: ticketHref(t.id),
+      })),
+      pillsEmpty: "no refunds open",
+    },
+    {
+      label: "Waiting on a decision", value: decisions.toLocaleString(), tone: decisions ? "warn" : "ok",
+      lines: [
+        ...(discounts.length ? [{ text: plural(discounts.length, "discount request") }] : []),
+        ...(replacements.some((r) => r.status === "awaiting_dm") ? [{ text: `${replacements.filter((r) => r.status === "awaiting_dm").length} replacement${replacements.filter((r) => r.status === "awaiting_dm").length === 1 ? "" : "s"} waiting on the district manager` }] : []),
+        ...(replacements.some((r) => r.status === "awaiting_final") ? [{ text: `${replacements.filter((r) => r.status === "awaiting_final").length} replacement${replacements.filter((r) => r.status === "awaiting_final").length === 1 ? "" : "s"} waiting on the final OK` }] : []),
+      ],
+      pills: [
+        ...discounts.map((d) => ({ text: `Discount · ${d.league_name ?? NO_LOC}`, tone: "warn" as Tone, sub: d.status === "failed" ? "failed, needs a retry" : undefined, href: `${BOB_URL}/discounts?tab=approve&id=${d.id}` })),
+        ...replacements.map((r) => ({ text: `Replacement · ${r.league_name ?? NO_LOC}`, tone: "warn" as Tone, sub: r.status === "awaiting_final" ? "final OK" : "district manager", href: `${BOB_URL}/replacements` })),
+      ],
+      pillsEmpty: "nothing waiting",
+    },
+  ];
+}
+async function TicketCards({ scope }: { scope: Scope }) {
+  const tiles = await loadTicketTiles(scope);
+  return <Section title="Ops Tickets" href={`${BOB_URL}/tickets`} tiles={tiles} />;
+}
+
+// Court Bookings: the next four weeks of facility bookings against the games
+// each night needs, from the same check that posts to
+// #facility-and-ref-bookings on weekdays.
+async function loadCourtTiles(scope: Scope): Promise<Tile[] | null> {
+  const ops = await loadBobOps();
+  if (!ops?.courts) return null;
+  // "City · Venue", the facilities app's name for a venue.
+  const cityOf = (facility: string) => facility.split(" · ")[0];
+  const nights = ops.courts.filter((c) => inScope(scope, cityOf(c.facility))).sort((a, b) => a.date.localeCompare(b.date) || a.facility.localeCompare(b.facility));
+  const chip = (c: NonNullable<BobOps["courts"]>[number], tone: Tone, sub: string) => ({
+    text: `${c.facility} · ${shortIso(c.date)}`, tone, sub, sortValue: Math.abs(c.needed - c.booked),
+    href: `https://brodie-facilities.vercel.app/facilities/${c.facility_id}`,
+  });
+  const games = (n: number) => plural(n, "game");
+  const short = nights.filter((c) => c.status === "short" && c.phase !== "waiting");
+  const waiting = nights.filter((c) => c.phase === "waiting");
+  const over = nights.filter((c) => c.status === "over" && c.phase !== "waiting");
+  return [
+    {
+      label: "Short on court time", value: short.length.toLocaleString(), sub: short.length === 1 ? "night" : "nights", subInline: true,
+      tone: short.length ? "bad" : "ok",
+      pills: short.map((c) => chip(c, "bad", `${games(c.needed)}, room for ${c.booked}${c.phase === "chase" ? " · asked, no answer yet" : ""}`)),
+      pillsEmpty: "every night fits",
+    },
+    {
+      label: "Waiting on the facility", value: waiting.length.toLocaleString(), sub: waiting.length === 1 ? "night" : "nights", subInline: true,
+      tone: waiting.length ? "warn" : "ok",
+      lines: waiting.length ? [{ text: "a change was asked for and is inside the 3 business days" }] : undefined,
+      pills: waiting.map((c) => chip(c, "warn", `${games(c.needed)}, room for ${c.booked}`)),
+      pillsEmpty: "nothing asked",
+    },
+    {
+      label: "Spare court time", value: over.length.toLocaleString(), sub: over.length === 1 ? "night" : "nights", subInline: true,
+      tone: over.length ? "warn" : "ok",
+      lines: over.length ? [{ text: "an hour or more booked that no game uses" }] : undefined,
+      pills: over.map((c) => chip(c, "warn", `${games(c.needed)}, room for ${c.booked}`)),
+      pillsEmpty: "nothing spare",
+    },
+  ];
+}
+async function CourtCards({ scope }: { scope: Scope }) {
+  const tiles = await loadCourtTiles(scope);
+  return <Section title="Court Bookings" href="https://brodie-facilities.vercel.app/bookings" tiles={tiles} cols={3} seasonTag="Next 4 weeks" />;
+}
+
+// Missing Invoices: what the facilities and referee payroll apps' Monday
+// nudges send the operations managers, any day: last month's nights with no
+// invoice, and bills in Float the apps don't have yet.
+type FacilityMissing = {
+  month: { from: string; to: string };
+  facilities: { id: string; name: string; city: string | null; bookings: number; cents: number; currency: string }[];
+  float: { connected: boolean; bills: { id: string; facility_id: string; facility: string; city: string | null; invoice_number: string | null; cents: number | null; currency: string | null; invoice_date: string | null; status: string }[] };
+};
+type RefMissing = {
+  month: { from: string; to: string };
+  locations: { location: string; games: number }[];
+  float: { connected: boolean; bills: { id: string; vendor: string; locations: string[]; invoice_number: string | null; cents: number | null; currency: string | null; invoice_date: string | null; status: string }[] };
+};
+async function loadMissingInvoiceTiles(scope: Scope): Promise<Tile[] | null> {
+  const [fac, ref] = await Promise.all([
+    feedJson<FacilityMissing>("https://brodie-facilities.vercel.app/api/feeds/missing-invoices", process.env.FACILITIES_FEED_KEY),
+    feedJson<RefMissing>("https://brodie-ref-payroll.vercel.app/api/feeds/missing-invoices", process.env.REF_PAYROLL_FEED_KEY),
+  ]);
+  if (!fac && !ref) return null;
+  const monthOf = (iso?: string) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-CA", { month: "long", timeZone: "UTC" }) : "Last month");
+  const notConnected = (label: string, app: string): Tile => ({ label, value: "Not connected", sub: `couldn't read the ${app}` });
+  const venue = (city: string | null, name: string) => (city ? `${city} · ${name}` : name);
+  const facInvoices = "https://brodie-facilities.vercel.app/invoices";
+  const refInvoices = APP_URL.ref_invoices;
+
+  const tiles: Tile[] = [];
+  if (fac) {
+    const month = monthOf(fac.month.from);
+    const rows = fac.facilities.filter((f) => inScope(scope, f.city ?? "")).sort((a, b) => venue(a.city, a.name).localeCompare(venue(b.city, b.name)));
+    tiles.push({
+      label: `Facilities with no ${month} invoice`, value: rows.length.toLocaleString(), tone: rows.length ? "bad" : "ok",
+      lines: [
+        ...(rows.length ? [{ text: `${plural(rows.reduce((s, f) => s + f.bookings, 0), "booking")} with no invoice` }] : []),
+        ...currencyLines(rows).map((l) => ({ ...l, strong: false, text: `${l.text} booked` })),
+      ],
+      pills: rows.map((f) => ({ text: venue(f.city, f.name), tone: "bad" as Tone, sub: `${plural(f.bookings, "booking")} · ${centsMoney(f.cents, f.currency)}`, sortValue: f.cents, href: `https://brodie-facilities.vercel.app/facilities/${f.id}` })),
+      pillsEmpty: "every facility invoiced",
+    });
+    const bills = fac.float.bills.filter((b) => inScope(scope, b.city ?? ""));
+    tiles.push(fac.float.connected
+      ? {
+          label: "Facility bills in Float, not in the app", value: bills.length.toLocaleString(), tone: bills.length ? "warn" : "ok",
+          lines: currencyLines(bills.filter((b) => b.cents != null).map((b) => ({ currency: b.currency ?? "CAD", cents: b.cents! }))),
+          pills: bills.map((b) => ({ text: venue(b.city, b.facility), tone: "warn" as Tone, sub: [b.invoice_number, b.cents != null ? centsMoney(b.cents, b.currency ?? "CAD") : null].filter(Boolean).join(" · "), href: `${facInvoices}/from-float` })),
+          pillsEmpty: "Float and the app agree",
+        }
+      : { label: "Facility bills in Float, not in the app", value: "Not connected", sub: "Float hasn't synced to the facilities app" });
+  } else {
+    tiles.push(notConnected("Facilities with no invoice", "facilities app"), notConnected("Facility bills in Float, not in the app", "facilities app"));
+  }
+  if (ref) {
+    const month = monthOf(ref.month.from);
+    const rows = ref.locations.filter((l) => inScope(scope, l.location)).sort((a, b) => a.location.localeCompare(b.location));
+    tiles.push({
+      label: `Referee invoices missing for ${month}`, value: rows.length.toLocaleString(), sub: rows.length === 1 ? "location" : "locations", subInline: true,
+      tone: rows.length ? "bad" : "ok",
+      lines: rows.length ? [{ text: `${plural(rows.reduce((s, l) => s + l.games, 0), "game")} played with no invoice` }] : undefined,
+      pills: rows.map((l) => ({ text: l.location, tone: "bad" as Tone, sub: plural(l.games, "game"), sortValue: l.games, href: refInvoices })),
+      pillsEmpty: "every location invoiced",
+    });
+    // A vendor bill with no location reads everywhere, like a ticket with none.
+    const bills = ref.float.bills.filter((b) => !scope.locationNames || b.locations.some((l) => inScope(scope, l)));
+    tiles.push(ref.float.connected
+      ? {
+          label: "Referee bills in Float, not in the app", value: bills.length.toLocaleString(), tone: bills.length ? "warn" : "ok",
+          lines: currencyLines(bills.filter((b) => b.cents != null).map((b) => ({ currency: b.currency ?? "CAD", cents: b.cents! }))),
+          pills: bills.map((b) => ({ text: b.vendor, tone: "warn" as Tone, sub: [b.invoice_number, b.cents != null ? centsMoney(b.cents, b.currency ?? "CAD") : null].filter(Boolean).join(" · "), href: refInvoices })),
+          pillsEmpty: "Float and the app agree",
+        }
+      : { label: "Referee bills in Float, not in the app", value: "Not connected", sub: "Float hasn't synced" });
+  } else {
+    tiles.push(notConnected("Referee invoices missing", "referee payroll app"), notConnected("Referee bills in Float, not in the app", "referee payroll app"));
+  }
+  return tiles;
+}
+async function MissingInvoiceCards({ scope }: { scope: Scope }) {
+  const tiles = await loadMissingInvoiceTiles(scope);
+  return <Section title="Missing Invoices" href={APP_URL.facility_invoices} tiles={tiles} />;
+}
+
+// Logistics: what is owed to suppliers (the logistics app's "Money still
+// owed" rule) and stock at or under its reorder level.
+type LogisticsOps = {
+  owed: { id: string; season: string; locations: string[]; item: string; vendor: string; currency: string; outstanding: number; days_overdue: number | null }[] | null;
+  reorder_levels_set?: number | null;
+  low_stock: { id: number; label: string; kind: string; location: string; quantity: number; reorder_at: number; reorder_qty: number }[] | null;
+};
+async function loadLogisticsTiles(scope: Scope): Promise<Tile[] | null> {
+  const lg = await feedJson<LogisticsOps>("https://brodie-logistics.vercel.app/api/feeds/ops-summary", process.env.LOGISTICS_FEED_KEY);
+  if (!lg || !lg.owed) return null;
+  const LOGISTICS = "https://brodie-logistics.vercel.app";
+  // An order can serve several locations at once; it is in view when any of
+  // them is.
+  const owed = lg.owed.filter((o) => !scope.locationNames || o.locations.some((l) => inScope(scope, l)));
+  const money = (n: number, cur: string) => centsMoney(Math.round(n * 100), cur);
+  const late = owed.filter((o) => (o.days_overdue ?? 0) > 0).sort((a, b) => (b.days_overdue ?? 0) - (a.days_overdue ?? 0));
+  const byLoc = new Map<string, { n: number; late: number }>();
+  for (const o of owed) for (const l of o.locations) {
+    if (!inScope(scope, l)) continue;
+    const e = byLoc.get(l) ?? { n: 0, late: 0 };
+    e.n += 1;
+    if ((o.days_overdue ?? 0) > 0) e.late += 1;
+    byLoc.set(l, e);
+  }
+  const where = (o: { locations: string[] }) => (o.locations.length === 1 ? o.locations[0] : `${o.locations.length} locations`);
+  const tiles: Tile[] = [
+    {
+      label: "Owed to suppliers", value: owed.length.toLocaleString(), sub: owed.length === 1 ? "order" : "orders", subInline: true,
+      tone: late.length ? "bad" : owed.length ? "warn" : "ok",
+      lines: [
+        ...currencyLines(owed.map((o) => ({ currency: o.currency, cents: Math.round(o.outstanding * 100) }))),
+        ...(late.length ? [{ text: `${late.length} past due`, color: "var(--red)" }] : []),
+      ],
+      // Orders per location; one shared by several counts at each.
+      pills: [...byLoc.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([loc, { n, late: l }]) => ({ text: `${loc} (${n})`, tone: (l ? "bad" : "default") as Tone, sortValue: n })),
+      pillsEmpty: "nothing owed",
+    },
+    {
+      label: "Past due to suppliers", value: late.length.toLocaleString(), sub: late.length === 1 ? "order" : "orders", subInline: true,
+      tone: late.length ? "bad" : "ok",
+      lines: currencyLines(late.map((o) => ({ currency: o.currency, cents: Math.round(o.outstanding * 100) }))),
+      pills: late.map((o) => ({ text: `${o.item} · ${where(o)}`, tone: "bad" as Tone, sub: `${money(o.outstanding, o.currency)} · ${plural(o.days_overdue ?? 0, "day")} late · ${o.vendor}`, sortValue: o.days_overdue ?? 0, href: LOGISTICS })),
+      pillsEmpty: "nothing past due",
+    },
+  ];
+  const levels = lg.reorder_levels_set;
+  const low = (lg.low_stock ?? []).filter((s) => !scope.locationNames || s.location.split(",").some((l) => inScope(scope, l.trim())));
+  // With no reorder levels set an empty list says nothing, so the card says so.
+  tiles.push(levels === 0
+    ? { label: "Low stock", value: "No levels set", sub: "set a reorder level on a stock line to track it", link: { href: `${LOGISTICS}/stock`, label: "Inventory →" } }
+    : {
+        label: "Low stock", value: low.length.toLocaleString(), sub: low.length === 1 ? "line" : "lines", subInline: true,
+        tone: low.length ? "warn" : "ok",
+        lines: levels != null ? [{ text: `${plural(levels, "line")} with a reorder level` }] : undefined,
+        pills: low.map((s) => ({ text: `${s.label} · ${s.location}`, tone: "warn" as Tone, sub: `${s.quantity} left · reorder ${s.reorder_qty}`, href: `${LOGISTICS}/stock` })),
+        pillsEmpty: "nothing at or under its reorder level",
+      });
+  return tiles;
+}
+async function LogisticsCards({ scope }: { scope: Scope }) {
+  const tiles = await loadLogisticsTiles(scope);
+  return <Section title="Logistics" href="https://brodie-logistics.vercel.app" tiles={tiles} cols={3} seasonTag="All seasons" />;
 }
 
 // The Discounts tab's three rates for one venue, in its own currency and on
@@ -3987,6 +4373,11 @@ export default async function DashboardView({
         {!isReg && (
           <Section title="Season Success Checklist" scopeTag={fullTag} href={`${APP_URL.checklist}/checklists?kind=${isOm ? "operations" : "lm"}`} tiles={checklistTiles} cols={6} />
         )}
+        {isOm && (
+          <Suspense fallback={<SectionSkeleton title="Ops Tickets" />}>
+            <TicketCards scope={scope} />
+          </Suspense>
+        )}
         {isSplit && (
           <p className="text-sm text-glass-text-secondary max-w-[90ch]">
             {!newKeys
@@ -4152,18 +4543,34 @@ export default async function DashboardView({
                 headerExtra={seasonToggle("bookingSeason", bookingSeason)} />
             </Suspense>
             {isOm && (
-              <Suspense fallback={<SectionSkeleton title="Facility Payments" />}>
-                <FacilityPaymentCards scope={scope} />
-              </Suspense>
+              <>
+                <Suspense fallback={<SectionSkeleton title="Court Bookings" cols={3} />}>
+                  <CourtCards scope={scope} />
+                </Suspense>
+                <Suspense fallback={<SectionSkeleton title="Facility Payments" />}>
+                  <FacilityPaymentCards scope={scope} />
+                </Suspense>
+                <Suspense fallback={<SectionSkeleton title="Venue Insurance" cols={3} />}>
+                  <InsuranceCards scope={scope} seasons={[selectedSeason, regSeason]} />
+                </Suspense>
+              </>
             )}
             <Suspense fallback={<TableSkeleton title="Referee Bookings" rows={6} />}>
               <RefereeCards season={refereeSeasonName} scope={scope} fullTag={fullTag}
                 headerExtra={seasonToggle("refereeSeason", refereeSeason)} />
             </Suspense>
             {isOm && (
-              <Suspense fallback={<SectionSkeleton title="Referee Payments" />}>
-                <RefereePaymentCards scope={scope} />
-              </Suspense>
+              <>
+                <Suspense fallback={<SectionSkeleton title="Referee Payments" />}>
+                  <RefereePaymentCards scope={scope} />
+                </Suspense>
+                <Suspense fallback={<SectionSkeleton title="Missing Invoices" />}>
+                  <MissingInvoiceCards scope={scope} />
+                </Suspense>
+                <Suspense fallback={<SectionSkeleton title="Logistics" cols={3} />}>
+                  <LogisticsCards scope={scope} />
+                </Suspense>
+              </>
             )}
           </>
         )}

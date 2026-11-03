@@ -20,6 +20,22 @@
   ref-payroll's `GET /api/feeds/overdue-ref-pay` (its own
   `findOverduePayments`), bearer `REF_PAYROLL_FEED_KEY` here =
   `LEAGUE_HEALTH_FEED_KEY` there.
+- The OM Dashboard's other sections each read a feed the source app publishes
+  from its own code, behind its own key (`LEAGUE_HEALTH_FEED_KEY` in that app):
+  - Ops Tickets and Court Bookings: B.O.B. `GET /api/ops-summary` (live ops
+    and refund tickets, pending discounts and replacements, `computeCourtChecks`
+    for the next 4 weeks), key `OVERDUE_FEED_KEY` / app_secrets
+    `overdue_feed_key`, read once per render (`loadBobOps`, React `cache`).
+  - Missing Invoices: facilities `GET /api/feeds/missing-invoices` (key
+    `FACILITIES_FEED_KEY`) and ref-payroll's (key `REF_PAYROLL_FEED_KEY`), the
+    lists their Monday nudges send (`findMissingInvoices` in each).
+  - Logistics: logistics `GET /api/feeds/ops-summary` (key
+    `LOGISTICS_FEED_KEY`): supplier balances (its "Money still owed" rule) and
+    stock at or under its reorder level. Its "ordered, not received" list is
+    in the feed but not shown: received dates are rarely filled in, so it
+    counted 273 orders back to Fall '25.
+  - Venue Insurance reads facilities directly: secured venues booked in the
+    season being played or sold, by certificate on file and expiry.
 - User -> location assignments live in `user_locations` (many per user, any
   role), set on invite/edit. Generic and separate from the `league_managers`
   scoring roster. Picker names come from the Promo Tracker canonical list

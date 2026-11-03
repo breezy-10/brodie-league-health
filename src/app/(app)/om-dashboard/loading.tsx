@@ -12,6 +12,7 @@ export default function OmDashboardLoading() {
         <div className="h-10 w-48 rounded-lg skeleton-pulse" />
       </div>
       <SectionSkeleton title="Season Success Checklist" cols={6} />
+      <SectionSkeleton title="Ops Tickets" />
       <SectionSkeleton title="Registrations" />
       <SectionSkeleton title="Drop-ins" />
       <SectionSkeleton title="Events" />
@@ -21,9 +22,13 @@ export default function OmDashboardLoading() {
       <SectionSkeleton title="Feedback" />
       <SectionSkeleton title="Overdue Payments" />
       <TableSkeleton title="Facility Bookings" rows={6} />
+      <SectionSkeleton title="Court Bookings" cols={3} />
       <SectionSkeleton title="Facility Payments" />
+      <SectionSkeleton title="Venue Insurance" cols={3} />
       <TableSkeleton title="Referee Bookings" rows={6} />
       <SectionSkeleton title="Referee Payments" />
+      <SectionSkeleton title="Missing Invoices" />
+      <SectionSkeleton title="Logistics" cols={3} />
     </div>
   );
 }

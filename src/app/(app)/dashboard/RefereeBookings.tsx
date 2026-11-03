@@ -57,7 +57,7 @@ type RefRow = {
 };
 
 // Every row of a query, a page of 1,000 at a time (PostgREST's cap).
-async function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
+export async function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
   const out: T[] = [];
   for (let from = 0; ; from += 1000) {
     const { data } = await page(from, from + 999);
