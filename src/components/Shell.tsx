@@ -7,7 +7,8 @@ import { getTheme } from "@/lib/theme";
 
 // The pages people open daily first with no heading, then sentence-case
 // groups (kit Sidebar).
-const DASHBOARD: NavItem = { href: "/dashboard", label: "Dashboard", short: "Dashboard", icon: "dashboard", group: "" };
+// The phone tab bar keeps "Dashboard": "DM/LM Dashboard" is cut off there.
+const DASHBOARD: NavItem = { href: "/dashboard", label: "DM/LM Dashboard", short: "Dashboard", icon: "dashboard", group: "" };
 const LIVE: NavItem = { href: "/live-games", label: "Live games", short: "Live", icon: "live", group: "" };
 const REGISTRATIONS: NavItem = { href: "/registrations", label: "Registrations", short: "Signups", icon: "registrations", group: "" };
 const REFERRALS: NavItem = { href: "/referrals", label: "Referrals", short: "Referrals", icon: "referrals", group: "" };
