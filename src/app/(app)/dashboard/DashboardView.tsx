@@ -1187,9 +1187,11 @@ async function loadOverdueTiles(season: string, scope: Scope, weekly: boolean): 
       c.total_players === 0 ? null : {
         label, value: money(c.active_balance, cur),
         tone: c.active_players > 0 ? "bad" : "warn",
+        // Each amount with the players it is owed by, right under it.
+        sub: `${c.active_players} active overdue player${c.active_players === 1 ? "" : "s"}`,
         lines: [
           { text: `${money(c.total_balance, cur)} overdue in total`, strong: true },
-          { text: `${c.active_players} of ${c.total_players} player${c.total_players === 1 ? "" : "s"} active` },
+          { text: `${c.total_players} total overdue player${c.total_players === 1 ? "" : "s"}` },
           ...(weekly ? wowActive(c, cur, prev, when) : []),
         ],
         // Only this card's own currency, so the two cards partition the venues
