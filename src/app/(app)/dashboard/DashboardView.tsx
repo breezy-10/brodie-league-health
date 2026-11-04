@@ -26,6 +26,7 @@ import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
 import { BackToTopButton, ScrollUpButton } from "./ScrollUpButton";
 import { SectionJumpBar } from "./SectionJumpBar";
+import { VenueDays, VenueDaysButton } from "./VenueDays";
 import { allRows, loadRefereeBookings, RefereeBookingsSection } from "./RefereeBookings";
 
 // Deep links to each source app's dashboard ("More details →").
@@ -604,13 +605,13 @@ async function loadGameDayTiles(scope: Scope, season: string, weeks: string[]): 
       pillsEmpty: "nothing skipped",
     },
     {
-      label: "Nights not started",
+      label: "Days not started",
       value: untouched.length.toLocaleString(),
       sub: "played, nothing ticked off",
       subInline: true,
       tone: untouched.length > 0 ? "bad" : "ok",
       pills: untouched,
-      pillsEmpty: "every night was worked",
+      pillsEmpty: "every day was worked",
     },
   ];
 }
@@ -1710,26 +1711,28 @@ const moneyShort = (n: number) => {
 };
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
 type PacingDivision = { name: string; teams: number; full_roster: number };
-type PacingLocation = { location: string; country?: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
+// `day` is set on the location_day cards: one venue on one day.
+type PacingLocation = { location: string; day?: string; country?: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
 type Pacing = { day_n: number | null; elapsed_hours?: number | null; seasons: PacingSeason[]; locations?: PacingLocation[];
   retention?: Retention | null; retention_year?: Retention | null;
   // The team count’s own basis: captains who are captaining again.
   retention_captains?: Retention | null; retention_captains_year?: Retention | null };
-// A discounts row for one card: a venue, or — on the single-venue view — one
-// night at it, which carries `day`.
+// A discounts row for one card: a venue, or one day at a venue, which carries
+// `day` (on the single-venue view, and on a venue card opened into its days).
 type CardDiscount = DiscountRow & { day?: string };
-// The Discounts tab's rows for the location cards: per venue, or per night
-// when the cards are nights. Season to date: the feed has no week cut.
-async function loadLocationDiscounts(regSeason: string, scope: Scope, byNight: boolean): Promise<CardDiscount[] | null> {
+// The Discounts tab's rows for the location cards: per venue, per day at the
+// one venue in scope, or per venue and day. Season to date: the feed has no
+// week cut.
+async function loadLocationDiscounts(regSeason: string, scope: Scope, cut: "location" | "day" | "location_day"): Promise<CardDiscount[] | null> {
   try {
     const url = new URL("/api/discounts", APP_URL.promo);
     url.searchParams.set("season", regSeason);
-    if (byNight) url.searchParams.set("breakdown", "day");
+    if (cut !== "location") url.searchParams.set("breakdown", cut);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await promoFetch(url.toString(), { cache: "no-store" });
     if (!res.ok) return null;
-    const k = (await res.json()) as { locations?: DiscountRow[]; by_day?: CardDiscount[] };
-    return (byNight ? k.by_day : k.locations) ?? null;
+    const k = (await res.json()) as { locations?: DiscountRow[]; by_day?: CardDiscount[]; by_location_day?: CardDiscount[] };
+    return (cut === "day" ? k.by_day : cut === "location_day" ? k.by_location_day : k.locations) ?? null;
   } catch {
     return null;
   }
@@ -1747,14 +1750,22 @@ function discountFor(location: string, rows: CardDiscount[], byNight: boolean): 
   const loose = rows.filter((r) => base(r.location) === base(location));
   return loose.length === 1 ? loose[0] : undefined;
 }
-async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string, retention = false, back = false): Promise<Pacing | null> {
+// One day at one venue, from the per-venue-and-day rows: the venue matched as
+// discountFor matches it, among that day's rows.
+function dayDiscountFor(venue: string, day: string, rows: CardDiscount[]): CardDiscount | undefined {
+  return discountFor(venue, rows.filter((r) => r.day === day), false);
+}
+async function loadRegistrationPacing(regSeason: string, scope: Scope, week?: string, retention = false, back = false,
+  // location_day: a card per venue and day across every venue in scope, for
+  // the venue cards that open into their days.
+  breakdown?: "location_day"): Promise<Pacing | null> {
   try {
     const url = new URL("/api/registration-pacing", "https://registration-promo-tracker.vercel.app");
     url.searchParams.set("season", regSeason);
     if (retention) url.searchParams.set("retention", "1");
     if (back) url.searchParams.set("back", "1");
     // Scoped to a single venue, the useful next cut is the nights it plays.
-    url.searchParams.set("breakdown", scope.locationNames?.length === 1 ? "day" : "location");
+    url.searchParams.set("breakdown", breakdown ?? (scope.locationNames?.length === 1 ? "day" : "location"));
     if (week) url.searchParams.set("week", week);
     const lp = locParam(scope.locationNames); if (lp) url.searchParams.set("location", lp);
     const res = await promoFetch(url.toString(), { cache: "no-store" });
@@ -2537,11 +2548,11 @@ async function CheckInCards({ season, scope, fullTag }: { season: string; scope:
   };
   return (
     <Section title="Check-ins" scopeTag={fullTag} seasonTag={season} tiles={d.connected ? [] : null}
-      emptyNote={`Nobody has been checked in at a game night in ${season} yet.`}>
+      emptyNote={`Nobody has been checked in on a game day in ${season} yet.`}>
       {d.since ? (
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           <ChipTile label="Players checked in" value={t.checkedIn.toLocaleString()}
-            sub={`on ${t.nightsChecking.toLocaleString()} of ${d.nights.length.toLocaleString()} game nights since ${sinceDay(d.since)}`}
+            sub={`on ${t.nightsChecking.toLocaleString()} of ${d.nights.length.toLocaleString()} game days since ${sinceDay(d.since)}`}
             chips={perLocationChips(new Map(t.locRows.map((r) => [r.location, r.checkedIn])))}
             footer={<TileLinks links={[{ href: `/check-ins?${q}`, text: "View check-ins" }]} />} />
           <ChipTile label="Of those who played" value={checkInPct(t.checkedPlayed, t.played)}
@@ -2552,8 +2563,8 @@ async function CheckInCards({ season, scope, fullTag }: { season: string; scope:
               .map((r) => ({ text: `${r.location} ${checkInPct(r.checkedPlayed, r.played)}`, tone: share(r.checkedPlayed, r.played) }))} />
           <ChipTile label="Locations checking in" value={`${t.locsChecking} of ${t.locRows.length}`}
             sub={notChecking.length
-              ? `${notChecking.length} with game nights and no one checked in`
-              : "every location with a game night"}
+              ? `${notChecking.length} with game days and no one checked in`
+              : "every location with a game day"}
             chips={notChecking.map((r) => ({ text: r.location, tone: "red" as const }))} />
           <ChipTile label="Checked in at events" value={eventCheckedIn.toLocaleString()}
             sub={`at ${eventsChecked.length} of ${d.shownEvents.length} events held`}
@@ -3033,20 +3044,20 @@ async function loadCourtTiles(scope: Scope): Promise<Tile[] | null> {
   const over = nights.filter((c) => c.status === "over" && c.phase !== "waiting");
   return [
     {
-      label: "Short on court time", value: short.length.toLocaleString(), sub: short.length === 1 ? "night" : "nights", subInline: true,
+      label: "Short on court time", value: short.length.toLocaleString(), sub: short.length === 1 ? "day" : "days", subInline: true,
       tone: short.length ? "bad" : "ok",
       pills: short.map((c) => chip(c, "bad", `${games(c.needed)}, room for ${c.booked}${c.phase === "chase" ? " · asked, no answer yet" : ""}`)),
-      pillsEmpty: "every night fits",
+      pillsEmpty: "every day fits",
     },
     {
-      label: "Waiting on the facility", value: waiting.length.toLocaleString(), sub: waiting.length === 1 ? "night" : "nights", subInline: true,
+      label: "Waiting on the facility", value: waiting.length.toLocaleString(), sub: waiting.length === 1 ? "day" : "days", subInline: true,
       tone: waiting.length ? "warn" : "ok",
       lines: waiting.length ? [{ text: "a change was asked for and is inside the 3 business days" }] : undefined,
       pills: waiting.map((c) => chip(c, "warn", `${games(c.needed)}, room for ${c.booked}`)),
       pillsEmpty: "nothing asked",
     },
     {
-      label: "Spare court time", value: over.length.toLocaleString(), sub: over.length === 1 ? "night" : "nights", subInline: true,
+      label: "Spare court time", value: over.length.toLocaleString(), sub: over.length === 1 ? "day" : "days", subInline: true,
       tone: over.length ? "warn" : "ok",
       lines: over.length ? [{ text: "an hour or more booked that no game uses" }] : undefined,
       pills: over.map((c) => chip(c, "warn", `${games(c.needed)}, room for ${c.booked}`)),
@@ -3274,7 +3285,7 @@ function ShareStrip({ locations, blocks, head, byNight = false, prevLabel, yearL
   return (
     <div>
       <h3 className="text-xs font-semibold text-glass-text-tertiary mb-2">
-        {byNight ? "By night" : "By location"}
+        {byNight ? "By day" : "By location"}
       </h3>
       <div className="grid grid-flow-col auto-cols-[300px] gap-x-3 overflow-x-auto pb-2 snap-x">
         {locations.map((l) => {
@@ -3328,13 +3339,13 @@ function ShareStrip({ locations, blocks, head, byNight = false, prevLabel, yearL
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
-function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, venue, discounts, discountsSeasonToDate = false, showAge = true }: {
+function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, venue, discounts, discountsSeasonToDate = false, showAge = true, venueDays, dayDiscounts }: {
   locations: PacingLocation[];
   // Each card's Age block; the Registrations page shows it, the dashboard not.
   showAge?: boolean;
-  // The one venue the by-night cards are nights of.
+  // The one venue the by-day cards are days of.
   venue?: string;
-  // The Discounts tab's rows — per venue, or per night on the by-night cards;
+  // The Discounts tab's rows — per venue, or per day on the by-day cards;
   // null when the feed is down.
   discounts?: CardDiscount[] | null;
   // The cards are on a week basis but discounts can only be season to date.
@@ -3342,17 +3353,219 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
   prevLabel: string;
   yearLabel: string;
   season: string;
-  // Cards are nights at one venue rather than venues.
+  // Cards are days at one venue rather than venues.
   byNight?: boolean;
+  // Venue cards only: each venue's cards per day (location_day), for a venue
+  // that plays more than one day, which opens into them. Its per-day discounts
+  // come in dayDiscounts (null when that feed is down).
+  venueDays?: Map<string, PacingLocation[]>;
+  dayDiscounts?: CardDiscount[] | null;
   // Athletes-per-team is a roster size, which only holds season-to-date. On a
   // week basis the two sides count different cohorts — athletes who joined a
   // team registered in an earlier week — so the ratio is left off.
   showAvgPerTeam?: boolean;
 }) {
+  // One card: a venue, a day at the one venue in scope, or one day of a venue
+  // opened into its days.
+  const card = (l: PacingLocation, o: {
+    key: string; title: string; discount?: CardDiscount; discountsVenue: string; toggle?: ReactNode;
+  }) => {
+    const get = (kind: string, metric: PacingMetric) =>
+      l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
+    const locCurrency = l.seasons.find((s) => s.kind === "current")?.currency ?? "CAD";
+    // What a season's revenue works out to per athlete registered in it,
+    // team fees left out (see PacingSeason.athletes_indiv), both counted
+    // as they stood at the same moment of that season's run. Rounded to
+    // the dollar; cents are noise against a season total. Null when the
+    // season had no athletes yet: there is no figure to compare against,
+    // and $0 read as a real one ("+$287 vs W'26" at a venue not open then).
+    const perAthlete = (kind: string): number | null => {
+      const x = l.seasons.find((y) => y.kind === kind);
+      if (!x) return null;
+      const indiv = x.athletes_indiv != null;
+      const a = indiv ? x.athletes_indiv! : x.athletes;
+      const rev = (indiv ? x.revenue_indiv_native : x.revenue_native) ?? 0;
+      return a ? Math.round(rev / a) : null;
+    };
+    const curTeams = get("current", "captains");
+    const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
+    const avgColor = rosterColor(avgPerTeam);
+    return (
+      <div key={o.key}
+        className="snap-start grid row-span-full rounded-xl bg-glass-surface shadow-card"
+        style={{ gridTemplateRows: "subgrid" }}>
+        <div className="flex items-baseline justify-between gap-2 px-3.5 pt-3.5">
+          <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={o.title}>
+            {o.title}
+          </p>
+          {showAvgPerTeam && (
+            <p className="text-xs font-semibold tabular shrink-0" title="Average athletes per team"
+              style={{ color: avgColor }}>
+              {avgPerTeam === null ? "—" : avgPerTeam.toFixed(1)}
+              <span className="font-normal text-glass-text-tertiary"> / team</span>
+            </p>
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2.5 px-3.5">
+          <LocationMetric label="Teams"
+            cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
+            prevLabel={prevLabel} yearLabel={yearLabel}
+            notes={[
+              { text: `${get("current", "full_roster").toLocaleString()} with 7 or more players`, tone: "yellow" as const },
+              ...(get("current", "low_roster")
+                ? [{ text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`, tone: "bad" as const }]
+                : []),
+            ]} />
+          <LocationMetric label="Athletes"
+            cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
+            prevLabel={prevLabel} yearLabel={yearLabel} />
+        </div>
+        {/* Where the teams actually sit. A division whose teams are all
+            at 7+ reads green, so the one that is not filling stands out
+            without comparing two numbers in your head. */}
+        {!!l.divisions?.length && (
+          <div className="px-3.5 mt-2.5 pt-2.5 border-t border-glass-border-light">
+            {/* Column headings, so the two numbers say what they are
+                rather than leaving the reader to infer them. */}
+            <div className="flex items-baseline gap-2 text-[11px] font-semibold text-glass-text-tertiary mb-1">
+              <span className="flex-1 min-w-0">Divisions</span>
+              <span className="shrink-0">Teams</span>
+              <span className="shrink-0 w-16 text-right">With 7+</span>
+            </div>
+            {l.divisions.map((d) => (
+              <div key={d.name} className="flex items-baseline gap-2 text-[11px] leading-snug">
+                <span className="truncate flex-1 min-w-0 text-glass-text-secondary" title={d.name}>{d.name}</span>
+                <span className="tabular font-semibold shrink-0" style={{ color: "var(--glass-text)" }}>{d.teams}</span>
+                <span className="tabular text-[10px] shrink-0 w-16 text-right"
+                  style={{ color: d.full_roster === d.teams ? "var(--green)" : "var(--glass-text-tertiary)" }}>
+                  {d.full_roster}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="px-3.5">{(() => {
+          const pick = (k: string, m: "returning_captains_pct" | "returning_athletes_pct") =>
+            l.seasons.find((s) => s.kind === k)?.[m] ?? null;
+          const curSeason = l.seasons.find((s) => s.kind === "current");
+          const lines = ([
+            ["captains", "returning_captains_pct", "returning_captains", "returning_captains_of"],
+            ["athletes", "returning_athletes_pct", "returning_athletes", "returning_athletes_of"],
+          ] as const).map(([noun, m, nKey, ofKey]) => ({
+            noun,
+            n: curSeason?.[nKey] ?? null,
+            of: curSeason?.[ofKey] ?? null,
+            cur: pick("current", m),
+            prev: pick("prev_season", m),
+            year: pick("prev_year", m),
+          })).filter((x) => x.cur != null);
+          if (!lines.length) return null;
+          return (
+            <div className="mt-2.5 pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
+              <p className="text-xs font-semibold text-glass-text-tertiary mb-0.5">
+                Played Brodie before
+              </p>
+              {lines.map((x) => (
+                <span key={x.noun} className="block">
+                  <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
+                    {x.cur!.toFixed(1)}%
+                  </span>
+                  <span className="text-glass-text-tertiary"> of {x.noun}</span>
+                  {x.n != null && x.of != null && (
+                    <span className="text-glass-text-tertiary tabular"> · {x.n} of {x.of}</span>
+                  )}
+                  {([[x.prev, prevLabel], [x.year, yearLabel]] as const).map(([base, lbl]) =>
+                    base == null ? null : (
+                      <span key={lbl} className="text-[10px] sm:text-[9px] font-semibold"
+                        style={{ color: upColor(x.cur! - base) }}>
+                        {" "}({x.cur! - base > 0 ? "+" : ""}{(x.cur! - base).toFixed(1)} vs {lbl})
+                      </span>
+                    ))}
+                </span>
+              ))}
+            </div>
+          );
+        })()}</div>
+        {/* Both lines ask the same question — what share of the prior
+            season's athletes came back — the second one a year earlier,
+            so the two can actually be compared. Each names the season
+            people came FROM. The current line carries the movement
+            between them, in points: the difference of two percentages is
+            points, not a percentage of a percentage. */}
+        <div className="px-3.5">{(l.retention || l.retention_year) && (
+          <div className="mt-3 text-[11px] leading-snug">
+            {[l.retention, l.retention_year].filter(Boolean).map((r, i) => {
+              const into = shortSeason(r!.into_season ?? season);
+              const pts = i === 0 && l.retention && l.retention_year
+                ? Math.round((l.retention.pct - l.retention_year.pct) * 10) / 10
+                : null;
+              return (
+                <span key={r!.prev_season} className="block whitespace-nowrap"
+                  title={`${r!.retained} of ${r!.prev_athletes} ${shortSeason(r!.prev_season)} athletes registered again in ${into}`}>
+                  <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
+                    {r!.pct.toFixed(1)}%
+                  </span>
+                  <span className="text-glass-text-tertiary">
+                    {" "}of {shortSeason(r!.prev_season)} returned in {into}
+                  </span>
+                  <span className="text-glass-text-tertiary tabular"> · {r!.retained} of {r!.prev_athletes}</span>
+                  {pts != null && (
+                    <span className="text-[10px] sm:text-[9px] font-semibold" style={{ color: upColor(pts) }}>
+                      {" "}({pts > 0 ? "+" : ""}{pts.toFixed(1)} pts)
+                    </span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        )}</div>
+        <div className="px-3.5">{showAge && (() => {
+          const at = (k: string) => l.seasons.find((s) => s.kind === k)?.age ?? null;
+          const cur = at("current");
+          return cur ? <LocationAge age={cur} prev={at("prev_season")} year={at("prev_year")}
+            prevLabel={prevLabel} yearLabel={yearLabel}
+            athletes={l.seasons.find((s) => s.kind === "current")?.athletes ?? null} /> : null;
+        })()}</div>
+        {/* Below retention, and in the currency the venue actually
+            invoices in — a US venue's own card should not restate its
+            revenue as Canadian dollars. */}
+        {/* Revenue beside what it works out to per athlete — the two
+            move independently: a venue can hold its revenue up on fewer,
+            better-paying players, or lose it on cheaper ones. */}
+        <div className="mt-2.5 pt-2.5 border-t border-glass-border-light grid grid-cols-1 sm:grid-cols-2 gap-3 px-3.5">
+          <LocationMetric label={`Revenue (${locCurrency})`} money
+            cur={get("current", "revenue_native")} prev={get("prev_season", "revenue_native")} year={get("prev_year", "revenue_native")}
+            prevLabel={prevLabel} yearLabel={yearLabel} />
+          <LocationMetric label={`Per athlete (${locCurrency})`} money
+            cur={perAthlete("current") ?? 0} prev={perAthlete("prev_season")} year={perAthlete("prev_year")}
+            prevLabel={prevLabel} yearLabel={yearLabel} />
+        </div>
+        {/* What came off the price to get there. Always rendered, even
+            empty, so it holds its row in the shared grid. */}
+        <div className="px-3.5">{(() => {
+          const d = o.discount;
+          return d && d.regs > 0
+            ? <LocationDiscounts row={d} season={season} seasonToDate={discountsSeasonToDate} />
+            : null;
+        })()}</div>
+        {/* Its own row, so it is not competing with the retention lines
+            for the same baseline. Opens this venue's list of discounted
+            players (a day card's venue, since that list has no day
+            cut), beside the switch between a venue and its days. */}
+        <div className="mt-2 flex items-baseline justify-between gap-2 px-3.5 pb-3.5">
+          {o.toggle ?? <span />}
+          <a href={`/discounts/players?${new URLSearchParams({ season, location: o.discountsVenue })}`}
+            className="text-[11px] font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
+            View discounts →
+          </a>
+        </div>
+      </div>
+    );
+  };
   return (
     <div>
       <h3 className="text-xs font-semibold text-glass-text-tertiary mb-2">
-        {byNight ? "By night" : "By location"}
+        {byNight ? "By day" : "By location"}
       </h3>
       {/* One grid across the whole strip rather than a row of independent
           cards, so every section starts on the same line at every venue: a
@@ -3367,195 +3580,24 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
       <div className="grid grid-flow-col auto-cols-[300px] gap-x-3 overflow-x-auto pb-2 snap-x"
         style={{ gridTemplateRows: "repeat(9, auto)" }}>
         {locations.map((l) => {
-          const get = (kind: string, metric: PacingMetric) =>
-            l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
-          const locCurrency = l.seasons.find((s) => s.kind === "current")?.currency ?? "CAD";
-          // What a season's revenue works out to per athlete registered in it,
-          // team fees left out (see PacingSeason.athletes_indiv), both counted
-          // as they stood at the same moment of that season's run. Rounded to
-          // the dollar; cents are noise against a season total. Null when the
-          // season had no athletes yet: there is no figure to compare against,
-          // and $0 read as a real one ("+$287 vs W'26" at a venue not open then).
-          const perAthlete = (kind: string): number | null => {
-            const x = l.seasons.find((y) => y.kind === kind);
-            if (!x) return null;
-            const indiv = x.athletes_indiv != null;
-            const a = indiv ? x.athletes_indiv! : x.athletes;
-            const rev = (indiv ? x.revenue_indiv_native : x.revenue_native) ?? 0;
-            return a ? Math.round(rev / a) : null;
-          };
-          const curTeams = get("current", "captains");
-          const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
-          const avgColor = rosterColor(avgPerTeam);
+          const venueCard = (toggle?: ReactNode) => card(l, {
+            key: l.location, title: l.location,
+            discount: discounts ? discountFor(l.location, discounts, byNight) : undefined,
+            discountsVenue: byNight ? (venue ?? l.location) : l.location,
+            toggle,
+          });
+          const days = byNight ? undefined : venueDays?.get(l.location);
+          if (!days || days.length < 2) return venueCard();
+          const toggle = <VenueDaysButton name={l.location} count={days.length} />;
           return (
-            <div key={l.location}
-              className="snap-start grid row-span-full rounded-xl bg-glass-surface shadow-card"
-              style={{ gridTemplateRows: "subgrid" }}>
-              <div className="flex items-baseline justify-between gap-2 px-3.5 pt-3.5">
-                <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={l.location}>
-                  {l.location}
-                </p>
-                {showAvgPerTeam && (
-                  <p className="text-xs font-semibold tabular shrink-0" title="Average athletes per team"
-                    style={{ color: avgColor }}>
-                    {avgPerTeam === null ? "—" : avgPerTeam.toFixed(1)}
-                    <span className="font-normal text-glass-text-tertiary"> / team</span>
-                  </p>
-                )}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2.5 px-3.5">
-                <LocationMetric label="Teams"
-                  cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
-                  prevLabel={prevLabel} yearLabel={yearLabel}
-                  notes={[
-                    { text: `${get("current", "full_roster").toLocaleString()} with 7 or more players`, tone: "yellow" as const },
-                    ...(get("current", "low_roster")
-                      ? [{ text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`, tone: "bad" as const }]
-                      : []),
-                  ]} />
-                <LocationMetric label="Athletes"
-                  cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
-                  prevLabel={prevLabel} yearLabel={yearLabel} />
-              </div>
-              {/* Where the teams actually sit. A division whose teams are all
-                  at 7+ reads green, so the one that is not filling stands out
-                  without comparing two numbers in your head. */}
-              {!!l.divisions?.length && (
-                <div className="px-3.5 mt-2.5 pt-2.5 border-t border-glass-border-light">
-                  {/* Column headings, so the two numbers say what they are
-                      rather than leaving the reader to infer them. */}
-                  <div className="flex items-baseline gap-2 text-[11px] font-semibold text-glass-text-tertiary mb-1">
-                    <span className="flex-1 min-w-0">Divisions</span>
-                    <span className="shrink-0">Teams</span>
-                    <span className="shrink-0 w-16 text-right">With 7+</span>
-                  </div>
-                  {l.divisions.map((d) => (
-                    <div key={d.name} className="flex items-baseline gap-2 text-[11px] leading-snug">
-                      <span className="truncate flex-1 min-w-0 text-glass-text-secondary" title={d.name}>{d.name}</span>
-                      <span className="tabular font-semibold shrink-0" style={{ color: "var(--glass-text)" }}>{d.teams}</span>
-                      <span className="tabular text-[10px] shrink-0 w-16 text-right"
-                        style={{ color: d.full_roster === d.teams ? "var(--green)" : "var(--glass-text-tertiary)" }}>
-                        {d.full_roster}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="px-3.5">{(() => {
-                const pick = (k: string, m: "returning_captains_pct" | "returning_athletes_pct") =>
-                  l.seasons.find((s) => s.kind === k)?.[m] ?? null;
-                const curSeason = l.seasons.find((s) => s.kind === "current");
-                const lines = ([
-                  ["captains", "returning_captains_pct", "returning_captains", "returning_captains_of"],
-                  ["athletes", "returning_athletes_pct", "returning_athletes", "returning_athletes_of"],
-                ] as const).map(([noun, m, nKey, ofKey]) => ({
-                  noun,
-                  n: curSeason?.[nKey] ?? null,
-                  of: curSeason?.[ofKey] ?? null,
-                  cur: pick("current", m),
-                  prev: pick("prev_season", m),
-                  year: pick("prev_year", m),
-                })).filter((x) => x.cur != null);
-                if (!lines.length) return null;
-                return (
-                  <div className="mt-2.5 pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
-                    <p className="text-xs font-semibold text-glass-text-tertiary mb-0.5">
-                      Played Brodie before
-                    </p>
-                    {lines.map((x) => (
-                      <span key={x.noun} className="block">
-                        <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
-                          {x.cur!.toFixed(1)}%
-                        </span>
-                        <span className="text-glass-text-tertiary"> of {x.noun}</span>
-                        {x.n != null && x.of != null && (
-                          <span className="text-glass-text-tertiary tabular"> · {x.n} of {x.of}</span>
-                        )}
-                        {([[x.prev, prevLabel], [x.year, yearLabel]] as const).map(([base, lbl]) =>
-                          base == null ? null : (
-                            <span key={lbl} className="text-[10px] sm:text-[9px] font-semibold"
-                              style={{ color: upColor(x.cur! - base) }}>
-                              {" "}({x.cur! - base > 0 ? "+" : ""}{(x.cur! - base).toFixed(1)} vs {lbl})
-                            </span>
-                          ))}
-                      </span>
-                    ))}
-                  </div>
-                );
-              })()}</div>
-              {/* Both lines ask the same question — what share of the prior
-                  season's athletes came back — the second one a year earlier,
-                  so the two can actually be compared. Each names the season
-                  people came FROM. The current line carries the movement
-                  between them, in points: the difference of two percentages is
-                  points, not a percentage of a percentage. */}
-              <div className="px-3.5">{(l.retention || l.retention_year) && (
-                <div className="mt-3 text-[11px] leading-snug">
-                  {[l.retention, l.retention_year].filter(Boolean).map((r, i) => {
-                    const into = shortSeason(r!.into_season ?? season);
-                    const pts = i === 0 && l.retention && l.retention_year
-                      ? Math.round((l.retention.pct - l.retention_year.pct) * 10) / 10
-                      : null;
-                    return (
-                      <span key={r!.prev_season} className="block whitespace-nowrap"
-                        title={`${r!.retained} of ${r!.prev_athletes} ${shortSeason(r!.prev_season)} athletes registered again in ${into}`}>
-                        <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
-                          {r!.pct.toFixed(1)}%
-                        </span>
-                        <span className="text-glass-text-tertiary">
-                          {" "}of {shortSeason(r!.prev_season)} returned in {into}
-                        </span>
-                        <span className="text-glass-text-tertiary tabular"> · {r!.retained} of {r!.prev_athletes}</span>
-                        {pts != null && (
-                          <span className="text-[10px] sm:text-[9px] font-semibold" style={{ color: upColor(pts) }}>
-                            {" "}({pts > 0 ? "+" : ""}{pts.toFixed(1)} pts)
-                          </span>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}</div>
-              <div className="px-3.5">{showAge && (() => {
-                const at = (k: string) => l.seasons.find((s) => s.kind === k)?.age ?? null;
-                const cur = at("current");
-                return cur ? <LocationAge age={cur} prev={at("prev_season")} year={at("prev_year")}
-                  prevLabel={prevLabel} yearLabel={yearLabel}
-                  athletes={l.seasons.find((s) => s.kind === "current")?.athletes ?? null} /> : null;
-              })()}</div>
-              {/* Below retention, and in the currency the venue actually
-                  invoices in — a US venue's own card should not restate its
-                  revenue as Canadian dollars. */}
-              {/* Revenue beside what it works out to per athlete — the two
-                  move independently: a venue can hold its revenue up on fewer,
-                  better-paying players, or lose it on cheaper ones. */}
-              <div className="mt-2.5 pt-2.5 border-t border-glass-border-light grid grid-cols-1 sm:grid-cols-2 gap-3 px-3.5">
-                <LocationMetric label={`Revenue (${locCurrency})`} money
-                  cur={get("current", "revenue_native")} prev={get("prev_season", "revenue_native")} year={get("prev_year", "revenue_native")}
-                  prevLabel={prevLabel} yearLabel={yearLabel} />
-                <LocationMetric label={`Per athlete (${locCurrency})`} money
-                  cur={perAthlete("current") ?? 0} prev={perAthlete("prev_season")} year={perAthlete("prev_year")}
-                  prevLabel={prevLabel} yearLabel={yearLabel} />
-              </div>
-              {/* What came off the price to get there. Always rendered, even
-                  empty, so it holds its row in the shared grid. */}
-              <div className="px-3.5">{(() => {
-                const d = discounts ? discountFor(l.location, discounts, byNight) : undefined;
-                return d && d.regs > 0
-                  ? <LocationDiscounts row={d} season={season} seasonToDate={discountsSeasonToDate} />
-                  : null;
-              })()}</div>
-              {/* Its own row, so it is not competing with the retention lines
-                  for the same baseline. Opens this venue's list of discounted
-                  players — a night card's venue, since that list has no night
-                  cut. */}
-              <div className="mt-2 flex justify-end px-3.5 pb-3.5">
-                <a href={`/discounts/players?${new URLSearchParams({ season, location: byNight ? (venue ?? l.location) : l.location })}`}
-                  className="text-[11px] font-semibold hover:brightness-110 transition" style={{ color: "var(--glass-gold)" }}>
-                  View discounts →
-                </a>
-              </div>
-            </div>
+            <VenueDays key={l.location}
+              venue={venueCard(toggle)}
+              days={days.map((d) => card(d, {
+                key: `${l.location}|${d.day}`, title: `${l.location} \u00B7 ${d.day}`,
+                discount: dayDiscounts && d.day ? dayDiscountFor(l.location, d.day, dayDiscounts) : undefined,
+                discountsVenue: l.location,
+                toggle,
+              }))} />
           );
         })}
       </div>
@@ -3710,15 +3752,28 @@ export default async function DashboardView({
   // Everything below streams in its own Suspense boundary, so the shell is not
   // held behind the slowest source app. promoTiles stays because two sections
   // share it and it should not be fetched twice.
-  const [ckCurrent, ckNext, promoTiles, pacing, deadlines, locDiscounts] = await Promise.all([
+  // The venue cards' days, for a venue that plays more than one: only where
+  // venue cards show (not one venue's own days, the leaderboard, or the two
+  // retention tabs).
+  const wantVenueDays = locationNames?.length !== 1 && !isLeaderboard && !isBack && !isRetention;
+  const [ckCurrent, ckNext, promoTiles, pacing, deadlines, locDiscounts, venueDayPacing, venueDayDiscounts] = await Promise.all([
     isReg ? Promise.resolve(null) : isOm ? loadOpsChecklistTiles(selectedSeason) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : isOm ? loadOpsChecklistTiles(regSeason) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadPromoTiles(promoSeasonName, scope),
     loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined, isRetention, isBack),
     isReg ? Promise.resolve([] as DeadlineWeek[]) : loadDeadlines(),
-    // Per night when the cards are nights (a single venue), else per venue.
-    loadLocationDiscounts(pacingSeason, scope, scope.locationNames?.length === 1),
+    // Per day when the cards are days (a single venue), else per venue.
+    loadLocationDiscounts(pacingSeason, scope, scope.locationNames?.length === 1 ? "day" : "location"),
+    wantVenueDays ? loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined, false, false, "location_day") : Promise.resolve(null),
+    wantVenueDays ? loadLocationDiscounts(pacingSeason, scope, "location_day") : Promise.resolve(null),
   ]);
+  // Each venue's day cards, kept only for a venue that plays two days or more.
+  const venueDays = new Map<string, PacingLocation[]>();
+  for (const d of venueDayPacing?.locations ?? []) {
+    if (!d.day) continue;
+    venueDays.set(d.location, [...(venueDays.get(d.location) ?? []), d]);
+  }
+  for (const [v, days] of venueDays) if (days.length < 2) venueDays.delete(v);
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
   const pacingPrevYear = pacing?.seasons.find((s) => s.kind === "prev_year");
@@ -3928,7 +3983,7 @@ export default async function DashboardView({
   const regBarWhen = regOnWeek ? `week of ${weekLabel}` : regWindow;
   const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : regWindowShort;
 
-  // A strip of location (or night) cards. Each country's sits under its own
+  // A strip of location (or day) cards. Each country's sits under its own
   // row, so Canadian venues are read beside Canada's totals.
   const strip = (locs?: PacingLocation[]) => locs?.length && pacingCurrent ? (
     <div className="pt-1">
@@ -3940,7 +3995,8 @@ export default async function DashboardView({
         showAvgPerTeam={!regOnWeek}
         byNight={locationNames?.length === 1}
         venue={locationNames?.length === 1 ? locationNames[0] : undefined}
-        discounts={locDiscounts} discountsSeasonToDate={regOnWeek} showAge={isReg} />
+        discounts={locDiscounts} discountsSeasonToDate={regOnWeek} showAge={isReg}
+        venueDays={venueDays} dayDiscounts={venueDayDiscounts} />
     </div>
   ) : null;
   // The Registrations columns. Teams and athletes appear for the whole scope
@@ -4985,13 +5041,13 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
         </div>
         <StatTile label="Booked" value={`${locsIn(greenChips)}`} unit={`/ ${locations.length}`}
           valueSuffix={ofAll(locsIn(greenChips))}
-          sub="locations with a contract or flexible night; a location split across cards names its nights"
+          sub="locations with a contract or flexible day; a location split across cards names its days"
           tone="ok"
           pills={greenChips.map((c) => ({ text: c.text, tone: c.tone, href: c.href }))}
           pillsEmpty="none yet" />
         <StatTile label="Verbal" value={`${locsIn(yellowChips)}`} unit={`/ ${locations.length}`}
           valueSuffix={ofAll(locsIn(yellowChips))}
-          sub="locations with a night promised but not signed"
+          sub="locations with a day promised but not signed"
           tone="warn"
           pills={yellowChips.map((c) => ({ text: c.text, tone: c.tone, href: c.href }))}
           pillsEmpty="none" />
@@ -5003,7 +5059,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
           // Need to book in one group, in comms and can't-book-yet in another,
           // as the teams card groups its chips by colour.
           pillsByTone
-          pillsEmpty="every night has a booking" />
+          pillsEmpty="every day has a booking" />
       </div>
 
       <div className="rounded-2xl bg-glass-surface shadow-card">
@@ -5014,7 +5070,7 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
             <tr className="text-left text-xs text-glass-text-tertiary">
               {[
                 { label: "Location", align: "" },
-                { label: "Night", align: "" },
+                { label: "Day", align: "" },
                 { label: "Teams registered", align: "text-right" },
                 { label: "Teams booked", align: "text-right" },
                 { label: "Booking status", align: "" },
@@ -5287,7 +5343,7 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
             <tr className="text-left text-xs text-glass-text-tertiary border-b border-glass-border-light">
               <th className="px-5 py-3 font-bold">Week</th>
               <th className="px-5 py-3 font-bold text-right">Reviews</th>
-              <th className="px-5 py-3 font-bold">Nights not reviewed</th>
+              <th className="px-5 py-3 font-bold">Days not reviewed</th>
             </tr>
           </thead>
           <tbody>
@@ -5326,7 +5382,7 @@ function VideoReviewsSection({ data, titleSuffix = "" }: { data: VideoReviewsDat
                 <td className="px-5 py-3">
                   {w.missing_list.length === 0 ? (
                     <span className="text-[11px] italic text-glass-text-tertiary">
-                      {w.nights === 0 ? "no game nights" : "all nights reviewed"}
+                      {w.nights === 0 ? "no game days" : "all days reviewed"}
                     </span>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">

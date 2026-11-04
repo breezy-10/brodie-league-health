@@ -260,14 +260,14 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
               <StatTile
                 label="Referees booked"
                 value={total.done.toLocaleString()}
-                unit={`/ ${total.nights.toLocaleString()} nights`}
+                unit={`/ ${total.nights.toLocaleString()} days`}
                 valueSuffix={`${pct}%`}
                 valueColor={pctColor(pct)}
                 // How many locations the chips below cover, then how to read them,
                 // as on the Facility Bookings teams card.
                 lines={[
                   { text: `${locations.length} ${locations.length === 1 ? "location" : "locations"}`, strong: true },
-                  { text: "Each location: nights with referees booked / nights" },
+                  { text: "Each location: days with referees booked / days" },
                 ]}
                 pills={locations.map((l) => ({
                   text: `${l.location} ${l.all.done}/${l.all.nights}`,
@@ -280,7 +280,7 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
             </div>
             <StatTile label="Booked" value={`${locsIn(card("ok"))}`} unit={`/ ${locations.length}`}
               valueSuffix={ofAll(locsIn(card("ok")))} tone="ok"
-              sub="locations with nights booked, booked differently or not needed"
+              sub="locations with days booked, booked differently or not needed"
               pills={card("ok").map((c) => ({ text: c.text, tone: c.tone, href: c.href }))} pillsEmpty="none yet" />
             <StatTile label="Notification required" value={`${locsIn(card("warn"))}`} unit={`/ ${locations.length}`}
               valueSuffix={ofAll(locsIn(card("warn")))} tone="warn"
@@ -289,7 +289,7 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
             <StatTile label="Need to book" value={`${locsIn(card("bad"))}`} unit={`/ ${locations.length}`}
               valueSuffix={ofAll(locsIn(card("bad")))} tone={card("bad").length ? "bad" : "ok"}
               sub="nobody has confirmed the referees yet"
-              pills={card("bad").map((c) => ({ text: c.text, tone: c.tone, href: c.href }))} pillsEmpty="every night has referees" />
+              pills={card("bad").map((c) => ({ text: c.text, tone: c.tone, href: c.href }))} pillsEmpty="every day has referees" />
           </div>
 
           <div className="rounded-2xl bg-glass-surface shadow-card">
@@ -298,8 +298,8 @@ export function RefereeBookingsSection({ data, season, titleSuffix, headerExtra 
                 <tr className="text-left text-xs text-glass-text-tertiary">
                   {[
                     { label: "Location", align: "" },
-                    { label: "Night", align: "" },
-                    { label: "Nights with referees", align: "text-right" },
+                    { label: "Day", align: "" },
+                    { label: "Days with referees", align: "text-right" },
                     { label: "Referee status", align: "" },
                   ].map((h) => (
                     <th key={h.label} className={`px-5 py-3 font-bold sticky top-[var(--shell-top)] z-[5] ${h.align}`}
