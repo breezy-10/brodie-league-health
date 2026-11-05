@@ -18,7 +18,7 @@ type Cell = { teams: number; athletes: number };
 type DayRow = { day: string; current: Cell; prev_season: Cell; prev_year: Cell };
 type RosterSize = { roster_size: number; team_count: number };
 type RosterDay = { day: string; sizes: RosterSize[] };
-type Division = { name: string; teams: number; full_roster: number };
+type Division = { name: string; teams: number; full_roster: number; players?: number };
 type DivisionDay = { day: string; divisions: Division[] };
 type Breakdown = {
   location: string;
@@ -161,6 +161,7 @@ function RosterCharts({ totals, byDay, season, divisionsByDay = [] }: {
                 <div className="flex items-baseline gap-2 text-[11px] font-semibold text-glass-text-tertiary mb-1">
                   <span className="flex-1 min-w-0">Division</span>
                   <span className="shrink-0 w-12 text-right">Teams</span>
+                  <span className="shrink-0 w-20 text-right">Avg players</span>
                   <span className="shrink-0 w-16 text-right">With 7+</span>
                 </div>
                 {g.divisions.map((d) => (
@@ -168,6 +169,10 @@ function RosterCharts({ totals, byDay, season, divisionsByDay = [] }: {
                     <span className="truncate flex-1 min-w-0 text-glass-text-secondary" title={d.name}>{d.name}</span>
                     <span className="tabular font-semibold shrink-0 w-12 text-right" style={{ color: "var(--glass-text)" }}>
                       {d.teams}
+                    </span>
+                    <span className="tabular shrink-0 w-20 text-right text-glass-text-secondary"
+                      title="Average players on each team's roster">
+                      {d.players == null || !d.teams ? "\u2013" : (d.players / d.teams).toFixed(1)}
                     </span>
                     <span className="tabular shrink-0 w-16 text-right"
                       style={{ color: d.full_roster === d.teams ? "var(--green)" : "var(--glass-text-tertiary)" }}>
