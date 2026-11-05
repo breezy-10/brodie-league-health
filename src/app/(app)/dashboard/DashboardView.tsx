@@ -1710,7 +1710,7 @@ const moneyShort = (n: number) => {
   return `${n < 0 ? "\u2212" : ""}$${s}`;
 };
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
-type PacingDivision = { name: string; teams: number; full_roster: number };
+type PacingDivision = { name: string; teams: number; full_roster: number; players?: number };
 // `day` is set on the location_day cards: one venue on one day.
 type PacingLocation = { location: string; day?: string; country?: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
 type Pacing = { day_n: number | null; elapsed_hours?: number | null; seasons: PacingSeason[]; locations?: PacingLocation[];
@@ -3430,12 +3430,17 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
             <div className="flex items-baseline gap-2 text-[11px] font-semibold text-glass-text-tertiary mb-1">
               <span className="flex-1 min-w-0">Divisions</span>
               <span className="shrink-0">Teams</span>
+              <span className="shrink-0 w-16 text-right">Avg players</span>
               <span className="shrink-0 w-16 text-right">With 7+</span>
             </div>
             {l.divisions.map((d) => (
               <div key={d.name} className="flex items-baseline gap-2 text-[11px] leading-snug">
                 <span className="truncate flex-1 min-w-0 text-glass-text-secondary" title={d.name}>{d.name}</span>
                 <span className="tabular font-semibold shrink-0" style={{ color: "var(--glass-text)" }}>{d.teams}</span>
+                <span className="tabular shrink-0 w-16 text-right text-glass-text-secondary"
+                  title="Average players on each team's roster">
+                  {d.players == null || !d.teams ? "\u2013" : (d.players / d.teams).toFixed(1)}
+                </span>
                 <span className="tabular text-[10px] shrink-0 w-16 text-right"
                   style={{ color: d.full_roster === d.teams ? "var(--green)" : "var(--glass-text-tertiary)" }}>
                   {d.full_roster}
