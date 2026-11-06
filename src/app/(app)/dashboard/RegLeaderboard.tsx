@@ -5,10 +5,11 @@ import { getLocationDistricts } from "@/lib/districts-locations";
 import { LeaderboardRow } from "./LeaderboardRow";
 
 // Registrations > Leaderboard: every location ranked, greatest first, by the
-// measure picked: teams, athletes, how sold out each is against its goal,
-// average players per team, revenue, average price per player, and the two
-// retention measures. Read from the same registration-pacing feed as the
-// other tabs, at the same day N of registration. Money is never compared
+// measure picked: teams, athletes, how sold out each is against its goal
+// (teams with 7+ players against the team goal too), average players per
+// team, revenue, average price per player, and the two retention measures.
+// Read from the same registration-pacing feed as the other tabs, at the same
+// day N of registration. Money is never compared
 // across currencies (the feed carries no exchange rate), so revenue and price
 // rank Canada's locations and the US's separately. By district, each
 // district's locations are added together (districts from brodie-districts)
@@ -22,6 +23,8 @@ type Season = {
   kind: string;
   captains: number;
   athletes: number;
+  // Teams with 7 or more players.
+  full_roster?: number;
   revenue_native?: number;
   currency?: string;
   athletes_indiv?: number;
@@ -53,11 +56,12 @@ async function loadLocations(
   }
 }
 
-type RankBy = "teams" | "athletes" | "soldTeams" | "soldAthletes" | "roster" | "revenue" | "price" | "back" | "kept";
+type RankBy = "teams" | "athletes" | "soldTeams" | "soldFull" | "soldAthletes" | "roster" | "revenue" | "price" | "back" | "kept";
 const RANKS: { value: RankBy; label: string }[] = [
   { value: "teams", label: "Teams" },
-  { value: "athletes", label: "Athletes" },
   { value: "soldTeams", label: "% sold out: teams" },
+  { value: "soldFull", label: "% sold out: teams with 7+ players" },
+  { value: "athletes", label: "Athletes" },
   { value: "soldAthletes", label: "% sold out: athletes" },
   { value: "roster", label: "Avg players per team" },
   { value: "revenue", label: "Revenue" },
@@ -73,10 +77,13 @@ type Row = {
   members?: string[];
   currency: string;
   teams: number;
+  // Teams with 7 or more players; null where the feed didn't send it.
+  full: number | null;
   athletes: number;
   teamGoal: number | null;
   athleteGoal: number | null;
   soldTeams: number | null;
+  soldFull: number | null;
   soldAthletes: number | null;
   roster: number | null;
   revenue: number;
@@ -148,9 +155,11 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
       location: l.location,
       currency: (c?.currency ?? (l.country === "USA" ? "USD" : "CAD")).toUpperCase(),
       teams: c?.captains ?? 0,
+      full: c?.full_roster ?? null,
       athletes: c?.athletes ?? 0,
       teamGoal, athleteGoal,
       soldTeams: soldPct(c?.captains ?? 0, teamGoal),
+      soldFull: c?.full_roster != null ? soldPct(c.full_roster, teamGoal) : null,
       soldAthletes: soldPct(c?.athletes ?? 0, athleteGoal),
       roster: c?.captains ? (c.athletes ?? 0) / c.captains : null,
       revenue: c?.revenue_native ?? 0,
@@ -210,13 +219,15 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
         const sumGoal = (pick: (r: Row) => number | null) =>
           rs.some((r) => pick(r) != null) ? rs.reduce((a, r) => a + (pick(r) ?? 0), 0) : null;
         const teamGoal = sumGoal((r) => r.teamGoal), athleteGoal = sumGoal((r) => r.athleteGoal);
+        const full = rs.some((r) => r.full != null) ? rs.reduce((a, r) => a + (r.full ?? 0), 0) : null;
         return {
           location: d,
           members: rs.map((r) => r.location).sort((a, b) => a.localeCompare(b)),
           currency: rs[0]?.currency ?? "",
-          teams, athletes,
+          teams, full, athletes,
           teamGoal, athleteGoal,
           soldTeams: soldPct(teams, teamGoal),
+          soldFull: full != null ? soldPct(full, teamGoal) : null,
           soldAthletes: soldPct(athletes, athleteGoal),
           roster: teams ? athletes / teams : null,
           revenue: rs.reduce((a, r) => a + r.revenue, 0),
@@ -234,6 +245,7 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
       case "teams": return r.teams;
       case "athletes": return r.athletes;
       case "soldTeams": return r.soldTeams ?? -1;
+      case "soldFull": return r.soldFull ?? -1;
       case "soldAthletes": return r.soldAthletes ?? -1;
       case "roster": return r.roster ?? -1;
       case "revenue": return r.revenue;
@@ -244,7 +256,7 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   };
   // Ties go to the bigger base, then the name.
   const tiebreak = (r: Row) => (rank === "back" ? r.back?.of ?? 0 : rank === "kept" ? r.kept?.of ?? 0 : rank === "roster" ? r.teams
-    : rank === "soldTeams" ? r.teamGoal ?? 0 : rank === "soldAthletes" ? r.athleteGoal ?? 0 : r.athletes);
+    : rank === "soldTeams" || rank === "soldFull" ? r.teamGoal ?? 0 : rank === "soldAthletes" ? r.athleteGoal ?? 0 : r.athletes);
   const sorted = (list: Row[]) => [...list].sort((a, b) =>
     value(b) - value(a) || tiebreak(b) - tiebreak(a) || a.location.localeCompare(b.location));
 
@@ -270,9 +282,9 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
     const gap = goal - n;
     return `${gap.toLocaleString()} ${gap === 1 ? unit : `${unit}s`} to go`;
   };
-  const cell = (k: RankBy, children: React.ReactNode, sub?: string) => (
+  const cell = (k: RankBy | null, children: React.ReactNode, sub?: string) => (
     <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-top"
-      style={{ color: active(k) ? "var(--glass-text)" : "var(--glass-text-secondary)", fontWeight: active(k) ? 700 : 500 }}>
+      style={{ color: k && active(k) ? "var(--glass-text)" : "var(--glass-text-secondary)", fontWeight: k && active(k) ? 700 : 500 }}>
       <div>{children}</div>
       {sub && <div className="text-[11px] font-normal text-glass-text-tertiary">{sub}</div>}
     </td>
@@ -280,8 +292,11 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   const cells = (r: Row) => (
     <>
       {cell("teams", ofGoal(r.teams, r.teamGoal))}
-      {cell("athletes", ofGoal(r.athletes, r.athleteGoal))}
       {cell("soldTeams", r.soldTeams == null ? "—" : `${r.soldTeams}%`, left(r.teams, r.teamGoal, "team"))}
+      {cell(null, r.full == null ? "—" : `${r.full.toLocaleString()} / ${r.teams.toLocaleString()}`,
+        r.full != null && r.teams ? `${Math.round((1000 * r.full) / r.teams) / 10}% of teams` : undefined)}
+      {cell("soldFull", r.soldFull == null ? "—" : `${r.soldFull}%`, r.full == null ? undefined : left(r.full, r.teamGoal, "team"))}
+      {cell("athletes", ofGoal(r.athletes, r.athleteGoal))}
       {cell("soldAthletes", r.soldAthletes == null ? "—" : `${r.soldAthletes}%`, left(r.athletes, r.athleteGoal, "athlete"))}
       {cell("roster", r.roster == null ? "—" : r.roster.toFixed(1))}
       {cell("revenue", money(r.revenue, r.currency))}
@@ -315,14 +330,16 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
           {g.title && <h3 className="text-sm font-semibold" style={{ color: "var(--glass-text)" }}>{g.title}</h3>}
           <div className="rounded-2xl bg-glass-surface overflow-hidden shadow-card">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1320 }}>
+              <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1600 }}>
                 <thead>
                   <tr className="text-xs font-bold text-glass-text-tertiary">
                     {head(null, "#")}
                     {head(null, byDistrict && districtMap ? "District" : "Location", "left")}
                     {head("teams", "Teams")}
-                    {head("athletes", "Athletes")}
                     {head("soldTeams", "% sold out: teams")}
+                    {head(null, "Teams with 7+ players")}
+                    {head("soldFull", "% sold out: teams with 7+ players")}
+                    {head("athletes", "Athletes")}
                     {head("soldAthletes", "% sold out: athletes")}
                     {head("roster", "Avg players per team")}
                     {head("revenue", "Revenue")}
@@ -360,7 +377,9 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
       <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
         {season} at the same day of registration as the other tabs. Teams and athletes are registrations that went
         through, shown against the location&apos;s goal for the season (teams / goal) where the admin Goals tab has one;
-        % sold out is teams or athletes over that goal, and a location with no goal set shows a dash. A location that
+        % sold out is teams or athletes over that goal, and a location with no goal set shows a dash. Teams with 7+
+        players counts teams with 7 or more players on the roster, shown over the location&apos;s teams; % sold out:
+        teams with 7+ players is that count over the team goal. A location that
         plays more than one day opens (the arrow) into a row per day with that day&apos;s goal, and a location that
         plays one day names it; retention: past players is worked out for the whole location, so a day shows a dash
         there. Average players per team is
