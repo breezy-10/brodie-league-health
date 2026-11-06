@@ -1643,6 +1643,10 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   // The counts behind those shares ("3 of 4 captains").
   returning_captains?: number | null; returning_captains_of?: number | null;
   returning_athletes?: number | null; returning_athletes_of?: number | null; age?: AgeStats | null;
+  // The same, narrowed to the last year (a registration in any of the four
+  // seasons before), out of the same totals.
+  recent_captains_pct?: number | null; recent_athletes_pct?: number | null;
+  recent_captains?: number | null; recent_athletes?: number | null;
   // age.median flattened onto the season by loadRegistrationPacing, so the age
   // card can go through the same bar machinery as every other metric.
   age_median?: number;
@@ -1840,9 +1844,9 @@ const TRACK_PX = 130;
 function RegBarCard({ title, subtitle, current, bars, notes, format = "number", bands, footer }: {
   title: string; subtitle: string; current: number;
   bars: { label: string; sub: string; value: number; color: string }[];
-  // Retention, under the count it qualifies. Pinned to the foot of the card so
-  // it lands in the same place on every card in the row, whatever height the
-  // tallest one sets.
+  // Retention, under the count it qualifies. Starts straight after the bars,
+  // which are the same height on every card, so its heading lines up across
+  // the row however many lines each card's footer wraps to.
   footer?: ShareGroup[];
   // Second readings of the headline — how many of those teams can field a
   // side, and how many have barely started.
@@ -1937,7 +1941,7 @@ type ShareLine = {
 type ShareGroup = { label?: string; lines: ShareLine[] };
 function RegShareLines({ groups }: { groups: ShareGroup[] }) {
   return (
-    <div className="mt-auto pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
+    <div className="mt-5 pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
       {groups.map((g, gi) => (
         <div key={gi} className={gi ? "mt-2" : ""}>
           {g.label && (
@@ -3956,26 +3960,34 @@ export default async function DashboardView({
   // off — so they carry no week wording.
   const shareGroups = (noun: "captains" | "athletes"): ShareGroup[] => {
     if (!pacingCurrent) return [];
-    const k = noun === "captains" ? "returning_captains_pct" as const : "returning_athletes_pct" as const;
-    const cur = pacingCurrent[k];
+    const cap = noun === "captains";
+    const of = pacingCurrent[cap ? "returning_captains_of" : "returning_athletes_of"];
+    // This season's people who had played Brodie: ever, or within the last
+    // year. Both out of the same total, so the two lines read straight down.
+    const played = (
+      k: "returning_captains_pct" | "returning_athletes_pct" | "recent_captains_pct" | "recent_athletes_pct",
+      nKey: "returning_captains" | "returning_athletes" | "recent_captains" | "recent_athletes",
+      title?: string,
+    ): ShareLine | null => {
+      const cur = pacingCurrent[k];
+      if (cur == null) return null;
+      const n = pacingCurrent[nKey];
+      return {
+        pct: cur,
+        text: `of ${noun}`,
+        count: n != null && of != null ? { n, of } : null,
+        deltas: ([pacingPrevSeason, pacingPrevYear] as const)
+          .filter((s): s is PacingSeason => s?.[k] != null)
+          .map((s) => ({ value: cur - s[k]!, label: `vs ${shortSeason(s.season)}` })),
+        title,
+      };
+    };
     const groups: ShareGroup[] = [];
-    if (cur != null) {
-      groups.push({
-        label: "Played Brodie before",
-        lines: [{
-          pct: cur,
-          text: `of ${noun}`,
-          count: (() => {
-            const n = pacingCurrent[noun === "captains" ? "returning_captains" : "returning_athletes"];
-            const of = pacingCurrent[noun === "captains" ? "returning_captains_of" : "returning_athletes_of"];
-            return n != null && of != null ? { n, of } : null;
-          })(),
-          deltas: ([pacingPrevSeason, pacingPrevYear] as const)
-            .filter((s): s is PacingSeason => s?.[k] != null)
-            .map((s) => ({ value: cur - s[k]!, label: `vs ${shortSeason(s.season)}` })),
-        }],
-      });
-    }
+    const ever = played(cap ? "returning_captains_pct" : "returning_athletes_pct", cap ? "returning_captains" : "returning_athletes");
+    if (ever) groups.push({ label: "Played Brodie before", lines: [ever] });
+    const recent = played(cap ? "recent_captains_pct" : "recent_athletes_pct", cap ? "recent_captains" : "recent_athletes",
+      `Registered for at least one of the four seasons before ${shortSeason(pacingCurrent.season)}`);
+    if (recent) groups.push({ label: "Played Brodie within the last year", lines: [recent] });
     // How many of last season's came back, each card on its own population:
     // a team does not return, its captain does, and only as a captain — one
     // who comes back as another team's player brought no team with them. The
