@@ -1650,9 +1650,10 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   // age.median flattened onto the season by loadRegistrationPacing, so the age
   // card can go through the same bar machinery as every other metric.
   age_median?: number;
-  // Teams, athletes and rosters per country, from the league's country.
-  // Absent from an older feed or when the lookup failed.
-  by_country?: Record<"CAN" | "USA", { captains: number; athletes: number; full_roster: number; low_roster: number; athletes_indiv?: number }>;
+  // Teams, athletes, rosters and the played-before shares per country, from
+  // the league's country. Absent from an older feed or when the lookup failed.
+  by_country?: Record<"CAN" | "USA", { captains: number; athletes: number; full_roster: number; low_roster: number; athletes_indiv?: number }
+    & Partial<Pick<PacingSeason, PlayedKey>>>;
   // The per-athlete basis: athletes who paid for themselves and what that came
   // to, team fees left out — a captain paying the whole team on one invoice
   // pays for players who may not have joined yet. Absent from an older feed.
@@ -1715,12 +1716,19 @@ const moneyShort = (n: number) => {
 };
 type Retention = { pct: number; prev_athletes: number; retained: number; prev_season: string; into_season?: string };
 type PacingDivision = { name: string; teams: number; full_roster: number; players?: number };
+// The played-before shares and the counts behind them.
+type PlayedKey = "returning_captains_pct" | "returning_athletes_pct" | "returning_captains" | "returning_captains_of" | "returning_athletes" | "returning_athletes_of" | "recent_captains_pct" | "recent_athletes_pct" | "recent_captains" | "recent_athletes";
 // `day` is set on the location_day cards: one venue on one day.
 type PacingLocation = { location: string; day?: string; country?: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
 type Pacing = { day_n: number | null; elapsed_hours?: number | null; seasons: PacingSeason[]; locations?: PacingLocation[];
   retention?: Retention | null; retention_year?: Retention | null;
   // The team count’s own basis: last season's captains back in any role.
-  retention_captains?: Retention | null; retention_captains_year?: Retention | null };
+  retention_captains?: Retention | null; retention_captains_year?: Retention | null;
+  // The same four lines for each country's players.
+  retention_by_country?: Record<"CAN" | "USA", {
+    retention?: Retention | null; retention_year?: Retention | null;
+    retention_captains?: Retention | null; retention_captains_year?: Retention | null;
+  }> };
 // A discounts row for one card: a venue, or one day at a venue, which carries
 // `day` (on the single-venue view, and on a venue card opened into its days).
 type CardDiscount = DiscountRow & { day?: string };
@@ -3817,6 +3825,13 @@ export default async function DashboardView({
     : null;
   // One country's teams, athletes and rosters laid over each season. Revenue
   // is already split by currency on every season, so it needs no projecting.
+  // A country's played-before shares are its own: from an older feed that
+  // sends none, its cards show none rather than the whole scope's.
+  const noPlayed: Pick<PacingSeason, PlayedKey> = {
+    returning_captains_pct: null, returning_athletes_pct: null, returning_captains: null, returning_captains_of: null,
+    returning_athletes: null, returning_athletes_of: null, recent_captains_pct: null, recent_athletes_pct: null,
+    recent_captains: null, recent_athletes: null,
+  };
   const countrySet = (c: "CAN" | "USA"): RegSet | null => {
     if (!allSet?.cur.by_country) return null;
     const proj = (x: PacingSeason): PacingSeason => {
@@ -3828,7 +3843,7 @@ export default async function DashboardView({
       const rev = (c === "CAN"
         ? (indiv ? x.revenue_indiv_cad : x.revenue_cad)
         : (indiv ? x.revenue_indiv_usd : x.revenue_usd)) ?? 0;
-      return { ...x, ...b, revenue_per_athlete: a ? Math.round(rev / a) : undefined };
+      return { ...x, ...noPlayed, ...b, revenue_per_athlete: a ? Math.round(rev / a) : undefined };
     };
     return {
       cur: proj(allSet.cur),
@@ -3958,10 +3973,10 @@ export default async function DashboardView({
   // are measured at day N whatever the weekly toggle says — they are seasons
   // to date, and a week's worth of registrations is too few to read a share
   // off — so they carry no week wording.
-  const shareGroups = (noun: "captains" | "athletes"): ShareGroup[] => {
-    if (!pacingCurrent) return [];
+  // Each country's cards ask the same of that country's players.
+  const shareGroups = (noun: "captains" | "athletes", set: RegSet, country?: "CAN" | "USA"): ShareGroup[] => {
     const cap = noun === "captains";
-    const of = pacingCurrent[cap ? "returning_captains_of" : "returning_athletes_of"];
+    const of = set.cur[cap ? "returning_captains_of" : "returning_athletes_of"];
     // This season's people who had played Brodie: ever, or within the last
     // year. Both out of the same total, so the two lines read straight down.
     const played = (
@@ -3969,38 +3984,41 @@ export default async function DashboardView({
       nKey: "returning_captains" | "returning_athletes" | "recent_captains" | "recent_athletes",
       title?: string,
     ): ShareLine | null => {
-      const cur = pacingCurrent[k];
+      const cur = set.cur[k];
       if (cur == null) return null;
-      const n = pacingCurrent[nKey];
+      const n = set.cur[nKey];
       return {
         pct: cur,
         text: `of ${noun}`,
         count: n != null && of != null ? { n, of } : null,
-        deltas: ([pacingPrevSeason, pacingPrevYear] as const)
+        deltas: ([set.prev, set.year] as const)
           .filter((s): s is PacingSeason => s?.[k] != null)
           .map((s) => ({ value: cur - s[k]!, label: `vs ${shortSeason(s.season)}` })),
         title,
       };
     };
     const groups: ShareGroup[] = [];
-    const ever = played(cap ? "returning_captains_pct" : "returning_athletes_pct", cap ? "returning_captains" : "returning_athletes");
+    // The feed leaves venues in their first season out of both shares.
+    const ever = played(cap ? "returning_captains_pct" : "returning_athletes_pct", cap ? "returning_captains" : "returning_athletes",
+      "Venues in their first season are left out");
     if (ever) groups.push({ label: "Played Brodie before", lines: [ever] });
     const recent = played(cap ? "recent_captains_pct" : "recent_athletes_pct", cap ? "recent_captains" : "recent_athletes",
-      `Registered for at least one of the four seasons before ${shortSeason(pacingCurrent.season)}`);
+      `Registered for at least one of the four seasons before ${shortSeason(set.cur.season)}. Venues in their first season are left out`);
     if (recent) groups.push({ label: "Played Brodie within the last year", lines: [recent] });
     // How many of last season's came back, each card on its own population.
     // A captain is back in any role, as another team's player too. The two
     // lines name their population, since the same sentence with a different
     // number sits on the card next to it.
-    const cur1 = noun === "captains" ? pacing?.retention_captains : pacing?.retention;
-    const yr1 = noun === "captains" ? pacing?.retention_captains_year : pacing?.retention_year;
+    const ret = country ? pacing?.retention_by_country?.[country] : pacing;
+    const cur1 = cap ? ret?.retention_captains : ret?.retention;
+    const yr1 = cap ? ret?.retention_captains_year : ret?.retention_year;
     const pair = [cur1, yr1].filter((r): r is Retention => !!r);
     if (pair.length) {
       const pts = cur1 && yr1 ? Math.round((cur1.pct - yr1.pct) * 10) / 10 : null;
       groups.push({
         lines: pair.map((r, i) => ({
           pct: r.pct,
-          text: `of ${shortSeason(r.prev_season)} ${noun} returned in ${shortSeason(r.into_season ?? pacingCurrent.season)}`,
+          text: `of ${shortSeason(r.prev_season)} ${noun} returned in ${shortSeason(r.into_season ?? set.cur.season)}`,
           count: { n: r.retained, of: r.prev_athletes },
           title: `${r.retained} of ${r.prev_athletes} ${shortSeason(r.prev_season)} ${noun} registered again`,
           deltas: i === 0 && pts != null ? [{ value: pts, label: "pts" }] : [],
@@ -4052,8 +4070,7 @@ export default async function DashboardView({
         ? [{ text: `${set.cur.low_roster.toLocaleString()} with 3 or fewer players`, tone: "bad" as const }] : []),
     ],
     roster: true,
-    // Played-before and retention are measured on the whole scope only.
-    footer: place ? undefined : shareGroups("captains"),
+    footer: shareGroups("captains", set, place?.code),
   });
   const athletesMetric = (set: RegSet, place?: Place): RegMetric => ({
     key: "athletes", format: "number",
@@ -4062,7 +4079,7 @@ export default async function DashboardView({
     // The roster size the season is actually running at.
     notes: set.cur.captains ? [{ text: `${(set.cur.athletes / set.cur.captains).toFixed(2)} per team` }] : undefined,
     roster: false,
-    footer: place ? undefined : shareGroups("athletes"),
+    footer: shareGroups("athletes", set, place?.code),
   });
   // Accrued, in the currency the venues invoice in. CAD and USD stay apart:
   // a fixed conversion rate would bury a real change in either.
