@@ -1720,7 +1720,7 @@ type PacingDivision = { name: string; teams: number; full_roster: number; player
 type PlayedKey = "returning_captains_pct" | "returning_athletes_pct" | "returning_captains" | "returning_captains_of" | "returning_athletes" | "returning_athletes_of" | "recent_captains_pct" | "recent_athletes_pct" | "recent_captains" | "recent_athletes";
 // `day` is set on the location_day cards: one venue on one day.
 type PacingLocation = { location: string; day?: string; country?: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null;
-  // The venue's captains: back in any role at any Brodie venue.
+  // The venue's captains. Both pairs count back in any role at any Brodie venue.
   retention_captains?: Retention | null; retention_captains_year?: Retention | null };
 type Pacing = { day_n: number | null; elapsed_hours?: number | null; seasons: PacingSeason[]; locations?: PacingLocation[];
   retention?: Retention | null; retention_year?: Retention | null;
@@ -3543,17 +3543,17 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
             compared. Each names the season people came FROM. The current
             line carries the movement between them, in points: the
             difference of two percentages is points, not a percentage of a
-            percentage. A captain is back in any role at any Brodie venue;
-            an athlete only when back at this venue. */}
+            percentage. Captains and athletes are both back in any role at
+            any Brodie venue. */}
         <div className="px-3.5">{(() => {
           const pairs = ([
-            ["captains", l.retention_captains, l.retention_captains_year, "in any role, at any Brodie venue"],
-            ["athletes", l.retention, l.retention_year, "at this venue"],
+            ["captains", l.retention_captains, l.retention_captains_year],
+            ["athletes", l.retention, l.retention_year],
           ] as const).filter(([, a, b]) => a || b);
           if (!pairs.length) return null;
           return (
             <div className="mt-3 text-[11px] leading-snug">
-              {pairs.map(([noun, now, yearBack, where], pi) => (
+              {pairs.map(([noun, now, yearBack], pi) => (
                 <div key={noun} className={pi ? "mt-2" : ""}>
                   {[now, yearBack].filter((r): r is Retention => !!r).map((r, i) => {
                     const into = shortSeason(r.into_season ?? season);
@@ -3562,7 +3562,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                       : null;
                     return (
                       <span key={r.prev_season} className="block"
-                        title={`${r.retained} of ${r.prev_athletes} ${shortSeason(r.prev_season)} ${noun} registered again in ${into}, ${where}`}>
+                        title={`${r.retained} of ${r.prev_athletes} ${shortSeason(r.prev_season)} ${noun} registered again in ${into}, in any role at any Brodie venue`}>
                         <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
                           {r.pct.toFixed(1)}%
                         </span>
