@@ -3998,10 +3998,12 @@ export default async function DashboardView({
       };
     };
     const groups: ShareGroup[] = [];
-    const ever = played(cap ? "returning_captains_pct" : "returning_athletes_pct", cap ? "returning_captains" : "returning_athletes");
+    // The feed leaves venues in their first season out of both shares.
+    const ever = played(cap ? "returning_captains_pct" : "returning_athletes_pct", cap ? "returning_captains" : "returning_athletes",
+      "Venues in their first season are left out");
     if (ever) groups.push({ label: "Played Brodie before", lines: [ever] });
     const recent = played(cap ? "recent_captains_pct" : "recent_athletes_pct", cap ? "recent_captains" : "recent_athletes",
-      `Registered for at least one of the four seasons before ${shortSeason(set.cur.season)}`);
+      `Registered for at least one of the four seasons before ${shortSeason(set.cur.season)}. Venues in their first season are left out`);
     if (recent) groups.push({ label: "Played Brodie within the last year", lines: [recent] });
     // How many of last season's came back, each card on its own population.
     // A captain is back in any role, as another team's player too. The two
