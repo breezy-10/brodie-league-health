@@ -1719,7 +1719,7 @@ type PacingDivision = { name: string; teams: number; full_roster: number; player
 type PacingLocation = { location: string; day?: string; country?: string; seasons: PacingSeason[]; divisions?: PacingDivision[]; retention?: Retention | null; retention_year?: Retention | null };
 type Pacing = { day_n: number | null; elapsed_hours?: number | null; seasons: PacingSeason[]; locations?: PacingLocation[];
   retention?: Retention | null; retention_year?: Retention | null;
-  // The team count’s own basis: captains who are captaining again.
+  // The team count’s own basis: last season's captains back in any role.
   retention_captains?: Retention | null; retention_captains_year?: Retention | null };
 // A discounts row for one card: a venue, or one day at a venue, which carries
 // `day` (on the single-venue view, and on a venue card opened into its days).
@@ -3988,11 +3988,10 @@ export default async function DashboardView({
     const recent = played(cap ? "recent_captains_pct" : "recent_athletes_pct", cap ? "recent_captains" : "recent_athletes",
       `Registered for at least one of the four seasons before ${shortSeason(pacingCurrent.season)}`);
     if (recent) groups.push({ label: "Played Brodie within the last year", lines: [recent] });
-    // How many of last season's came back, each card on its own population:
-    // a team does not return, its captain does, and only as a captain — one
-    // who comes back as another team's player brought no team with them. The
-    // two lines name their population, since the same sentence with a
-    // different number sits on the card next to it.
+    // How many of last season's came back, each card on its own population.
+    // A captain is back in any role, as another team's player too. The two
+    // lines name their population, since the same sentence with a different
+    // number sits on the card next to it.
     const cur1 = noun === "captains" ? pacing?.retention_captains : pacing?.retention;
     const yr1 = noun === "captains" ? pacing?.retention_captains_year : pacing?.retention_year;
     const pair = [cur1, yr1].filter((r): r is Retention => !!r);
@@ -4254,7 +4253,7 @@ export default async function DashboardView({
     // '27 against Winter '26's players, Fall '26 against Fall '25's).
     const title = win === "prev" ? `Last season's ${noun} back` : `Last year's ${noun} back`;
     const sub = pop === "cap"
-      ? (mode === "here" ? "captaining again where they played" : "captaining again anywhere in Brodie")
+      ? (mode === "here" ? "back where they played, in any role" : "back anywhere in Brodie, in any role")
       : (mode === "here" ? "registered again where they played" : "registered again anywhere in Brodie");
     const change = (against?: PacingSeason) => {
       const was = v(against);
