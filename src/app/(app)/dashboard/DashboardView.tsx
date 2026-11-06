@@ -3339,7 +3339,7 @@ function ShareStrip({ locations, blocks, head, byNight = false, prevLabel, yearL
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
-function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, venue, discounts, discountsSeasonToDate = false, showAge = true, venueDays, dayDiscounts }: {
+function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, venue, discounts, discountsSeasonToDate = false, showAge = true, venueDays, dayDiscounts, playDays }: {
   locations: PacingLocation[];
   // Each card's Age block; the Registrations page shows it, the dashboard not.
   showAge?: boolean;
@@ -3360,6 +3360,9 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
   // come in dayDiscounts (null when that feed is down).
   venueDays?: Map<string, PacingLocation[]>;
   dayDiscounts?: CardDiscount[] | null;
+  // Venue cards only: the days each venue plays this season, in week order,
+  // shown under its name. Every venue, one day or several.
+  playDays?: Map<string, string[]>;
   // Athletes-per-team is a roster size, which only holds season-to-date. On a
   // week basis the two sides count different cohorts — athletes who joined a
   // team registered in an earlier week — so the ratio is left off.
@@ -3368,7 +3371,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
   // One card: a venue, a day at the one venue in scope, or one day of a venue
   // opened into its days.
   const card = (l: PacingLocation, o: {
-    key: string; title: string; discount?: CardDiscount; discountsVenue: string; toggle?: ReactNode;
+    key: string; title: string; days?: string[]; discount?: CardDiscount; discountsVenue: string; toggle?: ReactNode;
   }) => {
     const get = (kind: string, metric: PacingMetric) =>
       l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
@@ -3394,15 +3397,24 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
       <div key={o.key}
         className="snap-start grid row-span-full rounded-xl bg-glass-surface shadow-card"
         style={{ gridTemplateRows: "subgrid" }}>
-        <div className="flex items-baseline justify-between gap-2 px-3.5 pt-3.5">
-          <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={o.title}>
-            {o.title}
-          </p>
-          {showAvgPerTeam && (
-            <p className="text-xs font-semibold tabular shrink-0" title="Average athletes per team"
-              style={{ color: avgColor }}>
-              {avgPerTeam === null ? "—" : avgPerTeam.toFixed(1)}
-              <span className="font-normal text-glass-text-tertiary"> / team</span>
+        <div className="px-3.5 pt-3.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-xs font-semibold truncate" style={{ color: "var(--glass-text)" }} title={o.title}>
+              {o.title}
+            </p>
+            {showAvgPerTeam && (
+              <p className="text-xs font-semibold tabular shrink-0" title="Average athletes per team"
+                style={{ color: avgColor }}>
+                {avgPerTeam === null ? "—" : avgPerTeam.toFixed(1)}
+                <span className="font-normal text-glass-text-tertiary"> / team</span>
+              </p>
+            )}
+          </div>
+          {/* Four days or more (Burlington plays all seven) won't fit the
+              card in full, so they shorten to Mon, Tue... */}
+          {!!o.days?.length && (
+            <p className="text-[11px] text-glass-text-tertiary truncate mt-0.5" title={o.days.join(", ")}>
+              {(o.days.length > 3 ? o.days.map((d) => d.slice(0, 3)) : o.days).join(" \u00B7 ")}
             </p>
           )}
         </div>
@@ -3587,6 +3599,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
         {locations.map((l) => {
           const venueCard = (toggle?: ReactNode) => card(l, {
             key: l.location, title: l.location,
+            days: byNight ? undefined : playDays?.get(l.location),
             discount: discounts ? discountFor(l.location, discounts, byNight) : undefined,
             discountsVenue: byNight ? (venue ?? l.location) : l.location,
             toggle,
@@ -3761,7 +3774,7 @@ export default async function DashboardView({
   // venue cards show (not one venue's own days, the leaderboard, or the two
   // retention tabs).
   const wantVenueDays = locationNames?.length !== 1 && !isLeaderboard && !isBack && !isRetention;
-  const [ckCurrent, ckNext, promoTiles, pacing, deadlines, locDiscounts, venueDayPacing, venueDayDiscounts] = await Promise.all([
+  const [ckCurrent, ckNext, promoTiles, pacing, deadlines, locDiscounts, venueDayPacing, venueDayDiscounts, seasonDayPacing] = await Promise.all([
     isReg ? Promise.resolve(null) : isOm ? loadOpsChecklistTiles(selectedSeason) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : isOm ? loadOpsChecklistTiles(regSeason) : loadChecklistTiles(regSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : loadPromoTiles(promoSeasonName, scope),
@@ -3771,6 +3784,9 @@ export default async function DashboardView({
     loadLocationDiscounts(pacingSeason, scope, scope.locationNames?.length === 1 ? "day" : "location"),
     wantVenueDays ? loadRegistrationPacing(pacingSeason, scope, regOnWeek ? week : undefined, false, false, "location_day") : Promise.resolve(null),
     wantVenueDays ? loadLocationDiscounts(pacingSeason, scope, "location_day") : Promise.resolve(null),
+    // On a week basis the day cards only hold days that took a team that
+    // week, so the days a venue plays come from a season-to-date read.
+    wantVenueDays && regOnWeek ? loadRegistrationPacing(pacingSeason, scope, undefined, false, false, "location_day") : Promise.resolve(null),
   ]);
   // Each venue's day cards, kept only for a venue that plays two days or more.
   const venueDays = new Map<string, PacingLocation[]>();
@@ -3779,6 +3795,12 @@ export default async function DashboardView({
     venueDays.set(d.location, [...(venueDays.get(d.location) ?? []), d]);
   }
   for (const [v, days] of venueDays) if (days.length < 2) venueDays.delete(v);
+  // The days each venue plays, for the line under its name. The feed lists
+  // only days with a team this season, already in week order.
+  const venuePlayDays = new Map<string, string[]>();
+  for (const d of (regOnWeek ? seasonDayPacing : venueDayPacing)?.locations ?? []) {
+    if (d.day) venuePlayDays.set(d.location, [...(venuePlayDays.get(d.location) ?? []), d.day]);
+  }
   const pacingCurrent = pacing?.seasons.find((s) => s.kind === "current");
   const pacingPrevSeason = pacing?.seasons.find((s) => s.kind === "prev_season");
   const pacingPrevYear = pacing?.seasons.find((s) => s.kind === "prev_year");
@@ -4001,7 +4023,7 @@ export default async function DashboardView({
         byNight={locationNames?.length === 1}
         venue={locationNames?.length === 1 ? locationNames[0] : undefined}
         discounts={locDiscounts} discountsSeasonToDate={regOnWeek} showAge={isReg}
-        venueDays={venueDays} dayDiscounts={venueDayDiscounts} />
+        venueDays={venueDays} dayDiscounts={venueDayDiscounts} playDays={venuePlayDays} />
     </div>
   ) : null;
   // The Registrations columns. Teams and athletes appear for the whole scope
