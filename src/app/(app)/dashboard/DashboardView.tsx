@@ -3474,13 +3474,14 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
           </div>
         )}
         <div className="px-3.5">{(() => {
-          const pick = (k: string, m: "returning_captains_pct" | "returning_athletes_pct") =>
+          type PlayedPct = "returning_captains_pct" | "returning_athletes_pct" | "recent_captains_pct" | "recent_athletes_pct";
+          type PlayedRow = readonly ["captains" | "athletes", PlayedPct,
+            "returning_captains" | "returning_athletes" | "recent_captains" | "recent_athletes",
+            "returning_captains_of" | "returning_athletes_of"];
+          const pick = (k: string, m: PlayedPct) =>
             l.seasons.find((s) => s.kind === k)?.[m] ?? null;
           const curSeason = l.seasons.find((s) => s.kind === "current");
-          const lines = ([
-            ["captains", "returning_captains_pct", "returning_captains", "returning_captains_of"],
-            ["athletes", "returning_athletes_pct", "returning_athletes", "returning_athletes_of"],
-          ] as const).map(([noun, m, nKey, ofKey]) => ({
+          const linesOf = (rows: readonly PlayedRow[]) => rows.map(([noun, m, nKey, ofKey]) => ({
             noun,
             n: curSeason?.[nKey] ?? null,
             of: curSeason?.[ofKey] ?? null,
@@ -3488,29 +3489,48 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
             prev: pick("prev_season", m),
             year: pick("prev_year", m),
           })).filter((x) => x.cur != null);
-          if (!lines.length) return null;
+          // Played Brodie ever, then within the last year (any of the four
+          // seasons before), as on the season cards. Both out of the same
+          // total, so the two read straight down.
+          const groups = [
+            { label: "Played Brodie before", title: undefined, lines: linesOf([
+              ["captains", "returning_captains_pct", "returning_captains", "returning_captains_of"],
+              ["athletes", "returning_athletes_pct", "returning_athletes", "returning_athletes_of"],
+            ]) },
+            { label: "Played Brodie within the last year",
+              title: `Registered for at least one of the four seasons before ${shortSeason(season)}`,
+              lines: linesOf([
+                ["captains", "recent_captains_pct", "recent_captains", "returning_captains_of"],
+                ["athletes", "recent_athletes_pct", "recent_athletes", "returning_athletes_of"],
+              ]) },
+          ].filter((g) => g.lines.length);
+          if (!groups.length) return null;
           return (
             <div className="mt-2.5 pt-2.5 border-t border-glass-border-light text-[11px] leading-snug">
-              <p className="text-xs font-semibold text-glass-text-tertiary mb-0.5">
-                Played Brodie before
-              </p>
-              {lines.map((x) => (
-                <span key={x.noun} className="block">
-                  <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
-                    {x.cur!.toFixed(1)}%
-                  </span>
-                  <span className="text-glass-text-tertiary"> of {x.noun}</span>
-                  {x.n != null && x.of != null && (
-                    <span className="text-glass-text-tertiary tabular"> · {x.n} of {x.of}</span>
-                  )}
-                  {([[x.prev, prevLabel], [x.year, yearLabel]] as const).map(([base, lbl]) =>
-                    base == null ? null : (
-                      <span key={lbl} className="text-[10px] sm:text-[9px] font-semibold"
-                        style={{ color: upColor(x.cur! - base) }}>
-                        {" "}({x.cur! - base > 0 ? "+" : ""}{(x.cur! - base).toFixed(1)} vs {lbl})
+              {groups.map((g, gi) => (
+                <div key={g.label} className={gi ? "mt-2" : ""} title={g.title}>
+                  <p className="text-xs font-semibold text-glass-text-tertiary mb-0.5">
+                    {g.label}
+                  </p>
+                  {g.lines.map((x) => (
+                    <span key={x.noun} className="block">
+                      <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>
+                        {x.cur!.toFixed(1)}%
                       </span>
-                    ))}
-                </span>
+                      <span className="text-glass-text-tertiary"> of {x.noun}</span>
+                      {x.n != null && x.of != null && (
+                        <span className="text-glass-text-tertiary tabular"> · {x.n} of {x.of}</span>
+                      )}
+                      {([[x.prev, prevLabel], [x.year, yearLabel]] as const).map(([base, lbl]) =>
+                        base == null ? null : (
+                          <span key={lbl} className="text-[10px] sm:text-[9px] font-semibold"
+                            style={{ color: upColor(x.cur! - base) }}>
+                            {" "}({x.cur! - base > 0 ? "+" : ""}{(x.cur! - base).toFixed(1)} vs {lbl})
+                          </span>
+                        ))}
+                    </span>
+                  ))}
+                </div>
               ))}
             </div>
           );
