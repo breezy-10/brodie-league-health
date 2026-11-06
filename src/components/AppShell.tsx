@@ -9,6 +9,7 @@ import {
   Hourglass,
   MapPin,
   Radio,
+  Repeat,
   ScanLine,
   Rocket,
   ShieldAlert,
@@ -39,7 +40,7 @@ import { SIDEBAR_COOKIE, type Theme } from "@/lib/theme-shared";
 // instead, because bundle.js toggling classes would be undone by the next render.
 
 export type NavIcon =
-  | "dashboard" | "omdashboard" | "live" | "registrations" | "referrals" | "discounts" | "ambassadors" | "forfeit" | "dropins" | "events" | "checkins" | "waitlist" | "cities" | "launchers" | "staff"
+  | "dashboard" | "omdashboard" | "live" | "registrations" | "retention" | "referrals" | "discounts" | "ambassadors" | "forfeit" | "dropins" | "events" | "checkins" | "waitlist" | "cities" | "launchers" | "staff"
   | "myday" | "leaderboard" | "trophies" | "district" | "disputes" | "settings" | "users";
 
 export interface NavItem {
@@ -66,6 +67,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   omdashboard: Gauge,
   live: Radio,
   registrations: ClipboardList,
+  retention: Repeat,
   referrals: Gift,
   discounts: BadgePercent,
   ambassadors: Star,
@@ -96,6 +98,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/registrations/location", title: "By day of week", subtitle: "Each day's teams and athletes at one location, against last season and last year." },
   { path: "/live-games", title: "Live games", subtitle: "Every game on a day's schedule: what's on court now, what's next, and what's done." },
   { path: "/registrations", title: "Registrations", subtitle: "Teams and athletes registered by this day, against last season and last year." },
+  { path: "/retention", title: "Retention", subtitle: "Every location ranked on who has played Brodie before and who came back." },
   { path: "/referrals", title: "Referrals", subtitle: "Who brought players in, and what each referral earned and cost." },
   { path: "/discounts/players", title: "Discounted registrations", subtitle: "Every registration that came with a discount, and what it took off." },
   { path: "/discounts", title: "Price and discounting", subtitle: "What a registration is advertised at, what comes off, and what actually lands." },

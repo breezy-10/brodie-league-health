@@ -12,6 +12,7 @@ const DASHBOARD: NavItem = { href: "/dashboard", label: "DM/LM Dashboard", short
 const OM_DASHBOARD: NavItem = { href: "/om-dashboard", label: "OM Dashboard", short: "OM", icon: "omdashboard", group: "Dashboards" };
 const LIVE: NavItem = { href: "/live-games", label: "Live games", short: "Live", icon: "live", group: "Leagues" };
 const REGISTRATIONS: NavItem = { href: "/registrations", label: "Registrations", short: "Signups", icon: "registrations", group: "Leagues" };
+const RETENTION: NavItem = { href: "/retention", label: "Retention", short: "Retention", icon: "retention", group: "Leagues" };
 const REFERRALS: NavItem = { href: "/referrals", label: "Referrals", short: "Referrals", icon: "referrals", group: "Leagues" };
 const DISCOUNTS: NavItem = { href: "/discounts", label: "Discounts", short: "Discounts", icon: "discounts", group: "Leagues" };
 const AMBASSADORS: NavItem = { href: "/ambassador-teams", label: "Ambassador teams", short: "Ambassadors", icon: "ambassadors", group: "Leagues" };
@@ -47,7 +48,7 @@ export default async function Shell({ children }: { children: React.ReactNode })
   // Super admins get every page. District and operations managers add Users;
   // staff performance is for admins and district managers.
   const items: NavItem[] = [
-    DASHBOARD, ...(OM_DASHBOARD_ROLES.includes(role) ? [OM_DASHBOARD] : []), LIVE, REGISTRATIONS, REFERRALS, DISCOUNTS, AMBASSADORS, ...(isSuperAdmin ? [AMBASSADORS_V2] : []), FORFEIT, CHECK_INS, DROP_INS, EVENTS, WAITLIST, CITIES,
+    DASHBOARD, ...(OM_DASHBOARD_ROLES.includes(role) ? [OM_DASHBOARD] : []), LIVE, REGISTRATIONS, RETENTION, REFERRALS, DISCOUNTS, AMBASSADORS, ...(isSuperAdmin ? [AMBASSADORS_V2] : []), FORFEIT, CHECK_INS, DROP_INS, EVENTS, WAITLIST, CITIES,
     ...((CITY_LAUNCHER_ROLES as readonly string[]).includes(role) ? [LAUNCHERS] : []),
     ...(STAFF_PERFORMANCE_ROLES.includes(role) ? [STAFF] : []),
     ...(isSuperAdmin ? [MY_DAY, LEADERBOARD, TROPHIES, DISTRICT, DISPUTES] : []),
