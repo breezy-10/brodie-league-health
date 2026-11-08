@@ -3,6 +3,7 @@ import { promoFetch } from "@/lib/promo-feed";
 import { BasisToggle } from "./BasisToggle";
 import { getLocationDistricts } from "@/lib/districts-locations";
 import { getNewLocationKeys, locationKey } from "@/lib/active-locations";
+import { TEAM_GOAL_OVERRIDES } from "@/lib/goal-overrides";
 import { LeaderboardRow } from "./LeaderboardRow";
 import { STICKY_TH_STYLE } from "./stickyTable";
 
@@ -119,12 +120,15 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   const rank: RankBy = (RANKS.find((r) => r.value === rankBy)?.value) ?? "teams";
   const byDistrict = groupBy === "district";
   const which: Which = WHICH.find((w) => w.value === locs)?.value ?? "all";
+  // Team goals League Health sets over Player One's, as "location|day".
+  const goalOverrides = TEAM_GOAL_OVERRIDES[season] ?? {};
+  const overridden = Object.keys(goalOverrides).length > 0;
   const [base, kept, back, districtMap, nights, nightsKept, newKeys] = await Promise.all([
     loadLocations(season, locationNames),
     loadLocations(season, locationNames, "retention"),
     loadLocations(season, locationNames, "back"),
     byDistrict ? getLocationDistricts() : Promise.resolve(null),
-    byDistrict ? Promise.resolve(null) : loadLocations(season, locationNames, undefined, "location_day"),
+    byDistrict && !overridden ? Promise.resolve(null) : loadLocations(season, locationNames, undefined, "location_day"),
     byDistrict ? Promise.resolve(null) : loadLocations(season, locationNames, "retention", "location_day"),
     which === "all" ? Promise.resolve(null) : getNewLocationKeys([season]),
   ]);
@@ -159,6 +163,17 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   const current = (l?: Loc) => l?.seasons.find((s) => s.kind === "current");
   const byName = (list: Loc[] | null) => new Map((list ?? []).map((l) => [l.location, l]));
   const keptBy = byName(kept), backBy = byName(back);
+  const nightKey = (l: Loc) => `${l.location}|${l.day ?? ""}`;
+  // A day's goal is League Health's where it sets one. A location's is its
+  // days' goals, so it moves by each set day's difference from Player One's;
+  // without the days to compare against, it stays as Player One has it.
+  const playerOneDayGoal = new Map((nights ?? []).map((l) => [nightKey(l), current(l)?.team_goal ?? 0]));
+  const teamGoalOf = (l: Loc): number | null => {
+    const feed = current(l)?.team_goal ?? null;
+    if (l.day) return goalOverrides[nightKey(l)] ?? feed;
+    const set = Object.keys(goalOverrides).filter((k) => k.startsWith(`${l.location}|`) && playerOneDayGoal.has(k));
+    return set.length ? set.reduce((g, k) => g + goalOverrides[k] - playerOneDayGoal.get(k)!, feed ?? 0) : feed;
+  };
   const toRow = (l: Loc, keptLoc?: Loc, backLoc?: Loc): Row => {
     const c = current(l);
     const indiv = c?.athletes_indiv != null;
@@ -166,7 +181,7 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
     const rev = (indiv ? c?.revenue_indiv_native : c?.revenue_native) ?? 0;
     const k = current(keptLoc)?.kept;
     const b = current(backLoc)?.back;
-    const teamGoal = c?.team_goal ?? null, athleteGoal = c?.athlete_goal ?? null;
+    const teamGoal = teamGoalOf(l), athleteGoal = c?.athlete_goal ?? null;
     return {
       location: l.location,
       currency: (c?.currency ?? (l.country === "USA" ? "USD" : "CAD")).toUpperCase(),
@@ -196,7 +211,6 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
 
   // Each venue's nights, in week order as the feed sends them; venues with two
   // or more get a dropdown, and a venue with one names its night.
-  const nightKey = (l: Loc) => `${l.location}|${l.day ?? ""}`;
   const nightKeptBy = new Map((nightsKept ?? []).map((l) => [nightKey(l), l]));
   const nightsBy = new Map<string, { day: string; row: Row }[]>();
   for (const l of nights ?? []) {
@@ -445,6 +459,12 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
         revenue and price per player shown for each currency. New locations are those in their first season with a
         captain registered, as on the Without new locations and New locations only tabs; existing locations are
         the rest.
+        {overridden && (
+          <>
+            {" "}These team goals are set in League Health rather than Player One&apos;s Goals tab:{" "}
+            {Object.entries(goalOverrides).map(([k, n]) => `${k.replace("|", " ")} ${n}`).join(", ")}.
+          </>
+        )}
       </p>
     </div>
   );
