@@ -11,6 +11,7 @@ export const TEAM_GOAL_OVERRIDES: Record<string, Record<string, number>> = {
   "Winter '27": {
     "Mississauga|Monday": 18,
     "Kitchener|Saturday": 12,
+    "Markham|Monday": 18,
     "Burlington|Friday": 8,
     "Burlington|Saturday": 16,
     "Burlington|Sunday": 16,
