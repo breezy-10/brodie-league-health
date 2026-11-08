@@ -2,6 +2,7 @@ import { locParam } from "@/lib/seasons";
 import { promoFetch } from "@/lib/promo-feed";
 import { BasisToggle } from "./BasisToggle";
 import { getLocationDistricts } from "@/lib/districts-locations";
+import { getNewLocationKeys, locationKey } from "@/lib/active-locations";
 import { LeaderboardRow } from "./LeaderboardRow";
 import { STICKY_TH_STYLE } from "./stickyTable";
 
@@ -17,7 +18,9 @@ import { STICKY_TH_STYLE } from "./stickyTable";
 // and the averages and shares worked out from the sums. By location, a venue
 // that plays more than one night opens into a row per night (the feed's
 // location_day breakdown; retention: past players is a venue figure, so nights
-// show a dash there).
+// show a dash there). All, existing or new locations: new ones are in their
+// first season with a captain, the same split as the Registrations page's
+// Without new locations and New locations only tabs.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
 type Season = {
@@ -103,26 +106,38 @@ const soldPct = (n: number, goal: number | null): number | null =>
 
 const money = (n: number, cur: string) => `$${Math.round(n).toLocaleString("en-US")} ${cur}`;
 
-export default async function RegLeaderboard({ season, locationNames, rankBy, groupBy }: {
-  season: string; locationNames: string[] | null; rankBy?: string; groupBy?: string;
+type Which = "all" | "existing" | "new";
+const WHICH: { value: Which; label: string }[] = [
+  { value: "all", label: "All locations" },
+  { value: "existing", label: "Existing locations only" },
+  { value: "new", label: "New locations only" },
+];
+
+export default async function RegLeaderboard({ season, locationNames, rankBy, groupBy, locs }: {
+  season: string; locationNames: string[] | null; rankBy?: string; groupBy?: string; locs?: string;
 }) {
   const rank: RankBy = (RANKS.find((r) => r.value === rankBy)?.value) ?? "teams";
   const byDistrict = groupBy === "district";
-  const [base, kept, back, districtMap, nights, nightsKept] = await Promise.all([
+  const which: Which = WHICH.find((w) => w.value === locs)?.value ?? "all";
+  const [base, kept, back, districtMap, nights, nightsKept, newKeys] = await Promise.all([
     loadLocations(season, locationNames),
     loadLocations(season, locationNames, "retention"),
     loadLocations(season, locationNames, "back"),
     byDistrict ? getLocationDistricts() : Promise.resolve(null),
     byDistrict ? Promise.resolve(null) : loadLocations(season, locationNames, undefined, "location_day"),
     byDistrict ? Promise.resolve(null) : loadLocations(season, locationNames, "retention", "location_day"),
+    which === "all" ? Promise.resolve(null) : getNewLocationKeys([season]),
   ]);
 
   const toggle = (
-    // Two rows: what to rank (locations or districts), then by what.
+    // Three rows: what to rank (locations or districts), which locations, then by what.
     <div className="space-y-2">
       <div>
         <BasisToggle param="group" value={byDistrict ? "district" : "location"}
           options={[{ value: "location", label: "By location" }, { value: "district", label: "By district" }]} />
+      </div>
+      <div>
+        <BasisToggle param="locs" value={which} options={WHICH} />
       </div>
       <div>
         <BasisToggle param="rank" value={rank} options={RANKS} />
@@ -173,8 +188,11 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
       pricePlayers: players,
     };
   };
+  // Existing or new only: when the feed can't say which are new, every location
+  // stays and a line says so.
+  const inSet = (name: string) => which === "all" || !newKeys || newKeys.has(locationKey(name)) === (which === "new");
   const locationRows: Row[] = base.map((l) => toRow(l, keptBy.get(l.location), backBy.get(l.location)))
-    .filter((r) => r.teams > 0 || r.athletes > 0 || r.back);
+    .filter((r) => (r.teams > 0 || r.athletes > 0 || r.back) && inSet(r.location));
 
   // Each venue's nights, in week order as the feed sends them; venues with two
   // or more get a dropdown, and a venue with one names its night.
@@ -344,6 +362,11 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   return (
     <div className="space-y-4">
       {toggle}
+      {which !== "all" && !newKeys && (
+        <p className="text-sm text-glass-text-tertiary">
+          Couldn&apos;t tell which locations are new for {season}, so this shows every location.
+        </p>
+      )}
       {byDistrict && !districtMap && (
         <p className="text-sm text-glass-text-tertiary">
           Couldn&apos;t load districts from the districts site, so this shows locations.
@@ -419,7 +442,9 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
         season&apos;s athletes there who had played Brodie before. Ties go to the location with the bigger base. By
         district adds each district&apos;s locations together, using the districts site&apos;s assignments, and works
         the averages and shares out from the totals. The total row adds up every row above it the same way, with
-        revenue and price per player shown for each currency.
+        revenue and price per player shown for each currency. New locations are those in their first season with a
+        captain registered, as on the Without new locations and New locations only tabs; existing locations are
+        the rest.
       </p>
     </div>
   );

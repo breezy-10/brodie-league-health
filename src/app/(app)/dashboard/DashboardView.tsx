@@ -3697,7 +3697,7 @@ export default async function DashboardView({
   // still its own page with its own title.
   showViewTabs = false,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; rank?: string; group?: string;
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; rank?: string; group?: string; locs?: string;
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string; refereeSeason?: string;
     tab?: string;
     }>;
@@ -3712,7 +3712,7 @@ export default async function DashboardView({
   // site visits, game day checklists or training).
   const isOm = mode === "om";
   const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
-    overdueSeason, regsSeason, promoSeason, bookingSeason, refereeSeason, tab: tabParam, rank: rankParam, group: groupParam } = await searchParams;
+    overdueSeason, regsSeason, promoSeason, bookingSeason, refereeSeason, tab: tabParam, rank: rankParam, group: groupParam, locs: locsParam } = await searchParams;
   // The Registrations page's second tab: who came back, rather than how many.
   const isRetention = isReg && tabParam === "retention";
   // Its third: of last season's players (and the last four seasons'), how
@@ -4489,7 +4489,7 @@ export default async function DashboardView({
           ...(isWeekly ? { weeks: activeWeeks } : {}),
         }}
         keep={isRetention ? { tab: "retention" } : isBack ? { tab: "back" } : isSplit ? { tab: isNewLocs ? "new" : "existing" }
-          : isLeaderboard ? { tab: "leaderboard", ...(rankParam ? { rank: rankParam } : {}), ...(groupParam ? { group: groupParam } : {}) } : undefined}
+          : isLeaderboard ? { tab: "leaderboard", ...(rankParam ? { rank: rankParam } : {}), ...(groupParam ? { group: groupParam } : {}), ...(locsParam ? { locs: locsParam } : {}) } : undefined}
       />
       {isReg && (
         <BasisToggle
@@ -4545,7 +4545,7 @@ export default async function DashboardView({
                 style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>{pacingSeason}</span>
             </div>
             <Suspense fallback={<TableSkeleton title="Leaderboard" />}>
-              <RegLeaderboard season={pacingSeason} locationNames={locationNames} rankBy={rankParam} groupBy={groupParam} />
+              <RegLeaderboard season={pacingSeason} locationNames={locationNames} rankBy={rankParam} groupBy={groupParam} locs={locsParam} />
             </Suspense>
           </section>
         ) : isSplit && (!newKeys || !locationNames?.length) ? null : isBack ? backView() : isRetention ? retentionView() : pacing && pacingCurrent ? (
