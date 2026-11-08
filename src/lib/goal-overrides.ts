@@ -3,7 +3,10 @@
 // feed names them. Set by Sohaib on 2026-11-08; Player One still has its own.
 // The leaderboard applies them to each day, and moves a location's goal (and
 // so its district's and the total) by the difference from Player One's.
-// Athlete goals are left as Player One has them.
+// A set day's athlete goal is ATHLETES_PER_TEAM_GOAL per team, the ratio
+// Player One's goals use.
+export const ATHLETES_PER_TEAM_GOAL = 9;
+
 export const TEAM_GOAL_OVERRIDES: Record<string, Record<string, number>> = {
   "Winter '27": {
     "Mississauga|Monday": 18,

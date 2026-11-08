@@ -3,7 +3,7 @@ import { promoFetch } from "@/lib/promo-feed";
 import { BasisToggle } from "./BasisToggle";
 import { getLocationDistricts } from "@/lib/districts-locations";
 import { getNewLocationKeys, locationKey } from "@/lib/active-locations";
-import { TEAM_GOAL_OVERRIDES } from "@/lib/goal-overrides";
+import { ATHLETES_PER_TEAM_GOAL, TEAM_GOAL_OVERRIDES } from "@/lib/goal-overrides";
 import { LeaderboardRow } from "./LeaderboardRow";
 import { STICKY_TH_STYLE } from "./stickyTable";
 
@@ -164,15 +164,22 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   const byName = (list: Loc[] | null) => new Map((list ?? []).map((l) => [l.location, l]));
   const keptBy = byName(kept), backBy = byName(back);
   const nightKey = (l: Loc) => `${l.location}|${l.day ?? ""}`;
-  // A day's goal is League Health's where it sets one. A location's is its
-  // days' goals, so it moves by each set day's difference from Player One's;
-  // without the days to compare against, it stays as Player One has it.
-  const playerOneDayGoal = new Map((nights ?? []).map((l) => [nightKey(l), current(l)?.team_goal ?? 0]));
-  const teamGoalOf = (l: Loc): number | null => {
-    const feed = current(l)?.team_goal ?? null;
-    if (l.day) return goalOverrides[nightKey(l)] ?? feed;
-    const set = Object.keys(goalOverrides).filter((k) => k.startsWith(`${l.location}|`) && playerOneDayGoal.has(k));
-    return set.length ? set.reduce((g, k) => g + goalOverrides[k] - playerOneDayGoal.get(k)!, feed ?? 0) : feed;
+  // A day's goals are League Health's where it sets them: the teams, and
+  // athletes at so many per team. A location's are its days' goals, so they
+  // move by each set day's difference from Player One's; without the days to
+  // compare against, they stay as Player One has them.
+  type Kind = "teams" | "athletes";
+  const playerOneGoal = (l: Loc | undefined, kind: Kind) =>
+    (kind === "teams" ? current(l)?.team_goal : current(l)?.athlete_goal) ?? null;
+  const setGoal = (k: string, kind: Kind) => goalOverrides[k] * (kind === "teams" ? 1 : ATHLETES_PER_TEAM_GOAL);
+  const nightByKey = new Map((nights ?? []).map((l) => [nightKey(l), l]));
+  const goalOf = (l: Loc, kind: Kind): number | null => {
+    const feed = playerOneGoal(l, kind);
+    if (l.day) return nightKey(l) in goalOverrides ? setGoal(nightKey(l), kind) : feed;
+    const set = Object.keys(goalOverrides).filter((k) => k.startsWith(`${l.location}|`) && nightByKey.has(k));
+    return set.length
+      ? set.reduce((g, k) => g + setGoal(k, kind) - (playerOneGoal(nightByKey.get(k), kind) ?? 0), feed ?? 0)
+      : feed;
   };
   const toRow = (l: Loc, keptLoc?: Loc, backLoc?: Loc): Row => {
     const c = current(l);
@@ -181,7 +188,7 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
     const rev = (indiv ? c?.revenue_indiv_native : c?.revenue_native) ?? 0;
     const k = current(keptLoc)?.kept;
     const b = current(backLoc)?.back;
-    const teamGoal = teamGoalOf(l), athleteGoal = c?.athlete_goal ?? null;
+    const teamGoal = goalOf(l, "teams"), athleteGoal = goalOf(l, "athletes");
     return {
       location: l.location,
       currency: (c?.currency ?? (l.country === "USA" ? "USD" : "CAD")).toUpperCase(),
@@ -461,7 +468,8 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
         the rest.
         {overridden && (
           <>
-            {" "}These team goals are set in League Health rather than Player One&apos;s Goals tab:{" "}
+            {" "}These team goals are set in League Health rather than Player One&apos;s Goals tab, with athlete
+            goals at {ATHLETES_PER_TEAM_GOAL} per team:{" "}
             {Object.entries(goalOverrides).map(([k, n]) => `${k.replace("|", " ")} ${n}`).join(", ")}.
           </>
         )}
