@@ -112,6 +112,28 @@ html, body {
   font-feature-settings: "tnum";
 }
 
+/* Frozen table headers and totals rows (components/FrozenTables.tsx moves
+   them). While moved, a cell sits above the rows it covers on a darker bar,
+   the dashboard's booking-table look; a sticky class or style on the cell
+   gives way to the move. Tinting toward the text colour darkens the bar in
+   light mode and lightens it in dark. */
+table[data-frozen-head] > thead > tr > *,
+table[data-frozen-foot] > tfoot > tr > * {
+  position: relative !important;
+  top: auto !important;
+  bottom: auto !important;
+  z-index: 5;
+  background: color-mix(in srgb, var(--glass-text) 9%, var(--glass-surface));
+}
+table[data-frozen-head] > thead > tr > * {
+  translate: 0 var(--freeze-head);
+  box-shadow: inset 0 -1px 0 var(--glass-border), 0 10px 14px -10px rgba(0, 0, 0, 0.55);
+}
+table[data-frozen-foot] > tfoot > tr > * {
+  translate: 0 var(--freeze-foot);
+  box-shadow: inset 0 1px 0 var(--glass-border), 0 -10px 14px -10px rgba(0, 0, 0, 0.55);
+}
+
 /* Focus ring: the kit's red ring. */
 :focus-visible {
   outline: 2px solid var(--red);

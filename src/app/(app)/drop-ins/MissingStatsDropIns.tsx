@@ -3,7 +3,7 @@ import { promoFetch } from "@/lib/promo-feed";
 import { type PlayersFilter, matchesPlayers } from "./players";
 import { dateKey, dayLabel, todayKey } from "./ScheduledDropIns";
 import { tzSuffix } from "@/lib/tz";
-import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
+import { STICKY_TH_STYLE, TH_CORNERS } from "../dashboard/stickyTable";
 
 // The Missing stats tab: drop-ins for games already played where the player
 // has no stat line, and what the game's stats show instead, so their stats
@@ -142,18 +142,18 @@ export default async function MissingStatsDropIns({
               </span>
             </h3>
             <div className="rounded-2xl bg-glass-surface shadow-card">
-              <div className={tableScrollBox(820)}>
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 820, tableLayout: "fixed" }}>
                   <colgroup>
                     {COLS.map((w, i) => <col key={i} style={{ width: w }} />)}
                   </colgroup>
                   <thead>
                     <tr className="text-xs font-bold text-glass-text-tertiary">
-                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Time</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Location</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Player</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Team</th>
-                      <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>What the stats show</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Time</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Location</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Player</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Team</th>
+                      <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>What the stats show</th>
                     </tr>
                   </thead>
                   <tbody>

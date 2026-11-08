@@ -3,6 +3,7 @@ import { promoFetch } from "@/lib/promo-feed";
 import { BasisToggle } from "./BasisToggle";
 import { getLocationDistricts } from "@/lib/districts-locations";
 import { LeaderboardRow } from "./LeaderboardRow";
+import { STICKY_TH_STYLE } from "./stickyTable";
 
 // Registrations > Leaderboard: every location ranked, greatest first, by the
 // measure picked: teams, athletes, how sold out each is against its goal
@@ -203,6 +204,32 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
     const n = list.reduce((a, x) => a + (x?.n ?? 0), 0), of = list.reduce((a, x) => a + (x?.of ?? 0), 0);
     return share(n, of);
   };
+  // Rows added together: counts and goals summed (no goal set anywhere = no
+  // goal), the averages and shares worked out from the sums. Revenue and price
+  // only mean something within one currency; the total row splits them.
+  const rollUp = (name: string, rs: Row[]): Row => {
+    const teams = rs.reduce((a, r) => a + r.teams, 0), athletes = rs.reduce((a, r) => a + r.athletes, 0);
+    const priceRev = rs.reduce((a, r) => a + r.priceRev, 0), pricePlayers = rs.reduce((a, r) => a + r.pricePlayers, 0);
+    const sumGoal = (pick: (r: Row) => number | null) =>
+      rs.some((r) => pick(r) != null) ? rs.reduce((a, r) => a + (pick(r) ?? 0), 0) : null;
+    const teamGoal = sumGoal((r) => r.teamGoal), athleteGoal = sumGoal((r) => r.athleteGoal);
+    const full = sumGoal((r) => r.full);
+    return {
+      location: name,
+      currency: rs[0]?.currency ?? "",
+      teams, full, athletes,
+      teamGoal, athleteGoal,
+      soldTeams: soldPct(teams, teamGoal),
+      soldFull: full != null ? soldPct(full, teamGoal) : null,
+      soldAthletes: soldPct(athletes, athleteGoal),
+      roster: teams ? athletes / teams : null,
+      revenue: rs.reduce((a, r) => a + r.revenue, 0),
+      price: pricePlayers ? priceRev / pricePlayers : null,
+      back: sumShare(rs.map((r) => r.back)),
+      kept: sumShare(rs.map((r) => r.kept)),
+      priceRev, pricePlayers,
+    };
+  };
   const districtRows = (): Row[] => {
     const groups = new Map<string, Row[]>();
     for (const d of districtMap?.districts ?? []) groups.set(d, []);
@@ -212,31 +239,7 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
     }
     return [...groups.entries()]
       .filter(([d, rs]) => d !== "No district" || rs.length)
-      .map(([d, rs]) => {
-        const teams = rs.reduce((a, r) => a + r.teams, 0), athletes = rs.reduce((a, r) => a + r.athletes, 0);
-        const priceRev = rs.reduce((a, r) => a + r.priceRev, 0), pricePlayers = rs.reduce((a, r) => a + r.pricePlayers, 0);
-        // A district's goal is its locations' goals added up; none set anywhere = no goal.
-        const sumGoal = (pick: (r: Row) => number | null) =>
-          rs.some((r) => pick(r) != null) ? rs.reduce((a, r) => a + (pick(r) ?? 0), 0) : null;
-        const teamGoal = sumGoal((r) => r.teamGoal), athleteGoal = sumGoal((r) => r.athleteGoal);
-        const full = rs.some((r) => r.full != null) ? rs.reduce((a, r) => a + (r.full ?? 0), 0) : null;
-        return {
-          location: d,
-          members: rs.map((r) => r.location).sort((a, b) => a.localeCompare(b)),
-          currency: rs[0]?.currency ?? "",
-          teams, full, athletes,
-          teamGoal, athleteGoal,
-          soldTeams: soldPct(teams, teamGoal),
-          soldFull: full != null ? soldPct(full, teamGoal) : null,
-          soldAthletes: soldPct(athletes, athleteGoal),
-          roster: teams ? athletes / teams : null,
-          revenue: rs.reduce((a, r) => a + r.revenue, 0),
-          price: pricePlayers ? priceRev / pricePlayers : null,
-          back: sumShare(rs.map((r) => r.back)),
-          kept: sumShare(rs.map((r) => r.kept)),
-          priceRev, pricePlayers,
-        };
-      });
+      .map(([d, rs]) => ({ ...rollUp(d, rs), members: rs.map((r) => r.location).sort((a, b) => a.localeCompare(b)) }));
   };
   const rows: Row[] = byDistrict && districtMap ? districtRows() : locationRows;
 
@@ -282,29 +285,54 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
     const gap = goal - n;
     return `${gap.toLocaleString()} ${gap === 1 ? unit : `${unit}s`} to go`;
   };
-  const cell = (k: RankBy | null, children: React.ReactNode, sub?: string) => (
+  // The total row's cells are all strong, the ranked column's as on any row.
+  const cell = (k: RankBy | null, children: React.ReactNode, sub?: string, strong = false) => (
     <td className="px-4 py-2.5 text-right tabular whitespace-nowrap align-top"
-      style={{ color: k && active(k) ? "var(--glass-text)" : "var(--glass-text-secondary)", fontWeight: k && active(k) ? 700 : 500 }}>
+      style={{ color: strong || (k && active(k)) ? "var(--glass-text)" : "var(--glass-text-secondary)", fontWeight: k && active(k) ? 700 : strong ? 600 : 500 }}>
       <div>{children}</div>
       {sub && <div className="text-[11px] font-normal text-glass-text-tertiary">{sub}</div>}
     </td>
   );
-  const cells = (r: Row) => (
-    <>
-      {cell("teams", ofGoal(r.teams, r.teamGoal))}
-      {cell("soldTeams", r.soldTeams == null ? "—" : `${r.soldTeams}%`, left(r.teams, r.teamGoal, "team"))}
-      {cell(null, r.full == null ? "—" : `${r.full.toLocaleString()} / ${r.teams.toLocaleString()}`,
-        r.full != null && r.teams ? `${Math.round((1000 * r.full) / r.teams) / 10}% of teams` : undefined)}
-      {cell("soldFull", r.soldFull == null ? "—" : `${r.soldFull}%`, r.full == null ? undefined : left(r.full, r.teamGoal, "team"))}
-      {cell("athletes", ofGoal(r.athletes, r.athleteGoal))}
-      {cell("soldAthletes", r.soldAthletes == null ? "—" : `${r.soldAthletes}%`, left(r.athletes, r.athleteGoal, "athlete"))}
-      {cell("roster", r.roster == null ? "—" : r.roster.toFixed(1))}
-      {cell("revenue", money(r.revenue, r.currency))}
-      {cell("price", r.price == null ? "—" : money(r.price, r.currency))}
-      {cell("back", r.back ? `${r.back.pct}%` : "—", r.back ? `${r.back.n} of ${r.back.of}` : undefined)}
-      {cell("kept", r.kept ? `${r.kept.pct}%` : "—", r.kept ? `${r.kept.n} of ${r.kept.of}` : undefined)}
-    </>
-  );
+  // byCurrency (the total row): the same rows rolled up per currency, so
+  // revenue and price show a line for each instead of adding CAD to USD.
+  const cells = (r: Row, byCurrency?: Row[]) => {
+    const strong = !!byCurrency;
+    const perCurrency = (f: (x: Row) => string) =>
+      byCurrency && byCurrency.length > 1 ? byCurrency.map((x) => <div key={x.currency}>{f(x)}</div>) : f(r);
+    return (
+      <>
+        {cell("teams", ofGoal(r.teams, r.teamGoal), undefined, strong)}
+        {cell("soldTeams", r.soldTeams == null ? "—" : `${r.soldTeams}%`, left(r.teams, r.teamGoal, "team"), strong)}
+        {cell(null, r.full == null ? "—" : `${r.full.toLocaleString()} / ${r.teams.toLocaleString()}`,
+          r.full != null && r.teams ? `${Math.round((1000 * r.full) / r.teams) / 10}% of teams` : undefined, strong)}
+        {cell("soldFull", r.soldFull == null ? "—" : `${r.soldFull}%`, r.full == null ? undefined : left(r.full, r.teamGoal, "team"), strong)}
+        {cell("athletes", ofGoal(r.athletes, r.athleteGoal), undefined, strong)}
+        {cell("soldAthletes", r.soldAthletes == null ? "—" : `${r.soldAthletes}%`, left(r.athletes, r.athleteGoal, "athlete"), strong)}
+        {cell("roster", r.roster == null ? "—" : r.roster.toFixed(1), undefined, strong)}
+        {cell("revenue", perCurrency((x) => money(x.revenue, x.currency)), undefined, strong)}
+        {cell("price", perCurrency((x) => (x.price == null ? "—" : money(x.price, x.currency))), undefined, strong)}
+        {cell("back", r.back ? `${r.back.pct}%` : "—", r.back ? `${r.back.n.toLocaleString()} of ${r.back.of.toLocaleString()}` : undefined, strong)}
+        {cell("kept", r.kept ? `${r.kept.pct}%` : "—", r.kept ? `${r.kept.n.toLocaleString()} of ${r.kept.of.toLocaleString()}` : undefined, strong)}
+      </>
+    );
+  };
+  // Every row of a group added together, under it.
+  const totalRow = (list: Row[]) => {
+    const total = rollUp("Total", list);
+    const currencies = [...new Set(list.map((r) => r.currency))].sort();
+    const byCurrency = currencies.map((cur) => rollUp(cur, list.filter((r) => r.currency === cur)));
+    const unit = byDistrict && districtMap ? "district" : "location";
+    return (
+      <tr style={{ borderTop: "1px solid var(--glass-border)", background: STICKY_TH_STYLE.background }}>
+        <td />
+        <td className="px-4 py-2.5 align-top">
+          <div className="font-semibold" style={{ color: "var(--glass-text)" }}>Total</div>
+          <div className="text-[11px] text-glass-text-tertiary">{list.length} {list.length === 1 ? unit : `${unit}s`}</div>
+        </td>
+        {cells(total, byCurrency)}
+      </tr>
+    );
+  };
   const nightRows = (list: { day: string; row: Row }[]) => list.map(({ day, row }) => (
     <tr key={day} style={{ borderTop: "1px solid var(--glass-border)", background: "var(--glass-surface-hover)" }}>
       <td />
@@ -369,6 +397,7 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
                     );
                   })}
                 </tbody>
+                <tfoot>{totalRow(g.rows)}</tfoot>
               </table>
             </div>
           </div>
@@ -389,7 +418,8 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
         season&apos;s athletes at the location who registered there again; retention: registered is the share of this
         season&apos;s athletes there who had played Brodie before. Ties go to the location with the bigger base. By
         district adds each district&apos;s locations together, using the districts site&apos;s assignments, and works
-        the averages and shares out from the totals.
+        the averages and shares out from the totals. The total row adds up every row above it the same way, with
+        revenue and price per player shown for each currency.
       </p>
     </div>
   );
