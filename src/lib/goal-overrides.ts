@@ -16,6 +16,7 @@ export const TEAM_GOAL_OVERRIDES: Record<string, Record<string, number>> = {
     "Burlington|Saturday": 12,
     "Burlington|Sunday": 12,
     "Toronto (Downtown)|Sunday": 42,
+    "Brooklyn (Greenpoint)|Tuesday": 8,
     "New Jersey (Mountainside)|Thursday": 8,
     "Chicago (Pullman)|Saturday": 12,
     "Calgary (Central)|Thursday": 8,
