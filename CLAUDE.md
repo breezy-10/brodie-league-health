@@ -161,6 +161,17 @@ are built the same way.
   box that scrolls on its own (`overflow` with a `max-height`, like the
   Ambassadors table): it sticks to that box, so it uses `top-0`. The kit's sidebar and header sit at
   z-index 900-1000; overlays use `z-[10070]` on `var(--scrim-strong)`.
+- **Every table freezes its header** (Sohaib, 2026-11-08, for all tables,
+  new ones included). `components/FrozenTables.tsx`, mounted once in
+  AppShell, keeps each table's `<thead>` under the kit's header and its
+  `<tfoot>` (a totals row) at the bottom of the window while the page
+  scrolls, at every width, inside a sideways `overflow-x-auto` box too
+  (where CSS sticky gets trapped). A new table gets it by being a real
+  table: header cells in `<thead>`, totals in `<tfoot>`, a wide one in an
+  `overflow-x-auto` box. Don't add sticky classes or width tiers for it.
+  `data-freeze="off"` opts a table out; a table under a pinned title bar of
+  its own gives the bar's height in `data-freeze-offset` (the Discounts
+  leaderboard). The frozen look is in globals.css.
 
 ## Deploys and checks
 

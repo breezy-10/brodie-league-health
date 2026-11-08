@@ -30,16 +30,10 @@ const GOLD = "var(--glass-gold)";
 const COUNTRY: Record<string, string> = { CAD: "Canada", USD: "United States" };
 
 // The page scrolls the window. Each card's title row sticks under the kit's
-// header; the column headers stick under the title row and the totals row to
-// the bottom of the window, but only on screens wide enough that the table
-// doesn't scroll sideways (a sideways box would trap them; see stickyTable.ts).
-// The title row is a fixed height so the headers know where to sit.
+// header; FrozenTables keeps the column headers under the title row and the
+// totals row at the bottom of the window, at every width. The title row is a
+// fixed height so the headers know where to sit (data-freeze-offset).
 const BAR_H = 46;
-// The table needs 1360px, which the content column has from a 1720px window
-// (less the sidebar and padding), the widest tier in stickyTable.ts.
-const BOX = "overflow-x-auto min-[1720px]:overflow-visible";
-const STICK_TH = "min-[1720px]:sticky min-[1720px]:top-[calc(var(--shell-top)_+_46px)] z-[4]";
-const STICK_FOOT = "min-[1720px]:sticky min-[1720px]:bottom-0 z-[4]";
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const pct = (n: number, of: number, digits = 0) => (of ? `${((100 * n) / of).toFixed(digits)}%` : "—");
 
@@ -106,8 +100,9 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
                 {money(totalGiven)} {cur} given up · {pct(totalGiven, totalList, 1)} of {money(totalList)} list price
               </span>
             </div>
-            <div className={`${BOX} rounded-b-2xl`}>
-              <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 1360, tableLayout: "fixed" }}>
+            <div className="overflow-x-auto rounded-b-2xl">
+              <table className="w-full text-sm" data-freeze-offset={BAR_H}
+                style={{ borderCollapse: "collapse", minWidth: 1360, tableLayout: "fixed" }}>
                 <colgroup>
                   {COLS.map(([k, w]) => <col key={k} style={{ width: `${w}%` }} />)}
                 </colgroup>
@@ -191,20 +186,20 @@ export default function DiscountLeaderboard({ rows, sort, kind, freeOnly, linkFo
 // Sticky header cell; the column the board is sorted by reads bright with an arrow.
 function Th({ children, align = "right", on = false, tight = false }: { children: React.ReactNode; align?: "left" | "right"; on?: boolean; tight?: boolean }) {
   return (
-    <th className={`${tight ? "px-2.5" : "px-4"} py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold whitespace-nowrap ${STICK_TH}`}
+    <th className={`${tight ? "px-2.5" : "px-4"} py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold whitespace-nowrap`}
       style={{ ...STICKY_TH_STYLE, color: on ? "var(--glass-text)" : undefined }}>
       {children}{on ? " ↓" : ""}
     </th>
   );
 }
 
-// A cell of the totals row: sticky at the bottom of the window, with the
+// A cell of the totals row, held at the bottom of the window, with the
 // dollars given up under a count where there are any.
 function Foot({ children, align = "right", sub, gold = false, tight = false }: {
   children?: React.ReactNode; align?: "left" | "right"; sub?: number; gold?: boolean; tight?: boolean;
 }) {
   return (
-    <td className={`${tight ? "px-2.5" : "px-4"} py-2.5 ${align === "left" ? "text-left" : "text-right"} tabular whitespace-nowrap align-middle ${STICK_FOOT} first:rounded-bl-2xl last:rounded-br-2xl`}
+    <td className={`${tight ? "px-2.5" : "px-4"} py-2.5 ${align === "left" ? "text-left" : "text-right"} tabular whitespace-nowrap align-middle first:rounded-bl-2xl last:rounded-br-2xl`}
       style={{ ...STICKY_TH_STYLE, boxShadow: "inset 0 1px 0 var(--glass-border), 0 -10px 14px -10px rgba(0,0,0,0.55)", color: gold ? GOLD : "var(--glass-text)" }}>
       <div>{children}</div>
       {sub !== undefined && sub > 0.004 && (

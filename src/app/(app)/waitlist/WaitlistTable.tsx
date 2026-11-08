@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
-import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
+import { STICKY_TH_STYLE, TH_CORNERS } from "../dashboard/stickyTable";
 import { money, pct } from "./waitlist-format";
 
 export type WaitlistRow = {
@@ -74,7 +74,7 @@ export default function WaitlistTable({ markets, people, totals }: {
           {allOpen ? "Collapse all" : "Expand all"}
         </button>
       </div>
-      <div className={tableScrollBox(MIN_WIDTH)}>
+      <div className="overflow-x-auto">
         <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: MIN_WIDTH }}>
           <thead>
             <tr className="text-xs font-bold text-glass-text-tertiary">
@@ -199,7 +199,7 @@ export default function WaitlistTable({ markets, people, totals }: {
 
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${stickyTh(MIN_WIDTH)}`} style={STICKY_TH_STYLE}>
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>
       {children}
     </th>
   );

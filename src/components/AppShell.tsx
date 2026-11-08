@@ -29,6 +29,7 @@ import {
   UserCog,
   type LucideIcon,
 } from "lucide-react";
+import FrozenTables from "@/components/FrozenTables";
 import NavProgress from "@/components/NavProgress";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { createClient } from "@/lib/supabase/client";
@@ -442,6 +443,7 @@ export default function AppShell({
           </div>
         </header>
         <main className="br-page">{children}</main>
+        <FrozenTables />
       </div>
 
       <TabBar items={tabItems} user={user} youOpen={menu === "phone"} onYou={() => setMenu((m) => (m === "phone" ? null : "phone"))} />

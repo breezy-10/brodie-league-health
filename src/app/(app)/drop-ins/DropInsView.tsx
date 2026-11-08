@@ -11,7 +11,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { type PlayersFilter, playersFilter } from "./players";
 import { SectionSkeleton } from "../dashboard/Skeletons";
-import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
+import { STICKY_TH_STYLE, TH_CORNERS } from "../dashboard/stickyTable";
 
 // Drop-ins: players who came for a single game rather than a season. A drop-in
 // is free for a brand-new player (the First-Time Free code) and $50 for a
@@ -607,7 +607,7 @@ async function DropInSummary({ season, locationNames, when, players }: {
         )}
 
         <div className="rounded-2xl bg-glass-surface shadow-card">
-          <div className={tableScrollBox(past ? 1560 : 1440)}>
+          <div className="overflow-x-auto">
             <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: past ? 1560 : 1440 }}>
               <thead>
                 <tr className="text-xs font-bold text-glass-text-tertiary">
@@ -835,7 +835,7 @@ function SubHead({ title, note }: { title: string; note: string }) {
 
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${stickyTh(1200)}`} style={STICKY_TH_STYLE}>
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>
       {children}
     </th>
   );

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { tzSuffix } from "@/lib/tz";
-import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
+import { STICKY_TH_STYLE, TH_CORNERS } from "../dashboard/stickyTable";
 import { CheckinNote, pct } from "./events-ui";
 import type { EventRow } from "./EventsView";
 
@@ -81,10 +81,7 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
           {allOpen ? "Collapse all" : "Expand all"}
         </button>
       </div>
-      {/* The header sticks to the window, which an overflow box would
-          trap, so the table only scrolls sideways where it can't fit
-          (below xl). */}
-      <div className={tableScrollBox(860)}>
+      <div className="overflow-x-auto">
         <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 860, tableLayout: "fixed" }}>
           <colgroup>
             {cols.map(([k, w]) => <col key={k} style={{ width: `${((100 * w) / totalWeight).toFixed(2)}%` }} />)}
@@ -275,7 +272,7 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
 
 function Th({ children, align = "right" }: { children: React.ReactNode; align?: "left" | "right" }) {
   return (
-    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${stickyTh(860)}`} style={STICKY_TH_STYLE}>
+    <th className={`px-4 py-2.5 ${align === "left" ? "text-left" : "text-right"} font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>
       {children}
     </th>
   );

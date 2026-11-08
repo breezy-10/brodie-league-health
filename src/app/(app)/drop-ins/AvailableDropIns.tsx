@@ -3,7 +3,7 @@ import { promoFetch } from "@/lib/promo-feed";
 import { dateKey, dayLabel, todayKey } from "./ScheduledDropIns";
 import { tzSuffix } from "@/lib/tz";
 import { BasisToggle } from "../dashboard/BasisToggle";
-import { STICKY_TH_STYLE, stickyTh, tableScrollBox } from "../dashboard/stickyTable";
+import { STICKY_TH_STYLE, TH_CORNERS } from "../dashboard/stickyTable";
 
 // The Available tab: every upcoming game a drop-in program offers spots on,
 // with the team that takes the drop-in, its division and how many spots are
@@ -160,7 +160,7 @@ export default async function AvailableDropIns({
                 </span>
               </h3>
               <div className="rounded-2xl bg-glass-surface shadow-card">
-                <div className={tableScrollBox(820)}>
+                <div className="overflow-x-auto">
                   <table className="w-full text-sm" style={{ borderCollapse: "collapse", minWidth: 820, tableLayout: "fixed" }}>
                     <colgroup>
                       {COLS.map((w, i) => <col key={i} style={{ width: w }} />)}
@@ -169,20 +169,20 @@ export default async function AvailableDropIns({
                       <tr className="text-xs font-bold text-glass-text-tertiary">
                         {byLocation ? (
                           <>
-                            <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Date</th>
-                            <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Time</th>
+                            <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Date</th>
+                            <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Time</th>
                           </>
                         ) : (
                           <>
-                            <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Time</th>
-                            <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Location</th>
+                            <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Time</th>
+                            <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Location</th>
                           </>
                         )}
-                        <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Team</th>
-                        <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Division</th>
-                        <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Opponent</th>
-                        <th className={`px-4 py-2.5 text-right font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Booked</th>
-                        <th className={`px-4 py-2.5 text-left font-bold ${stickyTh(820)}`} style={STICKY_TH_STYLE}>Spots</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Team</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Division</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Opponent</th>
+                        <th className={`px-4 py-2.5 text-right font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Booked</th>
+                        <th className={`px-4 py-2.5 text-left font-bold ${TH_CORNERS}`} style={STICKY_TH_STYLE}>Spots</th>
                       </tr>
                     </thead>
                     <tbody>
