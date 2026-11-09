@@ -24,6 +24,7 @@ import { eventOutcomeTiles, loadEvents } from "../events/EventsView";
 import { checkInTotals, loadCheckIns, pct as checkInPct, shareStyle as checkInShareStyle } from "../check-ins/CheckInsView";
 import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
+import RegHistory from "./RegHistory";
 import { BackToTopButton, ScrollUpButton } from "./ScrollUpButton";
 import { SectionJumpBar } from "./SectionJumpBar";
 import { VenueDays, VenueDaysButton } from "./VenueDays";
@@ -3697,7 +3698,7 @@ export default async function DashboardView({
   // still its own page with its own title.
   showViewTabs = false,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; rank?: string; group?: string; locs?: string;
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; rank?: string; group?: string; locs?: string; hist?: string;
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string; refereeSeason?: string;
     tab?: string;
     }>;
@@ -3712,7 +3713,7 @@ export default async function DashboardView({
   // site visits, game day checklists or training).
   const isOm = mode === "om";
   const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
-    overdueSeason, regsSeason, promoSeason, bookingSeason, refereeSeason, tab: tabParam, rank: rankParam, group: groupParam, locs: locsParam } = await searchParams;
+    overdueSeason, regsSeason, promoSeason, bookingSeason, refereeSeason, tab: tabParam, rank: rankParam, group: groupParam, locs: locsParam, hist: histParam } = await searchParams;
   // The Registrations page's second tab: who came back, rather than how many.
   const isRetention = isReg && tabParam === "retention";
   // Its third: of last season's players (and the last four seasons'), how
@@ -3720,6 +3721,8 @@ export default async function DashboardView({
   const isBack = isReg && tabParam === "back";
   // And the last: every location ranked by the measure picked.
   const isLeaderboard = isReg && tabParam === "leaderboard";
+  // And every season side by side, final or at the same day of registration.
+  const isHistory = isReg && tabParam === "history";
   // The registrations again, split by whether the location is new this season
   // (its first season with a captain): without the new ones, so a season reads
   // against the last like for like, and the new ones on their own.
@@ -3820,7 +3823,7 @@ export default async function DashboardView({
   // The venue cards' days, for a venue that plays more than one: only where
   // venue cards show (not one venue's own days, the leaderboard, or the two
   // retention tabs).
-  const wantVenueDays = locationNames?.length !== 1 && !isLeaderboard && !isBack && !isRetention;
+  const wantVenueDays = locationNames?.length !== 1 && !isLeaderboard && !isHistory && !isBack && !isRetention;
   const [ckCurrent, ckNext, promoTiles, pacing, deadlines, locDiscounts, venueDayPacing, venueDayDiscounts, seasonDayPacing] = await Promise.all([
     isReg ? Promise.resolve(null) : isOm ? loadOpsChecklistTiles(selectedSeason) : loadChecklistTiles(selectedSeason, scope, promoLocations),
     isReg ? Promise.resolve(null) : isOm ? loadOpsChecklistTiles(regSeason) : loadChecklistTiles(regSeason, scope, promoLocations),
@@ -4489,12 +4492,13 @@ export default async function DashboardView({
           ...(isWeekly ? { weeks: activeWeeks } : {}),
         }}
         keep={isRetention ? { tab: "retention" } : isBack ? { tab: "back" } : isSplit ? { tab: isNewLocs ? "new" : "existing" }
-          : isLeaderboard ? { tab: "leaderboard", ...(rankParam ? { rank: rankParam } : {}), ...(groupParam ? { group: groupParam } : {}), ...(locsParam ? { locs: locsParam } : {}) } : undefined}
+          : isLeaderboard ? { tab: "leaderboard", ...(rankParam ? { rank: rankParam } : {}), ...(groupParam ? { group: groupParam } : {}), ...(locsParam ? { locs: locsParam } : {}) }
+          : isHistory ? { tab: "history", ...(histParam ? { hist: histParam } : {}) } : undefined}
       />
       {isReg && (
         <BasisToggle
           param="tab"
-          value={isLeaderboard ? "leaderboard" : isBack ? "back" : isRetention ? "retention" : isExisting ? "existing" : isNewLocs ? "new" : "registrations"}
+          value={isHistory ? "history" : isLeaderboard ? "leaderboard" : isBack ? "back" : isRetention ? "retention" : isExisting ? "existing" : isNewLocs ? "new" : "registrations"}
           options={[
             { value: "registrations", label: "Registrations" },
             // Every location that ran before this season, like for like.
@@ -4507,6 +4511,8 @@ export default async function DashboardView({
             { value: "back", label: "Retention: past players" },
             // Every location ranked.
             { value: "leaderboard", label: "Leaderboard" },
+            // Every season, oldest first.
+            { value: "history", label: "Historical teams" },
           ]}
         />
       )}
@@ -4537,7 +4543,18 @@ export default async function DashboardView({
                     : `No location in this scope is new in ${selectedSeason}.`)}
           </p>
         )}
-        {isLeaderboard ? (
+        {isHistory ? (
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Historical teams</h2>
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
+                style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>to {pacingSeason}</span>
+            </div>
+            <Suspense fallback={<SectionSkeleton title="Historical teams" />}>
+              <RegHistory season={pacingSeason} locationNames={locationNames} basis={histParam} />
+            </Suspense>
+          </section>
+        ) : isLeaderboard ? (
           <section className="space-y-3">
             <div className="flex flex-wrap items-center gap-2.5">
               <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Leaderboard</h2>
