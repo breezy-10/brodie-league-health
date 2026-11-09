@@ -66,11 +66,14 @@ function yearBefore(season: string): string | null {
   const m = season.match(/^(\S+) '(\d{2})$/);
   return m ? `${m[1]} '${String(Number(m[2]) - 1).padStart(2, "0")}` : null;
 }
-// Change as a share of the season compared with, one decimal and signed.
+// Change against the season compared with: the count, then as a share of
+// that season, one decimal, both signed: "+210 (+48.4%)".
 function change(value: number, against: number | undefined): string {
   if (!against) return "–";
-  const d = (100 * (value - against)) / against;
-  return `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d).toFixed(1)}%`;
+  const sign = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "");
+  const n = value - against;
+  const d = (100 * n) / against;
+  return `${sign(n)}${Math.abs(n).toLocaleString()} (${sign(d)}${Math.abs(d).toFixed(1)}%)`;
 }
 // Locations in this season that the season compared with didn't have.
 function newLocations(locs: string[] | null, against: string[] | null | undefined): string {
