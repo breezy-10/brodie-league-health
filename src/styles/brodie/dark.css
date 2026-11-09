@@ -86,9 +86,9 @@
   --viz-prev: #8e8e93;
   --viz-prev-2: #48484a;
   --viz-winter: #3987e5;
-  --viz-spring: #c98500;
-  --viz-summer: #199e70;
-  --viz-fall: #d95926;
+  --viz-spring: #199e70;
+  --viz-summer: #c98500;
+  --viz-fall: #CE152D;
 }
 
 /* The shell: the Lab's dark sidebar, header and menus. */

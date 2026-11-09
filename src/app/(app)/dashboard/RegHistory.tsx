@@ -46,8 +46,9 @@ const BASES: { value: Basis; label: string }[] = [
   { value: "todate", label: "To date" },
 ];
 
-// Bars are coloured by term, so every summer reads alike and so on; the legend
-// names them and every bar carries its season under it.
+// Bars are coloured by term in Brodie's seasonal colours (winter blue, spring
+// green, summer yellow, fall red), so every summer reads alike and so on; the
+// legend names them and every bar carries its season under it.
 const TERM_COLORS: { term: string; color: string }[] = [
   { term: "Winter", color: "var(--viz-winter)" },
   { term: "Spring", color: "var(--viz-spring)" },
