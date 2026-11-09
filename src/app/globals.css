@@ -84,14 +84,16 @@
   --viz-now: var(--red);
   --viz-prev: #8e8e93;
   --viz-prev-2: #c7c7cc;
-  /* A season's term, where seasons are told apart by term (Registrations >
-     Historical teams). Validated as a cycle, each term against the two beside
-     it, light here and dark in dark.css; Spring and Fall never touch, so
-     their yellow and orange don't have to separate. */
+  /* A season's term, in Brodie's seasonal colours: winter blue, spring
+     green, summer yellow, fall Brodie red (Registrations > Historical teams).
+     Validated as a cycle, each term against the two beside it, light here
+     and dark in dark.css. Fall keeps the light red in dark mode: the dark
+     theme's brighter red is lost beside summer's yellow to red-green colour
+     blindness. */
   --viz-winter: #2a78d6;
-  --viz-spring: #eda100;
-  --viz-summer: #1baf7a;
-  --viz-fall: #eb6834;
+  --viz-spring: #1baf7a;
+  --viz-summer: #eda100;
+  --viz-fall: #CE152D;
 
   /* Status text on a tint (Brodie's shared names for them). */
   --glass-danger-text: var(--red);
