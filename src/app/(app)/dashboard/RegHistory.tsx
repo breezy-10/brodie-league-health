@@ -67,13 +67,17 @@ function yearBefore(season: string): string | null {
   return m ? `${m[1]} '${String(Number(m[2]) - 1).padStart(2, "0")}` : null;
 }
 // Change against the season compared with: the count, then as a share of
-// that season, one decimal, both signed: "+210 (+48.4%)".
-function change(value: number, against: number | undefined): string {
-  if (!against) return "–";
+// that season, one decimal, both signed: "+210 (+48.4%)". Up is green and down
+// red (the status colours, which brighten in dark mode); no change stays ink.
+function change(value: number, against: number | undefined): { text: string; color?: string } {
+  if (!against) return { text: "–" };
   const sign = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "");
   const n = value - against;
   const d = (100 * n) / against;
-  return `${sign(n)}${Math.abs(n).toLocaleString()} (${sign(d)}${Math.abs(d).toFixed(1)}%)`;
+  return {
+    text: `${sign(n)}${Math.abs(n).toLocaleString()} (${sign(d)}${Math.abs(d).toFixed(1)}%)`,
+    color: n > 0 ? "var(--glass-success-text)" : n < 0 ? "var(--glass-danger-text)" : undefined,
+  };
 }
 // Locations in this season that the season compared with didn't have.
 function newLocations(locs: string[] | null, against: string[] | null | undefined): string {
@@ -88,11 +92,11 @@ const TRACK_PX = 150;
 // Wide enough for "Summer '26" under its bar; narrower screens scroll the chart.
 const COL_PX = 64;
 
-function TipRow({ label, value }: { label: string; value: string }) {
+function TipRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 whitespace-nowrap">
       <span>{label}</span>
-      <span className="tabular font-semibold" style={{ color: "var(--ink)" }}>{value}</span>
+      <span className="tabular font-semibold" style={{ color: color ?? "var(--ink)" }}>{value}</span>
     </div>
   );
 }
@@ -135,6 +139,7 @@ function HistoryChart({ title, noun, subtitle, season, bars }: {
                 const prev = i > 0 ? bars[i - 1] : undefined;
                 const lastYearName = yearBefore(b.season);
                 const lastYear = bars.find((x) => x.season === lastYearName);
+                const vsPrev = change(b.value, prev?.value), vsYear = change(b.value, lastYear?.value);
                 return (
                   <div key={b.season} tabIndex={0} aria-label={`${b.season}: ${b.value.toLocaleString()} ${noun}`}
                     className="group relative flex-1 flex flex-col items-center justify-end outline-none">
@@ -147,8 +152,8 @@ function HistoryChart({ title, noun, subtitle, season, bars }: {
                       className={`br-chart-tip hidden group-hover:block group-focus-visible:block top-0 z-10 ${i >= bars.length - 3 ? "right-full mr-1" : "left-full ml-1"}`}>
                       <b>{b.season}</b>
                       <TipRow label={noun[0].toUpperCase() + noun.slice(1)} value={b.value.toLocaleString()} />
-                      <TipRow label={`vs ${prev?.season ?? "season before"}`} value={change(b.value, prev?.value)} />
-                      <TipRow label={`vs ${lastYearName ?? "a year earlier"}`} value={change(b.value, lastYear?.value)} />
+                      <TipRow label={`vs ${prev?.season ?? "season before"}`} value={vsPrev.text} color={vsPrev.color} />
+                      <TipRow label={`vs ${lastYearName ?? "a year earlier"}`} value={vsYear.text} color={vsYear.color} />
                       <div className="my-1.5" style={{ borderTop: "1px solid var(--divider)" }} />
                       <TipRow label="Locations" value={b.locations ? b.locations.length.toLocaleString() : "–"} />
                       <TipRow label={`New vs ${prev?.season ?? "season before"}`} value={prev ? newLocations(b.locations, prev.locations) : "–"} />
