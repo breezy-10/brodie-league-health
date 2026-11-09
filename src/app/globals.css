@@ -84,6 +84,14 @@
   --viz-now: var(--red);
   --viz-prev: #8e8e93;
   --viz-prev-2: #c7c7cc;
+  /* A season's term, where seasons are told apart by term (Registrations >
+     Historical teams). Validated as a cycle, each term against the two beside
+     it, light here and dark in dark.css; Spring and Fall never touch, so
+     their yellow and orange don't have to separate. */
+  --viz-winter: #2a78d6;
+  --viz-spring: #eda100;
+  --viz-summer: #1baf7a;
+  --viz-fall: #eb6834;
 
   /* Status text on a tint (Brodie's shared names for them). */
   --glass-danger-text: var(--red);
