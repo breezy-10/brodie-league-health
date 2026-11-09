@@ -46,6 +46,17 @@ const BASES: { value: Basis; label: string }[] = [
   { value: "todate", label: "To date" },
 ];
 
+// Bars are coloured by term, so every summer reads alike and so on; the legend
+// names them and every bar carries its season under it.
+const TERM_COLORS: { term: string; color: string }[] = [
+  { term: "Winter", color: "var(--viz-winter)" },
+  { term: "Spring", color: "var(--viz-spring)" },
+  { term: "Summer", color: "var(--viz-summer)" },
+  { term: "Fall", color: "var(--viz-fall)" },
+];
+const termColor = (season: string) =>
+  TERM_COLORS.find((t) => season.toLowerCase().startsWith(t.term.toLowerCase()))?.color ?? "var(--viz-prev)";
+
 const TRACK_PX = 150;
 // Wide enough for "Summer '26" under its bar; narrower screens scroll the chart.
 const COL_PX = 64;
@@ -82,17 +93,18 @@ function HistoryChart({ title, subtitle, season, bars }: {
               {bars.map((b) => (
                 <div key={b.season} className="flex-1 flex flex-col items-center justify-end" title={`${b.season}: ${b.value.toLocaleString()}`}>
                   <span className="text-[11px] font-semibold tabular mb-1" style={{ color: "var(--glass-text)" }}>{b.value.toLocaleString()}</span>
-                  <div className="w-full rounded-t-md" style={{
+                  <div className="w-full rounded-t" style={{
                     height: Math.max(Math.round((b.value / max) * TRACK_PX), 4),
-                    // The season picked in Brodie red, the rest grey (the kit's chart rule).
-                    background: b.season === season ? "var(--viz-now)" : "var(--viz-prev)",
+                    background: termColor(b.season),
                   }} />
                 </div>
               ))}
             </div>
             <div className="flex gap-2 mt-2">
               {bars.map((b) => (
-                <span key={b.season} className="flex-1 text-center text-[11px] font-semibold text-glass-text-secondary whitespace-nowrap">
+                // The season picked stands out by its label, its colour being its term's.
+                <span key={b.season} className={`flex-1 text-center text-[11px] whitespace-nowrap ${b.season === season ? "font-bold" : "font-semibold text-glass-text-secondary"}`}
+                  style={b.season === season ? { color: "var(--glass-text)" } : undefined}>
                   {b.season}
                 </span>
               ))}
@@ -101,6 +113,19 @@ function HistoryChart({ title, subtitle, season, bars }: {
         </div>
       )}
     </section>
+  );
+}
+
+function TermLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-glass-text-secondary">
+      {TERM_COLORS.map((t) => (
+        <span key={t.term} className="inline-flex items-center gap-1.5">
+          <span aria-hidden className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: t.color }} />
+          {t.term}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -133,7 +158,10 @@ export default async function RegHistory({ season, locationNames, basis }: {
 
   return (
     <div className="space-y-4">
-      <div>{toggle}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {toggle}
+        <TermLegend />
+      </div>
       {toDate && feed.to_date_from && (
         <p className="text-sm text-glass-text-secondary max-w-[90ch]">
           Starts at {feed.to_date_from}: seasons before it were moved onto the platform in bulk, so their records
@@ -143,7 +171,7 @@ export default async function RegHistory({ season, locationNames, basis }: {
       <HistoryChart title="Teams" subtitle={subtitle("Teams")} season={season} bars={pick("teams")} />
       <HistoryChart title="Athletes" subtitle={subtitle("Athletes")} season={season} bars={pick("athletes")} />
       <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
-        Oldest season on the left, {season} in red on the right. Final is how each season ended up: teams are slots on
+        Oldest season on the left, {season} on the right, each bar coloured by its term. Final is how each season ended up: teams are slots on
         the schedule, as on the Metabase registration dashboard (for each location and day, the most teams that played
         there in any one week, so a team that took over a slot part-way through or a TBD stand-in for a late team
         doesn&apos;t count twice, and all-star teams are left out); athletes are the registrations still standing. A
