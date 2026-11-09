@@ -22,6 +22,9 @@ type HistSeason = {
   athletes_to_date: number | null;
   teams_final: number | null;
   athletes_final: number | null;
+  // Ops league ids, to count new locations against another season.
+  locations_to_date?: string[] | null;
+  locations_final?: string[];
 };
 type Feed = { season: string; day_n: number | null; to_date_from?: string; seasons: HistSeason[] };
 
@@ -58,15 +61,45 @@ const TERM_COLORS: { term: string; color: string }[] = [
 const termColor = (season: string) =>
   TERM_COLORS.find((t) => season.toLowerCase().startsWith(t.term.toLowerCase()))?.color ?? "var(--viz-prev)";
 
+// The same term a year earlier: Summer '24 for Summer '25.
+function yearBefore(season: string): string | null {
+  const m = season.match(/^(\S+) '(\d{2})$/);
+  return m ? `${m[1]} '${String(Number(m[2]) - 1).padStart(2, "0")}` : null;
+}
+// Change as a share of the season compared with, one decimal and signed.
+function change(value: number, against: number | undefined): string {
+  if (!against) return "–";
+  const d = (100 * (value - against)) / against;
+  return `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(d).toFixed(1)}%`;
+}
+// Locations in this season that the season compared with didn't have.
+function newLocations(locs: string[] | null, against: string[] | null | undefined): string {
+  if (!locs || !against) return "–";
+  const had = new Set(against);
+  return locs.filter((id) => !had.has(id)).length.toLocaleString();
+}
+
+type Bar = { season: string; value: number; locations: string[] | null };
+
 const TRACK_PX = 150;
 // Wide enough for "Summer '26" under its bar; narrower screens scroll the chart.
 const COL_PX = 64;
 
-function HistoryChart({ title, subtitle, season, bars }: {
+function TipRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 whitespace-nowrap">
+      <span>{label}</span>
+      <span className="tabular font-semibold" style={{ color: "var(--ink)" }}>{value}</span>
+    </div>
+  );
+}
+
+function HistoryChart({ title, noun, subtitle, season, bars }: {
   title: string;
+  noun: string;
   subtitle: string;
   season: string;
-  bars: { season: string; value: number }[];
+  bars: Bar[];
 }) {
   const max = Math.max(...bars.map((b) => b.value), 1);
   const current = bars.find((b) => b.season === season);
@@ -90,16 +123,37 @@ function HistoryChart({ title, subtitle, season, bars }: {
         <div className="overflow-x-auto mt-5">
           <div style={{ minWidth: bars.length * COL_PX }}>
             {/* Bars: fixed-px track so heights are truly proportional to value. */}
-            <div className="flex items-end gap-2" style={{ height: TRACK_PX + 22 }}>
-              {bars.map((b) => (
-                <div key={b.season} className="flex-1 flex flex-col items-center justify-end" title={`${b.season}: ${b.value.toLocaleString()}`}>
-                  <span className="text-[11px] font-semibold tabular mb-1" style={{ color: "var(--glass-text)" }}>{b.value.toLocaleString()}</span>
-                  <div className="w-full rounded-t" style={{
-                    height: Math.max(Math.round((b.value / max) * TRACK_PX), 4),
-                    background: termColor(b.season),
-                  }} />
-                </div>
-              ))}
+            <div className="flex items-stretch gap-2" style={{ height: TRACK_PX + 22 }}>
+              {bars.map((b, i) => {
+                // Against the season before it on the chart, and the same term a
+                // year earlier. On hover or focus, beside the bar and inside the
+                // track (the scroll box would clip it above), flipping left near
+                // the right edge.
+                const prev = i > 0 ? bars[i - 1] : undefined;
+                const lastYearName = yearBefore(b.season);
+                const lastYear = bars.find((x) => x.season === lastYearName);
+                return (
+                  <div key={b.season} tabIndex={0} aria-label={`${b.season}: ${b.value.toLocaleString()} ${noun}`}
+                    className="group relative flex-1 flex flex-col items-center justify-end outline-none">
+                    <span className="text-[11px] font-semibold tabular mb-1" style={{ color: "var(--glass-text)" }}>{b.value.toLocaleString()}</span>
+                    <div className="w-full rounded-t group-hover:opacity-80 group-focus-visible:opacity-80" style={{
+                      height: Math.max(Math.round((b.value / max) * TRACK_PX), 4),
+                      background: termColor(b.season),
+                    }} />
+                    <div role="tooltip"
+                      className={`br-chart-tip hidden group-hover:block group-focus-visible:block top-0 z-10 ${i >= bars.length - 3 ? "right-full mr-1" : "left-full ml-1"}`}>
+                      <b>{b.season}</b>
+                      <TipRow label={noun[0].toUpperCase() + noun.slice(1)} value={b.value.toLocaleString()} />
+                      <TipRow label={`vs ${prev?.season ?? "season before"}`} value={change(b.value, prev?.value)} />
+                      <TipRow label={`vs ${lastYearName ?? "a year earlier"}`} value={change(b.value, lastYear?.value)} />
+                      <div className="my-1.5" style={{ borderTop: "1px solid var(--divider)" }} />
+                      <TipRow label="Locations" value={b.locations ? b.locations.length.toLocaleString() : "–"} />
+                      <TipRow label={`New vs ${prev?.season ?? "season before"}`} value={prev ? newLocations(b.locations, prev.locations) : "–"} />
+                      <TipRow label={`New vs ${lastYearName ?? "a year earlier"}`} value={lastYear ? newLocations(b.locations, lastYear.locations) : "–"} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <div className="flex gap-2 mt-2">
               {bars.map((b) => (
@@ -149,9 +203,13 @@ export default async function RegHistory({ season, locationNames, basis }: {
   }
 
   const toDate = which === "todate";
-  const pick = (k: "teams" | "athletes") => feed.seasons
-    .map((s) => ({ season: s.season, value: toDate ? s[`${k}_to_date`] : s[`${k}_final`] }))
-    .filter((b): b is { season: string; value: number } => b.value != null);
+  const pick = (k: "teams" | "athletes"): Bar[] => feed.seasons
+    .map((s) => ({
+      season: s.season,
+      value: toDate ? s[`${k}_to_date`] : s[`${k}_final`],
+      locations: (toDate ? s.locations_to_date : s.locations_final) ?? null,
+    }))
+    .filter((b): b is Bar => b.value != null);
   const day = feed.day_n;
   const subtitle = (noun: string) => toDate
     ? `${noun} at day ${day ?? "N"} of registration, every season`
@@ -169,8 +227,8 @@ export default async function RegHistory({ season, locationNames, basis }: {
           don&apos;t say when anyone signed up and there is no day {day ?? "N"} to read. Final shows every season.
         </p>
       )}
-      <HistoryChart title="Teams" subtitle={subtitle("Teams")} season={season} bars={pick("teams")} />
-      <HistoryChart title="Athletes" subtitle={subtitle("Athletes")} season={season} bars={pick("athletes")} />
+      <HistoryChart title="Teams" noun="teams" subtitle={subtitle("Teams")} season={season} bars={pick("teams")} />
+      <HistoryChart title="Athletes" noun="athletes" subtitle={subtitle("Athletes")} season={season} bars={pick("athletes")} />
       <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
         Oldest season on the left, {season} on the right, each bar coloured by its term. Final is how each season ended up: teams are slots on
         the schedule, as on the Metabase registration dashboard (for each location and day, the most teams that played
@@ -179,6 +237,9 @@ export default async function RegHistory({ season, locationNames, basis }: {
         season not played yet shows what is registered so far. So a season&apos;s final teams can sit below its count
         to date, which still has the teams that registered and later folded or merged. To date reads every season at
         day {day ?? "N"} of its own registration, the day {season} is at now, counted as on the Registrations tab.
+        Hover a bar (or tab to it) for its change against the season before it on the chart and the same season a
+        year earlier, and how many of its locations were new against each: final, locations whose teams played; to
+        date, locations with a team in by that day.
       </p>
     </div>
   );
