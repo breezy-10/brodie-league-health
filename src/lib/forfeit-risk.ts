@@ -1,5 +1,6 @@
 import "server-only";
 import { readAppSecret } from "@/lib/app-secrets";
+import { promoFetch } from "@/lib/promo-feed";
 
 // Teams one no-show from forfeiting: 6 or fewer fully paid players. Read from
 // the overdue app's own feed, so the teams here are the teams on its Teams
@@ -33,7 +34,7 @@ export async function loadForfeitRisk(season: string): Promise<ForfeitTeam[] | n
     url.searchParams.set("season", season);
     const key = process.env.OVERDUE_FEED_KEY ?? (await readAppSecret("overdue_feed_key"));
     if (!key) return null;
-    const res = await fetch(url, { cache: "no-store", headers: { Authorization: `Bearer ${key}` } });
+    const res = await promoFetch(url, { headers: { Authorization: `Bearer ${key}` } });
     if (!res.ok) return null;
     const k = (await res.json()) as { teams?: ForfeitTeam[] };
     return Array.isArray(k.teams) ? k.teams : null;

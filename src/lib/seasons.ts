@@ -8,6 +8,7 @@ import { getCanonicalLocations } from "@/lib/districts-locations";
 import { getActiveLocationKeys, onlyActive } from "@/lib/active-locations";
 import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
 import { ymd } from "@/lib/source-apps/util";
+import { promoFetch } from "@/lib/promo-feed";
 
 // Fallbacks copied from the Registration Promo Tracker, used until the live
 // PROMO_SUPABASE_* connection is configured (then these are replaced live).
@@ -102,7 +103,7 @@ export async function loadActiveLMs(): Promise<ActiveLM[]> {
 // Which league manager covers which locations, from the districts app.
 export async function loadLmCoverage(): Promise<{ lm: string; locations: string[] }[] | null> {
   try {
-    const res = await fetch("https://brodie-districts.vercel.app/api/lm-coverage", { cache: "no-store" });
+    const res = await promoFetch("https://brodie-districts.vercel.app/api/lm-coverage");
     if (!res.ok) return null;
     const k = (await res.json()) as { coverage: { lm: string; locations: string[] }[] };
     return k.coverage ?? null;
