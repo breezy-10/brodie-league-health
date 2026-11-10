@@ -20,7 +20,7 @@ import { canonLoc, sameLocation } from "@/lib/location-match";
 import { BOB_URL, forfeitTeamsHref, loadForfeitRisk } from "@/lib/forfeit-risk";
 import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams/AmbassadorSummary";
 import { dropInOutcomeTiles, loadDropIns } from "../drop-ins/DropInsView";
-import { eventOutcomeTiles, loadEvents } from "../events/EventsView";
+import { eventOutcomeTiles, loadEvents, type EventRow } from "../events/EventsView";
 import { checkInTotals, loadCheckIns, pct as checkInPct, shareStyle as checkInShareStyle } from "../check-ins/CheckInsView";
 import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
@@ -2489,13 +2489,30 @@ function TileLinks({ links }: { links: { href: string; text: string }[] }) {
   );
 }
 
+// The Weekly review's Season / Week switch, on Registrations and on the
+// Drop-ins, Events and Check-ins sections. Season is the default.
+const SEASON_WEEK = [{ value: "season", label: "Season" }, { value: "week", label: "Week" }];
+// A section switched to Week: the selected Saturday-Friday weeks (each by its
+// Saturday) and how the header names them.
+type WeekScope = { weeks: string[]; label: string };
+// Whether a local date ("YYYY-MM-DD", or a "YYYY-MM-DDTHH:MM" time) falls in
+// one of the weeks.
+const inWeeks = (date: string | null | undefined, weeks: string[]) => {
+  if (!date) return false;
+  const d = date.slice(0, 10);
+  return weeks.some((w) => d >= w && d <= addDaysIso(w, 6));
+};
+
 // How many drop-ins each location has (a drop-in is a game in the season
 // being played), then the Drop-ins page's opening tiles: its default view,
-// new players on games already played.
-async function DropInCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
+// new players on games already played. On Week, only drop-ins for games in
+// the selected weeks.
+async function DropInCards({ season, scope, fullTag, week, toggle }: {
+  season: string; scope: Scope; fullTag?: string; week?: WeekScope; toggle?: ReactNode;
+}) {
   const [dropIns, played] = await Promise.all([
-    loadDropIns(season, scope.locationNames),
-    loadDropIns(season, scope.locationNames, "past", "new"),
+    loadDropIns(season, scope.locationNames, undefined, "both", week?.weeks),
+    loadDropIns(season, scope.locationNames, "past", "new", week?.weeks),
   ]);
   const outcome = played?.locations.length ? dropInOutcomeTiles(played, season, "new", true) : null;
   // A location with two currencies has a row for each; a drop-in is a drop-in.
@@ -2506,10 +2523,11 @@ async function DropInCards({ season, scope, fullTag }: { season: string; scope: 
   const lp = locParam(scope.locationNames);
   if (lp) q.set("location", lp);
   return (
-    <Section title="Drop-ins" scopeTag={fullTag} seasonTag={season} tiles={dropIns ? [] : null}>
+    <Section title="Drop-ins" scopeTag={toggle ? undefined : fullTag} seasonTag={week ? week.label : season}
+      tiles={dropIns ? [] : null} headerExtra={toggle}>
       <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
         <ChipTile label="Drop-ins" value={total.toLocaleString()}
-          sub={total ? atLocations(locs) : `none yet in ${season}`}
+          sub={total ? atLocations(locs) : week ? `none in ${week.label}` : `none yet in ${season}`}
           chips={perLocationChips(dropInsBy)}
           footer={<TileLinks links={[{ href: `/drop-ins?${q}`, text: "View drop-ins" }]} />} />
         {outcome?.showedTile}
@@ -2524,13 +2542,18 @@ async function DropInCards({ season, scope, fullTag }: { season: string; scope: 
 // and held is the ones already past inside the season's dates (the earliest
 // league's start to the latest league's end). One card counts both, then
 // Going, Checked in and New to Brodie over the events held this season.
-async function EventCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
+// On Week, held and upcoming are the events dated in the selected weeks.
+async function EventCards({ season, scope, fullTag, week, toggle }: {
+  season: string; scope: Scope; fullTag?: string; week?: WeekScope; toggle?: ReactNode;
+}) {
   const events = await loadEvents(scope.locationNames, season);
-  const upcoming = (events ?? []).filter((e) => e.upcoming);
+  const inScope = (e: EventRow) => !week || inWeeks(e.starts_at, week.weeks);
+  const upcoming = (events ?? []).filter((e) => e.upcoming && inScope(e));
   const upcomingBy = tallyByLocation(upcoming.map((e) => [e.location, 1]));
-  // Absent from an older feed, which doesn't know the season's dates.
-  const knowsSeason = (events ?? []).some((e) => e.in_season !== undefined);
-  const held = (events ?? []).filter((e) => !e.upcoming && e.in_season);
+  // Absent from an older feed, which doesn't know the season's dates. A week
+  // needs only the events' own dates.
+  const knowsSeason = !!week || (events ?? []).some((e) => e.in_season !== undefined);
+  const held = (events ?? []).filter((e) => !e.upcoming && (week ? inScope(e) : e.in_season));
   const heldBy = tallyByLocation(held.map((e) => [e.location, 1]));
   const outcome = knowsSeason ? eventOutcomeTiles(held) : null;
   // A chip per location: what it has held this season, and what is to come.
@@ -2544,15 +2567,18 @@ async function EventCards({ season, scope, fullTag }: { season: string; scope: S
     return parts.length ? [{ text: `${loc} ${parts.join(" · ")}`, tone: "neutral" as const }] : [];
   });
   const lp = locParam(scope.locationNames);
+  // On Week the past events link opens on the selected weeks' dates.
+  const span = week ? { from: [...week.weeks].sort()[0], to: addDaysIso([...week.weeks].sort().at(-1)!, 6) } : null;
   const upcomingHref = `/events${lp ? `?${new URLSearchParams({ location: lp })}` : ""}`;
-  const pastHref = `/events?${new URLSearchParams({ when: "past", ...(lp ? { location: lp } : {}) })}`;
+  const pastHref = `/events?${new URLSearchParams({ when: "past", ...(lp ? { location: lp } : {}), ...(span ?? {}) })}`;
   return (
-    <Section title="Events" scopeTag={fullTag} seasonTag={season} tiles={events ? [] : null}>
+    <Section title="Events" scopeTag={toggle ? undefined : fullTag} seasonTag={week ? week.label : season}
+      tiles={events ? [] : null} headerExtra={toggle}>
       <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-        <ChipTile label={knowsSeason ? "Events this season" : "Upcoming events"}
+        <ChipTile label={week ? (week.weeks.length > 1 ? "Events in these weeks" : "Events this week") : knowsSeason ? "Events this season" : "Upcoming events"}
           value={knowsSeason ? `${held.length.toLocaleString()} held` : upcoming.length.toLocaleString()}
           sub={knowsSeason
-            ? `${held.length ? atLocations(heldBy.size) : `none yet in ${season}`} · ${upcoming.length.toLocaleString()} upcoming`
+            ? `${held.length ? atLocations(heldBy.size) : week ? "none held" : `none yet in ${season}`} · ${upcoming.length.toLocaleString()} upcoming`
             : upcoming.length ? atLocations(upcomingBy.size) : "none scheduled"}
           chips={chips}
           footer={<TileLinks links={[
@@ -2570,15 +2596,20 @@ async function EventCards({ season, scope, fullTag }: { season: string; scope: S
 // The Check-ins page's four cards, from the same loader so the two agree:
 // players checked in at game nights, how many of those who played that is,
 // which locations are checking in at all, and check-ins at events.
-async function CheckInCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
+// On Week, the game days and events in the selected weeks.
+async function CheckInCards({ season, scope, fullTag, week, toggle }: {
+  season: string; scope: Scope; fullTag?: string; week?: WeekScope; toggle?: ReactNode;
+}) {
   const d = await loadCheckIns(season, scope.locationNames);
-  const t = checkInTotals(d.nights);
+  const nights = week ? d.nights.filter((n) => inWeeks(n.night, week.weeks)) : d.nights;
+  const shownEvents = week ? d.shownEvents.filter((e) => inWeeks(e.starts_at, week.weeks)) : d.shownEvents;
+  const t = checkInTotals(nights);
   const q = new URLSearchParams({ season });
   const lp = locParam(scope.locationNames);
   if (lp) q.set("location", lp);
   const share = (n: number, of: number): Chip["tone"] => (n >= of ? "green" : n / of >= 0.8 ? "yellow" : "red");
-  const eventsChecked = d.shownEvents.filter((e) => (e.checked_in ?? 0) > 0);
-  const eventCheckedIn = d.shownEvents.reduce((s, e) => s + (e.checked_in ?? 0), 0);
+  const eventsChecked = shownEvents.filter((e) => (e.checked_in ?? 0) > 0);
+  const eventCheckedIn = shownEvents.reduce((s, e) => s + (e.checked_in ?? 0), 0);
   const notChecking = t.locRows.filter((r) => r.checking === 0);
   // "Oct 15" for the local date the window opens on.
   const sinceDay = (key: string) => {
@@ -2586,12 +2617,13 @@ async function CheckInCards({ season, scope, fullTag }: { season: string; scope:
     return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, dd)));
   };
   return (
-    <Section title="Check-ins" scopeTag={fullTag} seasonTag={season} tiles={d.connected ? [] : null}
-      emptyNote={`Nobody has been checked in on a game day in ${season} yet.`}>
-      {d.since ? (
+    <Section title="Check-ins" scopeTag={toggle ? undefined : fullTag} seasonTag={week ? week.label : season}
+      tiles={d.connected ? [] : null} headerExtra={toggle}
+      emptyNote={!d.since ? `Nobody has been checked in on a game day in ${season} yet.` : `No game days in ${week?.label ?? season}.`}>
+      {d.since && (!week || nights.length) ? (
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           <ChipTile label="Players checked in" value={t.checkedIn.toLocaleString()}
-            sub={`on ${t.nightsChecking.toLocaleString()} of ${d.nights.length.toLocaleString()} game days since ${sinceDay(d.since)}`}
+            sub={`on ${t.nightsChecking.toLocaleString()} of ${nights.length.toLocaleString()} game days ${week ? `in ${week.label}` : `since ${sinceDay(d.since)}`}`}
             chips={perLocationChips(new Map(t.locRows.map((r) => [r.location, r.checkedIn])))}
             footer={<TileLinks links={[{ href: `/check-ins?${q}`, text: "View check-ins" }]} />} />
           <ChipTile label="Of those who played" value={checkInPct(t.checkedPlayed, t.played)}
@@ -2606,8 +2638,8 @@ async function CheckInCards({ season, scope, fullTag }: { season: string; scope:
               : "every location with a game day"}
             chips={notChecking.map((r) => ({ text: r.location, tone: "red" as const }))} />
           <ChipTile label="Checked in at events" value={eventCheckedIn.toLocaleString()}
-            sub={`at ${eventsChecked.length} of ${d.shownEvents.length} events held`}
-            chips={perLocationChips(tallyByLocation(d.shownEvents.map((e) => [e.location, e.checked_in ?? 0])))} />
+            sub={`at ${eventsChecked.length} of ${shownEvents.length} events held`}
+            chips={perLocationChips(tallyByLocation(shownEvents.map((e) => [e.location, e.checked_in ?? 0])))} />
         </div>
       ) : undefined}
     </Section>
@@ -3732,7 +3764,8 @@ export default async function DashboardView({
   // still its own page with its own title.
   showViewTabs = false,
 }: {
-  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string; rank?: string; group?: string; locs?: string; hist?: string;
+  searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string;
+    dropinsBasis?: string; eventsBasis?: string; checkinsBasis?: string; rank?: string; group?: string; locs?: string; hist?: string;
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string; refereeSeason?: string;
     tab?: string;
     }>;
@@ -3746,7 +3779,7 @@ export default async function DashboardView({
   // checklist, and only the sections they run (no league manager outreach,
   // site visits, game day checklists or training).
   const isOm = mode === "om";
-  const { season: seasonParam, location: locationParam, week: weekParam, regBasis,
+  const { season: seasonParam, location: locationParam, week: weekParam, regBasis, dropinsBasis, eventsBasis, checkinsBasis,
     overdueSeason, regsSeason, promoSeason, bookingSeason, refereeSeason, tab: tabParam, rank: rankParam, group: groupParam, locs: locsParam, hist: histParam } = await searchParams;
   // The Registrations page's second tab: who came back, rather than how many.
   const isRetention = isReg && tabParam === "retention";
@@ -3788,6 +3821,12 @@ export default async function DashboardView({
   // Weekly Review reads the registration cards season-to-date by default; the
   // toggle switches them to the selected week. Ignored on other tabs.
   const regOnWeek = isWeekly && regBasis === "week";
+  // Drop-ins, Events and Check-ins have the same switch, each its own.
+  const onWeek = (basis?: string): WeekScope | undefined =>
+    isWeekly && basis === "week" && activeWeeks.length ? { weeks: activeWeeks, label: weekLabel } : undefined;
+  const basisToggle = (param: string, basis?: string) => isWeekly ? (
+    <BasisToggle param={param} value={basis === "week" ? "week" : "season"} options={SEASON_WEEK} />
+  ) : undefined;
   const admin = createAdminClient();
 
   const { data: latest } = await admin
@@ -4584,7 +4623,7 @@ export default async function DashboardView({
                   <BasisToggle
                     param="regBasis"
                     value={regOnWeek ? "week" : "season"}
-                    options={[{ value: "season", label: "Season" }, { value: "week", label: "Week" }]}
+                    options={SEASON_WEEK}
                   />
                 )}
               </div>
@@ -4656,7 +4695,7 @@ export default async function DashboardView({
               <BasisToggle
                 param="regBasis"
                 value={regOnWeek ? "week" : "season"}
-                options={[{ value: "season", label: "Season" }, { value: "week", label: "Week" }]}
+                options={SEASON_WEEK}
               />
             ) : undefined} />
         )}
@@ -4677,13 +4716,16 @@ export default async function DashboardView({
               </>
             )}
             <Suspense fallback={<SectionSkeleton title="Drop-ins" />}>
-              <DropInCards season={selectedSeason} scope={scope} fullTag={fullTag} />
+              <DropInCards season={selectedSeason} scope={scope} fullTag={fullTag}
+                week={onWeek(dropinsBasis)} toggle={basisToggle("dropinsBasis", dropinsBasis)} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Events" />}>
-              <EventCards season={selectedSeason} scope={scope} fullTag={fullTag} />
+              <EventCards season={selectedSeason} scope={scope} fullTag={fullTag}
+                week={onWeek(eventsBasis)} toggle={basisToggle("eventsBasis", eventsBasis)} />
             </Suspense>
             <Suspense fallback={<SectionSkeleton title="Check-ins" />}>
-              <CheckInCards season={selectedSeason} scope={scope} fullTag={fullTag} />
+              <CheckInCards season={selectedSeason} scope={scope} fullTag={fullTag}
+                week={onWeek(checkinsBasis)} toggle={basisToggle("checkinsBasis", checkinsBasis)} />
             </Suspense>
             {!isOm && (
               <>

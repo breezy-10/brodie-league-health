@@ -117,11 +117,15 @@ export type DropInFeed = {
 // drop-in without it.
 export async function loadDropIns(
   season: string, locationNames: string[] | null, when?: "past" | "upcoming", players: PlayersFilter = "both",
+  // Saturday-Friday weeks, each by its Saturday: only drop-ins for games in
+  // them (the Weekly review's Week view).
+  weeks?: string[],
 ): Promise<DropInFeed | null> {
   try {
     const url = new URL("/api/drop-ins", PROMO_APP_URL);
     url.searchParams.set("season", season);
     if (when) url.searchParams.set("when", when);
+    if (weeks?.length) url.searchParams.set("weeks", weeks.join(","));
     if (players !== "both") url.searchParams.set("players", players);
     const lp = locParam(locationNames);
     if (lp) url.searchParams.set("location", lp);
