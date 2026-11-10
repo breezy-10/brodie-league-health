@@ -3,7 +3,7 @@ import { promoFetch } from "@/lib/promo-feed";
 import { BasisToggle } from "./BasisToggle";
 import { getLocationDistricts } from "@/lib/districts-locations";
 import { getNewLocationKeys, locationKey } from "@/lib/active-locations";
-import { ATHLETES_PER_TEAM_GOAL, TEAM_GOAL_OVERRIDES } from "@/lib/goal-overrides";
+import { ATHLETES_PER_TEAM_GOAL, TEAM_GOAL_OVERRIDES, goalLookup } from "@/lib/goal-overrides";
 import { LeaderboardRow } from "./LeaderboardRow";
 import { STICKY_TH_STYLE } from "./stickyTable";
 
@@ -163,24 +163,12 @@ export default async function RegLeaderboard({ season, locationNames, rankBy, gr
   const current = (l?: Loc) => l?.seasons.find((s) => s.kind === "current");
   const byName = (list: Loc[] | null) => new Map((list ?? []).map((l) => [l.location, l]));
   const keptBy = byName(kept), backBy = byName(back);
+  // A day's goals are League Health's where it sets them, a location's moved
+  // by its set days' difference from Player One's (goalLookup).
+  const goals = goalLookup(season, nights);
   const nightKey = (l: Loc) => `${l.location}|${l.day ?? ""}`;
-  // A day's goals are League Health's where it sets them: the teams, and
-  // athletes at so many per team. A location's are its days' goals, so they
-  // move by each set day's difference from Player One's; without the days to
-  // compare against, they stay as Player One has them.
-  type Kind = "teams" | "athletes";
-  const playerOneGoal = (l: Loc | undefined, kind: Kind) =>
-    (kind === "teams" ? current(l)?.team_goal : current(l)?.athlete_goal) ?? null;
-  const setGoal = (k: string, kind: Kind) => goalOverrides[k] * (kind === "teams" ? 1 : ATHLETES_PER_TEAM_GOAL);
-  const nightByKey = new Map((nights ?? []).map((l) => [nightKey(l), l]));
-  const goalOf = (l: Loc, kind: Kind): number | null => {
-    const feed = playerOneGoal(l, kind);
-    if (l.day) return nightKey(l) in goalOverrides ? setGoal(nightKey(l), kind) : feed;
-    const set = Object.keys(goalOverrides).filter((k) => k.startsWith(`${l.location}|`) && nightByKey.has(k));
-    return set.length
-      ? set.reduce((g, k) => g + setGoal(k, kind) - (playerOneGoal(nightByKey.get(k), kind) ?? 0), feed ?? 0)
-      : feed;
-  };
+  const goalOf = (l: Loc, kind: "teams" | "athletes"): number | null =>
+    goals.goal(l.location, l.day, l, kind) ?? null;
   const toRow = (l: Loc, keptLoc?: Loc, backLoc?: Loc): Row => {
     const c = current(l);
     const indiv = c?.athletes_indiv != null;
