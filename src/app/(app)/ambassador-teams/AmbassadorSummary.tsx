@@ -101,8 +101,8 @@ export async function loadAmbassadorTeams(
 
 const GOLD = "var(--glass-gold)";
 
-// The Ambassador teams and Locations cards: the top of the Ambassador teams
-// page, and the Ambassador teams section of the dashboard.
+// The Ambassador teams, Locations and Divisions cards: the top of the
+// Ambassador teams page, and the Ambassador teams section of the dashboard.
 export function AmbassadorSummaryTiles({ feed }: { feed: AmbassadorFeed }) {
   const t = feed.totals;
   // Location-nights with no ambassador team ("Burlington Monday"). Undefined
@@ -110,6 +110,32 @@ export function AmbassadorSummaryTiles({ feed }: { feed: AmbassadorFeed }) {
   // way no chips.
   const missing = feed.nights_without_ambassador ?? null;
   const missingLocations = new Set((missing ?? []).map((m) => m.location)).size;
+  // Divisions the same way: each location's divisions open on each day (its
+  // registration campaign), and which have an ambassador team in them. Names
+  // compared without case or stray spaces. No division list (an older feed,
+  // or the Promo Tracker couldn't read it) means no list of the uncovered.
+  const divKey = (location: string, day: string, division: string) =>
+    `${location}|${day}|${division.trim().toLowerCase()}`;
+  const coveredDivs = new Set(feed.locations.flatMap((l) => l.rows
+    .filter((r) => r.day && r.division)
+    .map((r) => divKey(l.location, r.day!, r.division!))));
+  const openDivs = feed.locations.flatMap((l) => (l.divisions ?? []).map((d) => ({ location: l.location, ...d })));
+  const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const missingDivs = openDivs.length
+    ? openDivs.filter((d) => !coveredDivs.has(divKey(d.location, d.day, d.division)))
+        .sort((a, b) => a.location.localeCompare(b.location) || dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day)
+          || a.division.localeCompare(b.division))
+    : null;
+  const missingDivLocations = new Set((missingDivs ?? []).map((d) => d.location)).size;
+  // One chip per location and day, its uncovered divisions by their short
+  // name ("D3" for "D3 | Inter"): 106 single-division chips (Winter '27)
+  // ran the card off the page.
+  const shortDiv = (name: string) => name.split("|")[0].trim();
+  const missingDivDays = new Map<string, string[]>();
+  for (const d of missingDivs ?? []) {
+    const k = `${d.location} ${d.day}`;
+    missingDivDays.set(k, [...(missingDivDays.get(k) ?? []), shortDiv(d.division)]);
+  }
   return (
     <>
       <Tile
@@ -142,14 +168,24 @@ export function AmbassadorSummaryTiles({ feed }: { feed: AmbassadorFeed }) {
         }
       />
       <Tile
-        label="Locations"
+        label="Locations with 1 or more ambassador teams"
         value={t.locations.toLocaleString()}
         sub={missing
           ? (missing.length
-              ? `${missing.length} ${missing.length === 1 ? "night" : "nights"} at ${missingLocations} ${missingLocations === 1 ? "location" : "locations"} with no ambassador team`
-              : "every night has an ambassador team")
+              ? `${missing.length} ${missing.length === 1 ? "day" : "days"} at ${missingLocations} ${missingLocations === 1 ? "location" : "locations"} with no ambassador team`
+              : "every day has an ambassador team")
           : undefined}
         chips={missing?.map((m) => ({ text: m.day ? `${m.location} ${m.day}` : m.location, tone: "red" as const }))}
+      />
+      <Tile
+        label="Divisions with 1 or more ambassador teams"
+        value={coveredDivs.size.toLocaleString()}
+        sub={missingDivs
+          ? (missingDivs.length
+              ? `${missingDivs.length} ${missingDivs.length === 1 ? "division" : "divisions"} on ${missingDivDays.size} ${missingDivDays.size === 1 ? "day" : "days"} at ${missingDivLocations} ${missingDivLocations === 1 ? "location" : "locations"} with no ambassador team`
+              : "every division has an ambassador team")
+          : undefined}
+        chips={missingDivs ? [...missingDivDays].map(([where, divs]) => ({ text: `${where} ${divs.join(", ")}`, tone: "red" as const })) : undefined}
       />
     </>
   );
