@@ -48,20 +48,6 @@ const APP_URL: Record<string, string> = {
 };
 
 
-type SnapRow = {
-  raw_value: number | null;
-  lm_id: string;
-  metrics: { name: string; slug: string };
-  apps: { slug: string; name: string };
-  league_managers: { id: string; full_name: string | null; location_name: string | null; active: boolean };
-};
-
-function fmt(slug: string, avg: number): string {
-  const rounded = Math.round(avg * 10) / 10;
-  const pctish = /(pace|pct|sla|24h|rate|_in_|complete|response)/.test(slug);
-  return pctish ? `${Math.round(avg)}%` : `${rounded}`;
-}
-
 // ---------------------------------------------------------------------------
 // Read-through reporting layer. Each loader queries its source app directly,
 // scoped to the selected season via the source's own season_id, and returns
@@ -3982,58 +3968,6 @@ export default async function DashboardView({
   // Checklist: two cards for the playing season, two for the next (prep) season.
   const checklistTiles = ckCurrent && ckNext ? [...ckCurrent, ...ckNext] : (ckCurrent ?? null);
 
-  const snaps: SnapRow[] = snapDate
-    ? (((await admin
-        .from("daily_snapshots")
-        .select("raw_value, lm_id, metrics!inner(name, slug), apps!inner(slug, name), league_managers!inner(id, full_name, location_name, active)")
-        .eq("snapshot_date", snapDate)
-      ).data) as unknown as SnapRow[]) ?? []
-    : [];
-
-  // A snapshot is in scope if its league manager covers ANY selected location
-  // (the same union the source-app queries use). Every location they run counts
-  // once the roster comes from districts (location_names, migration 0023; read
-  // with `*` so this works before it lands); until then, the one location_name.
-  // Names are compared loosely: the old CRM roster spells some venues its own
-  // way ("Brampton (Game6)").
-  const rosterLocs = new Map<string, string[]>();
-  if (selectedLocations.length && snaps.length) {
-    const { data: rosterRows } = await admin.from("league_managers").select("*");
-    for (const r of (rosterRows ?? []) as { id: string; location_name: string | null; location_names?: string[] | null }[]) {
-      rosterLocs.set(r.id, r.location_names?.length ? r.location_names : r.location_name ? [r.location_name] : []);
-    }
-  }
-  const filtered = snaps.filter((s) => {
-    if (!s.league_managers?.active) return false;
-    if (!selectedLocations.length) return true;
-    const mine = rosterLocs.get(s.lm_id) ?? (s.league_managers.location_name ? [s.league_managers.location_name] : []);
-    return mine.some((n) => selectedLocations.some((sel) => sameLocation(sel, n)));
-  });
-
-  type MetricAgg = { name: string; slug: string; sum: number; n: number };
-  const byApp = new Map<string, { metrics: Map<string, MetricAgg>; lms: Set<string> }>();
-  for (const s of filtered) {
-    const appSlug = s.apps?.slug;
-    if (!appSlug) continue;
-    const app = byApp.get(appSlug) ?? { metrics: new Map(), lms: new Set() };
-    app.lms.add(s.lm_id);
-    if (s.raw_value != null) {
-      const m = app.metrics.get(s.metrics.slug) ?? { name: s.metrics.name, slug: s.metrics.slug, sum: 0, n: 0 };
-      m.sum += Number(s.raw_value);
-      m.n += 1;
-      app.metrics.set(s.metrics.slug, m);
-    }
-    byApp.set(appSlug, app);
-  }
-  const realTiles = (slug: string): Tile[] => {
-    const app = byApp.get(slug);
-    if (!app) return [];
-    return Array.from(app.metrics.values()).map((m) => ({
-      label: m.name,
-      value: m.n ? fmt(m.slug, m.sum / m.n) : "—",
-    }));
-  };
-
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
     locations: filterLocations,
@@ -4714,7 +4648,17 @@ export default async function DashboardView({
             ) : null}
           </section>
         ) : (
-          <Section title="Registrations" href={APP_URL.crm} tiles={realTiles("crm")} seasonTag={pacingSeason} />
+          // The registrations feed didn't answer. Say so rather than show other
+          // numbers under this heading, and keep the Weekly review's Season /
+          // Week switch where it always is.
+          <Section title="Registrations" href={APP_URL.crm} tiles={null} seasonTag={pacingSeason}
+            headerExtra={isWeekly ? (
+              <BasisToggle
+                param="regBasis"
+                value={regOnWeek ? "week" : "season"}
+                options={[{ value: "season", label: "Season" }, { value: "week", label: "Week" }]}
+              />
+            ) : undefined} />
         )}
         {!isReg && (
           <>
