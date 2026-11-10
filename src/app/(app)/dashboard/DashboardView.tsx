@@ -25,6 +25,7 @@ import { checkInTotals, loadCheckIns, pct as checkInPct, shareStyle as checkInSh
 import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
 import RegHistory from "./RegHistory";
+import { goalLookup } from "@/lib/goal-overrides";
 import { BackToTopButton, ScrollUpButton } from "./ScrollUpButton";
 import { SectionJumpBar } from "./SectionJumpBar";
 import { VenueDays, VenueDaysButton } from "./VenueDays";
@@ -1669,7 +1670,11 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   back?: Back; back_by_country?: Record<"CAN" | "USA", Back>;
   // A country's revenue over its athletes, set on that country's projected
   // seasons only (countrySet). Undefined with no athletes to divide by.
-  revenue_per_athlete?: number };
+  revenue_per_athlete?: number;
+  // The card's goals from the admin Goals tab (null = none set; absent = the
+  // feed couldn't read them). League Health's own day goals go over these
+  // through goalLookup.
+  team_goal?: number | null; athlete_goal?: number | null };
 type Kept = {
   cap_total: number; cap_same_prev: number; cap_same_4: number; cap_any_prev: number; cap_any_4: number;
   ath_total: number; ath_same_prev: number; ath_same_4: number; ath_any_prev: number; ath_any_4: number;
@@ -2056,7 +2061,7 @@ const signedPct = (cur: number, base: number): string | null =>
   base === 0 ? null : `${cur - base > 0 ? "+" : ""}${(((cur - base) / base) * 100).toFixed(1)}%`;
 
 // One metric column inside a location card: count + both same-day deltas.
-function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, money: isMoney }: {
+function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, money: isMoney, goal }: {
   // prev or year is null when that season has nothing to compare against (a
   // per-athlete figure where it had no athletes yet), and reads "—".
   label: string; cur: number; prev: number | null; year: number | null; prevLabel: string; yearLabel: string;
@@ -2065,6 +2070,10 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
   notes?: { text: string; tone?: "gold" | "bad" | "yellow" }[];
   // Revenue reads as dollars; the counts do not.
   money?: boolean;
+  // The season's goal, read in small type under the count with the share of
+  // it registered. null = no goal set; undefined = no goal line (a week
+  // basis, or goals that couldn't be read).
+  goal?: number | null;
 }) {
   const fmt = (n: number) => (isMoney ? money(n) : n.toLocaleString());
   const fmtDelta = (n: number) => (isMoney ? `${n > 0 ? "+" : ""}${money(n)}` : signed(n));
@@ -2090,6 +2099,18 @@ function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, m
     <div className="min-w-0">
       <p className="text-xs font-semibold text-glass-text-tertiary">{label}</p>
       <p className="text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>{fmt(cur)}</p>
+      {goal !== undefined && (
+        <p className="text-[11px] tabular leading-snug text-glass-text-tertiary whitespace-nowrap"
+          title={goal ? `${cur.toLocaleString()} of a goal of ${goal.toLocaleString()} ${label.toLowerCase()}` : undefined}>
+          {goal ? (
+            <>
+              Goal <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{goal.toLocaleString()}</span>
+              {" \u00B7 "}
+              <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{((100 * cur) / goal).toFixed(1)}%</span>
+            </>
+          ) : "No goal set"}
+        </p>
+      )}
       {/* The count and the share it moved by, then what it is measured against.
           Left to wrap rather than forced onto one line — the column is narrow
           and a clipped percentage is worse than a second line. */}
@@ -3354,8 +3375,11 @@ function ShareStrip({ locations, blocks, head, byNight = false, prevLabel, yearL
 // Horizontally scrolling strip of per-location cards. Each card carries both
 // teams and athletes so a location reads as one unit instead of forcing you to
 // scroll two rows in sync to compare them.
-function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, venue, discounts, discountsSeasonToDate = false, showAge = true, venueDays, dayDiscounts, playDays }: {
+function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam = true, byNight = false, venue, discounts, discountsSeasonToDate = false, showAge = true, venueDays, dayDiscounts, playDays, goals }: {
   locations: PacingLocation[];
+  // Each card's team and athlete goals (goalLookup), season to date only: a
+  // week's registrations against a season's goal says nothing.
+  goals?: ReturnType<typeof goalLookup>;
   // Each card's Age block; the Registrations page shows it, the dashboard not.
   showAge?: boolean;
   // The one venue the by-day cards are days of.
@@ -3387,6 +3411,8 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
   // opened into its days.
   const card = (l: PacingLocation, o: {
     key: string; title: string; days?: string[]; discount?: CardDiscount; discountsVenue: string; toggle?: ReactNode;
+    // The venue and day the card is, for its goals; a venue card has no day.
+    goalVenue: string; goalDay?: string;
   }) => {
     const get = (kind: string, metric: PacingMetric) =>
       l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
@@ -3407,6 +3433,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
     };
     const curTeams = get("current", "captains");
     const avgPerTeam = curTeams ? get("current", "athletes") / curTeams : null;
+    const goalOf = (kind: "teams" | "athletes") => goals?.goal(o.goalVenue, o.goalDay, l, kind);
     const avgColor = rosterColor(avgPerTeam);
     return (
       <div key={o.key}
@@ -3436,7 +3463,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2.5 px-3.5">
           <LocationMetric label="Teams"
             cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
-            prevLabel={prevLabel} yearLabel={yearLabel}
+            prevLabel={prevLabel} yearLabel={yearLabel} goal={goalOf("teams")}
             notes={[
               { text: `${get("current", "full_roster").toLocaleString()} with 7 or more players`, tone: "yellow" as const },
               ...(get("current", "low_roster")
@@ -3445,7 +3472,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
             ]} />
           <LocationMetric label="Athletes"
             cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
-            prevLabel={prevLabel} yearLabel={yearLabel} />
+            prevLabel={prevLabel} yearLabel={yearLabel} goal={goalOf("athletes")} />
         </div>
         {/* Where the teams actually sit. A division whose teams are all
             at 7+ reads green, so the one that is not filling stands out
@@ -3651,6 +3678,9 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
             discount: discounts ? discountFor(l.location, discounts, byNight) : undefined,
             discountsVenue: byNight ? (venue ?? l.location) : l.location,
             toggle,
+            // A single venue's cards are its days, named by the day.
+            goalVenue: byNight ? (venue ?? "") : l.location,
+            goalDay: byNight ? l.location : undefined,
           });
           const days = byNight ? undefined : venueDays?.get(l.location);
           if (!days || days.length < 2) return venueCard();
@@ -3663,6 +3693,7 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                 discount: dayDiscounts && d.day ? dayDiscountFor(l.location, d.day, dayDiscounts) : undefined,
                 discountsVenue: l.location,
                 toggle,
+                goalVenue: l.location, goalDay: d.day,
               }))} />
           );
         })}
@@ -4090,7 +4121,8 @@ export default async function DashboardView({
         byNight={locationNames?.length === 1}
         venue={locationNames?.length === 1 ? locationNames[0] : undefined}
         discounts={locDiscounts} discountsSeasonToDate={regOnWeek} showAge={isReg}
-        venueDays={venueDays} dayDiscounts={venueDayDiscounts} playDays={venuePlayDays} />
+        venueDays={venueDays} dayDiscounts={venueDayDiscounts} playDays={venuePlayDays}
+        goals={regOnWeek ? undefined : goalLookup(pacingCurrent.season, venueDayPacing?.locations)} />
     </div>
   ) : null;
   // The Registrations columns. Teams and athletes appear for the whole scope
