@@ -142,12 +142,12 @@ export function AmbassadorSummaryTiles({ feed }: { feed: AmbassadorFeed }) {
         }
       />
       <Tile
-        label="Locations"
+        label="Locations with 1 or more ambassador teams"
         value={t.locations.toLocaleString()}
         sub={missing
           ? (missing.length
-              ? `${missing.length} ${missing.length === 1 ? "night" : "nights"} at ${missingLocations} ${missingLocations === 1 ? "location" : "locations"} with no ambassador team`
-              : "every night has an ambassador team")
+              ? `${missing.length} ${missing.length === 1 ? "day" : "days"} at ${missingLocations} ${missingLocations === 1 ? "location" : "locations"} with no ambassador team`
+              : "every day has an ambassador team")
           : undefined}
         chips={missing?.map((m) => ({ text: m.day ? `${m.location} ${m.day}` : m.location, tone: "red" as const }))}
       />
