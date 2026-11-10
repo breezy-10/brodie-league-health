@@ -1857,8 +1857,12 @@ const KIND_LABEL: Record<string, string> = { current: "this season", prev_season
 // darker for the nearer one (the kit's chart rule).
 const REG_COLOR: Record<string, string> = { current: "var(--viz-now)", prev_season: "var(--viz-prev)", prev_year: "var(--viz-prev-2)" };
 const TRACK_PX = 130;
-function RegBarCard({ title, subtitle, current, bars, notes, format = "number", bands, footer }: {
+function RegBarCard({ title, subtitle, current, bars, notes, format = "number", bands, footer, goal, goalSlot = false }: {
   title: string; subtitle: string; current: number;
+  // The season's goal, in small type under the number with the share of it
+  // registered (null = no goal set). goalSlot holds the line open on a card
+  // with no goal to show, so the bars start level across the row.
+  goal?: number | null; goalSlot?: boolean;
   bars: { label: string; sub: string; value: number; color: string }[];
   // Retention, under the count it qualifies. Starts straight after the bars,
   // which are the same height on every card, so its heading lines up across
@@ -1891,6 +1895,19 @@ function RegBarCard({ title, subtitle, current, bars, notes, format = "number", 
         </div>
         <div className="text-right min-w-0 max-w-[60%]">
           <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{fmtBig(current)}</span>
+          {(goal !== undefined || goalSlot) && (
+            <p className="text-[11px] tabular leading-snug text-glass-text-tertiary whitespace-nowrap"
+              style={goal === undefined ? { visibility: "hidden" } : undefined}
+              title={goal ? `${fmtBig(current)} of a goal of ${goal.toLocaleString()}` : undefined}>
+              {goal ? (
+                <>
+                  Goal <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{goal.toLocaleString()}</span>
+                  {" \u00B7 "}
+                  <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{((100 * current) / goal).toFixed(1)}%</span>
+                </>
+              ) : goal === null ? "No goal set" : "\u00A0"}
+            </p>
+          )}
           {/* Chips, as on the location cards. Always two slots, the empty one
               held open, so the bars start at the same height on every card
               rather than one card's notes pushing them down. */}
@@ -3943,6 +3960,8 @@ export default async function DashboardView({
     // the fallback at the call site only exists to say so to the compiler.
     deltaTitle?: string; deltaFormat?: "number" | "money" | "points";
     deltaOf?: (s?: PacingSeason | null) => number | null;
+    // Teams and athletes: the season's goal for the row's locations.
+    goal?: number | null;
   };
   const metricBase = (m: RegMetric, against?: PacingSeason) =>
     m.deltaOf ? m.deltaOf(against) : (against?.[m.key] ?? null);
@@ -4108,6 +4127,23 @@ export default async function DashboardView({
   const regBarWhen = regOnWeek ? `week of ${weekLabel}` : regWindow;
   const regDeltaWhen = regOnWeek ? `week of ${weekLabel}` : regWindowShort;
 
+  // Goals, season to date only: a week's registrations against a season's
+  // goal says nothing. One lookup for the location cards and the totals, so
+  // a total is always its cards' goals added up.
+  const cardGoals = regOnWeek || !pacingCurrent ? undefined : goalLookup(pacingCurrent.season, venueDayPacing?.locations);
+  const oneVenue = locationNames?.length === 1 ? locationNames[0] : undefined;
+  // A row's goal: its location cards' (a single venue's day cards) added up.
+  // null when none has a goal; undefined when any couldn't be read.
+  const sumGoals = (locs: PacingLocation[] | undefined, kind: "teams" | "athletes"): number | null | undefined => {
+    if (!cardGoals || !locs?.length) return undefined;
+    let total = 0, any = false;
+    for (const l of locs) {
+      const g = oneVenue ? cardGoals.goal(oneVenue, l.location, l, kind) : cardGoals.goal(l.location, undefined, l, kind);
+      if (g === undefined) return undefined;
+      if (g) { total += g; any = true; }
+    }
+    return any ? total : null;
+  };
   // A strip of location (or day) cards. Each country's sits under its own
   // row, so Canadian venues are read beside Canada's totals.
   const strip = (locs?: PacingLocation[]) => locs?.length && pacingCurrent ? (
@@ -4122,7 +4158,7 @@ export default async function DashboardView({
         venue={locationNames?.length === 1 ? locationNames[0] : undefined}
         discounts={locDiscounts} discountsSeasonToDate={regOnWeek} showAge={isReg}
         venueDays={venueDays} dayDiscounts={venueDayDiscounts} playDays={venuePlayDays}
-        goals={regOnWeek ? undefined : goalLookup(pacingCurrent.season, venueDayPacing?.locations)} />
+        goals={cardGoals} />
     </div>
   ) : null;
   // The Registrations columns. Teams and athletes appear for the whole scope
@@ -4141,6 +4177,7 @@ export default async function DashboardView({
     ],
     roster: true,
     footer: shareGroups("captains", set, place?.code),
+    goal: sumGoals(place ? locsByCountry.get(place.code) : pacing?.locations, "teams"),
   });
   const athletesMetric = (set: RegSet, place?: Place): RegMetric => ({
     key: "athletes", format: "number",
@@ -4150,6 +4187,7 @@ export default async function DashboardView({
     notes: set.cur.captains ? [{ text: `${(set.cur.athletes / set.cur.captains).toFixed(2)} per team` }] : undefined,
     roster: false,
     footer: shareGroups("athletes", set, place?.code),
+    goal: sumGoals(place ? locsByCountry.get(place.code) : pacing?.locations, "athletes"),
   });
   // Accrued, in the currency the venues invoice in. CAD and USD stay apart:
   // a fixed conversion rate would bury a real change in either.
@@ -4638,7 +4676,8 @@ export default async function DashboardView({
                         <div className="flex-1">
                           <RegBarCard title={m.barTitle} subtitle={m.barSub} format={m.format}
                             current={set.cur[m.key] ?? 0} bars={regBars(set, m.key)} notes={m.notes}
-                            bands={m.bands} footer={m.footer} />
+                            bands={m.bands} footer={m.footer}
+                            goal={m.goal} goalSlot={row.items.some((i) => i.m.goal !== undefined)} />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <RegDeltaCard
