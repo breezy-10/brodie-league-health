@@ -2816,8 +2816,8 @@ async function loadRefereePaymentTiles(scope: Scope): Promise<Tile[] | null> {
     const key = process.env.REF_PAYROLL_FEED_KEY;
     if (!key) return null;
     try {
-      const res = await fetch("https://brodie-ref-payroll.vercel.app/api/feeds/overdue-ref-pay", {
-        cache: "no-store", headers: { Authorization: `Bearer ${key}` },
+      const res = await promoFetch("https://brodie-ref-payroll.vercel.app/api/feeds/overdue-ref-pay", {
+        headers: { Authorization: `Bearer ${key}` },
       });
       if (!res.ok) return null;
       const j = (await res.json()) as { locations?: { location: string; currency: string; ref_weeks: number; cents: number; oldest_due: string }[] };
@@ -2966,7 +2966,7 @@ async function RefereePaymentCards({ scope }: { scope: Scope }) {
 async function feedJson<T>(url: string, key: string | null | undefined): Promise<T | null> {
   if (!key) return null;
   try {
-    const res = await fetch(url, { cache: "no-store", headers: { Authorization: `Bearer ${key}` } });
+    const res = await promoFetch(url, { headers: { Authorization: `Bearer ${key}` } });
     return res.ok ? ((await res.json()) as T) : null;
   } catch {
     return null;
