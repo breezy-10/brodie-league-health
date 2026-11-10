@@ -1298,7 +1298,11 @@ function addDaysIso(iso: string, days: number): string {
 // A count of messages or notes reads differently: 511 touches went to 474
 // people, most of them not captains.
 type FunnelRow = { location: string; pool: number; contacted: number; outcomes: number; regAfter: number; avgHours: number | null };
-async function loadCaptainFunnel(scope: Scope, season?: string): Promise<{ season: string; total: FunnelRow; locations: FunnelRow[] } | null> {
+// With a week, only touches made in it (the CRM's location_outreach_funnel_between:
+// the same pool, contacted within the dates, registered after that first
+// touch whenever it came). Weeks are Saturday-Friday, Eastern days; several
+// weeks read as the span from the first to the last.
+async function loadCaptainFunnel(scope: Scope, season?: string, week?: WeekScope): Promise<{ season: string; total: FunnelRow; locations: FunnelRow[] } | null> {
   if (!sourceConfigured("crm")) return null;
   try {
     const sb = sourceClient("crm")!;
@@ -1312,9 +1316,14 @@ async function loadCaptainFunnel(scope: Scope, season?: string): Promise<{ seaso
       .eq("role", "super_admin").eq("active", true).order("created_at").limit(1);
     const managerId = (admins as { id: string }[] | null)?.[0]?.id;
     if (!managerId) return null;
+    const sorted = week ? [...week.weeks].sort() : [];
     const [goals, funnel] = await Promise.all([
       sb.rpc("captain_progress_for_manager", { p_manager_id: managerId, p_season: hit.key }),
-      sb.rpc("location_outreach_funnel", { p_manager_id: managerId, p_season: hit.key }),
+      week
+        ? sb.rpc("location_outreach_funnel_between", {
+            p_manager_id: managerId, p_season: hit.key, p_from: sorted[0], p_to: addDaysIso(sorted.at(-1)!, 6),
+          })
+        : sb.rpc("location_outreach_funnel", { p_manager_id: managerId, p_season: hit.key }),
     ]);
     if (goals.error || funnel.error) return null;
     const target = new Map<string, number>();
@@ -2404,8 +2413,10 @@ function AthletesVsRevenueChart({ locations, prevLabel, yearLabel }: {
 // Each of these owns a single source app. Rendered inside its own Suspense
 // boundary they start together and appear as they answer, so the page fills
 // top to bottom instead of waiting for the slowest one.
-async function OutreachCards({ scope, season, fullTag }: { scope: Scope; season?: string; fullTag?: string }) {
-  const f = await loadCaptainFunnel(scope, season);
+async function OutreachCards({ scope, season, fullTag, week, toggle }: {
+  scope: Scope; season?: string; fullTag?: string; week?: WeekScope; toggle?: ReactNode;
+}) {
+  const f = await loadCaptainFunnel(scope, season, week);
   const pct = (n: number, of: number) => (of ? Math.round((100 * n) / of) : 0);
   const chips = (text: (r: FunnelRow) => string | null, sortValue: (r: FunnelRow) => number) =>
     (f?.locations ?? []).flatMap((r) => {
@@ -2433,17 +2444,20 @@ async function OutreachCards({ scope, season, fullTag }: { scope: Scope; season?
     },
     {
       label: "Avg time to register", value: f.total.avgHours == null ? "—" : formatHours(f.total.avgHours),
-      sub: f.total.regAfter ? `after first touch (${f.total.regAfter} captain${f.total.regAfter === 1 ? "" : "s"})` : "nobody registered after contact yet",
+      sub: f.total.regAfter
+        ? `after first touch${week ? " that week" : ""} (${f.total.regAfter} captain${f.total.regAfter === 1 ? "" : "s"})`
+        : "nobody registered after contact yet",
       tone: f.total.avgHours == null ? "default" : "ok",
       // Slowest first under "Largest".
       pills: chips((r) => r.avgHours != null && r.regAfter ? `${r.location} ${formatHours(r.avgHours)} (${r.regAfter})` : null, (r) => r.avgHours ?? 0),
       pillsEmpty: "nobody registered after contact yet",
     },
   ] : null;
-  // Season to date whatever the week filter says: the CRM measures the
-  // season's registration window.
-  return <Section title="Outreach" scopeTag={fullTag} seasonTag={f ? `${f.season} registration` : undefined}
-    href={APP_URL.crm} tiles={tiles} cols={4} />;
+  // Season: the season's registration window, as the CRM measures it. Week:
+  // touches made in the selected weeks.
+  return <Section title="Outreach" scopeTag={toggle ? undefined : fullTag}
+    seasonTag={week ? week.label : f ? `${f.season} registration` : undefined}
+    href={APP_URL.crm} tiles={tiles} cols={4} headerExtra={toggle} />;
 }
 // Ambassador teams are registered for the season being sold, so this reads the
 // registration season, as the Ambassador teams page does by default.
@@ -2490,8 +2504,8 @@ function TileLinks({ links }: { links: { href: string; text: string }[] }) {
 }
 
 // The Weekly review's Season / Week switch, on Registrations and on the
-// Drop-ins, Events and Check-ins sections. Registrations opens on Season,
-// the other three on Week.
+// Outreach, Drop-ins, Events and Check-ins sections. Registrations opens on
+// Season, the others on Week.
 const SEASON_WEEK = [{ value: "season", label: "Season" }, { value: "week", label: "Week" }];
 // A section switched to Week: the selected Saturday-Friday weeks (each by its
 // Saturday) and how the header names them.
@@ -3766,7 +3780,7 @@ export default async function DashboardView({
   showViewTabs = false,
 }: {
   searchParams: Promise<{ season?: string; location?: string; lm?: string; week?: string; regBasis?: string;
-    dropinsBasis?: string; eventsBasis?: string; checkinsBasis?: string; rank?: string; group?: string; locs?: string; hist?: string;
+    dropinsBasis?: string; eventsBasis?: string; checkinsBasis?: string; outreachBasis?: string; rank?: string; group?: string; locs?: string; hist?: string;
     overdueSeason?: string; regsSeason?: string; promoSeason?: string; bookingSeason?: string; refereeSeason?: string;
     tab?: string;
     }>;
@@ -3780,7 +3794,7 @@ export default async function DashboardView({
   // checklist, and only the sections they run (no league manager outreach,
   // site visits, game day checklists or training).
   const isOm = mode === "om";
-  const { season: seasonParam, location: locationParam, week: weekParam, regBasis, dropinsBasis, eventsBasis, checkinsBasis,
+  const { season: seasonParam, location: locationParam, week: weekParam, regBasis, dropinsBasis, eventsBasis, checkinsBasis, outreachBasis,
     overdueSeason, regsSeason, promoSeason, bookingSeason, refereeSeason, tab: tabParam, rank: rankParam, group: groupParam, locs: locsParam, hist: histParam } = await searchParams;
   // The Registrations page's second tab: who came back, rather than how many.
   const isRetention = isReg && tabParam === "retention";
@@ -3822,8 +3836,8 @@ export default async function DashboardView({
   // Weekly Review reads the registration cards season-to-date by default; the
   // toggle switches them to the selected week. Ignored on other tabs.
   const regOnWeek = isWeekly && regBasis === "week";
-  // Drop-ins, Events and Check-ins have the same switch, each its own, but
-  // open on the week (Sohaib, Nov 10): Season has to be picked.
+  // Outreach, Drop-ins, Events and Check-ins have the same switch, each its
+  // own, but open on the week (Sohaib, Nov 10): Season has to be picked.
   const onWeek = (basis?: string): WeekScope | undefined =>
     isWeekly && basis !== "season" && activeWeeks.length ? { weeks: activeWeeks, label: weekLabel } : undefined;
   const basisToggle = (param: string, basis?: string) => isWeekly ? (
@@ -4710,7 +4724,8 @@ export default async function DashboardView({
                   seasonTag={seasonToggle("promoSeason", promoSeason) ? undefined : promoSeasonName}
                   headerExtra={seasonToggle("promoSeason", promoSeason)} />
                 <Suspense fallback={<SectionSkeleton title="Outreach" cols={4} />}>
-                  <OutreachCards scope={scope} season={regSeason} fullTag={fullTag} />
+                  <OutreachCards scope={scope} season={regSeason} fullTag={fullTag}
+                    week={onWeek(outreachBasis)} toggle={basisToggle("outreachBasis", outreachBasis)} />
                 </Suspense>
                 <Suspense fallback={<SectionSkeleton title="Ambassador teams" cols={3} count={2} />}>
                   <AmbassadorCards season={regSeason} scope={scope} fullTag={fullTag} />
