@@ -2490,7 +2490,8 @@ function TileLinks({ links }: { links: { href: string; text: string }[] }) {
 }
 
 // The Weekly review's Season / Week switch, on Registrations and on the
-// Drop-ins, Events and Check-ins sections. Season is the default.
+// Drop-ins, Events and Check-ins sections. Registrations opens on Season,
+// the other three on Week.
 const SEASON_WEEK = [{ value: "season", label: "Season" }, { value: "week", label: "Week" }];
 // A section switched to Week: the selected Saturday-Friday weeks (each by its
 // Saturday) and how the header names them.
@@ -3821,11 +3822,12 @@ export default async function DashboardView({
   // Weekly Review reads the registration cards season-to-date by default; the
   // toggle switches them to the selected week. Ignored on other tabs.
   const regOnWeek = isWeekly && regBasis === "week";
-  // Drop-ins, Events and Check-ins have the same switch, each its own.
+  // Drop-ins, Events and Check-ins have the same switch, each its own, but
+  // open on the week (Sohaib, Nov 10): Season has to be picked.
   const onWeek = (basis?: string): WeekScope | undefined =>
-    isWeekly && basis === "week" && activeWeeks.length ? { weeks: activeWeeks, label: weekLabel } : undefined;
+    isWeekly && basis !== "season" && activeWeeks.length ? { weeks: activeWeeks, label: weekLabel } : undefined;
   const basisToggle = (param: string, basis?: string) => isWeekly ? (
-    <BasisToggle param={param} value={basis === "week" ? "week" : "season"} options={SEASON_WEEK} />
+    <BasisToggle param={param} value={basis === "season" ? "season" : "week"} options={SEASON_WEEK} defaultValue="week" />
   ) : undefined;
   const admin = createAdminClient();
 
