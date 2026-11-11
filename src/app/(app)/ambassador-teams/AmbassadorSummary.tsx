@@ -1,4 +1,5 @@
-import { locParam } from "@/lib/seasons";
+import { locParam, seasonKey } from "@/lib/seasons";
+import { canonLoc, sameLocation } from "@/lib/location-match";
 import { promoFetch } from "@/lib/promo-feed";
 import { ChipTile as Tile, CHIP_STYLE } from "../dashboard/ChipTile";
 import type { JoinedVia } from "@/components/TeamRosterBlock";
@@ -99,11 +100,49 @@ export async function loadAmbassadorTeams(
   }
 }
 
+// Each location's page in the Player Portal for a season, so a location with
+// no ambassador team opens where a player would sign up there. The portal's
+// public seasons list gives each location's season target id (the reg target),
+// and ?season_target= on the free agent page opens it on that location and
+// season, its divisions and their teams listed (checked Nov 10 on Atlanta
+// (Chamblee), Winter '27). Only seasons open in the portal are listed; null
+// when it couldn't be read, and a location it doesn't list gets no link.
+const PORTAL_SEASONS_URL = "https://api.brodierec.dev/portal/register/seasons";
+const PORTAL_LOCATION_URL = "https://athletes.brodierec.com/registrations/new/free-agent/league-details";
+export async function loadPortalLinks(season: string): Promise<Map<string, string> | null> {
+  try {
+    const res = await promoFetch(PORTAL_SEASONS_URL);
+    if (!res.ok) return null;
+    const k = (await res.json()) as { data?: { id: string; name: string; campaign_name: string | null }[] };
+    const links = new Map<string, string>();
+    for (const x of k.data ?? []) {
+      if (x.campaign_name && seasonKey(x.campaign_name) === seasonKey(season)) {
+        links.set(canonLoc(x.name), `${PORTAL_LOCATION_URL}?${new URLSearchParams({ season_target: x.id })}`);
+      }
+    }
+    return links;
+  } catch {
+    return null;
+  }
+}
+
 const GOLD = "var(--glass-gold)";
 
 // The Ambassador teams, Locations and Divisions cards: the top of the
 // Ambassador teams page, and the Ambassador teams section of the dashboard.
-export function AmbassadorSummaryTiles({ feed }: { feed: AmbassadorFeed }) {
+// portal: each location's Player Portal page (loadPortalLinks), so the red
+// chips open the location's sign-up page.
+export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed; portal?: Map<string, string> | null }) {
+  // The portal names a single-venue market after its venue ("Atlanta
+  // (Chamblee)" for Atlanta), so a name with no exact match takes the one
+  // portal location it shares a first word with, never a guess between two.
+  const portalHref = (location: string) => {
+    if (!portal) return undefined;
+    const exact = portal.get(canonLoc(location));
+    if (exact) return exact;
+    const near = [...portal.keys()].filter((k) => sameLocation(k, location));
+    return near.length === 1 ? portal.get(near[0]) : undefined;
+  };
   const t = feed.totals;
   // Location-nights with no ambassador team ("Burlington Monday"). Undefined
   // from an older feed and null when the Promo Tracker couldn't tell; either
@@ -131,10 +170,12 @@ export function AmbassadorSummaryTiles({ feed }: { feed: AmbassadorFeed }) {
   // name ("D3" for "D3 | Inter"): 106 single-division chips (Winter '27)
   // ran the card off the page.
   const shortDiv = (name: string) => name.split("|")[0].trim();
-  const missingDivDays = new Map<string, string[]>();
+  const missingDivDays = new Map<string, { location: string; divs: string[] }>();
   for (const d of missingDivs ?? []) {
     const k = `${d.location} ${d.day}`;
-    missingDivDays.set(k, [...(missingDivDays.get(k) ?? []), shortDiv(d.division)]);
+    const cur = missingDivDays.get(k) ?? { location: d.location, divs: [] };
+    cur.divs.push(shortDiv(d.division));
+    missingDivDays.set(k, cur);
   }
   return (
     <>
@@ -175,7 +216,7 @@ export function AmbassadorSummaryTiles({ feed }: { feed: AmbassadorFeed }) {
               ? `${missing.length} ${missing.length === 1 ? "day" : "days"} at ${missingLocations} ${missingLocations === 1 ? "location" : "locations"} with no ambassador team`
               : "every day has an ambassador team")
           : undefined}
-        chips={missing?.map((m) => ({ text: m.day ? `${m.location} ${m.day}` : m.location, tone: "red" as const }))}
+        chips={missing?.map((m) => ({ text: m.day ? `${m.location} ${m.day}` : m.location, tone: "red" as const, href: portalHref(m.location) }))}
       />
       <Tile
         label="Divisions with 1 or more ambassador teams"
@@ -185,7 +226,7 @@ export function AmbassadorSummaryTiles({ feed }: { feed: AmbassadorFeed }) {
               ? `${missingDivs.length} ${missingDivs.length === 1 ? "division" : "divisions"} on ${missingDivDays.size} ${missingDivDays.size === 1 ? "day" : "days"} at ${missingDivLocations} ${missingDivLocations === 1 ? "location" : "locations"} with no ambassador team`
               : "every division has an ambassador team")
           : undefined}
-        chips={missingDivs ? [...missingDivDays].map(([where, divs]) => ({ text: `${where} ${divs.join(", ")}`, tone: "red" as const })) : undefined}
+        chips={missingDivs ? [...missingDivDays].map(([where, d]) => ({ text: `${where} ${d.divs.join(", ")}`, tone: "red" as const, href: portalHref(d.location) })) : undefined}
       />
     </>
   );

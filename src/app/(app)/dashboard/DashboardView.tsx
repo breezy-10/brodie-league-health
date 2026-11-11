@@ -18,7 +18,7 @@ import { discountTone, freeTone } from "../discounts/rates";
 import { promoFetch } from "@/lib/promo-feed";
 import { canonLoc, sameLocation } from "@/lib/location-match";
 import { BOB_URL, forfeitTeamsHref, loadForfeitRisk } from "@/lib/forfeit-risk";
-import { AmbassadorSummaryTiles, loadAmbassadorTeams } from "../ambassador-teams/AmbassadorSummary";
+import { AmbassadorSummaryTiles, loadAmbassadorTeams, loadPortalLinks } from "../ambassador-teams/AmbassadorSummary";
 import { dropInOutcomeTiles, loadDropIns } from "../drop-ins/DropInsView";
 import { eventOutcomeTiles, loadEvents, type EventRow } from "../events/EventsView";
 import { checkInTotals, loadCheckIns, pct as checkInPct, shareStyle as checkInShareStyle } from "../check-ins/CheckInsView";
@@ -2462,7 +2462,7 @@ async function OutreachCards({ scope, season, fullTag, week, toggle }: {
 // Ambassador teams are registered for the season being sold, so this reads the
 // registration season, as the Ambassador teams page does by default.
 async function AmbassadorCards({ season, scope, fullTag }: { season: string; scope: Scope; fullTag?: string }) {
-  const feed = await loadAmbassadorTeams(season, scope.locationNames);
+  const [feed, portal] = await Promise.all([loadAmbassadorTeams(season, scope.locationNames), loadPortalLinks(season)]);
   const q = new URLSearchParams({ season });
   const lp = locParam(scope.locationNames);
   if (lp) q.set("location", lp);
@@ -2471,7 +2471,7 @@ async function AmbassadorCards({ season, scope, fullTag }: { season: string; sco
       tiles={feed ? [] : null}>
       {feed && (
         <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
-          <AmbassadorSummaryTiles feed={feed} />
+          <AmbassadorSummaryTiles feed={feed} portal={portal} />
         </div>
       )}
     </Section>
