@@ -9,7 +9,7 @@ import { loadStaff } from "@/lib/staff";
 import { normName } from "@/lib/names";
 import { shortDiscount } from "@/lib/discount-names";
 import { ChipTile as Tile } from "../dashboard/ChipTile";
-import { AmbassadorSummaryTiles, loadAmbassadorTeams, type LocationRow, type TeamRow } from "./AmbassadorSummary";
+import { AmbassadorSummaryTiles, loadAmbassadorTeams, loadPortalLinks, type LocationRow, type TeamRow } from "./AmbassadorSummary";
 
 const GOLD = "var(--glass-gold)";
 const THIN = "var(--glass-yellow)"; // captain-only roster
@@ -51,7 +51,7 @@ export default async function AmbassadorTeamsView({
         return !!d && selectedDistricts.includes(d);
       })
     : scope.locationNames;
-  const [feed, staff] = await Promise.all([loadAmbassadorTeams(selectedSeason, locationNames), loadStaff()]);
+  const [feed, staff, portal] = await Promise.all([loadAmbassadorTeams(selectedSeason, locationNames), loadStaff(), loadPortalLinks(selectedSeason)]);
 
   const options: FilterOptions = {
     seasons: promoSeasons.map((s) => ({ value: s, label: s })),
@@ -206,7 +206,7 @@ export default async function AmbassadorTeamsView({
         ) : (
           <>
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-              <AmbassadorSummaryTiles feed={feed} />
+              <AmbassadorSummaryTiles feed={feed} portal={portal} />
               <Tile
                 label="Distinct captains"
                 value={t!.captains.toLocaleString()}
