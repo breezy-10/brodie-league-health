@@ -215,12 +215,16 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
         label="Ambassador teams"
         value={t.teams.toLocaleString()}
         accent={GOLD}
-        chips={t.full_roster != null && t.three_or_fewer != null
-          ? [
-              { text: `${t.full_roster.toLocaleString()} with 7 or more players`, tone: "yellow" },
-              { text: `${t.three_or_fewer.toLocaleString()} with 3 or fewer players`, tone: "red" },
-            ]
-          : undefined}
+        // The roster chips, then the average roster under them.
+        chips={[
+          ...(t.full_roster != null && t.three_or_fewer != null
+            ? [
+                { text: `${t.full_roster.toLocaleString()} with 7 or more players`, tone: "yellow" as const },
+                { text: `${t.three_or_fewer.toLocaleString()} with 3 or fewer players`, tone: "red" as const },
+              ]
+            : []),
+          ...(t.teams > 0 ? [{ text: `${(t.players / t.teams).toFixed(2)} per team`, tone: "neutral" as const }] : []),
+        ]}
         stackChips
         // Every location with an ambassador team and how many it has, most
         // first, under the roster chips.
@@ -241,7 +245,6 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
         value={t.players.toLocaleString()}
         stackChips
         chips={[
-          ...(t.teams > 0 ? [{ text: `${(t.players / t.teams).toFixed(2)} per team`, tone: "neutral" as const }] : []),
           ...(knowsJoin ? [
             { text: `${(join.picked + join.placed).toLocaleString()} free agents (${join.picked.toLocaleString()} picked the team, ${join.placed.toLocaleString()} placed by staff)`, tone: "neutral" as const, wrap: true },
             { text: `${(join.code + join.noCode).toLocaleString()} joined the team directly (${join.code.toLocaleString()} with the captain's code, ${join.noCode.toLocaleString()} without)`, tone: "neutral" as const, wrap: true },
