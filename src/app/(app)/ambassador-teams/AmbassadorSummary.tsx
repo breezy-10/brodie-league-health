@@ -149,7 +149,12 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
   // from an older feed and null when the Promo Tracker couldn't tell; either
   // way no chips.
   const missing = feed.nights_without_ambassador ?? null;
-  const missingLocations = new Set((missing ?? []).map((m) => m.location)).size;
+  // Out of every day a location in scope plays: the days with an ambassador
+  // team (each location's nights) plus the days without one, so the two
+  // always add up. A location with captains but no known night counts as one
+  // day without.
+  const coveredDays = feed.locations.reduce((n, l) => n + l.nights, 0);
+  const totalDays = coveredDays + (missing?.length ?? 0);
   // How the players placed got onto their team, from each roster line's
   // joined_via (absent from an older feed: no breakdown then). Free agents
   // registered as free agents: they picked the team in the sign-up or staff
@@ -186,7 +191,6 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
         .sort((a, b) => a.location.localeCompare(b.location) || dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day)
           || a.division.localeCompare(b.division))
     : null;
-  const missingDivLocations = new Set((missingDivs ?? []).map((d) => d.location)).size;
   // One chip per location, each day with its uncovered divisions (Sohaib,
   // Nov 10): "Burlington · Mon D3, D5 · Wed D4". A division goes by its
   // short name ("D3" for "D3 | Inter") unless another division open that day
@@ -208,7 +212,11 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
     days.set(d.day, [...(days.get(d.day) ?? []), divLabel(d)]);
     missingByLocation.set(d.location, days);
   }
-  const missingDivDayCount = [...missingByLocation.values()].reduce((n, days) => n + days.size, 0);
+  // "7 of 52 days have no ambassador team (13%)" (Sohaib, Nov 11: the old
+  // "N days at M locations" line didn't say out of how many).
+  const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
+  const shareWithout = (part: number, whole: number, unit: string) =>
+    `${part.toLocaleString()} of ${whole.toLocaleString()} ${whole === 1 ? unit : `${unit}s`} ${part === 1 ? "has" : "have"} no ambassador team (${pct(part, whole)}%)`;
   return (
     <>
       <Tile
@@ -259,7 +267,7 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
         value={t.locations.toLocaleString()}
         sub={missing
           ? (missing.length
-              ? `${missing.length} ${missing.length === 1 ? "day" : "days"} at ${missingLocations} ${missingLocations === 1 ? "location" : "locations"} with no ambassador team`
+              ? shareWithout(missing.length, totalDays, "day")
               : "every day has an ambassador team")
           : undefined}
         chips={missing?.map((m) => ({ text: m.day ? `${m.location} ${m.day}` : m.location, tone: "red" as const, href: portalHref(m.location) }))}
@@ -269,7 +277,7 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
         value={coveredDivs.size.toLocaleString()}
         sub={missingDivs
           ? (missingDivs.length
-              ? `${missingDivs.length} ${missingDivs.length === 1 ? "division" : "divisions"} on ${missingDivDayCount} ${missingDivDayCount === 1 ? "day" : "days"} at ${missingDivLocations} ${missingDivLocations === 1 ? "location" : "locations"} with no ambassador team`
+              ? shareWithout(missingDivs.length, openDivs.length, "division")
               : "every division has an ambassador team")
           : undefined}
         chips={missingDivs ? [...missingByLocation].map(([location, days]) => ({
