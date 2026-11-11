@@ -10,8 +10,9 @@ export const CHIP_STYLE = {
   // Informational, not a judgement: "4.19 per team", "Burlington 20".
   neutral: { color: "var(--glass-gold)", borderColor: "transparent", background: "var(--glass-gold-light, var(--fill-3))" },
 };
-// href makes the chip a link, opened in a new tab (another app's page).
-export type Chip = { text: string; tone: keyof typeof CHIP_STYLE; href?: string };
+// href makes the chip a link, opened in a new tab (another app's page). wrap
+// lets a long chip run onto a second line instead of past the card's edge.
+export type Chip = { text: string; tone: keyof typeof CHIP_STYLE; href?: string; wrap?: boolean };
 
 export function ChipTile({ label, value, sub, chips, stackChips, accent, footer }: {
   label: string; value: string; sub?: string; chips?: Chip[]; stackChips?: boolean; accent?: string; footer?: React.ReactNode;
@@ -27,13 +28,13 @@ export function ChipTile({ label, value, sub, chips, stackChips, accent, footer 
         <div className={`mt-2 flex gap-1.5 ${stackChips ? "flex-col items-start" : "flex-wrap"}`}>
           {chips.map((c) => c.href ? (
             <a key={c.text} href={c.href} target="_blank" rel="noopener noreferrer"
-              className="text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap hover:underline hover:brightness-110 transition"
+              className={`text-[11px] font-semibold px-2 py-0.5 max-w-full hover:underline hover:brightness-110 transition ${c.wrap ? "rounded-lg" : "rounded-full sm:whitespace-nowrap"}`}
               style={CHIP_STYLE[c.tone]}>
               {c.text}
             </a>
           ) : (
             <span key={c.text}
-              className="text-[11px] font-semibold rounded-full px-2 py-0.5 max-w-full sm:whitespace-nowrap"
+              className={`text-[11px] font-semibold px-2 py-0.5 max-w-full ${c.wrap ? "rounded-lg" : "rounded-full sm:whitespace-nowrap"}`}
               style={CHIP_STYLE[c.tone]}>
               {c.text}
             </span>
