@@ -128,8 +128,9 @@ export async function loadPortalLinks(season: string): Promise<Map<string, strin
 
 const GOLD = "var(--glass-gold)";
 
-// The Ambassador teams, Locations and Divisions cards: the top of the
-// Ambassador teams page, and the Ambassador teams section of the dashboard.
+// The Ambassador teams, Players placed, Locations and Divisions cards: the
+// top of the Ambassador teams page, and the Ambassador teams section of the
+// dashboard.
 // portal: each location's Player Portal page (loadPortalLinks), so the red
 // chips open the location's sign-up page.
 export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed; portal?: Map<string, string> | null }) {
@@ -149,6 +150,8 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
   // way no chips.
   const missing = feed.nights_without_ambassador ?? null;
   const missingLocations = new Set((missing ?? []).map((m) => m.location)).size;
+  const teamsByLocation = feed.locations.filter((l) => l.teams > 0)
+    .sort((a, b) => b.teams - a.teams || a.location.localeCompare(b.location));
   // Divisions the same way: each location's divisions open on each day (its
   // registration campaign), and which have an ambassador team in them. Names
   // compared without case or stray spaces. No division list (an older feed,
@@ -166,17 +169,28 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
           || a.division.localeCompare(b.division))
     : null;
   const missingDivLocations = new Set((missingDivs ?? []).map((d) => d.location)).size;
-  // One chip per location and day, its uncovered divisions by their short
-  // name ("D3" for "D3 | Inter"): 106 single-division chips (Winter '27)
-  // ran the card off the page.
+  // One chip per location, each day with its uncovered divisions (Sohaib,
+  // Nov 10): "Burlington · Mon D3, D5 · Wed D4". A division goes by its
+  // short name ("D3" for "D3 | Inter") unless another division open that day
+  // shares it, then in full: "D4 Co-Ed" beside "D4 Rec", "D3 7pm-11pm".
   const shortDiv = (name: string) => name.split("|")[0].trim();
-  const missingDivDays = new Map<string, { location: string; divs: string[] }>();
-  for (const d of missingDivs ?? []) {
-    const k = `${d.location} ${d.day}`;
-    const cur = missingDivDays.get(k) ?? { location: d.location, divs: [] };
-    cur.divs.push(shortDiv(d.division));
-    missingDivDays.set(k, cur);
+  const shortCount = new Map<string, number>();
+  for (const d of openDivs) {
+    const k = `${d.location}|${d.day}|${shortDiv(d.division)}`;
+    shortCount.set(k, (shortCount.get(k) ?? 0) + 1);
   }
+  const divLabel = (d: { location: string; day: string; division: string }) =>
+    (shortCount.get(`${d.location}|${d.day}|${shortDiv(d.division)}`) ?? 0) > 1
+      ? d.division.replace(/\s*\|\s*/, " ").trim()
+      : shortDiv(d.division);
+  // missingDivs is already in location, day, division order.
+  const missingByLocation = new Map<string, Map<string, string[]>>();
+  for (const d of missingDivs ?? []) {
+    const days = missingByLocation.get(d.location) ?? new Map<string, string[]>();
+    days.set(d.day, [...(days.get(d.day) ?? []), divLabel(d)]);
+    missingByLocation.set(d.location, days);
+  }
+  const missingDivDayCount = [...missingByLocation.values()].reduce((n, days) => n + days.size, 0);
   return (
     <>
       <Tile
@@ -190,23 +204,24 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
             ]
           : undefined}
         stackChips
-        // Players placed belongs with the teams they're placed on: the
-        // count, and how many that comes to per team.
-        // A second figure in the same card, set like the first: its
-        // label, the number at the card's size, then per team.
-        footer={
-          <div className="mt-5">
-            <div className="text-xs font-bold text-glass-text-tertiary truncate">Players placed</div>
-            <div className="mt-1.5 text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>
-              {t.players.toLocaleString()}
-            </div>
-            {t.teams > 0 && (
-              <span className="mt-2 inline-block text-[11px] font-semibold rounded-full px-2 py-0.5 tabular" style={CHIP_STYLE.neutral}>
-                {(t.players / t.teams).toFixed(2)} per team
+        // Every location with an ambassador team and how many it has, most
+        // first, under the roster chips.
+        footer={teamsByLocation.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {teamsByLocation.map((l) => (
+              <span key={l.location} className="text-[11px] font-semibold rounded-full px-2 py-0.5 tabular sm:whitespace-nowrap"
+                style={CHIP_STYLE.neutral}>
+                {l.location} {l.teams.toLocaleString()}
               </span>
-            )}
+            ))}
           </div>
-        }
+        )}
+      />
+      {/* Players placed on those teams, and how many that comes to per team. */}
+      <Tile
+        label="Players placed"
+        value={t.players.toLocaleString()}
+        chips={t.teams > 0 ? [{ text: `${(t.players / t.teams).toFixed(2)} per team`, tone: "neutral" }] : undefined}
       />
       <Tile
         label="Locations with 1 or more ambassador teams"
@@ -223,10 +238,13 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
         value={coveredDivs.size.toLocaleString()}
         sub={missingDivs
           ? (missingDivs.length
-              ? `${missingDivs.length} ${missingDivs.length === 1 ? "division" : "divisions"} on ${missingDivDays.size} ${missingDivDays.size === 1 ? "day" : "days"} at ${missingDivLocations} ${missingDivLocations === 1 ? "location" : "locations"} with no ambassador team`
+              ? `${missingDivs.length} ${missingDivs.length === 1 ? "division" : "divisions"} on ${missingDivDayCount} ${missingDivDayCount === 1 ? "day" : "days"} at ${missingDivLocations} ${missingDivLocations === 1 ? "location" : "locations"} with no ambassador team`
               : "every division has an ambassador team")
           : undefined}
-        chips={missingDivs ? [...missingDivDays].map(([where, d]) => ({ text: `${where} ${d.divs.join(", ")}`, tone: "red" as const, href: portalHref(d.location) })) : undefined}
+        chips={missingDivs ? [...missingByLocation].map(([location, days]) => ({
+          text: [location, ...[...days].map(([day, divs]) => `${day.slice(0, 3)} ${divs.join(", ")}`)].join(" \u00B7 "),
+          tone: "red" as const, href: portalHref(location), wrap: true,
+        })) : undefined}
       />
     </>
   );

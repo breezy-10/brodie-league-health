@@ -2470,7 +2470,7 @@ async function AmbassadorCards({ season, scope, fullTag }: { season: string; sco
     <Section title="Ambassador teams" scopeTag={fullTag} seasonTag={season} href={`/ambassador-teams?${q}`}
       tiles={feed ? [] : null}>
       {feed && (
-        <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
           <AmbassadorSummaryTiles feed={feed} portal={portal} />
         </div>
       )}
