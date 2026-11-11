@@ -1647,6 +1647,9 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   // age.median flattened onto the season by loadRegistrationPacing, so the age
   // card can go through the same bar machinery as every other metric.
   age_median?: number;
+  // Free agents with no team yet, as they stand now: on a location card's
+  // current season only, absent from an older feed or when it couldn't be read.
+  unrostered_free_agents?: number;
   // Teams, athletes, rosters and the played-before shares per country, from
   // the league's country. Absent from an older feed or when the lookup failed.
   by_country?: Record<"CAN" | "USA", { captains: number; athletes: number; full_roster: number; low_roster: number; athletes_indiv?: number }
@@ -3519,6 +3522,12 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
               ...(get("current", "low_roster")
                 ? [{ text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`, tone: "bad" as const }]
                 : []),
+              // Free agents still waiting for a team, a grey chip: people to
+              // place rather than a roster to read (Sohaib, Nov 11).
+              ...(() => {
+                const fa = l.seasons.find((s) => s.kind === "current")?.unrostered_free_agents ?? 0;
+                return fa ? [{ text: `${fa.toLocaleString()} unrostered free ${fa === 1 ? "agent" : "agents"}` }] : [];
+              })(),
             ]} />
           <LocationMetric label="Athletes"
             cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}

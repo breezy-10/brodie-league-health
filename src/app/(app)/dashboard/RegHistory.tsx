@@ -14,6 +14,9 @@ import { BasisToggle } from "./BasisToggle";
 //   - To date: every season at the same day of registration as the season
 //     picked is at now, counted as on the Registrations tab. Only seasons
 //     whose records say when people signed up (the feed's to_date_from on).
+// Under them, referrals: the athletes beside them who registered through a
+// referral, read the same way, from the programme's first season (the feed's
+// referrals_from) on.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
 type HistSeason = {
@@ -25,8 +28,15 @@ type HistSeason = {
   // Ops league ids, to count new locations against another season.
   locations_to_date?: string[] | null;
   locations_final?: string[];
+  // Athletes who registered through a referral, and the part for whom it was
+  // their first-ever registration. Null before the programme; absent from an
+  // older feed.
+  referrals_to_date?: number | null;
+  referrals_new_to_date?: number | null;
+  referrals_final?: number | null;
+  referrals_new_final?: number | null;
 };
-type Feed = { season: string; day_n: number | null; to_date_from?: string; seasons: HistSeason[] };
+type Feed = { season: string; day_n: number | null; to_date_from?: string; referrals_from?: string; seasons: HistSeason[] };
 
 async function loadHistory(season: string, locationNames: string[] | null): Promise<Feed | null> {
   try {
@@ -86,7 +96,8 @@ function newLocations(locs: string[] | null, against: string[] | null | undefine
   return locs.filter((id) => !had.has(id)).length.toLocaleString();
 }
 
-type Bar = { season: string; value: number; locations: string[] | null };
+// A bar's tooltip ends with its locations, or with rows of its own (details).
+type Bar = { season: string; value: number; locations: string[] | null; details?: { label: string; value: string }[] };
 
 const TRACK_PX = 150;
 // Wide enough for "Summer '26" under its bar; narrower screens scroll the chart.
@@ -155,9 +166,13 @@ function HistoryChart({ title, noun, subtitle, season, bars }: {
                       <TipRow label={`vs ${prev?.season ?? "season before"}`} value={vsPrev.text} color={vsPrev.color} />
                       <TipRow label={`vs ${lastYearName ?? "a year earlier"}`} value={vsYear.text} color={vsYear.color} />
                       <div className="my-1.5" style={{ borderTop: "1px solid var(--divider)" }} />
-                      <TipRow label="Locations" value={b.locations ? b.locations.length.toLocaleString() : "–"} />
-                      <TipRow label={`New vs ${prev?.season ?? "season before"}`} value={prev ? newLocations(b.locations, prev.locations) : "–"} />
-                      <TipRow label={`New vs ${lastYearName ?? "a year earlier"}`} value={lastYear ? newLocations(b.locations, lastYear.locations) : "–"} />
+                      {b.details ? b.details.map((d) => <TipRow key={d.label} label={d.label} value={d.value} />) : (
+                        <>
+                          <TipRow label="Locations" value={b.locations ? b.locations.length.toLocaleString() : "–"} />
+                          <TipRow label={`New vs ${prev?.season ?? "season before"}`} value={prev ? newLocations(b.locations, prev.locations) : "–"} />
+                          <TipRow label={`New vs ${lastYearName ?? "a year earlier"}`} value={lastYear ? newLocations(b.locations, lastYear.locations) : "–"} />
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -218,6 +233,23 @@ export default async function RegHistory({ season, locationNames, basis }: {
       locations: (toDate ? s.locations_to_date : s.locations_final) ?? null,
     }))
     .filter((b): b is Bar => b.value != null);
+  // Referrals: the athletes bar's registrations that came through a referral,
+  // split by whether it was the athlete's first-ever registration, and their
+  // share of that season's athletes on the same reading.
+  const referrals: Bar[] = feed.seasons.flatMap((s) => {
+    const value = toDate ? s.referrals_to_date : s.referrals_final;
+    if (value == null) return [];
+    const fresh = (toDate ? s.referrals_new_to_date : s.referrals_new_final) ?? 0;
+    const athletes = toDate ? s.athletes_to_date : s.athletes_final;
+    return [{
+      season: s.season, value, locations: null,
+      details: [
+        { label: "New athletes", value: fresh.toLocaleString() },
+        { label: "Returning athletes", value: (value - fresh).toLocaleString() },
+        { label: "Share of athletes", value: athletes ? `${((100 * value) / athletes).toFixed(1)}%` : "–" },
+      ],
+    }];
+  });
   const day = feed.day_n;
   const subtitle = (noun: string) => toDate
     ? `${noun} at day ${day ?? "N"} of registration, every season`
@@ -237,6 +269,14 @@ export default async function RegHistory({ season, locationNames, basis }: {
       )}
       <HistoryChart title="Teams" noun="teams" subtitle={subtitle("Teams")} season={season} bars={pick("teams")} />
       <HistoryChart title="Athletes" noun="athletes" subtitle={subtitle("Athletes")} season={season} bars={pick("athletes")} />
+      {/* Only once the feed carries referrals: an older one has none to show. */}
+      {feed.referrals_from && (
+        <HistoryChart title="Referrals" noun="referrals"
+          subtitle={toDate
+            ? `Athletes registered through a referral at day ${day ?? "N"} of registration, every season since ${feed.referrals_from}`
+            : `Athletes registered through a referral, every season since ${feed.referrals_from}`}
+          season={season} bars={referrals} />
+      )}
       <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
         Oldest season on the left, {season} on the right, each bar coloured by its term. Final is how each season ended up: teams are slots on
         the schedule, as on the Metabase registration dashboard (for each location and day, the most teams that played
@@ -248,6 +288,15 @@ export default async function RegHistory({ season, locationNames, basis }: {
         Hover a bar (or tab to it) for its change against the season before it on the chart and the same season a
         year earlier, and how many of its locations were new against each: final, locations whose teams played; to
         date, locations with a team in by that day.
+        {feed.referrals_from && (
+          <>
+            {" "}Referrals are the athletes on the bar above who registered through someone&apos;s referral, counted
+            once each and read the same way (final, still registered; to date, as they stood at day {day ?? "N"}),
+            from {feed.referrals_from}, when the programme started. Declined instalments count, as they do for athletes,
+            so the current season can read higher here than on the Referrals tab, which leaves them out. Hover a bar
+            for how many were new athletes (their first-ever registration) and the share of that season&apos;s athletes.
+          </>
+        )}
       </p>
     </div>
   );
