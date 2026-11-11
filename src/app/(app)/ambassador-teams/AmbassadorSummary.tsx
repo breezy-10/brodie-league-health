@@ -150,6 +150,24 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
   // way no chips.
   const missing = feed.nights_without_ambassador ?? null;
   const missingLocations = new Set((missing ?? []).map((m) => m.location)).size;
+  // How the players placed got onto their team, from each roster line's
+  // joined_via (absent from an older feed: no breakdown then). Free agents
+  // registered as free agents: they picked the team in the sign-up or staff
+  // placed them. Joined directly is a team registration, with the captain's
+  // code or invite or without one. Captains count as captains however they
+  // registered.
+  const roster = feed.locations.flatMap((l) => l.rows.flatMap((r) => r.roster ?? []));
+  const knowsJoin = roster.some((p) => p.joined_via !== undefined);
+  const joinCount = (test: (p: RosterEntry) => boolean) => roster.filter((p) => !p.is_captain && test(p)).length;
+  const join = {
+    captains: roster.filter((p) => p.is_captain).length,
+    picked: joinCount((p) => p.joined_via === "free_agent_picked" || p.joined_via === "free_agent"),
+    placed: joinCount((p) => p.joined_via === "free_agent_placed"),
+    code: joinCount((p) => p.joined_via === "team_code"),
+    noCode: joinCount((p) => p.joined_via === "no_code"),
+    moved: joinCount((p) => p.joined_via === "moved"),
+    noReg: joinCount((p) => p.joined_via == null),
+  };
   const teamsByLocation = feed.locations.filter((l) => l.teams > 0)
     .sort((a, b) => b.teams - a.teams || a.location.localeCompare(b.location));
   // Divisions the same way: each location's divisions open on each day (its
@@ -221,7 +239,17 @@ export function AmbassadorSummaryTiles({ feed, portal }: { feed: AmbassadorFeed;
       <Tile
         label="Players placed"
         value={t.players.toLocaleString()}
-        chips={t.teams > 0 ? [{ text: `${(t.players / t.teams).toFixed(2)} per team`, tone: "neutral" }] : undefined}
+        stackChips
+        chips={[
+          ...(t.teams > 0 ? [{ text: `${(t.players / t.teams).toFixed(2)} per team`, tone: "neutral" as const }] : []),
+          ...(knowsJoin ? [
+            { text: `${(join.picked + join.placed).toLocaleString()} free agents (${join.picked.toLocaleString()} picked the team, ${join.placed.toLocaleString()} placed by staff)`, tone: "neutral" as const, wrap: true },
+            { text: `${(join.code + join.noCode).toLocaleString()} joined the team directly (${join.code.toLocaleString()} with the captain's code, ${join.noCode.toLocaleString()} without)`, tone: "neutral" as const, wrap: true },
+            { text: `${join.captains.toLocaleString()} captains`, tone: "neutral" as const },
+            ...(join.moved ? [{ text: `${join.moved.toLocaleString()} moved here by staff`, tone: "neutral" as const }] : []),
+            ...(join.noReg ? [{ text: `${join.noReg.toLocaleString()} with no registration`, tone: "neutral" as const }] : []),
+          ] : []),
+        ]}
       />
       <Tile
         label="Locations with 1 or more ambassador teams"
