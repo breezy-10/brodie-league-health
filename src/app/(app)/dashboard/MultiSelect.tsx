@@ -69,9 +69,12 @@ export function MultiSelect({
         </svg>
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 w-full min-w-[200px] max-h-72 overflow-y-auto rounded-lg border border-glass-border-light py-1 shadow-lg" style={{ background: "var(--glass-background)" }}>
+        // No top padding on the scroll box when the search is pinned: options
+        // scrolled up showed through that strip, above the search (Sohaib,
+        // Nov 12). The pinned search carries the gap on its own background.
+        <div className={`absolute z-30 mt-1 w-full min-w-[200px] max-h-72 overflow-y-auto rounded-lg border border-glass-border-light pb-1 shadow-lg ${searchable ? "" : "pt-1"}`} style={{ background: "var(--glass-background)" }}>
           {searchable && (
-            <div className="sticky top-0 z-10 px-2 pt-1 pb-1.5" style={{ background: "var(--glass-background)" }}>
+            <div className="sticky top-0 z-10 px-2 pt-2 pb-1.5" style={{ background: "var(--glass-background)" }}>
               <input
                 autoFocus
                 type="text"
