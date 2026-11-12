@@ -82,6 +82,26 @@ export default async function RegHistory({ season, locationNames, basis }: {
   }
 
   const toDate = which === "todate";
+  // Locations: how many each season had (final, those whose teams played;
+  // to date, those with a team in by day N), and on hover which were new
+  // against the season before and which of its locations didn't come back.
+  const locationBars: Bar[] = (() => {
+    const list = feed.seasons
+      .filter((s) => (toDate ? s.teams_to_date : s.teams_final) != null)
+      .map((s) => ({ season: s.season, ids: (toDate ? s.locations_to_date : s.locations_final) ?? null }))
+      .filter((x): x is { season: string; ids: string[] } => !!x.ids && x.ids.length > 0);
+    return list.map((x, i) => {
+      const prev = list[i - 1];
+      const now = new Set(x.ids), before = new Set(prev?.ids ?? []);
+      return {
+        season: x.season, value: x.ids.length, locations: null,
+        details: prev ? [
+          { label: `New since ${prev.season}`, value: x.ids.filter((id) => !before.has(id)).length.toLocaleString() },
+          { label: `Not back from ${prev.season}`, value: prev.ids.filter((id) => !now.has(id)).length.toLocaleString() },
+        ] : [{ label: "First season", value: "–" }],
+      };
+    });
+  })();
   const pick = (k: "teams" | "athletes"): Bar[] => feed.seasons
     .map((s) => ({
       season: s.season,
@@ -125,6 +145,12 @@ export default async function RegHistory({ season, locationNames, basis }: {
           </p>
         ) : undefined}
         charts={[
+          {
+            title: "Locations", noun: "locations", bars: locationBars,
+            subtitle: toDate
+              ? `Locations with a team in by day ${day ?? "N"} of registration, every season`
+              : "Locations whose teams played, every season",
+          },
           { title: "Teams", noun: "teams", subtitle: subtitle("Teams"), bars: pick("teams") },
           { title: "Athletes", noun: "athletes", subtitle: subtitle("Athletes"), bars: pick("athletes") },
           // Only once the feed carries retention: an older one has none.
@@ -139,7 +165,9 @@ export default async function RegHistory({ season, locationNames, basis }: {
         ]} />
       <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
         Oldest season on the left, {season} on the right, each bar coloured by its term; click a term in the key to
-        show only its seasons (several can be picked, and clicking one again puts it back). Final is how each season ended up: teams are slots on
+        show only its seasons (several can be picked, and clicking one again puts it back). Locations are venues as
+        ops runs them (a city with several, like Calgary, counts each): final, those whose teams played (or, a season
+        not played yet, have teams registered); to date, those with a team in by that day. Final is how each season ended up: teams are slots on
         the schedule, as on the Metabase registration dashboard (for each location and day, the most teams that played
         there in any one week, so a team that took over a slot part-way through or a TBD stand-in for a late team
         doesn&apos;t count twice, and all-star teams are left out); athletes are the registrations still standing. A
