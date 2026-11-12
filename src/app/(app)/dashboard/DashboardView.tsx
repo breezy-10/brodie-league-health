@@ -2077,6 +2077,22 @@ const signed = (d: number) => `${d > 0 ? "+" : ""}${d.toLocaleString()}`;
 const signedPct = (cur: number, base: number): string | null =>
   base === 0 ? null : `${cur - base > 0 ? "+" : ""}${(((cur - base) / base) * 100).toFixed(1)}%`;
 
+// The free agents column beside Teams and Athletes: every free agent at the
+// location (or day), and, on the line where the others read their goal, how
+// many have no team yet. Counted now, so no deltas against other seasons.
+function FreeAgentsMetric({ total, unrostered }: { total: number; unrostered: number }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-semibold text-glass-text-tertiary whitespace-nowrap">Free agents</p>
+      <p className="text-2xl font-bold tabular leading-tight" style={{ color: "var(--glass-text)" }}>{total.toLocaleString()}</p>
+      <p className="text-[11px] tabular leading-snug text-glass-text-tertiary whitespace-nowrap"
+        title={`${unrostered.toLocaleString()} of ${total.toLocaleString()} free agents have no team yet`}>
+        <span className="font-semibold" style={{ color: "var(--glass-text-secondary)" }}>{unrostered.toLocaleString()}</span> unrostered
+      </p>
+    </div>
+  );
+}
+
 // One metric column inside a location card: count + both same-day deltas.
 function LocationMetric({ label, cur, prev, year, prevLabel, yearLabel, notes, money: isMoney, goal }: {
   // prev or year is null when that season has nothing to compare against (a
@@ -3471,6 +3487,14 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
   }) => {
     const get = (kind: string, metric: PacingMetric) =>
       l.seasons.find((s) => s.kind === kind)?.[metric] ?? 0;
+    // Every free agent here and how many have no team yet, as they stand now
+    // (Sohaib, Nov 11). Null when the feed doesn't say: a week reading, or an
+    // older feed.
+    const freeAgents = (() => {
+      const c = l.seasons.find((s) => s.kind === "current");
+      return c?.free_agents != null && c.unrostered_free_agents != null
+        ? { total: c.free_agents, unrostered: c.unrostered_free_agents } : null;
+    })();
     const locCurrency = l.seasons.find((s) => s.kind === "current")?.currency ?? "CAD";
     // What a season's revenue works out to per athlete registered in it,
     // team fees left out (see PacingSeason.athletes_indiv), both counted
@@ -3515,7 +3539,9 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
             </p>
           )}
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2.5 px-3.5">
+        {/* Teams and athletes, then free agents in a narrower column of their
+            own where the feed has them (the current season, not a week). */}
+        <div className={`grid grid-cols-1 gap-3 mt-2.5 px-3.5 ${freeAgents ? "sm:grid-cols-[1fr_1fr_auto]" : "sm:grid-cols-2"}`}>
           <LocationMetric label="Teams"
             cur={get("current", "captains")} prev={get("prev_season", "captains")} year={get("prev_year", "captains")}
             prevLabel={prevLabel} yearLabel={yearLabel} goal={goalOf("teams")}
@@ -3524,21 +3550,11 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
               ...(get("current", "low_roster")
                 ? [{ text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`, tone: "bad" as const }]
                 : []),
-              // Free agents still waiting for a team, a grey chip: people to
-              // place rather than a roster to read. Shown at 0 too, so no
-              // chip means the feed couldn't say (Sohaib, Nov 11).
-              // Out of every free agent there ("20/33"), where the feed says.
-              ...(() => {
-                const cur = l.seasons.find((s) => s.kind === "current");
-                const fa = cur?.unrostered_free_agents, all = cur?.free_agents;
-                if (fa == null) return [];
-                const n = all ?? fa;
-                return [{ text: `${fa.toLocaleString()}${all != null ? `/${all.toLocaleString()}` : ""} unrostered free ${n === 1 ? "agent" : "agents"}` }];
-              })(),
             ]} />
           <LocationMetric label="Athletes"
             cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
             prevLabel={prevLabel} yearLabel={yearLabel} goal={goalOf("athletes")} />
+          {freeAgents && <FreeAgentsMetric {...freeAgents} />}
         </div>
         {/* Where the teams actually sit. A division whose teams are all
             at 7+ reads green, so the one that is not filling stands out
@@ -3735,7 +3751,9 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
           row and lands beside its neighbour instead of under it.
           Where subgrid is missing the cards simply fall back to sizing their
           own rows — the old, unaligned behaviour, not a broken one. */}
-      <div className="grid grid-flow-col auto-cols-[300px] gap-x-3 overflow-x-auto pb-2 snap-x"
+      {/* 400px from a tablet up, room for the free agents column beside
+          Teams and Athletes; on a phone the columns stack, so 300px. */}
+      <div className="grid grid-flow-col auto-cols-[300px] sm:auto-cols-[400px] gap-x-3 overflow-x-auto pb-2 snap-x"
         style={{ gridTemplateRows: "repeat(9, auto)" }}>
         {locations.map((l) => {
           const venueCard = (toggle?: ReactNode) => card(l, {
