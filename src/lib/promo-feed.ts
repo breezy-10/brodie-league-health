@@ -1,5 +1,7 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
+import { after } from "next/server";
+import { workAsyncStorage } from "next/dist/server/app-render/work-async-storage.external";
 import { readAppSecret } from "@/lib/app-secrets";
 
 // The Promo Tracker's feeds carry player names, payments and discount codes,
@@ -17,6 +19,15 @@ const PROMO_HOST = "registration-promo-tracker.vercel.app";
 // feed it has read before. A failed refresh keeps the last good answer.
 // Only successful answers are cached. The cache key is the URL alone, never
 // the token or key a request carries.
+//
+// The background refresh has to be kept alive by hand (keepRefreshesAlive).
+// Next queues it on the request and hands the queue to Vercel's waitUntil
+// once, when the page shell is sent; nearly every section here streams in
+// later inside its own Suspense, so its refresh joined the queue too late, the
+// function froze before the feed answered, and the cached answer never
+// changed. Nov 11 2026: Historical sat on the same teams and athletes for
+// hours and never showed a chart whose feed field had shipped. Bumping the
+// version below starts every feed afresh.
 const FRESH_SECONDS = 300;
 // Live games change by the minute.
 const freshFor = (url: URL) => (url.pathname.startsWith("/api/live-games") ? 30 : FRESH_SECONDS);
@@ -49,12 +60,28 @@ function cachedReader(seconds: number) {
   if (!reader) {
     reader = unstable_cache(
       async (url: string) => readFresh(url, pendingHeaders.get(url) ?? []),
-      ["feed-cache-v1", String(seconds)],
+      ["feed-cache-v2", String(seconds)],
       { revalidate: seconds },
     );
     cachedReaders.set(seconds, reader);
   }
   return reader;
+}
+
+// Whatever cache work a read queued (a stale answer's refresh, or a new
+// answer's write) is handed to after(), which keeps the function running
+// until it is done however late in the stream the read came. Each piece once.
+const handedOver = new WeakSet<Promise<unknown>>();
+function keepRefreshesAlive() {
+  try {
+    const store = workAsyncStorage.getStore() as { pendingRevalidates?: Record<string, Promise<unknown>> } | undefined;
+    const pending = Object.values(store?.pendingRevalidates ?? {}).filter((p) => !handedOver.has(p));
+    if (!pending.length) return;
+    for (const p of pending) handedOver.add(p);
+    after(Promise.allSettled(pending));
+  } catch {
+    // Outside a request, or a Next without this store: nothing to keep alive.
+  }
 }
 
 // Two sections asking for the same feed in one render share one request.
@@ -70,6 +97,7 @@ async function cachedFetch(url: URL, headers: Headers): Promise<Response> {
   }
   try {
     const a = await p;
+    keepRefreshesAlive();
     return new Response(a.body, { status: a.status, headers: a.type ? { "content-type": a.type } : undefined });
   } catch (e) {
     if (e instanceof FeedError) {
