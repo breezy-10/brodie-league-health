@@ -41,6 +41,9 @@ type HistSeason = {
   // revenue and athletes behind it; null where the season has none of that
   // currency's athletes or no invoices (before Spring '25). Absent from an
   // older feed.
+  // Athletes per team, final, as Metabase's card 4031 counts it; null where
+  // the season has no teams or athletes, absent from an older feed.
+  per_team?: { teams: number; athletes: number; per_team: number } | null;
   per_player?: Record<"cad_final" | "usd_final" | "cad_to_date" | "usd_to_date",
     { revenue: number; athletes: number; per_player: number } | null>;
 };
@@ -134,12 +137,17 @@ export default async function RegHistory({ season, locationNames, basis }: {
       }],
     }];
   });
-  // Athletes per team: the two bars above divided, on the same reading, with
-  // both counts on hover. A season with athletes but no teams has none.
+  // Athletes per team, with both counts on hover. Final is Metabase's card
+  // 4031 rule from the feed (completed registrations over registered team
+  // records), so the two agree; it isn't the Teams bar (slots that played)
+  // over the Athletes bar, which read Summer '26 as 8.22 against Metabase's
+  // 7.89 (Sohaib, Nov 12). To date divides the two to-date bars, which
+  // Metabase has no version of. An older feed falls back to dividing.
   const perTeam: Bar[] = feed.seasons.flatMap((s) => {
-    const a = toDate ? s.athletes_to_date : s.athletes_final;
-    const t = toDate ? s.teams_to_date : s.teams_final;
-    if (a == null || !t) return [];
+    const mb = !toDate ? s.per_team : undefined;
+    const a = mb ? mb.athletes : toDate ? s.athletes_to_date : s.athletes_final;
+    const t = mb ? mb.teams : toDate ? s.teams_to_date : s.teams_final;
+    if (mb === null || a == null || !t) return [];
     return [{
       season: s.season, value: a / t, locations: null,
       details: [
@@ -193,7 +201,7 @@ export default async function RegHistory({ season, locationNames, basis }: {
             title: "Athletes per team", noun: "athletes per team", format: "decimal" as const, bars: perTeam,
             subtitle: toDate
               ? `Athletes for each team at day ${day ?? "N"} of registration, every season`
-              : "Final athletes for each final team, every season",
+              : "Athletes registered for each registered team, as Metabase counts it, every season",
           },
           ...(hasPerPlayer ? (["cad", "usd"] as const).map((cur) => ({
             title: `Revenue per player (${cur.toUpperCase()})`, noun: "per player",
@@ -223,7 +231,10 @@ export default async function RegHistory({ season, locationNames, basis }: {
         day {day ?? "N"} of its own registration, the day {season} is at now, counted as on the Registrations tab.
         Hover a bar (or tab to it) for its change against the season before it (whichever terms are showing) and the
         same season a year earlier, and how many of its locations were new against each: final, locations whose teams played; to
-        date, locations with a team in by that day. Athletes per team divides the two bars above it.
+        date, locations with a team in by that day. Athletes per team, final, counts as Metabase&apos;s Average Brodie
+        Athletes Per Team does (completed registrations over registered team records, including teams that took
+        over a slot part-way), so it won&apos;t always equal the Teams and Athletes bars divided; to date divides the
+        two to-date bars.
         {hasPerPlayer && (
           <>
             {" "}Revenue per player is the Registrations tab&apos;s CAD and USD per player for every season:
@@ -236,8 +247,8 @@ export default async function RegHistory({ season, locationNames, basis }: {
           <>
             {" "}The first seasons, before {feed.played_rule_until}, are counted from the games instead: teams that played
             five or more games (once each, so a team re-created part-way through isn&apos;t counted twice) and the players
-            on their rosters, as their schedules weren&apos;t kept week by week and their registrations weren&apos;t all
-            brought over.
+            who played a game for them, as their schedules weren&apos;t kept week by week and their registrations
+            weren&apos;t brought over reliably (Fall &apos;21&apos;s are imports dated 2019 to 2024).
           </>
         )}
         {hasRetention && (
