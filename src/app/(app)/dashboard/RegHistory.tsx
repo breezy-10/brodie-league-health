@@ -38,7 +38,9 @@ type HistSeason = {
     back_to_date: number | null; captains_back_to_date: number | null;
   } | null;
 };
-type Feed = { season: string; day_n: number | null; to_date_from?: string; seasons: HistSeason[] };
+// played_rule_until: seasons before it are counted from the games (teams
+// with 5+ played, players on their rosters); absent from an older feed.
+type Feed = { season: string; day_n: number | null; to_date_from?: string; played_rule_until?: string; seasons: HistSeason[] };
 
 async function loadHistory(season: string, locationNames: string[] | null): Promise<Feed | null> {
   try {
@@ -143,6 +145,14 @@ export default async function RegHistory({ season, locationNames, basis }: {
         Hover a bar (or tab to it) for its change against the season before it on the chart and the same season a
         year earlier, and how many of its locations were new against each: final, locations whose teams played; to
         date, locations with a team in by that day.
+        {feed.played_rule_until && (
+          <>
+            {" "}The first seasons, before {feed.played_rule_until}, are counted from the games instead: teams that played
+            five or more games (once each, so a team re-created part-way through isn&apos;t counted twice) and the players
+            on their rosters, as their schedules weren&apos;t kept week by week and their registrations weren&apos;t all
+            brought over.
+          </>
+        )}
         {hasRetention && (
           <>
             {" "}Retention is the Retention page&apos;s athletes returning, for every season: of the athletes still
