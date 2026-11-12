@@ -72,7 +72,7 @@ function TipRow({ label, value, color }: { label: string; value: string; color?:
   );
 }
 
-function HistoryChart({ title, noun, subtitle, season, bars, percent, current }: {
+function HistoryChart({ title, noun, subtitle, season, bars, all, percent, current }: {
   title: string;
   noun: string;
   subtitle: string;
@@ -82,6 +82,8 @@ function HistoryChart({ title, noun, subtitle, season, bars, percent, current }:
   percent?: boolean;
   // The season picked, for the headline, whichever terms are showing.
   current?: Bar;
+  // Every season, whichever are showing: what each bar is compared with.
+  all: Bar[];
 }) {
   const max = Math.max(...bars.map((b) => b.value), 1);
   const show = (v: number) => (percent ? `${v.toFixed(1)}%` : v.toLocaleString());
@@ -108,13 +110,19 @@ function HistoryChart({ title, noun, subtitle, season, bars, percent, current }:
             {/* Bars: fixed-px track so heights are truly proportional to value. */}
             <div className="flex items-stretch gap-2" style={{ height: TRACK_PX + 22 }}>
               {bars.map((b, i) => {
-                // Against the season before it on the chart, and the same term a
-                // year earlier. On hover or focus, beside the bar and inside the
-                // track (the scroll box would clip it above), flipping left near
-                // the right edge.
-                const prev = i > 0 ? bars[i - 1] : undefined;
+                // Against the season before it and the same term a year earlier,
+                // from every season, not just the terms showing: with only
+                // winters picked, the bar before Winter '27 is Winter '26, and
+                // both lines read the same (Sohaib, Nov 11). Where the two are
+                // the same season anyway (a term that skipped a year), one line.
+                // On hover or focus, beside the bar and inside the track (the
+                // scroll box would clip it above), flipping left near the right
+                // edge.
+                const at = all.findIndex((x) => x.season === b.season);
+                const prev = at > 0 ? all[at - 1] : undefined;
                 const lastYearName = yearBefore(b.season);
-                const lastYear = bars.find((x) => x.season === lastYearName);
+                const lastYear = all.find((x) => x.season === lastYearName);
+                const sameSeason = !!prev && prev.season === lastYearName;
                 const vsPrev = diff(b.value, prev?.value), vsYear = diff(b.value, lastYear?.value);
                 return (
                   <div key={b.season} tabIndex={0} aria-label={`${b.season}: ${show(b.value)} ${noun}`}
@@ -129,13 +137,13 @@ function HistoryChart({ title, noun, subtitle, season, bars, percent, current }:
                       <b>{b.season}</b>
                       <TipRow label={noun[0].toUpperCase() + noun.slice(1)} value={show(b.value)} />
                       <TipRow label={`vs ${prev?.season ?? "season before"}`} value={vsPrev.text} color={vsPrev.color} />
-                      <TipRow label={`vs ${lastYearName ?? "a year earlier"}`} value={vsYear.text} color={vsYear.color} />
+                      {!sameSeason && <TipRow label={`vs ${lastYearName ?? "a year earlier"}`} value={vsYear.text} color={vsYear.color} />}
                       <div className="my-1.5" style={{ borderTop: "1px solid var(--divider)" }} />
                       {b.details ? b.details.map((d) => <TipRow key={d.label} label={d.label} value={d.value} />) : (
                         <>
                           <TipRow label="Locations" value={b.locations ? b.locations.length.toLocaleString() : "–"} />
                           <TipRow label={`New vs ${prev?.season ?? "season before"}`} value={prev ? newLocations(b.locations, prev.locations) : "–"} />
-                          <TipRow label={`New vs ${lastYearName ?? "a year earlier"}`} value={lastYear ? newLocations(b.locations, lastYear.locations) : "–"} />
+                          {!sameSeason && <TipRow label={`New vs ${lastYearName ?? "a year earlier"}`} value={lastYear ? newLocations(b.locations, lastYear.locations) : "–"} />}
                         </>
                       )}
                     </div>
@@ -208,7 +216,7 @@ export default function RegHistoryCharts({ season, toggle, intro, charts }: {
       {intro}
       {charts.map((c) => (
         <HistoryChart key={c.title} title={c.title} noun={c.noun} subtitle={c.subtitle} season={season}
-          percent={c.percent} bars={shown(c.bars)} current={c.bars.find((b) => b.season === season)} />
+          percent={c.percent} bars={shown(c.bars)} all={c.bars} current={c.bars.find((b) => b.season === season)} />
       ))}
     </>
   );
