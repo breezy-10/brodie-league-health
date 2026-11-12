@@ -60,7 +60,7 @@ function cachedReader(seconds: number) {
   if (!reader) {
     reader = unstable_cache(
       async (url: string) => readFresh(url, pendingHeaders.get(url) ?? []),
-      ["feed-cache-v3", String(seconds)],
+      ["feed-cache-v4", String(seconds)],
       { revalidate: seconds },
     );
     cachedReaders.set(seconds, reader);
