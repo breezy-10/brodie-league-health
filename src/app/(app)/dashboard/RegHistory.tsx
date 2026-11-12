@@ -89,21 +89,23 @@ export default async function RegHistory({ season, locationNames, basis }: {
       locations: (toDate ? s.locations_to_date : s.locations_final) ?? null,
     }))
     .filter((b): b is Bar => b.value != null);
-  // Retention: of the season before's athletes, the share back this season,
-  // and the counts and captains behind it on hover.
+  // Retention: of the season before's athletes (or captains), the share
+  // back this season in any role, and the counts behind it on hover.
   const pctOf = (n: number, of: number) => (100 * n) / of;
-  const retention: Bar[] = feed.seasons.flatMap((s) => {
+  const retention = (who: "athletes" | "captains"): Bar[] => feed.seasons.flatMap((s) => {
     const r = s.retention;
-    const back = toDate ? r?.back_to_date : r?.back_final;
-    const capsBack = (toDate ? r?.captains_back_to_date : r?.captains_back_final) ?? 0;
-    if (!r || back == null || !r.prev_athletes) return [];
+    if (!r) return [];
+    const of = who === "athletes" ? r.prev_athletes : r.prev_captains;
+    const back = who === "athletes"
+      ? (toDate ? r.back_to_date : r.back_final)
+      : (toDate ? r.captains_back_to_date : r.captains_back_final);
+    if (back == null || !of) return [];
     return [{
-      season: s.season, value: pctOf(back, r.prev_athletes), locations: null,
-      details: [
-        { label: `Athletes from ${r.prev_season ?? "the season before"}`, value: `${back.toLocaleString()} of ${r.prev_athletes.toLocaleString()}` },
-        { label: "Captains back", value: r.prev_captains
-          ? `${capsBack.toLocaleString()} of ${r.prev_captains.toLocaleString()} (${pctOf(capsBack, r.prev_captains).toFixed(1)}%)` : "–" },
-      ],
+      season: s.season, value: pctOf(back, of), locations: null,
+      details: [{
+        label: `${who === "athletes" ? "Athletes" : "Captains"} from ${r.prev_season ?? "the season before"}`,
+        value: `${back.toLocaleString()} of ${of.toLocaleString()}`,
+      }],
     }];
   });
   const day = feed.day_n;
@@ -126,12 +128,14 @@ export default async function RegHistory({ season, locationNames, basis }: {
           { title: "Teams", noun: "teams", subtitle: subtitle("Teams"), bars: pick("teams") },
           { title: "Athletes", noun: "athletes", subtitle: subtitle("Athletes"), bars: pick("athletes") },
           // Only once the feed carries retention: an older one has none.
-          ...(hasRetention ? [{
-            title: "Retention", noun: "retention", percent: true, bars: retention,
+          // Captains first, then athletes (Sohaib, Nov 11).
+          ...(hasRetention ? (["captains", "athletes"] as const).map((who) => ({
+            title: who === "captains" ? "Captain retention" : "Athlete retention",
+            noun: "retention", percent: true, bars: retention(who),
             subtitle: toDate
-              ? `Share of the season before's athletes registered again by day ${day ?? "N"}, every season`
-              : "Share of the season before's athletes who registered again, every season",
-          }] : []),
+              ? `Share of the season before's ${who} registered again by day ${day ?? "N"}, every season`
+              : `Share of the season before's ${who} who registered again, every season`,
+          })) : []),
         ]} />
       <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
         Oldest season on the left, {season} on the right, each bar coloured by its term; click a term in the key to
@@ -155,12 +159,12 @@ export default async function RegHistory({ season, locationNames, basis }: {
         )}
         {hasRetention && (
           <>
-            {" "}Retention is the Retention page&apos;s athletes returning, for every season: of the athletes still
-            registered the season before (the previous term, so Fall for Winter; each counted once, at the locations
-            in scope), the share who registered again, in any role at any Brodie venue. Final counts those whose
-            registration is still standing; to date, those in by day {day ?? "N"} of the season&apos;s registration and
-            not cancelled by then. A season whose previous term had nobody here has no bar. Changes on hover are in
-            points; the counts and the captains who came back are under them.
+            {" "}Captain and athlete retention are the Retention page&apos;s captains and athletes returning, for every
+            season: of the captains (or athletes) still registered the season before (the previous term, so Fall for
+            Winter; each counted once, at the locations in scope), the share who registered again, in any role at any
+            Brodie venue. Final counts those whose registration is still standing; to date, those in by day{" "}
+            {day ?? "N"} of the season&apos;s registration and not cancelled by then. A season whose previous term had
+            nobody here has no bar. Changes on hover are in points, with the counts under them.
           </>
         )}
       </p>
