@@ -1650,6 +1650,8 @@ type PacingSeason = { season: string; kind: string; captains: number; athletes: 
   // Free agents with no team yet, as they stand now: on a location card's
   // current season only, absent from an older feed or when it couldn't be read.
   unrostered_free_agents?: number;
+  // Every free agent on the same rule, placed or not ("20/33").
+  free_agents?: number;
   // Teams, athletes, rosters and the played-before shares per country, from
   // the league's country. Absent from an older feed or when the lookup failed.
   by_country?: Record<"CAN" | "USA", { captains: number; athletes: number; full_roster: number; low_roster: number; athletes_indiv?: number }
@@ -3525,9 +3527,13 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
               // Free agents still waiting for a team, a grey chip: people to
               // place rather than a roster to read. Shown at 0 too, so no
               // chip means the feed couldn't say (Sohaib, Nov 11).
+              // Out of every free agent there ("20/33"), where the feed says.
               ...(() => {
-                const fa = l.seasons.find((s) => s.kind === "current")?.unrostered_free_agents;
-                return fa != null ? [{ text: `${fa.toLocaleString()} unrostered free ${fa === 1 ? "agent" : "agents"}` }] : [];
+                const cur = l.seasons.find((s) => s.kind === "current");
+                const fa = cur?.unrostered_free_agents, all = cur?.free_agents;
+                if (fa == null) return [];
+                const n = all ?? fa;
+                return [{ text: `${fa.toLocaleString()}${all != null ? `/${all.toLocaleString()}` : ""} unrostered free ${n === 1 ? "agent" : "agents"}` }];
               })(),
             ]} />
           <LocationMetric label="Athletes"
