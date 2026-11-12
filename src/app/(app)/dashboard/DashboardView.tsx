@@ -4605,7 +4605,7 @@ export default async function DashboardView({
             // Every location ranked.
             { value: "leaderboard", label: "Leaderboard" },
             // Every season, oldest first.
-            { value: "history", label: "Historical teams" },
+            { value: "history", label: "Historical" },
           ]}
         />
       )}
@@ -4639,11 +4639,11 @@ export default async function DashboardView({
         {isHistory ? (
           <section className="space-y-3">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Historical teams</h2>
+              <h2 className="text-lg font-semibold" style={{ color: "var(--glass-text)" }}>Historical</h2>
               <span className="text-[11px] font-bold px-1.5 py-0.5 rounded"
                 style={{ background: "var(--glass-gold-light, var(--fill-3))", color: "var(--glass-gold)" }}>to {pacingSeason}</span>
             </div>
-            <Suspense fallback={<SectionSkeleton title="Historical teams" />}>
+            <Suspense fallback={<SectionSkeleton title="Historical" />}>
               <RegHistory season={pacingSeason} locationNames={locationNames} basis={histParam} />
             </Suspense>
           </section>

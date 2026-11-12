@@ -3,7 +3,7 @@ import { promoFetch } from "@/lib/promo-feed";
 import { BasisToggle } from "./BasisToggle";
 import RegHistoryCharts, { type HistBar as Bar } from "./RegHistoryCharts";
 
-// Registrations > Historical teams: teams and athletes for every season, oldest
+// Registrations > Historical: teams and athletes for every season, oldest
 // on the left and the season picked on the right, from the Promo Tracker's
 // registration-history feed. Two readings:
 //   - Final: how each season ended up. Teams are slots on the schedule (the

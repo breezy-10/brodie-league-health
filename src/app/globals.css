@@ -85,7 +85,7 @@
   --viz-prev: #8e8e93;
   --viz-prev-2: #c7c7cc;
   /* A season's term, in Brodie's seasonal colours: winter blue, spring
-     green, summer yellow, fall Brodie red (Registrations > Historical teams).
+     green, summer yellow, fall Brodie red (Registrations > Historical).
      Validated as a cycle, each term against the two beside it, light here
      and dark in dark.css. Fall keeps the light red in dark mode: the dark
      theme's brighter red is lost beside summer's yellow to red-green colour
