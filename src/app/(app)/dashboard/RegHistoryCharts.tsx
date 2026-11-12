@@ -28,13 +28,14 @@ function yearBefore(season: string): string | null {
 // Change against the season compared with: the count, then as a share of
 // that season, one decimal, both signed: "+210 (+48.4%)". Up is green and down
 // red (the status colours, which brighten in dark mode); no change stays ink.
-function change(value: number, against: number | undefined): { text: string; color?: string } {
+// The gap is written the way the chart writes its values (abs).
+function change(value: number, against: number | undefined, abs: (n: number) => string = (n) => n.toLocaleString()): { text: string; color?: string } {
   if (!against) return { text: "–" };
   const sign = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "");
   const n = value - against;
   const d = (100 * n) / against;
   return {
-    text: `${sign(n)}${Math.abs(n).toLocaleString()} (${sign(d)}${Math.abs(d).toFixed(1)}%)`,
+    text: `${sign(n)}${abs(Math.abs(n))} (${sign(d)}${Math.abs(d).toFixed(1)}%)`,
     color: n > 0 ? "var(--glass-success-text)" : n < 0 ? "var(--glass-danger-text)" : undefined,
   };
 }
@@ -57,7 +58,11 @@ function newLocations(locs: string[] | null, against: string[] | null | undefine
 // A bar's tooltip ends with its locations, or with rows of its own (details).
 export type HistBar = { season: string; value: number; locations: string[] | null; details?: { label: string; value: string }[] };
 type Bar = HistBar;
-export type HistChart = { title: string; noun: string; subtitle: string; bars: HistBar[]; percent?: boolean };
+// How a chart writes its values: whole counts (the default), percentages to
+// one decimal (changes in points), two decimals (athletes per team), or whole
+// dollars with the currency after (revenue per player).
+export type HistFormat = "count" | "percent" | "decimal" | "money";
+export type HistChart = { title: string; noun: string; subtitle: string; bars: HistBar[]; percent?: boolean; format?: HistFormat; currency?: string };
 
 const TRACK_PX = 150;
 // Wide enough for "Summer '26" under its bar; narrower screens scroll the chart.
@@ -72,22 +77,27 @@ function TipRow({ label, value, color }: { label: string; value: string; color?:
   );
 }
 
-function HistoryChart({ title, noun, subtitle, season, bars, all, percent, current }: {
+function HistoryChart({ title, noun, subtitle, season, bars, all, format = "count", currency, current }: {
   title: string;
   noun: string;
   subtitle: string;
   season: string;
   bars: Bar[];
-  // Values are percentages: shown to one decimal with a %, changes in points.
-  percent?: boolean;
+  format?: HistFormat;
+  // For money: the currency written after the amount on the headline.
+  currency?: string;
   // The season picked, for the headline, whichever terms are showing.
   current?: Bar;
   // Every season, whichever are showing: what each bar is compared with.
   all: Bar[];
 }) {
   const max = Math.max(...bars.map((b) => b.value), 1);
-  const show = (v: number) => (percent ? `${v.toFixed(1)}%` : v.toLocaleString());
-  const diff = percent ? changePts : change;
+  const abs = (v: number) =>
+    format === "decimal" ? v.toFixed(2)
+      : format === "money" ? `$${Math.round(v).toLocaleString()}`
+      : v.toLocaleString();
+  const show = (v: number) => (format === "percent" ? `${v.toFixed(1)}%` : abs(v));
+  const diff = (v: number, against: number | undefined) => (format === "percent" ? changePts(v, against) : change(v, against, abs));
   return (
     <section className="rounded-2xl bg-glass-surface p-5 shadow-card min-w-0">
       <div className="flex items-start justify-between gap-3">
@@ -97,7 +107,10 @@ function HistoryChart({ title, noun, subtitle, season, bars, all, percent, curre
         </div>
         {current && (
           <div className="text-right shrink-0">
-            <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{show(current.value)}</span>
+            <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>
+              {show(current.value)}
+              {format === "money" && currency && <span className="text-sm font-semibold text-glass-text-tertiary"> {currency}</span>}
+            </span>
             <span className="text-[11px] text-glass-text-tertiary">{season}</span>
           </div>
         )}
@@ -216,7 +229,8 @@ export default function RegHistoryCharts({ season, toggle, intro, charts }: {
       {intro}
       {charts.map((c) => (
         <HistoryChart key={c.title} title={c.title} noun={c.noun} subtitle={c.subtitle} season={season}
-          percent={c.percent} bars={shown(c.bars)} all={c.bars} current={c.bars.find((b) => b.season === season)} />
+          format={c.format ?? (c.percent ? "percent" : "count")} currency={c.currency}
+          bars={shown(c.bars)} all={c.bars} current={c.bars.find((b) => b.season === season)} />
       ))}
     </>
   );

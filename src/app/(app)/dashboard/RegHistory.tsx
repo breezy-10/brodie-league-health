@@ -37,6 +37,12 @@ type HistSeason = {
     back_final: number; captains_back_final: number;
     back_to_date: number | null; captains_back_to_date: number | null;
   } | null;
+  // Revenue per player in each currency (team fees left out), with the
+  // revenue and athletes behind it; null where the season has none of that
+  // currency's athletes or no invoices (before Spring '25). Absent from an
+  // older feed.
+  per_player?: Record<"cad_final" | "usd_final" | "cad_to_date" | "usd_to_date",
+    { revenue: number; athletes: number; per_player: number } | null>;
 };
 // played_rule_until: seasons before it are counted from the games (teams
 // with 5+ played, players on their rosters); absent from an older feed.
@@ -128,6 +134,34 @@ export default async function RegHistory({ season, locationNames, basis }: {
       }],
     }];
   });
+  // Athletes per team: the two bars above divided, on the same reading, with
+  // both counts on hover. A season with athletes but no teams has none.
+  const perTeam: Bar[] = feed.seasons.flatMap((s) => {
+    const a = toDate ? s.athletes_to_date : s.athletes_final;
+    const t = toDate ? s.teams_to_date : s.teams_final;
+    if (a == null || !t) return [];
+    return [{
+      season: s.season, value: a / t, locations: null,
+      details: [
+        { label: "Athletes", value: a.toLocaleString() },
+        { label: "Teams", value: t.toLocaleString() },
+      ],
+    }];
+  });
+  // Revenue per player in one currency, with the revenue and the players it
+  // is divided by on hover.
+  const perPlayer = (cur: "cad" | "usd"): Bar[] => feed.seasons.flatMap((s) => {
+    const p = s.per_player?.[`${cur}_${toDate ? "to_date" : "final"}`];
+    if (!p) return [];
+    return [{
+      season: s.season, value: p.per_player, locations: null,
+      details: [
+        { label: "Revenue", value: `$${p.revenue.toLocaleString()} ${cur.toUpperCase()}` },
+        { label: "Players", value: p.athletes.toLocaleString() },
+      ],
+    }];
+  });
+  const hasPerPlayer = feed.seasons.some((s) => s.per_player !== undefined);
   const day = feed.day_n;
   const subtitle = (noun: string) => toDate
     ? `${noun} at day ${day ?? "N"} of registration, every season`
@@ -153,6 +187,19 @@ export default async function RegHistory({ season, locationNames, basis }: {
           },
           { title: "Teams", noun: "teams", subtitle: subtitle("Teams"), bars: pick("teams") },
           { title: "Athletes", noun: "athletes", subtitle: subtitle("Athletes"), bars: pick("athletes") },
+          // Under Athletes: per team, then revenue per player in each
+          // currency (Sohaib, Nov 12).
+          {
+            title: "Athletes per team", noun: "athletes per team", format: "decimal" as const, bars: perTeam,
+            subtitle: toDate
+              ? `Athletes for each team at day ${day ?? "N"} of registration, every season`
+              : "Final athletes for each final team, every season",
+          },
+          ...(hasPerPlayer ? (["cad", "usd"] as const).map((cur) => ({
+            title: `Revenue per player (${cur.toUpperCase()})`, noun: "per player",
+            format: "money" as const, currency: cur.toUpperCase(), bars: perPlayer(cur),
+            subtitle: `${cur === "cad" ? "Canadian" : "US"} locations, team fees left out, ${toDate ? `at day ${day ?? "N"} of registration` : "final"}, every season since Spring '25`,
+          })) : []),
           // Only once the feed carries retention: an older one has none.
           // Captains first, then athletes (Sohaib, Nov 11).
           ...(hasRetention ? (["captains", "athletes"] as const).map((who) => ({
@@ -176,7 +223,15 @@ export default async function RegHistory({ season, locationNames, basis }: {
         day {day ?? "N"} of its own registration, the day {season} is at now, counted as on the Registrations tab.
         Hover a bar (or tab to it) for its change against the season before it (whichever terms are showing) and the
         same season a year earlier, and how many of its locations were new against each: final, locations whose teams played; to
-        date, locations with a team in by that day.
+        date, locations with a team in by that day. Athletes per team divides the two bars above it.
+        {hasPerPlayer && (
+          <>
+            {" "}Revenue per player is the Registrations tab&apos;s CAD and USD per player for every season:
+            accrued revenue (invoice totals less tax) over the athletes it came from, leaving out team fees and the
+            players they paid for, Canadian locations in CAD and US ones in USD, never converted. It starts at Spring
+            &apos;25, the first season with invoices.
+          </>
+        )}
         {feed.played_rule_until && (
           <>
             {" "}The first seasons, before {feed.played_rule_until}, are counted from the games instead: teams that played
