@@ -14,9 +14,9 @@ import { BasisToggle } from "./BasisToggle";
 //   - To date: every season at the same day of registration as the season
 //     picked is at now, counted as on the Registrations tab. Only seasons
 //     whose records say when people signed up (the feed's to_date_from on).
-// Under them, referrals: the athletes beside them who registered through a
-// referral, read the same way, from the programme's first season (the feed's
-// referrals_from) on.
+// Under them, retention: of the season before's athletes, the share who
+// registered again (any role, any Brodie venue), read the same way; the
+// Retention page's "Athletes returning", so the season picked matches it.
 const PROMO_APP_URL = process.env.PROMO_APP_URL ?? "https://registration-promo-tracker.vercel.app";
 
 type HistSeason = {
@@ -28,15 +28,16 @@ type HistSeason = {
   // Ops league ids, to count new locations against another season.
   locations_to_date?: string[] | null;
   locations_final?: string[];
-  // Athletes who registered through a referral, and the part for whom it was
-  // their first-ever registration. Null before the programme; absent from an
-  // older feed.
-  referrals_to_date?: number | null;
-  referrals_new_to_date?: number | null;
-  referrals_final?: number | null;
-  referrals_new_final?: number | null;
+  // Of the season before's athletes (and captains), how many came back. Null
+  // where the season before had nobody in scope; absent from an older feed.
+  retention?: {
+    prev_season: string | null;
+    prev_athletes: number; prev_captains: number;
+    back_final: number; captains_back_final: number;
+    back_to_date: number | null; captains_back_to_date: number | null;
+  } | null;
 };
-type Feed = { season: string; day_n: number | null; to_date_from?: string; referrals_from?: string; seasons: HistSeason[] };
+type Feed = { season: string; day_n: number | null; to_date_from?: string; seasons: HistSeason[] };
 
 async function loadHistory(season: string, locationNames: string[] | null): Promise<Feed | null> {
   try {
@@ -89,6 +90,15 @@ function change(value: number, against: number | undefined): { text: string; col
     color: n > 0 ? "var(--glass-success-text)" : n < 0 ? "var(--glass-danger-text)" : undefined,
   };
 }
+// The same for a percentage: the gap in points, one decimal, "+2.3 pts".
+function changePts(value: number, against: number | undefined): { text: string; color?: string } {
+  if (against == null) return { text: "–" };
+  const n = Math.round((value - against) * 10) / 10;
+  return {
+    text: `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)} pts`,
+    color: n > 0 ? "var(--glass-success-text)" : n < 0 ? "var(--glass-danger-text)" : undefined,
+  };
+}
 // Locations in this season that the season compared with didn't have.
 function newLocations(locs: string[] | null, against: string[] | null | undefined): string {
   if (!locs || !against) return "–";
@@ -112,14 +122,18 @@ function TipRow({ label, value, color }: { label: string; value: string; color?:
   );
 }
 
-function HistoryChart({ title, noun, subtitle, season, bars }: {
+function HistoryChart({ title, noun, subtitle, season, bars, percent }: {
   title: string;
   noun: string;
   subtitle: string;
   season: string;
   bars: Bar[];
+  // Values are percentages: shown to one decimal with a %, changes in points.
+  percent?: boolean;
 }) {
   const max = Math.max(...bars.map((b) => b.value), 1);
+  const show = (v: number) => (percent ? `${v.toFixed(1)}%` : v.toLocaleString());
+  const diff = percent ? changePts : change;
   const current = bars.find((b) => b.season === season);
   return (
     <section className="rounded-2xl bg-glass-surface p-5 shadow-card min-w-0">
@@ -130,7 +144,7 @@ function HistoryChart({ title, noun, subtitle, season, bars }: {
         </div>
         {current && (
           <div className="text-right shrink-0">
-            <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{current.value.toLocaleString()}</span>
+            <span className="text-2xl font-bold tabular block" style={{ color: "var(--glass-gold)" }}>{show(current.value)}</span>
             <span className="text-[11px] text-glass-text-tertiary">{season}</span>
           </div>
         )}
@@ -150,11 +164,11 @@ function HistoryChart({ title, noun, subtitle, season, bars }: {
                 const prev = i > 0 ? bars[i - 1] : undefined;
                 const lastYearName = yearBefore(b.season);
                 const lastYear = bars.find((x) => x.season === lastYearName);
-                const vsPrev = change(b.value, prev?.value), vsYear = change(b.value, lastYear?.value);
+                const vsPrev = diff(b.value, prev?.value), vsYear = diff(b.value, lastYear?.value);
                 return (
-                  <div key={b.season} tabIndex={0} aria-label={`${b.season}: ${b.value.toLocaleString()} ${noun}`}
+                  <div key={b.season} tabIndex={0} aria-label={`${b.season}: ${show(b.value)} ${noun}`}
                     className="group relative flex-1 flex flex-col items-center justify-end outline-none">
-                    <span className="text-[11px] font-semibold tabular mb-1" style={{ color: "var(--glass-text)" }}>{b.value.toLocaleString()}</span>
+                    <span className="text-[11px] font-semibold tabular mb-1" style={{ color: "var(--glass-text)" }}>{show(b.value)}</span>
                     <div className="w-full rounded-t group-hover:opacity-80 group-focus-visible:opacity-80" style={{
                       height: Math.max(Math.round((b.value / max) * TRACK_PX), 4),
                       background: termColor(b.season),
@@ -162,7 +176,7 @@ function HistoryChart({ title, noun, subtitle, season, bars }: {
                     <div role="tooltip"
                       className={`br-chart-tip hidden group-hover:block group-focus-visible:block top-0 z-10 ${i >= bars.length - 3 ? "right-full mr-1" : "left-full ml-1"}`}>
                       <b>{b.season}</b>
-                      <TipRow label={noun[0].toUpperCase() + noun.slice(1)} value={b.value.toLocaleString()} />
+                      <TipRow label={noun[0].toUpperCase() + noun.slice(1)} value={show(b.value)} />
                       <TipRow label={`vs ${prev?.season ?? "season before"}`} value={vsPrev.text} color={vsPrev.color} />
                       <TipRow label={`vs ${lastYearName ?? "a year earlier"}`} value={vsYear.text} color={vsYear.color} />
                       <div className="my-1.5" style={{ borderTop: "1px solid var(--divider)" }} />
@@ -233,20 +247,20 @@ export default async function RegHistory({ season, locationNames, basis }: {
       locations: (toDate ? s.locations_to_date : s.locations_final) ?? null,
     }))
     .filter((b): b is Bar => b.value != null);
-  // Referrals: the athletes bar's registrations that came through a referral,
-  // split by whether it was the athlete's first-ever registration, and their
-  // share of that season's athletes on the same reading.
-  const referrals: Bar[] = feed.seasons.flatMap((s) => {
-    const value = toDate ? s.referrals_to_date : s.referrals_final;
-    if (value == null) return [];
-    const fresh = (toDate ? s.referrals_new_to_date : s.referrals_new_final) ?? 0;
-    const athletes = toDate ? s.athletes_to_date : s.athletes_final;
+  // Retention: of the season before's athletes, the share back this season,
+  // and the counts and captains behind it on hover.
+  const pctOf = (n: number, of: number) => (100 * n) / of;
+  const retention: Bar[] = feed.seasons.flatMap((s) => {
+    const r = s.retention;
+    const back = toDate ? r?.back_to_date : r?.back_final;
+    const capsBack = (toDate ? r?.captains_back_to_date : r?.captains_back_final) ?? 0;
+    if (!r || back == null || !r.prev_athletes) return [];
     return [{
-      season: s.season, value, locations: null,
+      season: s.season, value: pctOf(back, r.prev_athletes), locations: null,
       details: [
-        { label: "New athletes", value: fresh.toLocaleString() },
-        { label: "Returning athletes", value: (value - fresh).toLocaleString() },
-        { label: "Share of athletes", value: athletes ? `${((100 * value) / athletes).toFixed(1)}%` : "–" },
+        { label: `Athletes from ${r.prev_season ?? "the season before"}`, value: `${back.toLocaleString()} of ${r.prev_athletes.toLocaleString()}` },
+        { label: "Captains back", value: r.prev_captains
+          ? `${capsBack.toLocaleString()} of ${r.prev_captains.toLocaleString()} (${pctOf(capsBack, r.prev_captains).toFixed(1)}%)` : "–" },
       ],
     }];
   });
@@ -269,13 +283,13 @@ export default async function RegHistory({ season, locationNames, basis }: {
       )}
       <HistoryChart title="Teams" noun="teams" subtitle={subtitle("Teams")} season={season} bars={pick("teams")} />
       <HistoryChart title="Athletes" noun="athletes" subtitle={subtitle("Athletes")} season={season} bars={pick("athletes")} />
-      {/* Only once the feed carries referrals: an older one has none to show. */}
-      {feed.referrals_from && (
-        <HistoryChart title="Referrals" noun="referrals"
+      {/* Only once the feed carries retention: an older one has none. */}
+      {feed.seasons.some((s) => s.retention !== undefined) && (
+        <HistoryChart title="Retention" noun="retention" percent
           subtitle={toDate
-            ? `Athletes registered through a referral at day ${day ?? "N"} of registration, every season since ${feed.referrals_from}`
-            : `Athletes registered through a referral, every season since ${feed.referrals_from}`}
-          season={season} bars={referrals} />
+            ? `Share of the season before's athletes registered again by day ${day ?? "N"}, every season`
+            : "Share of the season before's athletes who registered again, every season"}
+          season={season} bars={retention} />
       )}
       <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
         Oldest season on the left, {season} on the right, each bar coloured by its term. Final is how each season ended up: teams are slots on
@@ -288,13 +302,14 @@ export default async function RegHistory({ season, locationNames, basis }: {
         Hover a bar (or tab to it) for its change against the season before it on the chart and the same season a
         year earlier, and how many of its locations were new against each: final, locations whose teams played; to
         date, locations with a team in by that day.
-        {feed.referrals_from && (
+        {feed.seasons.some((s) => s.retention !== undefined) && (
           <>
-            {" "}Referrals are the athletes on the bar above who registered through someone&apos;s referral, counted
-            once each and read the same way (final, still registered; to date, as they stood at day {day ?? "N"}),
-            from {feed.referrals_from}, when the programme started. Declined instalments count, as they do for athletes,
-            so the current season can read higher here than on the Referrals tab, which leaves them out. Hover a bar
-            for how many were new athletes (their first-ever registration) and the share of that season&apos;s athletes.
+            {" "}Retention is the Retention page&apos;s athletes returning, for every season: of the athletes still
+            registered the season before (the previous term, so Fall for Winter; each counted once, at the locations
+            in scope), the share who registered again, in any role at any Brodie venue. Final counts those whose
+            registration is still standing; to date, those in by day {day ?? "N"} of the season&apos;s registration and
+            not cancelled by then. A season whose previous term had nobody here has no bar. Changes on hover are in
+            points; the counts and the captains who came back are under them.
           </>
         )}
       </p>

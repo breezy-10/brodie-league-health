@@ -3523,10 +3523,11 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
                 ? [{ text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`, tone: "bad" as const }]
                 : []),
               // Free agents still waiting for a team, a grey chip: people to
-              // place rather than a roster to read (Sohaib, Nov 11).
+              // place rather than a roster to read. Shown at 0 too, so no
+              // chip means the feed couldn't say (Sohaib, Nov 11).
               ...(() => {
-                const fa = l.seasons.find((s) => s.kind === "current")?.unrostered_free_agents ?? 0;
-                return fa ? [{ text: `${fa.toLocaleString()} unrostered free ${fa === 1 ? "agent" : "agents"}` }] : [];
+                const fa = l.seasons.find((s) => s.kind === "current")?.unrostered_free_agents;
+                return fa != null ? [{ text: `${fa.toLocaleString()} unrostered free ${fa === 1 ? "agent" : "agents"}` }] : [];
               })(),
             ]} />
           <LocationMetric label="Athletes"
