@@ -218,50 +218,6 @@ export default async function RegHistory({ season, locationNames, basis }: {
               : `Share of the season before's ${who} who registered again, every season`,
           })) : []),
         ]} />
-      <p className="text-xs text-glass-text-tertiary max-w-[90ch]">
-        Oldest season on the left, {season} on the right, each bar coloured by its term; click a term in the key to
-        show only its seasons (several can be picked, and clicking one again puts it back). Locations are venues as
-        ops runs them (a city with several, like Calgary, counts each): final, those whose teams played (or, a season
-        not played yet, have teams registered); to date, those with a team in by that day. Final is how each season ended up: teams are slots on
-        the schedule, as on the Metabase registration dashboard (for each location and day, the most teams that played
-        there in any one week, so a team that took over a slot part-way through or a TBD stand-in for a late team
-        doesn&apos;t count twice, and all-star teams are left out); athletes are the registrations still standing. A
-        season not played yet shows what is registered so far. So a season&apos;s final teams can sit below its count
-        to date, which still has the teams that registered and later folded or merged. To date reads every season at
-        day {day ?? "N"} of its own registration, the day {season} is at now, counted as on the Registrations tab.
-        Hover a bar (or tab to it) for its change against the season before it (whichever terms are showing) and the
-        same season a year earlier, and how many of its locations were new against each: final, locations whose teams played; to
-        date, locations with a team in by that day. Athletes per team, final, counts as Metabase&apos;s Average Brodie
-        Athletes Per Team does (completed registrations over registered team records, including teams that took
-        over a slot part-way), so it won&apos;t always equal the Teams and Athletes bars divided; to date divides the
-        two to-date bars.
-        {hasPerPlayer && (
-          <>
-            {" "}Revenue per player is the Registrations tab&apos;s CAD and USD per player for every season:
-            accrued revenue (invoice totals less tax) over the athletes it came from, leaving out team fees and the
-            players they paid for, Canadian locations in CAD and US ones in USD, never converted. It starts at Spring
-            &apos;25, the first season with invoices.
-          </>
-        )}
-        {feed.played_rule_until && (
-          <>
-            {" "}The first seasons, before {feed.played_rule_until}, are counted from the games instead: teams that played
-            five or more games (once each, so a team re-created part-way through isn&apos;t counted twice) and the players
-            who played a game for them, as their schedules weren&apos;t kept week by week and their registrations
-            weren&apos;t brought over reliably (Fall &apos;21&apos;s are imports dated 2019 to 2024).
-          </>
-        )}
-        {hasRetention && (
-          <>
-            {" "}Captain and athlete retention are the Retention page&apos;s captains and athletes returning, for every
-            season: of the captains (or athletes) still registered the season before (the previous term, so Fall for
-            Winter; each counted once, at the locations in scope), the share who registered again, in any role at any
-            Brodie venue. Final counts those whose registration is still standing; to date, those in by day{" "}
-            {day ?? "N"} of the season&apos;s registration and not cancelled by then. A season whose previous term had
-            nobody here has no bar. Changes on hover are in points, with the counts under them.
-          </>
-        )}
-      </p>
     </div>
   );
 }
