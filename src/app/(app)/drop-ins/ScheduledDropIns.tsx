@@ -24,6 +24,12 @@ type ScheduledRow = {
   opponent: string | null;
   is_new: boolean;
   paid: number;
+  // The drop-in price after any discount, before processing fees and tax
+  // ($50 for a returning player, 0 free), everything charged, and the
+  // currency (absent from an older feed).
+  price?: number;
+  charged?: number;
+  currency?: string;
   attendance: Attendance;
   // The ops game id (absent from an older feed).
   game_id?: string | null;
@@ -334,8 +340,13 @@ export default async function ScheduledDropIns({
                           <div>{r.team ?? "—"}</div>
                           {r.opponent && <div className="text-xs text-glass-text-tertiary">vs {r.opponent}</div>}
                         </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap text-glass-text-secondary">
-                          {r.paid > 0 ? "Paid" : "Free"}
+                        {/* What they paid, as the page's revenue reads it, with
+                            everything charged on hover (Sohaib, Nov 11). */}
+                        <td className="px-4 py-2.5 whitespace-nowrap tabular text-glass-text-secondary"
+                          title={r.price && r.charged ? `$${r.charged.toFixed(2)} ${r.currency ?? ""} charged with processing fees and tax` : undefined}>
+                          {r.price == null
+                            ? (r.paid > 0 ? "Paid" : "Free")
+                            : r.price > 0 ? `$${r.price.toFixed(2)} ${r.currency ?? ""}`.trim() : "Free"}
                         </td>
                         {!past && <RegisteredFor r={r} season={season} className="px-4 py-2.5" />}
                         {past && r.attendance !== "upcoming" && (
