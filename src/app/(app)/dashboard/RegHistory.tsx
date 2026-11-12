@@ -187,12 +187,14 @@ export default async function RegHistory({ season, locationNames, basis }: {
           </p>
         ) : undefined}
         charts={[
-          {
+          // Not for a single location: it would read 1 every season (Sohaib,
+          // Nov 12).
+          ...(locationNames?.length === 1 ? [] : [{
             title: "Locations", noun: "locations", bars: locationBars,
             subtitle: toDate
               ? `Locations with a team in by day ${day ?? "N"} of registration, every season`
               : "Locations whose teams played, every season",
-          },
+          }]),
           { title: "Teams", noun: "teams", subtitle: subtitle("Teams"), bars: pick("teams") },
           { title: "Athletes", noun: "athletes", subtitle: subtitle("Athletes"), bars: pick("athletes") },
           // Under Athletes: per team, then revenue per player in each
