@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 // Registrations > Historical's charts, drawn here so the key can filter them
 // without a round trip: click a term (Winter, Spring, Summer, Fall) to show
@@ -98,6 +98,15 @@ function HistoryChart({ title, noun, subtitle, season, bars, all, format = "coun
       : v.toLocaleString();
   const show = (v: number) => (format === "percent" ? `${v.toFixed(1)}%` : abs(v));
   const diff = (v: number, against: number | undefined) => (format === "percent" ? changePts(v, against) : change(v, against, abs));
+  // Too many seasons for the width scroll sideways; open each chart at its
+  // right end so the newest season shows without scrolling (Sohaib, Nov 12),
+  // and again whenever the seasons shown change (the term key).
+  const scroller = useRef<HTMLDivElement>(null);
+  const shownKey = bars.map((b) => b.season).join("|");
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollLeft = el.scrollWidth;
+  }, [shownKey]);
   return (
     <section className="rounded-2xl bg-glass-surface p-5 shadow-card min-w-0">
       <div className="flex items-start justify-between gap-3">
@@ -118,7 +127,7 @@ function HistoryChart({ title, noun, subtitle, season, bars, all, format = "coun
       {bars.length === 0 ? (
         <p className="mt-4 text-sm italic text-glass-text-tertiary">No seasons to show for this selection.</p>
       ) : (
-        <div className="overflow-x-auto mt-5">
+        <div ref={scroller} className="overflow-x-auto mt-5">
           <div style={{ minWidth: bars.length * COL_PX }}>
             {/* Bars: fixed-px track so heights are truly proportional to value. */}
             <div className="flex items-stretch gap-2" style={{ height: TRACK_PX + 22 }}>
