@@ -142,8 +142,8 @@ export default async function RegHistory({ season, locationNames, basis }: {
         season not played yet shows what is registered so far. So a season&apos;s final teams can sit below its count
         to date, which still has the teams that registered and later folded or merged. To date reads every season at
         day {day ?? "N"} of its own registration, the day {season} is at now, counted as on the Registrations tab.
-        Hover a bar (or tab to it) for its change against the season before it on the chart and the same season a
-        year earlier, and how many of its locations were new against each: final, locations whose teams played; to
+        Hover a bar (or tab to it) for its change against the season before it (whichever terms are showing) and the
+        same season a year earlier, and how many of its locations were new against each: final, locations whose teams played; to
         date, locations with a team in by that day.
         {feed.played_rule_until && (
           <>
