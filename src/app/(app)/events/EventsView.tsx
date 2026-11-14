@@ -180,17 +180,21 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
         keep={Object.keys(keep).length ? keep : undefined}
       />
 
-      <BasisToggle
-        param="when"
-        value={when}
-        options={[{ value: "upcoming", label: "Upcoming" }, { value: "live", label: "Live" }, { value: "past", label: "Past" }]}
-      />
-
-      <BasisToggle
-        param="locs"
-        value={locs}
-        options={[{ value: "all", label: "All locations" }, { value: "new", label: "New locations" }, { value: "existing", label: "Existing locations" }]}
-      />
+      {/* Upcoming / Live / Past, and the locations toggle on its own row
+          under it: the toggles are inline, so side by side they ran together
+          (Sohaib, Nov 13). */}
+      <div className="flex flex-col items-start gap-2">
+        <BasisToggle
+          param="when"
+          value={when}
+          options={[{ value: "upcoming", label: "Upcoming" }, { value: "live", label: "Live" }, { value: "past", label: "Past" }]}
+        />
+        <BasisToggle
+          param="locs"
+          value={locs}
+          options={[{ value: "all", label: "All locations" }, { value: "new", label: "New locations" }, { value: "existing", label: "Existing locations" }]}
+        />
+      </div>
       {locs !== "all" && (
         <p className="text-sm text-glass-text-secondary max-w-[90ch]">
           {!newKeys
