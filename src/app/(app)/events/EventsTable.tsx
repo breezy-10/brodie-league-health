@@ -62,9 +62,10 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
   // section alike, so the shares are worked out from the columns shown.
   const cols: [string, number][] = [
     ["date", 15], ["event", 27], ["location", 18], ["going", 12],
-    ...(past ? [["became", 11] as [string, number]] : []),
     ...(anyPaid ? [["paid", 6] as [string, number]] : []),
     ["checked", 13],
+    // Became registrations last, at the far right (Sohaib, Nov 13).
+    ...(past ? [["became", 11] as [string, number]] : []),
   ];
   const totalWeight = cols.reduce((n, [, w]) => n + w, 0);
   return (
@@ -92,9 +93,9 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
               <Th align="left">Event</Th>
               <Th align="left">Location</Th>
               <Th>Going</Th>
-              {past && <Th>Became registrations</Th>}
               {anyPaid && <Th>Paid</Th>}
               <Th>Checked in</Th>
+              {past && <Th>Became registrations</Th>}
             </tr>
           </thead>
           <tbody>
@@ -150,12 +151,6 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
                       {e.new_players.toLocaleString()} new to Brodie
                     </div>
                   </td>
-                  {past && (
-                    <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
-                      <div style={{ color: "var(--glass-text)" }}>{pct(e.converted, e.new_players)}</div>
-                      <div className="text-[11px] text-glass-text-tertiary">{e.converted} of {e.new_players}</div>
-                    </td>
-                  )}
                   {anyPaid && (
                     <td className="px-4 py-2.5 text-right tabular align-top" style={{ color: "var(--glass-text)" }}>
                       {e.paid ? e.paid.toLocaleString() : "—"}
@@ -175,6 +170,12 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
                       </>
                     )}
                   </td>
+                  {past && (
+                    <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
+                      <div style={{ color: "var(--glass-text)" }}>{pct(e.converted, e.new_players)}</div>
+                      <div className="text-[11px] text-glass-text-tertiary">{e.converted} of {e.new_players}</div>
+                    </td>
+                  )}
                 </tr>
               );
               if (!isOpen) return [row];
@@ -202,13 +203,6 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
                     style={{ color: p.going ? "var(--glass-text-secondary)" : "var(--glass-text-tertiary)" }}>
                     {p.going ? "Going" : p.going === false ? "Cancelled" : "No RSVP"}
                   </td>
-                  {past && (
-                    <td className="px-4 py-1.5 text-right">
-                      {p.going && p.is_new && p.registered_after && (
-                        <span className={CHIP} style={{ color: "var(--green)", background: "var(--green-tint)" }}>Registered</span>
-                      )}
-                    </td>
-                  )}
                   {anyPaid && <td />}
                   <td className="px-4 py-1.5 text-right whitespace-nowrap">
                     {e.upcoming ? null : p.checked_in_at ? (
@@ -219,6 +213,13 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
                       <span className="text-xs text-glass-text-tertiary">Not checked in</span>
                     )}
                   </td>
+                  {past && (
+                    <td className="px-4 py-1.5 text-right">
+                      {p.going && p.is_new && p.registered_after && (
+                        <span className={CHIP} style={{ color: "var(--green)", background: "var(--green-tint)" }}>Registered</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))];
             })}
@@ -238,12 +239,6 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
                     {newPlayers.toLocaleString()} new to Brodie
                   </div>
                 </td>
-                {past && (
-                  <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
-                    <div className="font-bold" style={{ color: "var(--glass-text)" }}>{pct(converted, newPlayers)}</div>
-                    <div className="text-[11px] text-glass-text-tertiary">{converted} of {newPlayers}</div>
-                  </td>
-                )}
                 {anyPaid && (
                   <td className="px-4 py-3 text-right tabular align-top font-bold" style={{ color: "var(--glass-text)" }}>
                     {paid ? paid.toLocaleString() : "—"}
@@ -261,6 +256,12 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
                     <span className="text-glass-text-tertiary">—</span>
                   )}
                 </td>
+                {past && (
+                  <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
+                    <div className="font-bold" style={{ color: "var(--glass-text)" }}>{pct(converted, newPlayers)}</div>
+                    <div className="text-[11px] text-glass-text-tertiary">{converted} of {newPlayers}</div>
+                  </td>
+                )}
               </tr>
             )}
           </tbody>
