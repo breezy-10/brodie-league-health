@@ -17,6 +17,9 @@ export type EventPerson = {
   is_new: boolean;
   checked_in_at: string | null; // the event's own local time, "YYYY-MM-DDTHH:MM"
   registered_after: boolean;
+  // Already registered for a season still to come before the event (absent
+  // from an older feed).
+  registered_before?: boolean;
 };
 
 // Read from the string: it is already the event's own clock, and Date would
@@ -56,6 +59,7 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
   const sum = (k: keyof EventRow) => events.reduce((s, e) => s + ((e[k] as number) ?? 0), 0);
   const going = sum("going"), rsvps = sum("rsvps"), newPlayers = sum("new_players"), converted = sum("converted");
   const paid = sum("paid");
+  const registeredBefore = sum("registered_before");
   const checkedIn = sum("checked_in"), checkedInGoing = sum("checked_in_going"), checkedInNew = sum("checked_in_new");
   // Fixed widths, the same in every section, so the columns line up from one
   // table to the next whatever each holds. Past and Paid add a column to every
@@ -64,7 +68,9 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
     ["date", 15], ["event", 27], ["location", 18], ["going", 12],
     ...(anyPaid ? [["paid", 6] as [string, number]] : []),
     ["checked", 13],
-    // Became registrations last, at the far right (Sohaib, Nov 13).
+    // Already registered, then Became registrations last, at the far right
+    // (Sohaib, Nov 13).
+    ["already", 11],
     ...(past ? [["became", 11] as [string, number]] : []),
   ];
   const totalWeight = cols.reduce((n, [, w]) => n + w, 0);
@@ -95,6 +101,7 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
               <Th>Going</Th>
               {anyPaid && <Th>Paid</Th>}
               <Th>Checked in</Th>
+              <Th>Already registered</Th>
               {past && <Th>Became registrations</Th>}
             </tr>
           </thead>
@@ -170,6 +177,18 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
                       </>
                     )}
                   </td>
+                  {/* Of those going, already registered for a season still to
+                      come before the event. */}
+                  <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
+                    {e.registered_before == null ? (
+                      <span className="text-glass-text-tertiary">—</span>
+                    ) : (
+                      <>
+                        <div style={{ color: "var(--glass-text)" }}>{pct(e.registered_before, e.going)}</div>
+                        <div className="text-[11px] text-glass-text-tertiary">{e.registered_before} of {e.going} going</div>
+                      </>
+                    )}
+                  </td>
                   {past && (
                     <td className="px-4 py-2.5 text-right tabular align-top whitespace-nowrap">
                       <div style={{ color: "var(--glass-text)" }}>{pct(e.converted, e.new_players)}</div>
@@ -213,6 +232,11 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
                       <span className="text-xs text-glass-text-tertiary">Not checked in</span>
                     )}
                   </td>
+                  <td className="px-4 py-1.5 text-right">
+                    {p.going && p.registered_before && (
+                      <span className={CHIP} style={GREY}>Registered</span>
+                    )}
+                  </td>
                   {past && (
                     <td className="px-4 py-1.5 text-right">
                       {p.going && p.is_new && p.registered_after && (
@@ -251,6 +275,16 @@ export default function EventsTable({ title, events, people, past, live, anyPaid
                       <div className="text-[11px] text-glass-text-tertiary">
                         <CheckinNote going={going} checkedInGoing={checkedInGoing} checkedIn={checkedIn} checkedInNew={checkedInNew} />
                       </div>
+                    </>
+                  ) : (
+                    <span className="text-glass-text-tertiary">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right tabular align-top whitespace-nowrap">
+                  {events.some((e) => e.registered_before != null) ? (
+                    <>
+                      <div className="font-bold" style={{ color: "var(--glass-text)" }}>{pct(registeredBefore, going)}</div>
+                      <div className="text-[11px] text-glass-text-tertiary">{registeredBefore} of {going} going</div>
                     </>
                   ) : (
                     <span className="text-glass-text-tertiary">—</span>
