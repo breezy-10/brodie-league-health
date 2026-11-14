@@ -1,6 +1,6 @@
-import { canonicalLocation, csvParam, locParam } from "@/lib/seasons";
+import { canonicalLocation, csvParam, locParam, resolveScope } from "@/lib/seasons";
 import { getCanonicalLocations } from "@/lib/districts-locations";
-import { getActiveLocationKeys, onlyActive } from "@/lib/active-locations";
+import { getActiveLocationKeys, getNewLocationKeys, locationKey, onlyActive } from "@/lib/active-locations";
 import Filters, { type FilterOptions } from "../dashboard/Filters";
 import { BasisToggle } from "../dashboard/BasisToggle";
 import { dayLabel, todayKey } from "../drop-ins/ScheduledDropIns";
@@ -82,7 +82,7 @@ async function loadEventPeople(upcoming: boolean, from?: string, to?: string): P
   }
 }
 
-type EventsParams = { location?: string; when?: string; from?: string; to?: string; sort?: string };
+type EventsParams = { location?: string; when?: string; from?: string; to?: string; sort?: string; locs?: string };
 
 export default async function EventsView({ searchParams }: { searchParams: Promise<EventsParams> }) {
   await requireUser();
@@ -91,7 +91,12 @@ export default async function EventsView({ searchParams }: { searchParams: Promi
 
 // The page itself, apart from the sign-in check.
 export async function EventsBody({ searchParams }: { searchParams: Promise<EventsParams> }) {
-  const { location: locationParam, when: whenParam, from: fromParam, to: toParam, sort: sortParam } = await searchParams;
+  const { location: locationParam, when: whenParam, from: fromParam, to: toParam, sort: sortParam, locs: locsParam } = await searchParams;
+  // All locations, or only the new ones, or only those that ran before
+  // (Sohaib, Nov 13). Events have no season, so new means opening in the
+  // season being played or the one being sold: its first season with a
+  // captain is one of them, the Registrations tab's New locations rule.
+  const locs = locsParam === "new" ? "new" : locsParam === "existing" ? "existing" : "all";
   // The list runs by date unless asked to group it by location.
   const byLocation = sortParam === "location";
   // An optional date range, on the event's own local date ("YYYY-MM-DD").
@@ -105,12 +110,20 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
 
   // Locations with a captain this season or next, as every location filter
   // lists; events at a venue no league plays at still show under All.
-  const [canonical, active, all, peopleFeed] = await Promise.all([
+  const [canonical, active, all, peopleFeed, opening] = await Promise.all([
     getCanonicalLocations(),
     getActiveLocationKeys([]),
     loadEvents(locationNames),
     loadEventPeople(!past && !live, from, to),
+    locs === "all" ? Promise.resolve(null) : (async () => {
+      const { playingSeason, regSeason } = await resolveScope({}, { defaultSeason: "playing" });
+      return { seasons: [playingSeason, regSeason], keys: await getNewLocationKeys([playingSeason, regSeason]) };
+    })(),
   ]);
+  // Null keys: the feed couldn't say which locations are new, so every
+  // location shows and the page says so.
+  const newKeys = opening?.keys ?? null;
+  const newNames = newKeys ? canonical.filter((n) => newKeys.has(locationKey(n))) : [];
   const peopleByEvent = new Map<string, EventPerson[]>();
   for (const p of peopleFeed?.people ?? []) {
     if (!peopleByEvent.has(p.event_id)) peopleByEvent.set(p.event_id, []);
@@ -120,6 +133,7 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
 
   const events = (all ?? [])
     .filter((e) => (live ? e.live === true : past ? !e.upcoming && !e.live : e.upcoming))
+    .filter((e) => locs === "all" || !newKeys || newKeys.has(locationKey(e.location)) === (locs === "new"))
     .filter((e) => {
       const day = e.starts_at?.slice(0, 10);
       if (!day) return !from && !to;
@@ -152,6 +166,7 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
   const keep: Record<string, string> = {
     ...(past ? { when: "past" } : live ? { when: "live" } : {}),
     ...(byLocation ? { sort: "location" } : {}),
+    ...(locs !== "all" ? { locs } : {}),
   };
   // Who has been let in so far, for the events on right now.
   const checkedIn = sum("checked_in"), checkedInGoing = sum("checked_in_going"), checkedInNew = sum("checked_in_new");
@@ -170,6 +185,23 @@ export async function EventsBody({ searchParams }: { searchParams: Promise<Event
         value={when}
         options={[{ value: "upcoming", label: "Upcoming" }, { value: "live", label: "Live" }, { value: "past", label: "Past" }]}
       />
+
+      <BasisToggle
+        param="locs"
+        value={locs}
+        options={[{ value: "all", label: "All locations" }, { value: "new", label: "New locations" }, { value: "existing", label: "Existing locations" }]}
+      />
+      {locs !== "all" && (
+        <p className="text-sm text-glass-text-secondary max-w-[90ch]">
+          {!newKeys
+            ? "Couldn't tell which locations are new right now, so every location is shown."
+            : locs === "new"
+              ? (newNames.length
+                  ? `The ${newNames.length} ${newNames.length === 1 ? "location" : "locations"} opening in ${opening!.seasons.join(" or ")}: ${newNames.join(", ")}.`
+                  : `No location is opening in ${opening!.seasons.join(" or ")}.`)
+              : `Every location that ran before ${opening!.seasons[0]}${newNames.length ? `, leaving out the ${newNames.length} opening in ${opening!.seasons.join(" or ")}` : ""}.`}
+        </p>
+      )}
 
       {!all ? (
         <div className="rounded-xl bg-glass-surface px-4 py-6 text-sm italic text-glass-text-tertiary shadow-card">
