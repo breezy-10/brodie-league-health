@@ -3332,7 +3332,11 @@ function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; se
   // each, for what each took off. An older feed without the split keeps the
   // single "Got a discount" row.
   const split = row.returning_discounted != null && row.referral_discounted != null && row.other_discounted != null;
-  const items = [
+  const items: { label: string; n: number; cost: number | null; tone: (pct: number) => string; href?: string }[] = [
+    // First, those who paid full price: no discount of any kind, so nothing
+    // given up (Sohaib, Nov 13). "discounted" counts every registration with
+    // one, free included, so the rest paid in full.
+    { label: "Full price", n: Math.max(row.regs - row.discounted, 0), cost: null, tone: () => "var(--glass-text-secondary)" },
     ...(split ? [
       { label: "Returning player discount", n: row.returning_discounted!, cost: row.returning_discount_total ?? 0, tone: discountTone, href: href({ kind: "returning" }) },
       { label: "Referral discount", n: row.referral_discounted!, cost: row.referral_discount_total ?? 0, tone: discountTone, href: href({ kind: "referral" }) },
@@ -3355,12 +3359,18 @@ function LocationDiscounts({ row, season, seasonToDate }: { row: DiscountRow; se
           // The label wraps rather than truncates: "Returning player discount"
           // is longer than the card's label column.
           <div key={it.label} className="flex items-baseline gap-2 py-px">
-            <a href={it.href} className="flex-1 min-w-0 leading-tight text-glass-text-secondary hover:text-glass-text hover:underline">
-              {it.label}
-            </a>
+            {it.href ? (
+              <a href={it.href} className="flex-1 min-w-0 leading-tight text-glass-text-secondary hover:text-glass-text hover:underline">
+                {it.label}
+              </a>
+            ) : (
+              <span className="flex-1 min-w-0 leading-tight text-glass-text-secondary">{it.label}</span>
+            )}
             <span className="shrink-0 tabular font-semibold" style={{ color: it.tone(pct) }}>{Math.round(pct)}%</span>
             <span className="shrink-0 w-14 text-right tabular text-glass-text-tertiary">{it.n} of {row.regs}</span>
-            <span className="shrink-0 w-[4.25rem] text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>{cents(it.cost)}</span>
+            <span className="shrink-0 w-[4.25rem] text-right tabular" style={{ color: "var(--glass-text-secondary)" }}>
+              {it.cost == null ? <span className="text-glass-text-tertiary">–</span> : cents(it.cost)}
+            </span>
           </div>
         );
       })}
