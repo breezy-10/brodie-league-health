@@ -27,6 +27,8 @@ const WAITLIST: NavItem = { href: "/waitlist", label: "Waitlist", short: "Waitli
 const CITIES: NavItem = { href: "/requested-cities", label: "Requested cities", short: "Cities", icon: "cities", group: "Leagues" };
 const LAUNCHERS: NavItem = { href: "/city-launchers", label: "City launchers", short: "Launchers", icon: "launchers", group: "Leagues" };
 const STAFF: NavItem = { href: "/staff-performance", label: "Staff performance", short: "Staff", icon: "staff", group: "People" };
+// Every role: a league manager sees their own bonus, everyone else sees all.
+const LM_BONUS: NavItem = { href: "/lm-bonus", label: "LM bonus", short: "Bonus", icon: "bonus", group: "People" };
 const MY_DAY: NavItem = { href: "/my-day", label: "My day", short: "My day", icon: "myday", group: "People" };
 const LEADERBOARD: NavItem = { href: "/leaderboard", label: "Leaderboard", short: "Leaderboard", icon: "leaderboard", group: "People" };
 const TROPHIES: NavItem = { href: "/achievements", label: "Trophies", short: "Trophies", icon: "trophies", group: "People" };
@@ -51,6 +53,7 @@ export default async function Shell({ children }: { children: React.ReactNode })
     DASHBOARD, ...(OM_DASHBOARD_ROLES.includes(role) ? [OM_DASHBOARD] : []), LIVE, REGISTRATIONS, RETENTION, REFERRALS, DISCOUNTS, AMBASSADORS, ...(isSuperAdmin ? [AMBASSADORS_V2] : []), FORFEIT, CHECK_INS, DROP_INS, EVENTS, WAITLIST, CITIES,
     ...((CITY_LAUNCHER_ROLES as readonly string[]).includes(role) ? [LAUNCHERS] : []),
     ...(STAFF_PERFORMANCE_ROLES.includes(role) ? [STAFF] : []),
+    LM_BONUS,
     ...(isSuperAdmin ? [MY_DAY, LEADERBOARD, TROPHIES, DISTRICT, DISPUTES] : []),
     ...(isSuperAdmin ? [SETTINGS] : canManageUsers(role) ? [USERS] : []),
   ];
