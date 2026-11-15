@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Award,
+  BadgeDollarSign,
   CalendarDays,
   Hourglass,
   MapPin,
@@ -42,7 +43,7 @@ import { SIDEBAR_COOKIE, type Theme } from "@/lib/theme-shared";
 
 export type NavIcon =
   | "dashboard" | "omdashboard" | "live" | "registrations" | "retention" | "referrals" | "discounts" | "ambassadors" | "forfeit" | "dropins" | "events" | "checkins" | "waitlist" | "cities" | "launchers" | "staff"
-  | "myday" | "leaderboard" | "trophies" | "district" | "disputes" | "settings" | "users";
+  | "myday" | "bonus" | "leaderboard" | "trophies" | "district" | "disputes" | "settings" | "users";
 
 export interface NavItem {
   href: string;
@@ -81,6 +82,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   launchers: Rocket,
   staff: UserCheck,
   myday: CalendarCheck,
+  bonus: BadgeDollarSign,
   leaderboard: Trophy,
   trophies: Award,
   district: Map,
@@ -100,6 +102,7 @@ const PAGES: { path: string; exact?: boolean; title: string; subtitle: string }[
   { path: "/live-games", title: "Live games", subtitle: "Every game on a day's schedule: what's on court now, what's next, and what's done." },
   { path: "/registrations", title: "Registrations", subtitle: "Teams and athletes registered by this day, against last season and last year." },
   { path: "/retention", title: "Retention", subtitle: "Every location ranked on who has played Brodie before and who came back." },
+  { path: "/lm-bonus", title: "LM bonus", subtitle: "Each league manager's registration bonus this season, by LM Comp Model V5." },
   { path: "/referrals", title: "Referrals", subtitle: "Who brought players in, and what each referral earned and cost." },
   { path: "/discounts/players", title: "Discounted registrations", subtitle: "Every registration that came with a discount, and what it took off." },
   { path: "/discounts", title: "Price and discounting", subtitle: "What a registration is advertised at, what comes off, and what actually lands." },
