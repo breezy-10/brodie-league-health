@@ -38,6 +38,9 @@ type Location = {
   // Season over season: last season's athletes here who came back. Null share
   // for a location in its first season (exempt). Absent from an older feed.
   retention_pct?: number | null;
+  // Last season's feedback here, what the CSAT and NPS minimums read (absent
+  // from an older feed).
+  feedback?: { csat: number | null; nps: number | null; responses: number };
   returned?: number;
   prior_athletes?: number;
   why: string | null;
@@ -57,7 +60,13 @@ type Manager = {
 };
 // min_retention_pct: the retention a location needs to qualify (absent from an
 // older feed).
-type Feed = { model: "v5"; season: { key: string; label: string }; rates_cents: number[]; min_retention_pct?: number; managers: Manager[] };
+// min_csat / min_nps: last season's feedback a location needs, once it had
+// min_feedback_responses responses (fewer, or none: exempt).
+type Feed = {
+  model: "v5"; season: { key: string; label: string }; rates_cents: number[]; min_retention_pct?: number;
+  min_csat?: number; min_nps?: number; min_feedback_responses?: number; managers: Manager[];
+};
+type FeedbackMins = { csat: number; nps: number; responses: number };
 
 async function loadFeed(): Promise<Feed | null> {
   const token = process.env.LM_BONUS_FEED_TOKEN;
@@ -116,6 +125,8 @@ export default async function LmBonusView() {
   }
 
   const rates = rateLines(feed.rates_cents);
+  const mins: FeedbackMins | null = feed.min_csat != null && feed.min_nps != null && feed.min_feedback_responses != null
+    ? { csat: feed.min_csat, nps: feed.min_nps, responses: feed.min_feedback_responses } : null;
   return (
     <main className="brodie-fade-in space-y-6">
       <section className="rounded-2xl bg-glass-surface p-5 shadow-card space-y-3">
@@ -129,6 +140,10 @@ export default async function LmBonusView() {
           {feed.min_retention_pct != null && (
             <> and keeps at least {feed.min_retention_pct}% of last season&apos;s athletes (a location in its first
             season doesn&apos;t need to)</>
+          )}
+          {mins && (
+            <>; its feedback last season must reach CSAT {mins.csat} and NPS {mins.nps} (with fewer than{" "}
+            {mins.responses} responses it doesn&apos;t count)</>
           )}
           , and nothing pays until you&apos;re credited enough teams across all your locations.
         </p>
@@ -145,6 +160,16 @@ export default async function LmBonusView() {
               <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{feed.min_retention_pct}%</span>
             </span>
           )}
+          {mins && [
+            { label: "Minimum CSAT", value: String(mins.csat) },
+            { label: "Minimum NPS", value: String(mins.nps) },
+            { label: "Feedback counts from", value: `${mins.responses} responses` },
+          ].map((c) => (
+            <span key={c.label} className="inline-flex items-baseline gap-1.5 rounded-full px-3 py-1 text-xs" style={{ background: "var(--fill-3)" }}>
+              <span className="text-glass-text-secondary">{c.label}</span>
+              <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{c.value}</span>
+            </span>
+          ))}
         </div>
       </section>
 
@@ -170,12 +195,12 @@ export default async function LmBonusView() {
                   <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{money(m.bonus_cents, m.currency)}</span>
                 </span>
               </summary>
-              <div className="px-5 pb-5"><ManagerDetail m={m} rates={feed.rates_cents} minRetention={feed.min_retention_pct ?? null} /></div>
+              <div className="px-5 pb-5"><ManagerDetail m={m} rates={feed.rates_cents} minRetention={feed.min_retention_pct ?? null} mins={mins} /></div>
             </details>
           ))}
         </>
       ) : (
-        <ManagerDetail m={managers[0]} rates={feed.rates_cents} minRetention={feed.min_retention_pct ?? null} showTiles />
+        <ManagerDetail m={managers[0]} rates={feed.rates_cents} minRetention={feed.min_retention_pct ?? null} mins={mins} showTiles />
       )}
     </main>
   );
@@ -245,7 +270,9 @@ function ManagersTable({ managers }: { managers: Manager[] }) {
 const DAY_COLS = [17, 8, 12, 11, 34, 18];
 
 // One manager's bonus: the headline figures, then each location day by day.
-function ManagerDetail({ m, rates, minRetention, showTiles = false }: { m: Manager; rates: number[]; minRetention: number | null; showTiles?: boolean }) {
+function ManagerDetail({ m, rates, minRetention, mins, showTiles = false }: {
+  m: Manager; rates: number[]; minRetention: number | null; mins: FeedbackMins | null; showTiles?: boolean;
+}) {
   const credited = m.locations.flatMap((l) => l.nights.filter((s) => s.is_credited));
   const fullyPaid = credited.reduce((n, s) => n + s.fully_paid, 0);
   const stillPaying = credited.reduce((n, s) => n + s.still_paying, 0);
@@ -269,6 +296,7 @@ function ManagerDetail({ m, rates, minRetention, showTiles = false }: { m: Manag
             <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
               <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</span>
               {minRetention != null && l.retention_pct !== undefined && <RetentionNote l={l} min={minRetention} />}
+              {mins && l.feedback && <FeedbackNote fb={l.feedback} mins={mins} />}
             </span>
             <span className="text-sm font-bold tabular" style={{ color: "var(--glass-text)" }}>{money(l.bonus_cents, l.currency)}</span>
           </div>
@@ -353,6 +381,29 @@ function RetentionNote({ l, min }: { l: Location; min: number }) {
     <span className="text-[11px] tabular" style={{ color: under ? "var(--red)" : "var(--glass-text-tertiary)" }}>
       {l.retention_pct}% retention{under ? ` (under ${min}%)` : ""}
       {l.prior_athletes ? ` · ${l.returned ?? 0} of last season's ${l.prior_athletes} back` : ""}
+    </span>
+  );
+}
+
+// Last season's feedback at a location against the minimums: red where one is
+// missed; exempt with fewer responses than the minimum.
+function FeedbackNote({ fb, mins }: { fb: { csat: number | null; nps: number | null; responses: number }; mins: FeedbackMins }) {
+  if (fb.responses < Math.max(1, mins.responses)) {
+    return (
+      <span className="text-[11px] text-glass-text-tertiary">
+        {fb.responses ? `${fb.responses} feedback ${fb.responses === 1 ? "response" : "responses"}` : "no feedback"} last season: exempt
+      </span>
+    );
+  }
+  const csatUnder = fb.csat != null && fb.csat < mins.csat;
+  const npsUnder = fb.nps != null && fb.nps < mins.nps;
+  const tone = (under: boolean) => ({ color: under ? "var(--red)" : "var(--glass-text-tertiary)" });
+  return (
+    <span className="text-[11px] tabular">
+      <span style={tone(csatUnder)}>CSAT {fb.csat ?? "–"}{csatUnder ? ` (under ${mins.csat})` : ""}</span>
+      <span className="text-glass-text-tertiary"> · </span>
+      <span style={tone(npsUnder)}>NPS {fb.nps ?? "–"}{npsUnder ? ` (under ${mins.nps})` : ""}</span>
+      <span className="text-glass-text-tertiary"> · {fb.responses} responses last season</span>
     </span>
   );
 }
