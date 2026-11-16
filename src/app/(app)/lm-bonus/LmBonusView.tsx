@@ -35,6 +35,11 @@ type Location = {
   currency: "CAD" | "USD";
   bonus_cents: number;
   back: number[] | null;
+  // Season over season: last season's athletes here who came back. Null share
+  // for a location in its first season (exempt). Absent from an older feed.
+  retention_pct?: number | null;
+  returned?: number;
+  prior_athletes?: number;
   why: string | null;
   nights: Night[];
 };
@@ -50,7 +55,9 @@ type Manager = {
   qualifies: boolean;
   locations: Location[];
 };
-type Feed = { model: "v5"; season: { key: string; label: string }; rates_cents: number[]; managers: Manager[] };
+// min_retention_pct: the retention a location needs to qualify (absent from an
+// older feed).
+type Feed = { model: "v5"; season: { key: string; label: string }; rates_cents: number[]; min_retention_pct?: number; managers: Manager[] };
 
 async function loadFeed(): Promise<Feed | null> {
   const token = process.env.LM_BONUS_FEED_TOKEN;
@@ -118,8 +125,12 @@ export default async function LmBonusView() {
         </div>
         <p className="text-sm text-glass-text-secondary max-w-[80ch]">
           Every fully paid player earns you an amount set by when they last played at that location. A day pays once
-          its location reaches its team minimum, and nothing pays until you&apos;re credited enough teams across all
-          your locations.
+          its location reaches its team minimum
+          {feed.min_retention_pct != null && (
+            <> and keeps at least {feed.min_retention_pct}% of last season&apos;s athletes (a location in its first
+            season doesn&apos;t need to)</>
+          )}
+          , and nothing pays until you&apos;re credited enough teams across all your locations.
         </p>
         <div className="flex flex-wrap gap-2">
           {rates.map((r) => (
@@ -128,6 +139,12 @@ export default async function LmBonusView() {
               <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>${(r.cents / 100).toFixed(r.cents % 100 ? 2 : 0)}</span>
             </span>
           ))}
+          {feed.min_retention_pct != null && (
+            <span className="inline-flex items-baseline gap-1.5 rounded-full px-3 py-1 text-xs" style={{ background: "var(--fill-3)" }}>
+              <span className="text-glass-text-secondary">Minimum retention</span>
+              <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{feed.min_retention_pct}%</span>
+            </span>
+          )}
         </div>
       </section>
 
@@ -153,12 +170,12 @@ export default async function LmBonusView() {
                   <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{money(m.bonus_cents, m.currency)}</span>
                 </span>
               </summary>
-              <div className="px-5 pb-5"><ManagerDetail m={m} rates={feed.rates_cents} /></div>
+              <div className="px-5 pb-5"><ManagerDetail m={m} rates={feed.rates_cents} minRetention={feed.min_retention_pct ?? null} /></div>
             </details>
           ))}
         </>
       ) : (
-        <ManagerDetail m={managers[0]} rates={feed.rates_cents} showTiles />
+        <ManagerDetail m={managers[0]} rates={feed.rates_cents} minRetention={feed.min_retention_pct ?? null} showTiles />
       )}
     </main>
   );
@@ -228,7 +245,7 @@ function ManagersTable({ managers }: { managers: Manager[] }) {
 const DAY_COLS = [17, 8, 12, 11, 34, 18];
 
 // One manager's bonus: the headline figures, then each location day by day.
-function ManagerDetail({ m, rates, showTiles = false }: { m: Manager; rates: number[]; showTiles?: boolean }) {
+function ManagerDetail({ m, rates, minRetention, showTiles = false }: { m: Manager; rates: number[]; minRetention: number | null; showTiles?: boolean }) {
   const credited = m.locations.flatMap((l) => l.nights.filter((s) => s.is_credited));
   const fullyPaid = credited.reduce((n, s) => n + s.fully_paid, 0);
   const stillPaying = credited.reduce((n, s) => n + s.still_paying, 0);
@@ -249,7 +266,10 @@ function ManagerDetail({ m, rates, showTiles = false }: { m: Manager; rates: num
       {m.locations.map((l) => (
         <div key={l.location_id} className="rounded-xl overflow-x-auto" style={{ border: "1px solid var(--glass-border)" }}>
           <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2.5" style={{ borderBottom: "1px solid var(--glass-border)" }}>
-            <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</span>
+            <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+              <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</span>
+              {minRetention != null && l.retention_pct !== undefined && <RetentionNote l={l} min={minRetention} />}
+            </span>
             <span className="text-sm font-bold tabular" style={{ color: "var(--glass-text)" }}>{money(l.bonus_cents, l.currency)}</span>
           </div>
           {/* Fixed widths, the same in every location's table, so the columns
@@ -321,6 +341,19 @@ function ManagerDetail({ m, rates, showTiles = false }: { m: Manager; rates: num
         </div>
       ))}
     </div>
+  );
+}
+
+// A location's season-over-season retention against the minimum: red, with
+// the minimum, when under it; a location in its first season is exempt.
+function RetentionNote({ l, min }: { l: Location; min: number }) {
+  if (l.retention_pct == null) return <span className="text-[11px] text-glass-text-tertiary">first season: no retention needed</span>;
+  const under = l.retention_pct < min;
+  return (
+    <span className="text-[11px] tabular" style={{ color: under ? "var(--red)" : "var(--glass-text-tertiary)" }}>
+      {l.retention_pct}% retention{under ? ` (under ${min}%)` : ""}
+      {l.prior_athletes ? ` · ${l.returned ?? 0} of last season's ${l.prior_athletes} back` : ""}
+    </span>
   );
 }
 
