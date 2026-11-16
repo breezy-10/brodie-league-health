@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { promoFetch } from "@/lib/promo-feed";
 import { normEmail, normName } from "@/lib/directory";
+import { JumpLink, OpenCardFromHash } from "./JumpToManager";
+import { managerCardId } from "./card-id";
 
 // The districts app computes the bonus (GET /api/lm-bonus, LM Comp Model V5
 // with its own data, floors, credit and manager gate) and this page shows it,
@@ -138,8 +140,12 @@ export default async function LmBonusView() {
       ) : seeAll ? (
         <>
           <ManagersTable managers={managers} />
+          <OpenCardFromHash />
           {managers.map((m) => (
-            <details key={m.name} className="group rounded-2xl bg-glass-surface shadow-card">
+            // A name in the table above opens this card and scrolls here,
+            // clear of the sticky header.
+            <details key={m.name} id={managerCardId(m.name)} className="group rounded-2xl bg-glass-surface shadow-card"
+              style={{ scrollMarginTop: "calc(var(--shell-top) + 12px)" }}>
               <summary className="cursor-pointer list-none px-5 py-4 flex flex-wrap items-center justify-between gap-3">
                 <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{m.name}</span>
                 <span className="flex items-center gap-3 text-sm">
@@ -191,7 +197,9 @@ function ManagersTable({ managers }: { managers: Manager[] }) {
         <tbody>
           {managers.map((m) => (
             <tr key={m.name} style={{ borderTop: "1px solid var(--glass-border)" }}>
-              <td className="px-5 py-2.5 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>{m.name}</td>
+              <td className="px-5 py-2.5 font-semibold whitespace-nowrap" style={{ color: "var(--glass-text)" }}>
+                <JumpLink name={m.name}>{m.name}</JumpLink>
+              </td>
               <td className="px-5 py-2.5 text-glass-text-secondary">{m.locations.map((l) => l.location).join(", ")}</td>
               <td className="px-5 py-2.5 text-right tabular whitespace-nowrap">
                 <div style={{ color: "var(--glass-text)" }}>{m.teams_credited} <span className="text-glass-text-tertiary">of {m.min_teams}</span></div>
