@@ -127,6 +127,16 @@ export default async function LmBonusView() {
   const rates = rateLines(feed.rates_cents);
   const mins: FeedbackMins | null = feed.min_csat != null && feed.min_nps != null && feed.min_feedback_responses != null
     ? { csat: feed.min_csat, nps: feed.min_nps, responses: feed.min_feedback_responses } : null;
+  const minimumChips = [
+    ...(feed.min_retention_pct != null ? [{ label: "Minimum retention", value: `${feed.min_retention_pct}%` }] : []),
+    ...(mins
+      ? [
+          { label: "Minimum CSAT", value: String(mins.csat) },
+          { label: "Minimum NPS", value: String(mins.nps) },
+          { label: "Feedback counts from", value: `${mins.responses} responses` },
+        ]
+      : []),
+  ];
   return (
     <main className="brodie-fade-in space-y-6">
       <section className="rounded-2xl bg-glass-surface p-5 shadow-card space-y-3">
@@ -147,29 +157,10 @@ export default async function LmBonusView() {
           )}
           , and nothing pays until you&apos;re credited enough teams across all your locations.
         </p>
-        <div className="flex flex-wrap gap-2">
-          {rates.map((r) => (
-            <span key={r.label} className="inline-flex items-baseline gap-1.5 rounded-full px-3 py-1 text-xs" style={{ background: "var(--fill-3)" }}>
-              <span className="text-glass-text-secondary">{r.label}</span>
-              <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>${(r.cents / 100).toFixed(r.cents % 100 ? 2 : 0)}</span>
-            </span>
-          ))}
-          {feed.min_retention_pct != null && (
-            <span className="inline-flex items-baseline gap-1.5 rounded-full px-3 py-1 text-xs" style={{ background: "var(--fill-3)" }}>
-              <span className="text-glass-text-secondary">Minimum retention</span>
-              <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{feed.min_retention_pct}%</span>
-            </span>
-          )}
-          {mins && [
-            { label: "Minimum CSAT", value: String(mins.csat) },
-            { label: "Minimum NPS", value: String(mins.nps) },
-            { label: "Feedback counts from", value: `${mins.responses} responses` },
-          ].map((c) => (
-            <span key={c.label} className="inline-flex items-baseline gap-1.5 rounded-full px-3 py-1 text-xs" style={{ background: "var(--fill-3)" }}>
-              <span className="text-glass-text-secondary">{c.label}</span>
-              <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{c.value}</span>
-            </span>
-          ))}
+        {/* The minimums on the first row, the per-player amounts on the second. */}
+        <div className="flex flex-col gap-2">
+          {minimumChips.length > 0 && <ChipRow chips={minimumChips} />}
+          <ChipRow chips={rates.map((r) => ({ label: r.label, value: `$${(r.cents / 100).toFixed(r.cents % 100 ? 2 : 0)}` }))} />
         </div>
       </section>
 
@@ -382,6 +373,19 @@ function RetentionNote({ l, min }: { l: Location; min: number }) {
       {l.retention_pct}% retention{under ? ` (under ${min}%)` : ""}
       {l.prior_athletes ? ` · ${l.returned ?? 0} of last season's ${l.prior_athletes} back` : ""}
     </span>
+  );
+}
+
+function ChipRow({ chips }: { chips: { label: string; value: string }[] }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {chips.map((c) => (
+        <span key={c.label} className="inline-flex items-baseline gap-1.5 rounded-full px-3 py-1 text-xs" style={{ background: "var(--fill-3)" }}>
+          <span className="text-glass-text-secondary">{c.label}</span>
+          <span className="font-bold tabular" style={{ color: "var(--glass-text)" }}>{c.value}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
