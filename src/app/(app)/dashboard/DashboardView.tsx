@@ -3557,9 +3557,11 @@ function LocationStrip({ locations, prevLabel, yearLabel, season, showAvgPerTeam
             prevLabel={prevLabel} yearLabel={yearLabel} goal={goalOf("teams")}
             notes={[
               { text: `${get("current", "full_roster").toLocaleString()} with 7 or more players`, tone: "yellow" as const },
-              ...(get("current", "low_roster")
-                ? [{ text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`, tone: "bad" as const }]
-                : []),
+              // Shown at 0 too (Sohaib, Nov 16): red only when there are some.
+              {
+                text: `${get("current", "low_roster").toLocaleString()} with 3 or fewer players`,
+                tone: get("current", "low_roster") ? ("bad" as const) : undefined,
+              },
             ]} />
           <LocationMetric label="Athletes"
             cur={get("current", "athletes")} prev={get("prev_season", "athletes")} year={get("prev_year", "athletes")}
@@ -4205,8 +4207,8 @@ export default async function DashboardView({
     notes: [
       ...(set.cur.full_roster != null
         ? [{ text: `${set.cur.full_roster.toLocaleString()} with 7 or more players`, tone: "yellow" as const }] : []),
-      ...(set.cur.low_roster
-        ? [{ text: `${set.cur.low_roster.toLocaleString()} with 3 or fewer players`, tone: "bad" as const }] : []),
+      ...(set.cur.low_roster != null
+        ? [{ text: `${set.cur.low_roster.toLocaleString()} with 3 or fewer players`, tone: set.cur.low_roster ? ("bad" as const) : undefined }] : []),
     ],
     roster: true,
     footer: shareGroups("captains", set, place?.code),
@@ -4987,6 +4989,11 @@ const DAY_FULL: Record<string, string> = {
 // The roster chips under a night's teams registered: set a size down and at
 // a lighter weight, so the count above them stays the first thing read.
 const ROSTER_CHIP = "inline-block text-[10px] font-medium rounded-full px-1.5 py-px max-w-full sm:whitespace-nowrap";
+// Teams with 3 or fewer players: red when there are any, a quiet grey "0"
+// otherwise, so a night with none says so (Sohaib, Nov 16).
+const lowRosterChipStyle = (low: number) => (low
+  ? { color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" }
+  : { color: "var(--glass-text-secondary)", borderColor: "transparent", background: "var(--fill-3)" });
 // Teams registered against teams booked, both numbers in one colour: green
 // when they match, yellow when more teams registered than were booked (not
 // enough space yet), red when more were booked than registered (spots paid
@@ -5379,9 +5386,8 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                               {reg.full} with 7 or more players
                             </span>
                           )}
-                          {!!reg?.low && (
-                            <span className={ROSTER_CHIP}
-                              style={{ color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" }}>
+                          {!!reg?.teams && (
+                            <span className={ROSTER_CHIP} style={lowRosterChipStyle(reg.low)}>
                               {reg.low} with 3 or fewer players
                             </span>
                           )}
@@ -5442,12 +5448,9 @@ function BookingsSection({ data, season, titleSuffix = "", teamsRegistered, team
                           {totals.full} with 7 or more players
                         </span>
                       )}
-                      {!!totals.low && (
-                        <span className={ROSTER_CHIP}
-                          style={{ color: "var(--red)", borderColor: "transparent", background: "var(--red-tint)" }}>
-                          {totals.low} with 3 or fewer players
-                        </span>
-                      )}
+                      <span className={ROSTER_CHIP} style={lowRosterChipStyle(totals.low)}>
+                        {totals.low} with 3 or fewer players
+                      </span>
                       <span className={ROSTER_CHIP}
                         style={rosterChipStyle(totals.players / totals.registered)}>
                         {(totals.players / totals.registered).toFixed(1)} avg players per team
