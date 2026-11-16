@@ -220,6 +220,10 @@ function ManagersTable({ managers }: { managers: Manager[] }) {
   );
 }
 
+// Column widths (%) for every location's day table: Day, Teams, Fully paid
+// players, Still paying, Worth, Bonus.
+const DAY_COLS = [24, 10, 24, 12, 14, 16];
+
 // One manager's bonus: the headline figures, then each location day by day.
 function ManagerDetail({ m, rates, showTiles = false }: { m: Manager; rates: number[]; showTiles?: boolean }) {
   const credited = m.locations.flatMap((l) => l.nights.filter((s) => s.is_credited));
@@ -245,7 +249,12 @@ function ManagerDetail({ m, rates, showTiles = false }: { m: Manager; rates: num
             <span className="font-semibold" style={{ color: "var(--glass-text)" }}>{l.location}</span>
             <span className="text-sm font-bold tabular" style={{ color: "var(--glass-text)" }}>{money(l.bonus_cents, l.currency)}</span>
           </div>
-          <table className="w-full text-sm" style={{ minWidth: 640 }}>
+          {/* Fixed widths, the same in every location's table, so the columns
+              line up from one location to the next (Sohaib, Nov 15). */}
+          <table className="w-full text-sm" style={{ minWidth: 640, tableLayout: "fixed" }}>
+            <colgroup>
+              {DAY_COLS.map((w, i) => <col key={i} style={{ width: `${w}%` }} />)}
+            </colgroup>
             <thead>
               <tr className="text-xs font-bold text-glass-text-tertiary">
                 <th className="px-4 py-2 text-left">Day</th>
