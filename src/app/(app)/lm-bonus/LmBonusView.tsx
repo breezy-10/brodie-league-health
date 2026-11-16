@@ -67,11 +67,6 @@ const money = (cents: number, ccy: string) =>
   `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })} ${ccy}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
-// The six recency groups the feed counts, read as the three the comp model is
-// set in: played here in the past year (last 1-4 seasons), 5+ seasons back,
-// and new to the location.
-const pastYear = (b: number[]) => b[0] + b[1] + b[2] + b[3];
-
 // The amounts a player is worth this season, as the comp model shows them: one
 // amount for the past year when its four seasons share it, else each.
 function rateLines(r: number[]): { label: string; cents: number }[] {
@@ -221,8 +216,8 @@ function ManagersTable({ managers }: { managers: Manager[] }) {
 }
 
 // Column widths (%) for every location's day table: Day, Teams, Fully paid
-// players, Still paying, Worth, Bonus.
-const DAY_COLS = [24, 10, 24, 12, 14, 16];
+// players, Still paying, Calculation, Bonus.
+const DAY_COLS = [17, 8, 12, 11, 34, 18];
 
 // One manager's bonus: the headline figures, then each location day by day.
 function ManagerDetail({ m, rates, showTiles = false }: { m: Manager; rates: number[]; showTiles?: boolean }) {
@@ -261,7 +256,7 @@ function ManagerDetail({ m, rates, showTiles = false }: { m: Manager; rates: num
                 <th className="px-4 py-2 text-right">Teams</th>
                 <th className="px-4 py-2 text-right">Fully paid players</th>
                 <th className="px-4 py-2 text-right">Still paying</th>
-                <th className="px-4 py-2 text-right">Worth</th>
+                <th className="px-4 py-2 text-right">Calculation</th>
                 <th className="px-4 py-2 text-right">Bonus</th>
               </tr>
             </thead>
@@ -280,16 +275,24 @@ function ManagerDetail({ m, rates, showTiles = false }: { m: Manager; rates: num
                   <td className="px-4 py-2 text-right tabular align-top" style={{ color: "var(--glass-text)" }}>{s.teams}</td>
                   <td className="px-4 py-2 text-right tabular align-top">
                     <div style={{ color: "var(--glass-text)" }}>{s.fully_paid}</div>
-                    {s.back && (
-                      <div className="text-[11px] text-glass-text-tertiary whitespace-nowrap">
-                        {pastYear(s.back)} past year · {s.back[4]} 5+ back · {s.back[5]} new
-                      </div>
-                    )}
                   </td>
                   <td className="px-4 py-2 text-right tabular align-top text-glass-text-secondary">{s.still_paying}</td>
-                  <td className="px-4 py-2 text-right tabular align-top text-glass-text-secondary whitespace-nowrap"
-                    title={s.back ? workings(s.back, rates) : "this location's player history isn't recorded by day, so its value is shared out by players"}>
-                    {s.is_credited ? money(s.value_cents, l.currency) : "–"}
+                  {/* How the day's players add up: each group times what it's
+                      worth, then the total. Worth repeated the bonus whenever
+                      the day paid (Sohaib, Nov 15); the Bonus column says what
+                      it pays. */}
+                  <td className="px-4 py-2 text-right tabular align-top text-[12px] text-glass-text-secondary">
+                    {!s.is_credited ? (
+                      <span className="text-glass-text-tertiary">–</span>
+                    ) : s.back ? (
+                      <Calculation back={s.back} rates={rates} total={s.value_cents} />
+                    ) : (
+                      // Player history isn't recorded by day here, so the
+                      // location's total is shared out by fully paid players.
+                      <div className="whitespace-nowrap">
+                        {s.fully_paid} players&apos; share of {l.location} = <span style={{ color: "var(--glass-text)" }}>{dollars(s.value_cents)}</span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right tabular align-top whitespace-nowrap">
                     {!s.is_credited ? (
@@ -313,12 +316,38 @@ function ManagerDetail({ m, rates, showTiles = false }: { m: Manager; rates: num
   );
 }
 
-// "13 × $5 + 2 × $2 + 7 × $1", the sum behind a day's worth.
-function workings(back: number[], rates: number[]): string {
-  return back
-    .map((n, i) => (n ? `${n} × $${(rates[i] / 100).toFixed(rates[i] % 100 ? 2 : 0)}` : null))
-    .filter(Boolean)
-    .join(" + ") || "no fully paid players yet";
+// Whole dollars unless there are cents, no currency (the Bonus column has it).
+const dollars = (cents: number) =>
+  `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
+
+// A day's fully paid players in the groups the season pays by: played here in
+// the past year (one line when its four seasons pay the same), 5+ seasons
+// back, and new; each times its amount, then the total when there's more than
+// one line. "39 past year × $5 = $195".
+function Calculation({ back, rates, total }: { back: number[]; rates: number[]; total: number }) {
+  const sameYear = rates.slice(0, 4).every((c) => c === rates[0]);
+  const groups = [
+    ...(sameYear
+      ? [{ label: "past year", n: back[0] + back[1] + back[2] + back[3], cents: rates[0] }]
+      : ["last season", "2 seasons back", "3 seasons back", "4 seasons back"].map((label, i) => ({ label, n: back[i], cents: rates[i] }))),
+    { label: "5+ seasons back", n: back[4], cents: rates[4] },
+    { label: "new", n: back[5], cents: rates[5] },
+  ].filter((g) => g.n > 0);
+  if (groups.length === 0) return <span className="text-glass-text-tertiary">no fully paid players yet</span>;
+  return (
+    <div className="space-y-0.5">
+      {groups.map((g) => (
+        <div key={g.label} className="whitespace-nowrap">
+          {g.n} {g.label} × {dollars(g.cents)} = <span style={{ color: "var(--glass-text)" }}>{dollars(g.n * g.cents)}</span>
+        </div>
+      ))}
+      {groups.length > 1 && (
+        <div className="whitespace-nowrap pt-0.5 mt-0.5 font-semibold" style={{ borderTop: "1px solid var(--glass-border-light)", color: "var(--glass-text)" }}>
+          {dollars(total)}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Tile({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
