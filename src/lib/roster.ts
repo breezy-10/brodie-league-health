@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sourceClient, sourceConfigured } from "@/lib/source-apps/clients";
+import { fetchAll } from "@/lib/fetch-all";
 import { fetchDirectory, normEmail, normName, type Directory } from "@/lib/directory";
 import { sameLocation } from "@/lib/location-match";
 
@@ -78,18 +79,6 @@ type Want = {
   byName: boolean;
 };
 
-/** Supabase returns at most 1000 rows per select, silently. */
-async function fetchAll<T>(
-  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await page(from, from + 999);
-    if (error) throw new Error(error.message);
-    out.push(...((data ?? []) as T[]));
-    if ((data ?? []).length < 1000) return out;
-  }
-}
 
 /** Training's hire dates by lowercase email; empty when Training isn't connected. */
 async function trainingHireDates(): Promise<Map<string, string>> {

@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sourceClient } from "@/lib/source-apps/clients";
+import { fetchAll } from "@/lib/fetch-all";
 
 // Staff for the Staff performance page: everyone in the Training app, with
 // their primary role and the venues they cover, plus their latest rating here.
@@ -32,18 +33,6 @@ export function roleRank(slug: string): number {
   return i === -1 ? ROLE_ORDER.length : i;
 }
 
-// Supabase returns at most 1000 rows per select, silently.
-async function fetchAll<T>(
-  page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>,
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await page(from, from + 999);
-    if (error) throw new Error(error.message);
-    out.push(...((data ?? []) as T[]));
-    if ((data ?? []).length < 1000) return out;
-  }
-}
 
 type TrainingUser = {
   id: string;
