@@ -26,6 +26,7 @@ import { ChipTile, type Chip } from "./ChipTile";
 import RegLeaderboard from "./RegLeaderboard";
 import RegHistory from "./RegHistory";
 import { goalLookup } from "@/lib/goal-overrides";
+import { fetchAll } from "@/lib/fetch-all";
 import { BackToTopButton, ScrollUpButton } from "./ScrollUpButton";
 import { SectionJumpBar } from "./SectionJumpBar";
 import { VenueDays, VenueDaysButton } from "./VenueDays";
@@ -1399,22 +1400,31 @@ async function loadTrainingOutstanding(scope: Scope): Promise<Map<string, { loc:
   if (!sourceConfigured("training")) return null;
   try {
     const sb = sourceClient("training")!;
-    const [mods, roleLinks, explicitLinks, comps, exclusions, users, locs, userLocs] = await Promise.all([
+    // Completions, assignments, exclusions and locations are read a page at a
+    // time: Supabase stops at 1,000 rows without saying so. Completions passed
+    // 1,000 in November 2026, and the newest fell off the end, so people who
+    // had just passed (Devin Zalec's AHS Playbook) were named here as not
+    // certified while the counts beside them, from the feed, were right.
+    const [mods, roleLinks, explicitRows, compRows, exclusionRows, users, locs, userLocRows] = await Promise.all([
       sb.from("modules").select("id, title, status").eq("status", "published"),
       sb.from("module_roles").select("module_id, role:roles!inner ( slug )"),
-      sb.from("module_assignments").select("user_id, module_id"),
-      sb.from("completions").select("user_id, module_id"),
-      sb.from("module_exclusions").select("user_id, module_id"),
+      fetchAll<{ user_id: string; module_id: string }>((a, b) =>
+        sb.from("module_assignments").select("user_id, module_id").order("id").range(a, b)),
+      fetchAll<{ user_id: string; module_id: string }>((a, b) =>
+        sb.from("completions").select("user_id, module_id").order("id").range(a, b)),
+      fetchAll<{ user_id: string; module_id: string }>((a, b) =>
+        sb.from("module_exclusions").select("user_id, module_id").order("user_id").order("module_id").range(a, b)),
       sb.from("users").select("id, full_name, email, location_id, primary_role:roles!users_primary_role_id_fkey ( slug )").eq("status", "active"),
       sb.from("locations").select("id, name"),
-      sb.from("user_locations").select("user_id, location_id"),
+      fetchAll<{ user_id: string; location_id: string }>((a, b) =>
+        sb.from("user_locations").select("user_id, location_id").order("user_id").order("location_id").range(a, b)),
     ]);
     type U = { id: string; full_name: string | null; email: string | null; location_id: string | null;
       primary_role: { slug: string } | { slug: string }[] | null };
     const locName = new Map(((locs.data ?? []) as { id: string; name: string }[]).map((l) => [l.id, l.name]));
     // Every location someone covers, not just the primary one on their row.
     const covered = new Map<string, Set<string>>();
-    for (const r of (userLocs.data ?? []) as { user_id: string; location_id: string }[]) {
+    for (const r of userLocRows) {
       if (!covered.has(r.user_id)) covered.set(r.user_id, new Set());
       covered.get(r.user_id)!.add(r.location_id);
     }
@@ -1437,7 +1447,7 @@ async function loadTrainingOutstanding(scope: Scope): Promise<Map<string, { loc:
       rolesByModule.get(rl.module_id)!.add(r.slug);
     }
     const excludedByModule = new Map<string, Set<string>>();
-    for (const e of (exclusions.data ?? []) as { user_id: string; module_id: string }[]) {
+    for (const e of exclusionRows) {
       if (!excludedByModule.has(e.module_id)) excludedByModule.set(e.module_id, new Set());
       excludedByModule.get(e.module_id)!.add(e.user_id);
     }
@@ -1448,12 +1458,11 @@ async function loadTrainingOutstanding(scope: Scope): Promise<Map<string, { loc:
       const assigned = new Set(
         userRows.filter((u) => { const r = roleOf(u); return !!r && slugs.has(r) && !excused.has(u.id); }).map((u) => u.id),
       );
-      for (const e of (explicitLinks.data ?? []) as { user_id: string; module_id: string }[]) {
+      for (const e of explicitRows) {
         if (e.module_id === m.id && activeIds.has(e.user_id)) assigned.add(e.user_id);
       }
       const done = new Set(
-        ((comps.data ?? []) as { user_id: string; module_id: string }[])
-          .filter((c) => c.module_id === m.id).map((c) => c.user_id),
+        compRows.filter((c) => c.module_id === m.id).map((c) => c.user_id),
       );
       const byLoc = new Map<string, string[]>();
       for (const u of userRows) {
