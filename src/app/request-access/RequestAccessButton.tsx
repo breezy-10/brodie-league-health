@@ -5,9 +5,6 @@ import { useState } from "react";
 export default function RequestAccessButton() {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [msg, setMsg] = useState("");
-  // The request is on the list either way; this only says whether the Slack
-  // nudge went with it, so nobody is told they were announced when they weren't.
-  const [notified, setNotified] = useState(true);
 
   async function submit() {
     setState("sending");
@@ -16,7 +13,6 @@ export default function RequestAccessButton() {
       const res = await fetch("/api/request-access", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not send the request");
-      setNotified(data.notified !== false);
       setState("sent");
     } catch (err) {
       setState("error");
@@ -27,9 +23,7 @@ export default function RequestAccessButton() {
   if (state === "sent") {
     return (
       <p className="auth-body" style={{ color: "var(--green)", fontWeight: 600, margin: 0 }}>
-        {notified
-          ? "Request sent. Sohaib has been notified."
-          : "Request sent. It's on Sohaib's list, so message him if it's urgent."}
+        Your request has been sent to the operations team.
       </p>
     );
   }

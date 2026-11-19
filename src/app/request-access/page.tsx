@@ -25,7 +25,7 @@ export default async function RequestAccessPage() {
         <p className="auth-eyebrow">League Health</p>
         <h1 className="auth-title">You&apos;re not on the list yet</h1>
         <p className="auth-body">
-          League Health is invite only. Ask for access and Sohaib gets a Slack message straight away.
+          League Health is invite only. Request access and it goes to the operations team.
         </p>
         <RequestAccessButton />
         <p className="auth-foot">Signed in as {user.email}</p>
