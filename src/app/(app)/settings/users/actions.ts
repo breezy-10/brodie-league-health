@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { requireRole, isAllowedEmail } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserRole } from "./roles";
+import { notifyAccessApproved } from "@/lib/access-request";
 
 // Every mutation here runs through the service-role admin client: the profiles
 // RLS only lets a user update their own row, so admin edits/invites must bypass
@@ -211,11 +212,25 @@ export async function setUserActive(userId: string, active: boolean): Promise<{ 
         return { error: "Only an admin can change an Admin's access." };
       }
     }
+    // Read first: an approval is announced in #ops-apps-access-requests only
+    // when it lets in someone who was waiting on a request.
+    const { data: prior } = await admin
+      .from("profiles")
+      .select("email, full_name, active, requested_at")
+      .eq("id", userId)
+      .maybeSingle();
     const { error } = await admin
       .from("profiles")
       .update({ active, updated_at: new Date().toISOString() })
       .eq("id", userId);
     if (error) return { error: error.message };
+    if (active && prior && !prior.active && prior.requested_at && prior.email) {
+      await notifyAccessApproved({
+        email: prior.email,
+        name: prior.full_name,
+        by: profile?.full_name || user.email,
+      });
+    }
     revalidatePath("/settings/users");
     return { ok: true };
   } catch (err) {
