@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyAccessRequested } from "@/lib/access-request";
 
-// Raised in this app, notified by this app. The Ops Hub is not involved.
+// Raised in this app and posted by the Ops Hub in #ops-apps-access-requests
+// (lib/access-request.ts).
 export async function POST() {
   const supabase = await createClient();
   const {
