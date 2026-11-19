@@ -40,7 +40,7 @@ export async function POST() {
   const { error } = await admin.from("profiles").upsert(row, { onConflict: "id" });
   if (error) {
     return NextResponse.json(
-      { error: "Couldn't save the request. Message Sohaib directly." },
+      { error: "Couldn't send the request. Try again in a minute." },
       { status: 502 }
     );
   }
