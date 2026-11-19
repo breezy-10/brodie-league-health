@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { isAllowedEmail } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/error", "/api/cron"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/auth/error", "/api/cron", "/api/access-status"];
 
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({ request: req });
