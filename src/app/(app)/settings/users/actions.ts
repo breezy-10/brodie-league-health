@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { requireRole, isAllowedEmail } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { UserRole } from "./roles";
-import { notifyAccessApproved } from "@/lib/access-request";
+import { ROLE_LABELS, type UserRole } from "./roles";
+import { notifyAccessApproved, notifyAccessDenied } from "@/lib/access-request";
 
 // Every mutation here runs through the service-role admin client: the profiles
 // RLS only lets a user update their own row, so admin edits/invites must bypass
@@ -183,6 +183,13 @@ export async function denyUser(userId: string): Promise<{ ok: true } | { error: 
         return { error: "Only an admin can deny an Admin." };
       }
     }
+    // Read first: denying someone who was waiting is answered in
+    // #ops-apps-access-requests (they are not told).
+    const { data: prior } = await admin
+      .from("profiles")
+      .select("email, full_name, active, requested_at")
+      .eq("id", userId)
+      .maybeSingle();
     const { error } = await admin
       .from("profiles")
       .update({ active: false, requested_at: null, updated_at: new Date().toISOString() })
@@ -192,6 +199,9 @@ export async function denyUser(userId: string): Promise<{ ok: true } | { error: 
     // the request page, where they would ask again immediately.
     const { error: banErr } = await admin.auth.admin.updateUserById(userId, { ban_duration: "876000h" });
     if (banErr) return { error: banErr.message };
+    if (prior && !prior.active && prior.requested_at && prior.email) {
+      await notifyAccessDenied({ email: prior.email, name: prior.full_name, by: profile?.full_name || user.email });
+    }
     revalidatePath("/settings/users");
     return { ok: true };
   } catch (err) {
@@ -216,7 +226,7 @@ export async function setUserActive(userId: string, active: boolean): Promise<{ 
     // when it lets in someone who was waiting on a request.
     const { data: prior } = await admin
       .from("profiles")
-      .select("email, full_name, active, requested_at")
+      .select("email, full_name, active, requested_at, role")
       .eq("id", userId)
       .maybeSingle();
     const { error } = await admin
@@ -229,6 +239,7 @@ export async function setUserActive(userId: string, active: boolean): Promise<{ 
         email: prior.email,
         name: prior.full_name,
         by: profile?.full_name || user.email,
+        role: ROLE_LABELS[prior.role as UserRole] ?? prior.role,
       });
     }
     revalidatePath("/settings/users");
