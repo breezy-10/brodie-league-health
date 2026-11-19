@@ -136,7 +136,7 @@ export function EditUser({
         <div className="flex items-start justify-between px-6 pt-6">
           <div>
             <div className="text-xs mb-1" style={{ color: "var(--glass-gold)" }}>
-              Edit user{isArchived ? " · Archived" : isRequested ? " · Requested access" : isInvited ? " · Invited" : ""}
+              Edit user{isArchived ? " · Archived" : isRequested ? " · Access requested" : isInvited ? " · Invited" : ""}
             </div>
             <h2 className="text-2xl font-semibold" style={{ color: "var(--glass-text)" }}>{user.fullName}</h2>
             <p className="text-xs mt-0.5 text-glass-text-tertiary">{user.email}</p>
